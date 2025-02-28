@@ -22,7 +22,7 @@ The Canvas MCP Server provides a local interface to Canvas LMS API, allowing you
 
 1. Clone this repository:
 ```bash
-git clone [repository-url]
+git clone https://github.com/vishalsachdev/canvas-mcp.git
 cd canvas-mcp
 ```
 
