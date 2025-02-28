@@ -1,0 +1,38 @@
+# Ignore all Python files by default
+*.py
+
+# Except the cached server implementation
+!canvas_server_cached.py
+
+# Python virtual environment
+venv/
+fresh_venv/
+.venv/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Environment variables
+.env
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS specific files
+.DS_Store
+
+# Logs
+*.log
+
+# Documentation folder
+documents/
