@@ -11,9 +11,20 @@ echo "Using virtual environment at: $VENV_PATH" >&2
 echo "Activating virtual environment..." >&2
 source "$VENV_PATH/bin/activate"
 
-# Set environment variables
-export CANVAS_API_TOKEN="14559~uZMKmDLWH62e98YzPDmYHcyWt8vV347NRUr4ZTUch6Eay874GBfmVEZe79r2tKDr"
-export CANVAS_API_URL="https://canvas.illinois.edu/api/v1"
+# Load environment variables from .env file
+if [ -f .env ]; then
+    echo "Loading environment variables from .env file..." >&2
+    export $(cat .env | grep -v '^#' | xargs)
+else
+    echo "Error: .env file not found. Please create one with CANVAS_API_TOKEN and CANVAS_API_URL" >&2
+    exit 1
+fi
+
+# Verify required environment variables are set
+if [ -z "$CANVAS_API_TOKEN" ] || [ -z "$CANVAS_API_URL" ]; then
+    echo "Error: CANVAS_API_TOKEN and CANVAS_API_URL must be set in .env file" >&2
+    exit 1
+fi
 
 # Go to the script directory
 cd "/Users/vishalsachdev/Desktop/canvas-mcp"
