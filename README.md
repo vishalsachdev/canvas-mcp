@@ -42,7 +42,7 @@ pip install -r requirements.txt
 ### 1. Server Configuration
 
 1. Edit the `start_canvas_server.sh` script to set your:
-   - Canvas API Token (from your university's Canvas instance)
+   - Canvas API Token ([How to get your Canvas API token](https://community.canvaslms.com/t5/Canvas-Basics-Guide/How-do-I-manage-API-access-tokens-in-my-user-account/ta-p/615312))
    - Canvas API URL (change the domain to match your university)
      ```bash
      # Example for University of Illinois:
