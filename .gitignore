@@ -27,6 +27,7 @@ build/
 .idea/
 *.swp
 *.swo
+.cursorrules
 
 # macOS specific files
 .DS_Store
