@@ -1,8 +1,7 @@
-# Ignore all Python files by default
-*.py
-
-# Except the cached server implementation
-!canvas_server_cached.py
+# Python files to ignore
+# Uncomment the following lines if you want to ignore specific Python files
+# some_specific_file.py
+# temp_*.py
 
 # Python virtual environment
 venv/

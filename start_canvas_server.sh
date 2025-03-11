@@ -4,7 +4,7 @@
 echo "Starting Canvas MCP Server..." >&2
 
 # Path to your virtual environment
-VENV_PATH="/Users/vishalsachdev/Desktop/canvas-mcp/fresh_venv"
+VENV_PATH="/Users/vishal/Desktop/canvas-mcp/canvas-mcp"
 echo "Using virtual environment at: $VENV_PATH" >&2
 
 # Activate the virtual environment
@@ -27,7 +27,7 @@ if [ -z "$CANVAS_API_TOKEN" ] || [ -z "$CANVAS_API_URL" ]; then
 fi
 
 # Go to the script directory
-cd "/Users/vishalsachdev/Desktop/canvas-mcp"
+cd "/Users/vishal/Desktop/canvas-mcp"
 echo "Changed directory to: $(pwd)" >&2
 
 # Run the Python script with the specific python from the virtualenv
