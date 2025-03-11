@@ -12,11 +12,12 @@ echo "Activating virtual environment..." >&2
 source "$VENV_PATH/bin/activate"
 
 # Load environment variables from .env file
-if [ -f .env ]; then
-    echo "Loading environment variables from .env file..." >&2
-    export $(cat .env | grep -v '^#' | xargs)
+ENV_FILE="/Users/vishal/Desktop/canvas-mcp/.env"
+if [ -f "$ENV_FILE" ]; then
+    echo "Loading environment variables from .env file: $ENV_FILE" >&2
+    export $(cat "$ENV_FILE" | grep -v '^#' | xargs)
 else
-    echo "Error: .env file not found. Please create one with CANVAS_API_TOKEN and CANVAS_API_URL" >&2
+    echo "Error: .env file not found at $ENV_FILE. Please create one with CANVAS_API_TOKEN and CANVAS_API_URL" >&2
     exit 1
 fi
 

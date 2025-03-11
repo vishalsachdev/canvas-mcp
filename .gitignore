@@ -7,6 +7,7 @@
 venv/
 fresh_venv/
 .venv/
+canvas-mcp/
 
 # Python cache files
 __pycache__/
@@ -36,3 +37,10 @@ build/
 
 # Documentation folder
 documents/
+
+# Development tools and files
+extract_canvas_api_docs.py
+canvas_api_docs/
+get_course_grades.py
+gradebook.json
+.env.template

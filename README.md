@@ -143,6 +143,7 @@ The main implementation file is `canvas_server_cached.py`, which provides:
 - Error handling and reporting
 - Support for both course IDs and course codes
 
+
 ### Dependencies
 
 The server requires the following Python packages:
