@@ -10,6 +10,7 @@ The Canvas MCP Server provides a local interface to Canvas LMS API, allowing you
 - View announcements
 - Retrieve course syllabi and modules
 - Manage users and enrollments
+- Generate course summaries
 
 ## Prerequisites
 
@@ -28,8 +29,8 @@ cd canvas-mcp
 
 2. Create and activate a virtual environment:
 ```bash
-python -m venv fresh_venv
-source fresh_venv/bin/activate  # On Unix/macOS
+python -m venv canvas-mcp
+source canvas-mcp/bin/activate  # On Unix/macOS
 ```
 
 3. Install dependencies:
@@ -39,26 +40,32 @@ pip install -r requirements.txt
 
 ## Configuration
 
-### 1. Server Configuration
+### 1. Create Environment File
 
-1. Edit the `start_canvas_server.sh` script to set your:
-   - Canvas API Token ([How to get your Canvas API token](https://community.canvaslms.com/t5/Canvas-Basics-Guide/How-do-I-manage-API-access-tokens-in-my-user-account/ta-p/615312))
-   - Canvas API URL (change the domain to match your university)
-     ```bash
-     # Example for University of Illinois:
-     export CANVAS_API_URL="https://canvas.illinois.edu/api/v1"
-     # Change to your university's Canvas domain, e.g.:
-     export CANVAS_API_URL="https://canvas.university.edu/api/v1"
-     ```
-   - Virtual environment path (default: `fresh_venv` in the project directory)
-   - Working directory
+Create a `.env` file in the root directory with the following variables:
 
-2. Make the start script executable:
+```
+CANVAS_API_TOKEN=your_canvas_api_token_here
+CANVAS_API_URL=https://canvas.youruniversity.edu/api/v1
+```
+
+Replace the values with:
+- Your Canvas API Token ([How to get your Canvas API token](https://community.canvaslms.com/t5/Canvas-Basics-Guide/How-do-I-manage-API-access-tokens-in-my-user-account/ta-p/615312))
+- Your university's Canvas API URL
+
+### 2. Configure Start Script
+
+The `start_canvas_server.sh` script is already configured to:
+- Load environment variables from the `.env` file
+- Activate the virtual environment
+- Run the cached server implementation
+
+Make the start script executable:
 ```bash
 chmod +x start_canvas_server.sh
 ```
 
-### 2. Claude Desktop Configuration
+### 3. Claude Desktop Configuration
 
 1. Install [Claude Desktop](https://claude.ai/download) if you haven't already.
 
@@ -83,62 +90,107 @@ Replace `/Users/YOUR_USERNAME/path/to/canvas-mcp` with the absolute path to wher
 
 4. Restart Claude Desktop to load the new configuration.
 
-5. Verify the server is working by looking for the hammer icon 🔨 in Claude Desktop - it should show the available Canvas API tools.
+## Available Tools
+
+The server provides the following tools for Canvas LMS interaction:
+
+### Course Management
+- `list_courses`: List all courses for the authenticated user
+- `get_course_details`: Get detailed information about a specific course
+- `summarize_course`: Generate a comprehensive summary of a course
+
+### Assignments
+- `list_assignments`: List all assignments for a course
+- `get_assignment_details`: Get detailed information about a specific assignment
+- `get_assignment_description`: Get the full description of an assignment
+
+### Submissions
+- `list_submissions`: List all submissions for a specific assignment
+
+### Users
+- `list_users`: List all users enrolled in a course
+
+### Resources
+- `list_announcements`: List all announcements for a course
+- `get_course_syllabus`: Get the syllabus for a course
+- `get_course_modules`: Get all modules for a course
 
 ## Usage with Claude Desktop
 
-This MCP server is designed to work seamlessly with Claude Desktop. When using with Claude Desktop:
+This MCP server is designed to work seamlessly with Claude Desktop:
 
-1. You don't need to manually start the server - Claude Desktop will automatically initiate the `start_canvas_server.sh` script when needed.
+1. Claude Desktop will automatically start the server when needed
+2. You'll see the Canvas API tools in the Claude Desktop interface (hammer icon 🔨)
+3. You can ask Claude to perform Canvas operations like "Show me my courses" or "Get the syllabus for my Biology course"
 
-2. Claude Desktop will handle:
-   - Starting the server process
-   - Managing the server lifecycle
-   - Connecting to the server for Canvas LMS operations
-
-3. The server will run locally and communicate with Claude Desktop through the MCP protocol.
-
-Note: If you're using a different MCP client, you may need to start the server manually using:
+For manual testing, you can start the server directly:
 ```bash
 ./start_canvas_server.sh
 ```
 
-## Server Implementations
+## Technical Details
 
-The repository includes multiple server implementations:
-- `canvas_server_cached.py` (recommended): Implements caching for better performance
-- `canvas_mcp_server.py`: Basic implementation
-- `canvas_mcp_server_new.py`: Alternative implementation
+### Server Implementation
 
-The start script is configured to use `canvas_server_cached.py` by default.
+The server uses:
+- `fastmcp`: A Python library for building MCP servers
+- `httpx`: For asynchronous HTTP requests to the Canvas API
+- Caching mechanisms to improve performance for course lookups
 
-## Features
+The main implementation file is `canvas_server_cached.py`, which provides:
+- Efficient caching of course information
+- Pagination handling for Canvas API requests
+- Error handling and reporting
+- Support for both course IDs and course codes
 
-The server provides various endpoints for Canvas LMS interaction:
-- Course management
-- Assignment handling
-- Submission access
-- User management
-- Announcement retrieval
-- Resource access (syllabi, modules)
+### Dependencies
 
-## Security Note
-
-Keep your Canvas API token secure and never commit it to version control. The token in the start script should be replaced with your own token.
-
-## Client Compatibility
-
-This MCP server is primarily designed for use with Claude Desktop. While it may work with other MCP clients, compatibility is not guaranteed.
+The server requires the following Python packages:
+- `httpx`: For HTTP requests
+- `fastmcp`: For MCP server implementation
+- `requests`: For some HTTP operations
+- Other standard libraries for encoding and networking
 
 ## Troubleshooting
 
 If you encounter issues:
-1. Ensure your virtual environment is properly activated
-2. Verify your Canvas API token is valid
-3. Check the API URL is correct
-4. Make sure all dependencies are installed
-5. Check the server logs for error messages
+
+1. **Server Won't Start**
+   - Check that your `.env` file exists and contains valid credentials
+   - Verify the virtual environment path in `start_canvas_server.sh`
+   - Ensure all dependencies are installed
+
+2. **Authentication Errors**
+   - Verify your Canvas API token is valid and not expired
+   - Check that you have the necessary permissions in Canvas
+
+3. **Connection Issues**
+   - Ensure your Canvas API URL is correct
+   - Check your internet connection
+   - Verify your institution hasn't restricted API access
+
+4. **Debugging**
+   - Check the server logs in the Claude Desktop console
+   - Try running the server manually to see error output
+
+## Security Considerations
+
+- Your Canvas API token grants access to your Canvas account
+- Never commit your `.env` file to version control
+- Consider using a token with limited permissions if possible
+- The server runs locally on your machine and doesn't expose your credentials externally
 
 ## Contributing
 
-Feel free to submit issues and pull requests to improve the server functionality.
+Contributions are welcome! Feel free to:
+- Submit issues for bugs or feature requests
+- Create pull requests with improvements
+- Share your use cases and feedback
+
+## License
+
+This project is available for use under standard open-source terms.
+
+---
+
+Created by [Vishal Sachdev](https://github.com/vishalsachdev)
