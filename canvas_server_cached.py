@@ -1,17 +1,193 @@
 #!/usr/bin/env python3
-from typing import Any, Dict, List, Optional, Union, TypedDict
+from typing import Any, Dict, List, Optional, Union, TypedDict, Callable, TypeVar, cast, get_type_hints
 import os
 import sys
 import httpx
 import json
+import datetime
+import functools
+import inspect
+import re
 from mcp.server.fastmcp import FastMCP
+
+# Date/Time Formatting Standard
+# ---------------------------
+# This MCP server standardizes all date/time values to ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ)
+# with the following conventions:
+# - All dates include time components (even if they're 00:00:00)
+# - All dates include timezone information (Z for UTC or +/-HH:MM offset)
+# - UTC timezone is used for all internal date handling
+# - Dates without timezone information are assumed to be in UTC
+# - The format_date() function handles conversion of various formats to this standard
 
 # Initialize FastMCP server
 mcp = FastMCP("canvas-api")
 
+# Type definitions for parameter validation
+T = TypeVar('T')
+F = TypeVar('F', bound=Callable[..., Any])
+
 # Constants
 API_BASE_URL = os.environ.get("CANVAS_API_URL", "https://canvas.illinois.edu/api/v1")
 API_TOKEN = os.environ.get("CANVAS_API_TOKEN", "")
+
+# Parameter validation and conversion system
+def validate_parameter(param_name: str, value: Any, expected_type: Any) -> Any:
+    """
+    Validate and convert a parameter to the expected type.
+    
+    Args:
+        param_name: Name of the parameter (for error messages)
+        value: The value to validate and convert
+        expected_type: The expected Python type
+        
+    Returns:
+        The validated and converted value
+        
+    Raises:
+        ValueError: If validation fails
+    """
+    # Special handling for Union types (e.g., Union[int, str])
+    origin = getattr(expected_type, "__origin__", None)
+    args = getattr(expected_type, "__args__", None)
+    
+    # Handle Optional types (which are Union[type, None])
+    is_optional = False
+    if origin is Union and type(None) in args:
+        is_optional = True
+        # Extract the non-None type(s)
+        non_none_types = [t for t in args if t is not type(None)]
+        if len(non_none_types) == 1:
+            expected_type = non_none_types[0]
+        else:
+            # It's a Union of multiple types plus None
+            expected_type = Union[tuple(non_none_types)]
+    
+    # Handle None values for optional parameters
+    if value is None:
+        if is_optional:
+            return None
+        else:
+            raise ValueError(f"Parameter '{param_name}' cannot be None")
+    
+    # Handle Union types (including those extracted from Optional)
+    if origin is Union:
+        # Try each type in the Union
+        errors = []
+        for arg_type in args:
+            if arg_type is type(None) and value is None:
+                return None
+                
+            try:
+                return validate_parameter(param_name, value, arg_type)
+            except ValueError as e:
+                errors.append(str(e))
+        
+        # If we get here, none of the types worked
+        type_names = ", ".join(str(t) for t in args)
+        raise ValueError(f"Parameter '{param_name}' with value '{value}' (type: {type(value).__name__}) "
+                        f"could not be converted to any of the expected types: {type_names}")
+    
+    # Handle basic types with conversion
+    if expected_type is str:
+        return str(value)
+    elif expected_type is int:
+        try:
+            if isinstance(value, str) and not value.strip():
+                raise ValueError(f"Parameter '{param_name}' is an empty string, cannot convert to int")
+            return int(value)
+        except (ValueError, TypeError):
+            raise ValueError(f"Parameter '{param_name}' with value '{value}' could not be converted to int")
+    elif expected_type is float:
+        try:
+            if isinstance(value, str) and not value.strip():
+                raise ValueError(f"Parameter '{param_name}' is an empty string, cannot convert to float")
+            return float(value)
+        except (ValueError, TypeError):
+            raise ValueError(f"Parameter '{param_name}' with value '{value}' could not be converted to float")
+    elif expected_type is bool:
+        if isinstance(value, bool):
+            return value
+        elif isinstance(value, str):
+            value_lower = value.lower().strip()
+            if value_lower in ("true", "yes", "1", "t", "y"):
+                return True
+            elif value_lower in ("false", "no", "0", "f", "n"):
+                return False
+            else:
+                raise ValueError(f"Parameter '{param_name}' with value '{value}' could not be converted to bool")
+        elif isinstance(value, (int, float)):
+            return bool(value)
+        else:
+            raise ValueError(f"Parameter '{param_name}' with value '{value}' could not be converted to bool")
+    elif expected_type is list or origin is list:
+        if isinstance(value, list):
+            return value
+        elif isinstance(value, str):
+            # Try to parse as JSON array
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, list):
+                    return parsed
+            except json.JSONDecodeError:
+                pass
+                
+            # Try comma-separated values
+            return [item.strip() for item in value.split(',') if item.strip()]
+        else:
+            raise ValueError(f"Parameter '{param_name}' with value '{value}' could not be converted to list")
+    elif expected_type is dict or origin is dict:
+        if isinstance(value, dict):
+            return value
+        elif isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, dict):
+                    return parsed
+                else:
+                    raise ValueError(f"Parameter '{param_name}' parsed as JSON but is not a dict")
+            except json.JSONDecodeError:
+                raise ValueError(f"Parameter '{param_name}' with value '{value}' could not be parsed as JSON dict")
+        else:
+            raise ValueError(f"Parameter '{param_name}' with value '{value}' could not be converted to dict")
+    
+    # For other types, just check if it's an instance
+    if isinstance(value, expected_type):
+        return value
+    
+    # If we get here, validation failed
+    raise ValueError(f"Parameter '{param_name}' with value '{value}' (type: {type(value).__name__}) "
+                    f"is not compatible with expected type: {expected_type}")
+
+def validate_params(func: F) -> F:
+    """Decorator to validate function parameters based on type hints."""
+    sig = inspect.signature(func)
+    type_hints = get_type_hints(func)
+    
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        # Combine args and kwargs based on function signature
+        bound_args = sig.bind(*args, **kwargs)
+        bound_args.apply_defaults()
+        
+        # Validate each parameter
+        for param_name, param_value in bound_args.arguments.items():
+            if param_name in type_hints:
+                expected_type = type_hints[param_name]
+                try:
+                    # Skip return type annotation
+                    if param_name != "return":
+                        bound_args.arguments[param_name] = validate_parameter(param_name, param_value, expected_type)
+                except ValueError as e:
+                    # Return error as JSON response
+                    error_message = str(e)
+                    print(f"Parameter validation error: {error_message}", file=sys.stderr)
+                    return json.dumps({"error": error_message})
+        
+        # Call the original function with validated parameters
+        return await func(**bound_args.arguments)
+    
+    return cast(F, wrapper)
 
 # Global cache for course codes to IDs
 course_code_to_id_cache = {}
@@ -47,16 +223,79 @@ http_client = httpx.AsyncClient(
 )
 
 # Helper functions
+def parse_date(date_str: Optional[str]) -> Optional[datetime.datetime]:
+    """Parse a date string into a datetime object.
+    
+    Attempts to parse various date formats into a standard datetime object.
+    If timezone information is present, it's preserved; otherwise, UTC is assumed.
+    
+    Args:
+        date_str: The date string to parse
+        
+    Returns:
+        datetime object or None if parsing fails
+    """
+    if not date_str:
+        return None
+        
+    # Remove any surrounding whitespace
+    date_str = date_str.strip()
+    
+    # Try different date formats
+    formats = [
+        # ISO 8601 formats
+        '%Y-%m-%dT%H:%M:%SZ',  # 2023-01-15T14:30:00Z
+        '%Y-%m-%dT%H:%M:%S.%fZ',  # 2023-01-15T14:30:00.000Z
+        '%Y-%m-%dT%H:%M:%S%z',  # 2023-01-15T14:30:00+0000
+        '%Y-%m-%dT%H:%M:%S.%f%z',  # 2023-01-15T14:30:00.000+0000
+        
+        # Common date formats
+        '%Y-%m-%d %H:%M:%S',  # 2023-01-15 14:30:00
+        '%Y-%m-%d',  # 2023-01-15
+        '%m/%d/%Y %H:%M:%S',  # 01/15/2023 14:30:00
+        '%m/%d/%Y',  # 01/15/2023
+    ]
+    
+    for fmt in formats:
+        try:
+            dt = datetime.datetime.strptime(date_str, fmt)
+            
+            # If no timezone info, assume UTC
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=datetime.timezone.utc)
+                
+            return dt
+        except ValueError:
+            continue
+    
+    # If all parsing attempts fail, return None
+    print(f"Warning: Could not parse date string: {date_str}", file=sys.stderr)
+    return None
+
 def format_date(date_str: Optional[str]) -> str:
-    """Format a date string for display or return 'N/A' if None."""
+    """Format a date string to ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ) or return 'N/A' if None.
+    
+    All dates are converted to ISO 8601 format for consistency across the API.
+    Timezone information is preserved if present, otherwise UTC is assumed.
+    
+    Args:
+        date_str: The date string to format
+        
+    Returns:
+        Formatted date string in ISO 8601 format or 'N/A' if None
+    """
     if not date_str:
         return "N/A"
-    
-    try:
-        # You could add more formatting here if needed
-        return date_str
-    except:
-        return date_str
+        
+    dt = parse_date(date_str)
+    if not dt:
+        return date_str  # Return original if parsing fails
+        
+    # Format to ISO 8601 with Z for UTC or offset for other timezones
+    if dt.tzinfo == datetime.timezone.utc:
+        return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+    else:
+        return dt.strftime('%Y-%m-%dT%H:%M:%S%z')
 
 def truncate_text(text: str, max_length: int = 100) -> str:
     """Truncate text to a maximum length and add ellipsis if needed."""
@@ -172,35 +411,49 @@ async def refresh_course_cache() -> bool:
     print(f"Cached {len(course_code_to_id_cache)} course codes", file=sys.stderr)
     return True
 
-async def get_course_id(course_identifier: str) -> Optional[str]:
-    """Get course ID from either course code or ID, with caching."""
+@validate_params
+async def get_course_id(course_identifier: Union[str, int]) -> Optional[str]:
+    """Get course ID from either course code or ID, with caching.
+    
+    Args:
+        course_identifier: The course identifier, which can be:
+                          - A course code (e.g., 'badm_554_120251_246794')
+                          - A numeric course ID (as string or int)
+                          - A SIS ID format (e.g., 'sis_course_id:xxx')
+    
+    Returns:
+        The course ID as a string
+    """
     global course_code_to_id_cache, id_to_course_code_cache
     
+    # Convert to string for consistent handling
+    course_str = str(course_identifier)
+    
     # If it looks like a numeric ID
-    if str(course_identifier).isdigit():
-        return str(course_identifier)
+    if course_str.isdigit():
+        return course_str
     
     # If it's a SIS ID format
-    if course_identifier.startswith("sis_course_id:"):
-        return course_identifier
+    if course_str.startswith("sis_course_id:"):
+        return course_str
     
     # If it's in our cache, return the ID
-    if course_identifier in course_code_to_id_cache:
-        return course_code_to_id_cache[course_identifier]
+    if course_str in course_code_to_id_cache:
+        return course_code_to_id_cache[course_str]
     
     # If it looks like a course code (contains underscores)
-    if "_" in course_identifier:
+    if "_" in course_str:
         # Try to refresh cache if it's not there
         if not course_code_to_id_cache:
             await refresh_course_cache()
-            if course_identifier in course_code_to_id_cache:
-                return course_code_to_id_cache[course_identifier]
+            if course_str in course_code_to_id_cache:
+                return course_code_to_id_cache[course_str]
         
         # Return SIS format as a fallback
-        return f"sis_course_id:{course_identifier}"
+        return f"sis_course_id:{course_str}"
     
     # Last resort, return as is
-    return course_identifier
+    return course_str
 
 async def get_course_code(course_id: str) -> Optional[str]:
     """Get course code from ID, with caching."""
@@ -280,7 +533,8 @@ async def list_courses(include_concluded: bool = False, include_all: bool = Fals
     return "Courses:\n\n" + "\n".join(courses_info)
 
 @mcp.tool()
-async def get_course_details(course_identifier: str) -> str:
+@validate_params
+async def get_course_details(course_identifier: Union[str, int]) -> str:
     """Get detailed information about a specific course.
     
     Args:
@@ -316,7 +570,8 @@ async def get_course_details(course_identifier: str) -> str:
 # ===== ASSIGNMENTS TOOLS =====
 
 @mcp.tool()
-async def list_assignments(course_identifier: str) -> str:
+@validate_params
+async def list_assignments(course_identifier: Union[str, int]) -> str:
     """List assignments for a specific course.
     
     Args:
@@ -354,7 +609,8 @@ async def list_assignments(course_identifier: str) -> str:
 
 
 @mcp.tool()
-async def get_assignment_details(course_identifier: str, assignment_id: str) -> str:
+@validate_params
+async def get_assignment_details(course_identifier: Union[str, int], assignment_id: Union[str, int]) -> str:
     """Get detailed information about a specific assignment.
     
     Args:
@@ -363,8 +619,11 @@ async def get_assignment_details(course_identifier: str, assignment_id: str) -> 
     """
     course_id = await get_course_id(course_identifier)
     
+    # Ensure assignment_id is a string
+    assignment_id_str = str(assignment_id)
+    
     response = await make_canvas_request(
-        "get", f"/courses/{course_id}/assignments/{assignment_id}"
+        "get", f"/courses/{course_id}/assignments/{assignment_id_str}"
     )
     
     if "error" in response:
@@ -387,7 +646,8 @@ async def get_assignment_details(course_identifier: str, assignment_id: str) -> 
 # ===== SUBMISSIONS TOOLS =====
 
 @mcp.tool()
-async def list_submissions(course_identifier: str, assignment_id: str) -> str:
+@validate_params
+async def list_submissions(course_identifier: Union[str, int], assignment_id: Union[str, int]) -> str:
     """List submissions for a specific assignment.
     
     Args:
@@ -396,12 +656,15 @@ async def list_submissions(course_identifier: str, assignment_id: str) -> str:
     """
     course_id = await get_course_id(course_identifier)
     
+    # Ensure assignment_id is a string
+    assignment_id_str = str(assignment_id)
+    
     params = {
         "per_page": 100
     }
     
     submissions = await fetch_all_paginated_results(
-        f"/courses/{course_id}/assignments/{assignment_id}/submissions", params
+        f"/courses/{course_id}/assignments/{assignment_id_str}/submissions", params
     )
     
     if isinstance(submissions, dict) and "error" in submissions:
@@ -848,7 +1111,8 @@ async def get_student_analytics(course_identifier: str,
     return output
 
 @mcp.tool()
-async def get_assignment_analytics(course_identifier: str, assignment_id: str) -> str:
+@validate_params
+async def get_assignment_analytics(course_identifier: Union[str, int], assignment_id: Union[str, int]) -> str:
     """Get detailed analytics about student performance on a specific assignment.
     
     Args:
@@ -860,9 +1124,12 @@ async def get_assignment_analytics(course_identifier: str, assignment_id: str) -
     
     course_id = await get_course_id(course_identifier)
     
+    # Ensure assignment_id is a string
+    assignment_id_str = str(assignment_id)
+    
     # Get assignment details
     assignment = await make_canvas_request(
-        "get", f"/courses/{course_id}/assignments/{assignment_id}"
+        "get", f"/courses/{course_id}/assignments/{assignment_id_str}"
     )
     
     if isinstance(assignment, dict) and "error" in assignment:
@@ -1132,12 +1399,16 @@ async def get_course_syllabus(course_identifier: str) -> str:
     description="Get the description for a specific assignment",
     uri="canvas://course/{course_identifier}/assignment/{assignment_id}/description"
 )
-async def get_assignment_description(course_identifier: str, assignment_id: str) -> str:
+@validate_params
+async def get_assignment_description(course_identifier: Union[str, int], assignment_id: Union[str, int]) -> str:
     """Get the description for a specific assignment."""
     course_id = await get_course_id(course_identifier)
     
+    # Ensure assignment_id is a string
+    assignment_id_str = str(assignment_id)
+    
     response = await make_canvas_request(
-        "get", f"/courses/{course_id}/assignments/{assignment_id}"
+        "get", f"/courses/{course_id}/assignments/{assignment_id_str}"
     )
     
     if "error" in response:
