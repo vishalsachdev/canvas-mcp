@@ -1,8 +1,6 @@
 # Canvas MCP Server
 
-<a href="https://glama.ai/mcp/servers/2l5xnixkva">
-  <img width="380" height="200" src="https://glama.ai/mcp/servers/2l5xnixkva/badge" />
-</a>
+
 
 This repository contains a Message Control Protocol (MCP) server implementation for interacting with the Canvas Learning Management System API. The server is designed to work with Claude Desktop and potentially other MCP clients.
 
