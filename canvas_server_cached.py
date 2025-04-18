@@ -500,6 +500,65 @@ async def list_announcements(course_identifier: str) -> str:
     course_display = await get_course_code(course_id) or course_identifier
     return f"Announcements for Course {course_display}:\n\n" + "\n".join(announcements_info)
 
+# ===== GROUPS TOOLS =====
+
+@mcp.tool()
+async def list_groups(course_identifier: str) -> str:
+    """List all groups and their members for a specific course.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    # Get all groups in the course
+    groups = await fetch_all_paginated_results(
+        f"/courses/{course_id}/groups", {"per_page": 100}
+    )
+    
+    if isinstance(groups, dict) and "error" in groups:
+        return f"Error fetching groups: {groups['error']}"
+    
+    if not groups:
+        return f"No groups found for course {course_identifier}."
+    
+    # Format the output
+    course_display = await get_course_code(course_id) or course_identifier
+    output = f"Groups for Course {course_display}:\n\n"
+    
+    for group in groups:
+        group_id = group.get("id")
+        group_name = group.get("name", "Unnamed group")
+        group_category = group.get("group_category_id", "Uncategorized")
+        member_count = group.get("members_count", 0)
+        
+        output += f"Group: {group_name}\n"
+        output += f"ID: {group_id}\n"
+        output += f"Category ID: {group_category}\n"
+        output += f"Member Count: {member_count}\n"
+        
+        # Get members for this group
+        members = await fetch_all_paginated_results(
+            f"/groups/{group_id}/users", {"per_page": 100}
+        )
+        
+        if isinstance(members, dict) and "error" in members:
+            output += f"Error fetching members: {members['error']}\n"
+        elif not members:
+            output += "No members in this group.\n"
+        else:
+            output += "Members:\n"
+            for member in members:
+                member_id = member.get("id")
+                member_name = member.get("name", "Unnamed user")
+                member_email = member.get("email", "No email")
+                
+                output += f"  - {member_name} (ID: {member_id})\n"
+        
+        output += "\n"
+    
+    return output
+
 # ===== ANALYTICS TOOLS =====
 
 @mcp.tool()
