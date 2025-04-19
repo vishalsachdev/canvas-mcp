@@ -384,6 +384,183 @@ async def get_assignment_details(course_identifier: str, assignment_id: str) -> 
     course_display = await get_course_code(course_id) or course_identifier
     return f"Assignment Details for ID {assignment_id} in course {course_display}:\n\n" + "\n".join(details)
 
+@mcp.tool()
+async def assign_peer_review(course_identifier: str, assignment_id: str, reviewer_id: str, reviewee_id: str) -> str:
+    """Manually assign a peer review to a student for a specific assignment.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+        assignment_id: The Canvas assignment ID
+        reviewer_id: The Canvas user ID of the student who will do the review
+        reviewee_id: The Canvas user ID of the student whose submission will be reviewed
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    # First, we need to get the submission ID for the reviewee
+    submissions = await make_canvas_request(
+        "get", 
+        f"/courses/{course_id}/assignments/{assignment_id}/submissions",
+        params={"per_page": 100}
+    )
+    
+    if "error" in submissions:
+        return f"Error fetching submissions: {submissions['error']}"
+    
+    # Find the submission for the reviewee
+    reviewee_submission = None
+    for submission in submissions:
+        if str(submission.get("user_id")) == str(reviewee_id):
+            reviewee_submission = submission
+            break
+    
+    # If no submission exists, we need to create a placeholder submission
+    if not reviewee_submission:
+        # Create a placeholder submission for the reviewee
+        placeholder_data = {
+            "submission": {
+                "user_id": reviewee_id,
+                "submission_type": "online_text_entry",
+                "body": "Placeholder submission for peer review"
+            }
+        }
+        
+        reviewee_submission = await make_canvas_request(
+            "post",
+            f"/courses/{course_id}/assignments/{assignment_id}/submissions",
+            data=placeholder_data
+        )
+        
+        if "error" in reviewee_submission:
+            return f"Error creating placeholder submission: {reviewee_submission['error']}"
+    
+    # Now assign the peer review using the submission ID
+    submission_id = reviewee_submission.get("id")
+    
+    # Data for the peer review assignment
+    data = {
+        "user_id": reviewer_id  # The user who will do the review
+    }
+    
+    # Make the API request to create the peer review
+    response = await make_canvas_request(
+        "post", 
+        f"/courses/{course_id}/assignments/{assignment_id}/submissions/{submission_id}/peer_reviews",
+        data=data
+    )
+    
+    if "error" in response:
+        return f"Error assigning peer review: {response['error']}"
+    
+    # Try to get the course code for display
+    course_display = await get_course_code(course_id) or course_identifier
+    
+    return f"Successfully assigned peer review in course {course_display}:\n" + \
+           f"Assignment ID: {assignment_id}\n" + \
+           f"Reviewer ID: {reviewer_id}\n" + \
+           f"Reviewee ID: {reviewee_id}\n" + \
+           f"Submission ID: {submission_id}"
+
+@mcp.tool()
+async def list_peer_reviews(course_identifier: str, assignment_id: str) -> str:
+    """List all peer review assignments for a specific assignment.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+        assignment_id: The Canvas assignment ID
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    # Get all submissions for this assignment
+    submissions = await fetch_all_paginated_results(
+        f"/courses/{course_id}/assignments/{assignment_id}/submissions",
+        {"include[]": "submission_comments", "per_page": 100}
+    )
+    
+    if isinstance(submissions, dict) and "error" in submissions:
+        return f"Error fetching submissions: {submissions['error']}"
+    
+    if not submissions:
+        return f"No submissions found for assignment {assignment_id}."
+    
+    # Get all users in the course for name lookups
+    users = await fetch_all_paginated_results(
+        f"/courses/{course_id}/users",
+        {"per_page": 100}
+    )
+    
+    if isinstance(users, dict) and "error" in users:
+        return f"Error fetching users: {users['error']}"
+    
+    # Create a mapping of user IDs to names
+    user_map = {}
+    for user in users:
+        user_id = str(user.get("id"))
+        user_name = user.get("name", "Unknown")
+        user_map[user_id] = user_name
+    
+    # Collect peer review data
+    peer_reviews_by_submission = {}
+    
+    for submission in submissions:
+        submission_id = submission.get("id")
+        user_id = str(submission.get("user_id"))
+        user_name = user_map.get(user_id, f"User {user_id}")
+        
+        # Get peer reviews for this submission
+        peer_reviews = await make_canvas_request(
+            "get",
+            f"/courses/{course_id}/assignments/{assignment_id}/submissions/{submission_id}/peer_reviews"
+        )
+        
+        if "error" in peer_reviews:
+            continue  # Skip if error
+        
+        if peer_reviews:
+            peer_reviews_by_submission[submission_id] = {
+                "user_id": user_id,
+                "user_name": user_name,
+                "peer_reviews": peer_reviews
+            }
+    
+    # Format the output
+    course_display = await get_course_code(course_id) or course_identifier
+    output = f"Peer Reviews for Assignment {assignment_id} in course {course_display}:\n\n"
+    
+    if not peer_reviews_by_submission:
+        output += "No peer reviews found for this assignment."
+        return output
+    
+    # Display peer reviews grouped by reviewee
+    for submission_id, data in peer_reviews_by_submission.items():
+        reviewee_name = data["user_name"]
+        reviewee_id = data["user_id"]
+        reviews = data["peer_reviews"]
+        
+        output += f"Reviews for {reviewee_name} (ID: {reviewee_id}):\n"
+        
+        if not reviews:
+            output += "  No peer reviews assigned.\n\n"
+            continue
+        
+        for review in reviews:
+            reviewer_id = str(review.get("user_id"))
+            reviewer_name = user_map.get(reviewer_id, f"User {reviewer_id}")
+            workflow_state = review.get("workflow_state", "Unknown")
+            
+            output += f"  Reviewer: {reviewer_name} (ID: {reviewer_id})\n"
+            output += f"  Status: {workflow_state}\n"
+            
+            # Add assessment details if available
+            if "assessment" in review and review["assessment"]:
+                assessment = review["assessment"]
+                score = assessment.get("score")
+                if score is not None:
+                    output += f"  Score: {score}\n"
+            
+            output += "\n"
+    
+    return output
+
 # ===== SUBMISSIONS TOOLS =====
 
 @mcp.tool()
@@ -499,6 +676,65 @@ async def list_announcements(course_identifier: str) -> str:
     # Try to get the course code for display
     course_display = await get_course_code(course_id) or course_identifier
     return f"Announcements for Course {course_display}:\n\n" + "\n".join(announcements_info)
+
+# ===== GROUPS TOOLS =====
+
+@mcp.tool()
+async def list_groups(course_identifier: str) -> str:
+    """List all groups and their members for a specific course.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    # Get all groups in the course
+    groups = await fetch_all_paginated_results(
+        f"/courses/{course_id}/groups", {"per_page": 100}
+    )
+    
+    if isinstance(groups, dict) and "error" in groups:
+        return f"Error fetching groups: {groups['error']}"
+    
+    if not groups:
+        return f"No groups found for course {course_identifier}."
+    
+    # Format the output
+    course_display = await get_course_code(course_id) or course_identifier
+    output = f"Groups for Course {course_display}:\n\n"
+    
+    for group in groups:
+        group_id = group.get("id")
+        group_name = group.get("name", "Unnamed group")
+        group_category = group.get("group_category_id", "Uncategorized")
+        member_count = group.get("members_count", 0)
+        
+        output += f"Group: {group_name}\n"
+        output += f"ID: {group_id}\n"
+        output += f"Category ID: {group_category}\n"
+        output += f"Member Count: {member_count}\n"
+        
+        # Get members for this group
+        members = await fetch_all_paginated_results(
+            f"/groups/{group_id}/users", {"per_page": 100}
+        )
+        
+        if isinstance(members, dict) and "error" in members:
+            output += f"Error fetching members: {members['error']}\n"
+        elif not members:
+            output += "No members in this group.\n"
+        else:
+            output += "Members:\n"
+            for member in members:
+                member_id = member.get("id")
+                member_name = member.get("name", "Unnamed user")
+                member_email = member.get("email", "No email")
+                
+                output += f"  - {member_name} (ID: {member_id})\n"
+        
+        output += "\n"
+    
+    return output
 
 # ===== ANALYTICS TOOLS =====
 
