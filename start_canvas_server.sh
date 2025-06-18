@@ -1,10 +1,13 @@
 #!/bin/bash
 
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+echo "Script directory: $SCRIPT_DIR" >&2
+
 # Print startup message (directed to stderr so it doesn't interfere with JSON)
 echo "Starting Canvas MCP Server..." >&2
 
 # Path to your virtual environment
-VENV_PATH="/Users/vishal/Desktop/canvas-mcp/canvas-mcp"
+VENV_PATH="$SCRIPT_DIR/canvas-mcp"
 echo "Using virtual environment at: $VENV_PATH" >&2
 
 # Activate the virtual environment
@@ -12,7 +15,7 @@ echo "Activating virtual environment..." >&2
 source "$VENV_PATH/bin/activate"
 
 # Load environment variables from .env file
-ENV_FILE="/Users/vishal/Desktop/canvas-mcp/.env"
+ENV_FILE="$SCRIPT_DIR/.env"
 if [ -f "$ENV_FILE" ]; then
     echo "Loading environment variables from .env file: $ENV_FILE" >&2
     export $(cat "$ENV_FILE" | grep -v '^#' | xargs)
@@ -28,7 +31,7 @@ if [ -z "$CANVAS_API_TOKEN" ] || [ -z "$CANVAS_API_URL" ]; then
 fi
 
 # Go to the script directory
-cd "/Users/vishal/Desktop/canvas-mcp"
+cd $SCRIPT_DIR
 echo "Changed directory to: $(pwd)" >&2
 
 # Run the Python script with the specific python from the virtualenv
