@@ -214,6 +214,26 @@ class AssignmentInfo(TypedDict, total=False):
     published: bool
     locked_for_user: bool
 
+class PageInfo(TypedDict, total=False):
+    page_id: Union[int, str]
+    url: str
+    title: str
+    published: bool
+    front_page: bool
+    locked_for_user: bool
+    last_edited_by: Dict[str, Any]
+    editing_roles: str
+
+class AnnouncementInfo(TypedDict, total=False):
+    id: Union[int, str]
+    title: str
+    message: str
+    posted_at: Optional[str]
+    delayed_post_at: Optional[str]
+    lock_at: Optional[str]
+    published: bool
+    is_announcement: bool
+
 # Initialize HTTP client with auth
 http_client = httpx.AsyncClient(
     headers={
@@ -752,16 +772,170 @@ async def list_announcements(course_identifier: str) -> str:
     announcements_info = []
     for announcement in announcements:
         title = announcement.get("title", "Untitled")
-        posted_at = announcement.get("posted_at", "Unknown date")
+        posted_at = announcement.get("posted_at")
+        delayed_post_at = announcement.get("delayed_post_at")
         author = announcement.get("author", {}).get("display_name", "Unknown")
+        published = announcement.get("published", True)
+        lock_at = announcement.get("lock_at")
+        
+        # Determine announcement status and timing
+        status_info = []
+        time_info = ""
+        
+        if delayed_post_at:
+            # Scheduled announcement
+            scheduled_time = format_date(delayed_post_at)
+            time_info = f"Scheduled: {scheduled_time}"
+            status_info.append("SCHEDULED")
+        elif posted_at:
+            # Posted announcement
+            posted_time = format_date(posted_at)
+            time_info = f"Posted: {posted_time}"
+        else:
+            # Draft announcement
+            time_info = "Status: Draft"
+            status_info.append("DRAFT")
+        
+        if not published:
+            status_info.append("UNPUBLISHED")
+            
+        if lock_at:
+            lock_time = format_date(lock_at)
+            if lock_time != "N/A":
+                status_info.append(f"LOCKS: {lock_time}")
+        
+        # Build status string
+        status_str = f" [{', '.join(status_info)}]" if status_info else ""
         
         announcements_info.append(
-            f"Title: {title}\nPosted: {posted_at}\nAuthor: {author}\n"
+            f"Title: {title}{status_str}\n{time_info}\nAuthor: {author}\n"
         )
     
     # Try to get the course code for display
     course_display = await get_course_code(course_id) or course_identifier
     return f"Announcements for Course {course_display}:\n\n" + "\n".join(announcements_info)
+
+@mcp.tool()
+@validate_params
+async def create_announcement(course_identifier: Union[str, int], 
+                            title: str, 
+                            message: str,
+                            lock_at: Optional[str] = None) -> str:
+    """Create a new announcement for a course (immediate posting only).
+    
+    Note: Canvas API does not support scheduling announcements for future posting.
+    Announcements cannot be in draft state and must be published immediately.
+    Use create_scheduled_discussion() for content that needs to be posted later.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+        title: The title/subject of the announcement
+        message: The content/body of the announcement
+        lock_at: Optional ISO 8601 datetime to automatically lock the announcement
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    data = {
+        "title": title,
+        "message": message,
+        "is_announcement": True,
+        "published": True
+    }
+    
+    if lock_at:
+        data["lock_at"] = lock_at
+    
+    response = await make_canvas_request(
+        "post", f"/courses/{course_id}/discussion_topics", data=data
+    )
+    
+    if "error" in response:
+        return f"Error creating announcement: {response['error']}"
+    
+    # Extract response details
+    announcement_id = response.get("id")
+    announcement_title = response.get("title", title)
+    created_at = format_date(response.get("created_at"))
+    posted_at = format_date(response.get("posted_at"))
+    
+    # Build response message
+    course_display = await get_course_code(course_id) or course_identifier
+    result = f"Announcement created successfully in course {course_display}:\n\n"
+    result += f"ID: {announcement_id}\n"
+    result += f"Title: {announcement_title}\n"
+    result += f"Created: {created_at}\n"
+    result += f"Posted: {posted_at}\n"
+    result += f"Status: Published\n"
+    
+    if lock_at:
+        lock_at_formatted = format_date(response.get("lock_at"))
+        if lock_at_formatted != "N/A":
+            result += f"Will lock: {lock_at_formatted}\n"
+    
+    return result
+
+@mcp.tool()
+@validate_params
+async def create_scheduled_discussion(course_identifier: Union[str, int], 
+                                    title: str, 
+                                    message: str,
+                                    delayed_post_at: str,
+                                    lock_at: Optional[str] = None) -> str:
+    """Create a discussion topic scheduled for future posting.
+    
+    This is a workaround for Canvas's limitation that announcements cannot be scheduled.
+    Creates a discussion topic that posts at the specified time.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+        title: The title/subject of the discussion
+        message: The content/body of the discussion
+        delayed_post_at: ISO 8601 datetime to schedule posting (e.g., "2024-01-15T12:00:00Z")
+        lock_at: Optional ISO 8601 datetime to automatically lock the discussion
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    data = {
+        "title": title,
+        "message": message,
+        "is_announcement": False,  # Regular discussion topic (can be scheduled)
+        "published": False,  # Draft state for scheduling
+        "delayed_post_at": delayed_post_at
+    }
+    
+    if lock_at:
+        data["lock_at"] = lock_at
+    
+    response = await make_canvas_request(
+        "post", f"/courses/{course_id}/discussion_topics", data=data
+    )
+    
+    if "error" in response:
+        return f"Error creating scheduled discussion: {response['error']}"
+    
+    # Extract response details
+    topic_id = response.get("id")
+    topic_title = response.get("title", title)
+    created_at = format_date(response.get("created_at"))
+    delayed_post_at_response = format_date(response.get("delayed_post_at"))
+    
+    # Build response message
+    course_display = await get_course_code(course_id) or course_identifier
+    result = f"Scheduled discussion created in course {course_display}:\n\n"
+    result += f"ID: {topic_id}\n"
+    result += f"Title: {topic_title}\n"
+    result += f"Created: {created_at}\n"
+    result += f"Scheduled to post: {delayed_post_at_response}\n"
+    result += f"Status: Scheduled Discussion Topic\n"
+    result += f"\nNote: This is a discussion topic, not an announcement, due to Canvas API limitations.\n"
+    result += f"Announcements cannot be scheduled - they must be posted immediately.\n"
+    
+    if lock_at:
+        lock_at_formatted = format_date(response.get("lock_at"))
+        if lock_at_formatted != "N/A":
+            result += f"Will lock: {lock_at_formatted}\n"
+    
+    return result
 
 # ===== ANALYTICS TOOLS =====
 
@@ -1371,6 +1545,430 @@ async def get_assignment_analytics(course_identifier: Union[str, int], assignmen
     
     return output
 
+# ===== PAGES TOOLS =====
+
+@mcp.tool()
+@validate_params
+async def list_pages(course_identifier: Union[str, int], 
+                    sort: Optional[str] = "title", 
+                    order: Optional[str] = "asc",
+                    search_term: Optional[str] = None,
+                    published: Optional[bool] = None) -> str:
+    """List pages for a specific course.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+        sort: Sort criteria ('title', 'created_at', 'updated_at')
+        order: Sort order ('asc' or 'desc')
+        search_term: Search for pages containing this term in title or body
+        published: Filter by published status (True, False, or None for all)
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    params = {
+        "per_page": 100
+    }
+    
+    if sort:
+        params["sort"] = sort
+    if order:
+        params["order"] = order
+    if search_term:
+        params["search_term"] = search_term
+    if published is not None:
+        params["published"] = str(published).lower()
+    
+    pages = await fetch_all_paginated_results(f"/courses/{course_id}/pages", params)
+    
+    if isinstance(pages, dict) and "error" in pages:
+        return f"Error fetching pages: {pages['error']}"
+    
+    if not pages:
+        return f"No pages found for course {course_identifier}."
+    
+    pages_info = []
+    for page in pages:
+        page_id = page.get("page_id", "N/A")
+        url = page.get("url", "N/A")
+        title = page.get("title", "Untitled")
+        created_at = format_date(page.get("created_at"))
+        updated_at = format_date(page.get("updated_at"))
+        published_status = page.get("published", False)
+        front_page = page.get("front_page", False)
+        
+        status_indicators = []
+        if front_page:
+            status_indicators.append("FRONT PAGE")
+        if not published_status:
+            status_indicators.append("UNPUBLISHED")
+        
+        status_str = f" [{', '.join(status_indicators)}]" if status_indicators else ""
+        
+        pages_info.append(
+            f"URL: {url}\n"
+            f"Title: {title}{status_str}\n"
+            f"ID: {page_id}\n"
+            f"Created: {created_at}\n"
+            f"Updated: {updated_at}\n"
+        )
+    
+    # Try to get the course code for display
+    course_display = await get_course_code(course_id) or course_identifier
+    return f"Pages for Course {course_display}:\n\n" + "\n".join(pages_info)
+
+@mcp.tool()
+@validate_params  
+async def get_page_details(course_identifier: Union[str, int], page_url_or_id: str) -> str:
+    """Get detailed information about a specific page.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+        page_url_or_id: The page URL or page ID
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    response = await make_canvas_request("get", f"/courses/{course_id}/pages/{page_url_or_id}")
+    
+    if "error" in response:
+        return f"Error fetching page details: {response['error']}"
+    
+    title = response.get("title", "Untitled")
+    url = response.get("url", "N/A")
+    body = response.get("body", "")
+    created_at = format_date(response.get("created_at"))
+    updated_at = format_date(response.get("updated_at"))
+    published = response.get("published", False)
+    front_page = response.get("front_page", False)
+    locked_for_user = response.get("locked_for_user", False)
+    editing_roles = response.get("editing_roles", "")
+    
+    # Handle last edited by user info
+    last_edited_by = response.get("last_edited_by", {})
+    editor_name = last_edited_by.get("display_name", "Unknown") if last_edited_by else "Unknown"
+    
+    # Clean up body text for display
+    if body:
+        # Remove HTML tags for cleaner display
+        import re
+        body_clean = re.sub(r'<[^>]+>', '', body)
+        body_clean = body_clean.strip()
+        if len(body_clean) > 500:
+            body_clean = body_clean[:500] + "..."
+    else:
+        body_clean = "No content"
+    
+    status_info = []
+    if front_page:
+        status_info.append("Front Page")
+    if not published:
+        status_info.append("Unpublished")
+    if locked_for_user:
+        status_info.append("Locked")
+    
+    details = [
+        f"Title: {title}",
+        f"URL: {url}",
+        f"Status: {', '.join(status_info) if status_info else 'Published'}",
+        f"Created: {created_at}",
+        f"Updated: {updated_at}",
+        f"Last Edited By: {editor_name}",
+        f"Editing Roles: {editing_roles or 'Default'}",
+        f"Content Preview:\n{body_clean}"
+    ]
+    
+    # Try to get the course code for display
+    course_display = await get_course_code(course_id) or course_identifier
+    return f"Page Details for '{title}' in Course {course_display}:\n\n" + "\n".join(details)
+
+@mcp.tool()
+@validate_params
+async def get_page_content(course_identifier: Union[str, int], page_url_or_id: str) -> str:
+    """Get the full content body of a specific page.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+        page_url_or_id: The page URL or page ID
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    response = await make_canvas_request("get", f"/courses/{course_id}/pages/{page_url_or_id}")
+    
+    if "error" in response:
+        return f"Error fetching page content: {response['error']}"
+    
+    title = response.get("title", "Untitled")
+    body = response.get("body", "")
+    
+    if not body:
+        return f"Page '{title}' has no content."
+    
+    # Try to get the course code for display
+    course_display = await get_course_code(course_id) or course_identifier
+    return f"Content of page '{title}' in Course {course_display}:\n\n{body}"
+
+@mcp.tool()
+@validate_params
+async def get_front_page(course_identifier: Union[str, int]) -> str:
+    """Get the front page content for a course.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    response = await make_canvas_request("get", f"/courses/{course_id}/front_page")
+    
+    if "error" in response:
+        return f"Error fetching front page: {response['error']}"
+    
+    title = response.get("title", "Untitled")
+    body = response.get("body", "")
+    updated_at = format_date(response.get("updated_at"))
+    
+    if not body:
+        return f"Course front page '{title}' has no content."
+    
+    # Try to get the course code for display
+    course_display = await get_course_code(course_id) or course_identifier
+    return f"Front Page '{title}' for Course {course_display} (Updated: {updated_at}):\n\n{body}"
+
+@mcp.tool()
+@validate_params
+async def list_module_items(course_identifier: Union[str, int], 
+                           module_id: Union[str, int],
+                           include_content_details: bool = True) -> str:
+    """List items within a specific module, including pages.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+        module_id: The module ID
+        include_content_details: Whether to include additional details about content items
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    # Ensure module_id is a string
+    module_id_str = str(module_id)
+    
+    params = {
+        "per_page": 100
+    }
+    
+    if include_content_details:
+        params["include[]"] = ["content_details"]
+    
+    items = await fetch_all_paginated_results(
+        f"/courses/{course_id}/modules/{module_id_str}/items", params
+    )
+    
+    if isinstance(items, dict) and "error" in items:
+        return f"Error fetching module items: {items['error']}"
+    
+    if not items:
+        return f"No items found in module {module_id}."
+    
+    # Get module name for context
+    module_response = await make_canvas_request("get", f"/courses/{course_id}/modules/{module_id_str}")
+    module_name = module_response.get("name", f"Module {module_id}") if "error" not in module_response else f"Module {module_id}"
+    
+    items_info = []
+    for item in items:
+        item_id = item.get("id", "N/A")
+        title = item.get("title", "Untitled")
+        item_type = item.get("type", "Unknown")
+        position = item.get("position", "N/A")
+        published = item.get("published", True)
+        
+        # Special handling for different item types
+        type_info = []
+        if item_type == "Page":
+            page_url = item.get("page_url", "")
+            if page_url:
+                type_info.append(f"Page URL: {page_url}")
+        elif item_type == "Assignment":
+            content_id = item.get("content_id")
+            if content_id:
+                type_info.append(f"Assignment ID: {content_id}")
+        elif item_type == "Discussion":
+            content_id = item.get("content_id")
+            if content_id:
+                type_info.append(f"Discussion ID: {content_id}")
+        elif item_type == "ExternalUrl":
+            external_url = item.get("external_url", "")
+            if external_url:
+                type_info.append(f"URL: {external_url}")
+        elif item_type == "File":
+            content_id = item.get("content_id")
+            if content_id:
+                type_info.append(f"File ID: {content_id}")
+        
+        # Status indicators
+        status_indicators = []
+        if not published:
+            status_indicators.append("UNPUBLISHED")
+        
+        status_str = f" [{', '.join(status_indicators)}]" if status_indicators else ""
+        
+        # Format item info
+        item_details = [
+            f"Position: {position}",
+            f"Title: {title}{status_str}",
+            f"Type: {item_type}",
+            f"ID: {item_id}"
+        ]
+        
+        if type_info:
+            item_details.extend(type_info)
+        
+        items_info.append("\n".join(item_details) + "\n")
+    
+    # Try to get the course code for display
+    course_display = await get_course_code(course_id) or course_identifier
+    return f"Items in '{module_name}' (Course {course_display}):\n\n" + "\n".join(items_info)
+
+@mcp.tool()
+@validate_params
+async def get_page_revisions(course_identifier: Union[str, int], page_url_or_id: str) -> str:
+    """Get the revision history for a specific page.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+        page_url_or_id: The page URL or page ID
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    revisions = await fetch_all_paginated_results(
+        f"/courses/{course_id}/pages/{page_url_or_id}/revisions", 
+        {"per_page": 100}
+    )
+    
+    if isinstance(revisions, dict) and "error" in revisions:
+        return f"Error fetching page revisions: {revisions['error']}"
+    
+    if not revisions:
+        return f"No revisions found for page {page_url_or_id}."
+    
+    # Get page title for context
+    page_response = await make_canvas_request("get", f"/courses/{course_id}/pages/{page_url_or_id}")
+    page_title = page_response.get("title", page_url_or_id) if "error" not in page_response else page_url_or_id
+    
+    revisions_info = []
+    for revision in revisions:
+        revision_id = revision.get("revision_id", "N/A")
+        updated_at = format_date(revision.get("updated_at"))
+        user_name = revision.get("edited_by", {}).get("display_name", "Unknown")
+        latest = revision.get("latest", False)
+        
+        status_str = " [LATEST]" if latest else ""
+        
+        revisions_info.append(
+            f"Revision ID: {revision_id}{status_str}\n"
+            f"Updated: {updated_at}\n"
+            f"Edited By: {user_name}\n"
+        )
+    
+    # Try to get the course code for display
+    course_display = await get_course_code(course_id) or course_identifier
+    return f"Revision History for '{page_title}' (Course {course_display}):\n\n" + "\n".join(revisions_info)
+
+@mcp.tool()
+@validate_params
+async def get_course_content_overview(course_identifier: Union[str, int], 
+                                    include_pages: bool = True,
+                                    include_modules: bool = True) -> str:
+    """Get a comprehensive overview of course content including pages and modules.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+        include_pages: Whether to include pages information
+        include_modules: Whether to include modules and their items
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    overview_sections = []
+    
+    # Get course details for context
+    course_response = await make_canvas_request("get", f"/courses/{course_id}")
+    if "error" not in course_response:
+        course_name = course_response.get("name", "Unknown Course")
+        overview_sections.append(f"Course: {course_name}")
+    
+    # Get pages if requested
+    if include_pages:
+        pages = await fetch_all_paginated_results(f"/courses/{course_id}/pages", {"per_page": 100})
+        if isinstance(pages, list):
+            published_pages = [p for p in pages if p.get("published", False)]
+            unpublished_pages = [p for p in pages if not p.get("published", False)]
+            front_pages = [p for p in pages if p.get("front_page", False)]
+            
+            pages_summary = [
+                f"\nPages Summary:",
+                f"  Total Pages: {len(pages)}",
+                f"  Published: {len(published_pages)}",
+                f"  Unpublished: {len(unpublished_pages)}",
+                f"  Front Pages: {len(front_pages)}"
+            ]
+            
+            if published_pages:
+                pages_summary.append(f"\nRecent Published Pages:")
+                # Sort by updated_at and show first 5
+                sorted_pages = sorted(published_pages, 
+                                    key=lambda x: x.get("updated_at", ""), 
+                                    reverse=True)
+                for page in sorted_pages[:5]:
+                    title = page.get("title", "Untitled")
+                    updated = format_date(page.get("updated_at"))
+                    pages_summary.append(f"    {title} (Updated: {updated})")
+            
+            overview_sections.append("\n".join(pages_summary))
+    
+    # Get modules if requested
+    if include_modules:
+        modules = await fetch_all_paginated_results(f"/courses/{course_id}/modules", {"per_page": 100})
+        if isinstance(modules, list):
+            modules_summary = [
+                f"\nModules Summary:",
+                f"  Total Modules: {len(modules)}"
+            ]
+            
+            # Count module items by type across all modules
+            item_type_counts = {}
+            total_items = 0
+            
+            for module in modules[:10]:  # Limit to first 10 modules to avoid too many API calls
+                module_id = module.get("id")
+                if module_id:
+                    items = await fetch_all_paginated_results(
+                        f"/courses/{course_id}/modules/{module_id}/items", 
+                        {"per_page": 100}
+                    )
+                    if isinstance(items, list):
+                        total_items += len(items)
+                        for item in items:
+                            item_type = item.get("type", "Unknown")
+                            item_type_counts[item_type] = item_type_counts.get(item_type, 0) + 1
+            
+            modules_summary.append(f"  Total Items Analyzed: {total_items}")
+            if item_type_counts:
+                modules_summary.append(f"  Item Types:")
+                for item_type, count in sorted(item_type_counts.items()):
+                    modules_summary.append(f"    {item_type}: {count}")
+            
+            # Show module structure for first few modules
+            if modules:
+                modules_summary.append(f"\nModule Structure (first 3):")
+                for module in modules[:3]:
+                    name = module.get("name", "Unnamed")
+                    state = module.get("state", "unknown")
+                    modules_summary.append(f"    {name} (Status: {state})")
+            
+            overview_sections.append("\n".join(modules_summary))
+    
+    # Try to get the course code for display
+    course_display = await get_course_code(course_id) or course_identifier
+    result = f"Content Overview for Course {course_display}:" + "\n".join(overview_sections)
+    
+    return result
+
 # ===== RESOURCES =====
 
 @mcp.resource(
@@ -1451,6 +2049,49 @@ async def get_course_modules(course_identifier: str) -> str:
         modules_info.append(f"ID: {module_id}\nName: {name}\nStatus: {status}\n")
     
     return "Course Modules:\n\n" + "\n".join(modules_info)
+
+@mcp.resource(
+    name="page-content",
+    description="Get the content for a specific page",
+    uri="canvas://course/{course_identifier}/page/{page_url_or_id}/content"
+)
+@validate_params
+async def get_page_content_resource(course_identifier: Union[str, int], page_url_or_id: str) -> str:
+    """Get the content for a specific page."""
+    course_id = await get_course_id(course_identifier)
+    
+    response = await make_canvas_request("get", f"/courses/{course_id}/pages/{page_url_or_id}")
+    
+    if "error" in response:
+        return f"Error fetching page content: {response['error']}"
+    
+    body = response.get("body", "")
+    
+    if not body:
+        return "No content available for this page."
+    
+    return body
+
+@mcp.resource(
+    name="course-front-page",
+    description="Get the front page content for a course",
+    uri="canvas://course/{course_identifier}/front_page"
+)
+async def get_course_front_page_resource(course_identifier: str) -> str:
+    """Get the front page content for a course."""
+    course_id = await get_course_id(course_identifier)
+    
+    response = await make_canvas_request("get", f"/courses/{course_id}/front_page")
+    
+    if "error" in response:
+        return f"Error fetching front page: {response['error']}"
+    
+    body = response.get("body", "")
+    
+    if not body:
+        return "No front page content available for this course."
+    
+    return body
 
 # ===== PROMPTS =====
 

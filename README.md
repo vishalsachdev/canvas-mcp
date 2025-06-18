@@ -114,10 +114,29 @@ The server provides the following tools for Canvas LMS interaction:
 ### Users
 - `list_users`: List all users enrolled in a course
 
+### Pages
+- `list_pages`: List all pages in a course with filtering and sorting options
+- `get_page_details`: Get detailed information about a specific page
+- `get_page_content`: Get the full content body of a specific page
+- `get_front_page`: Get the front page content for a course
+- `get_page_revisions`: Get the revision history for a specific page
+
+### Modules
+- `list_module_items`: List items within a specific module (including pages, assignments, etc.)
+
+### Content Overview
+- `get_course_content_overview`: Get a comprehensive overview of course content including pages and modules
+
+### Announcements
+- `list_announcements`: List all announcements for a course with scheduling status
+- `create_announcement`: Create new announcements (immediate posting only)
+- `create_scheduled_discussion`: Create scheduled discussion topics (workaround for announcement scheduling)
+
 ### Resources
-- `list_announcements`: List all announcements for a course
 - `get_course_syllabus`: Get the syllabus for a course
 - `get_course_modules`: Get all modules for a course
+- `page-content`: Direct access to page content via URI
+- `course-front-page`: Direct access to course front page content
 
 ## Usage with Claude Desktop
 
