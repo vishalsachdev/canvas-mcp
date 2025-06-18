@@ -997,17 +997,15 @@ async def list_announcements(course_identifier: str) -> str:
 async def create_announcement(course_identifier: Union[str, int], 
                             title: str, 
                             message: str,
+                            delayed_post_at: Optional[str] = None,
                             lock_at: Optional[str] = None) -> str:
-    """Create a new announcement for a course (immediate posting only).
-    
-    Note: Canvas API does not support scheduling announcements for future posting.
-    Announcements cannot be in draft state and must be published immediately.
-    Use create_scheduled_discussion() for content that needs to be posted later.
+    """Create a new announcement for a course with optional scheduling.
     
     Args:
         course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
         title: The title/subject of the announcement
         message: The content/body of the announcement
+        delayed_post_at: Optional ISO 8601 datetime to schedule posting (e.g., "2024-01-15T12:00:00Z")
         lock_at: Optional ISO 8601 datetime to automatically lock the announcement
     """
     course_id = await get_course_id(course_identifier)
@@ -1018,6 +1016,9 @@ async def create_announcement(course_identifier: Union[str, int],
         "is_announcement": True,
         "published": True
     }
+    
+    if delayed_post_at:
+        data["delayed_post_at"] = delayed_post_at
     
     if lock_at:
         data["lock_at"] = lock_at
@@ -1034,6 +1035,7 @@ async def create_announcement(course_identifier: Union[str, int],
     announcement_title = response.get("title", title)
     created_at = format_date(response.get("created_at"))
     posted_at = format_date(response.get("posted_at"))
+    delayed_post_at_response = format_date(response.get("delayed_post_at"))
     
     # Build response message
     course_display = await get_course_code(course_id) or course_identifier
@@ -1041,8 +1043,13 @@ async def create_announcement(course_identifier: Union[str, int],
     result += f"ID: {announcement_id}\n"
     result += f"Title: {announcement_title}\n"
     result += f"Created: {created_at}\n"
-    result += f"Posted: {posted_at}\n"
-    result += f"Status: Published\n"
+    
+    if delayed_post_at_response and delayed_post_at_response != "N/A":
+        result += f"Scheduled to post: {delayed_post_at_response}\n"
+        result += f"Status: Scheduled\n"
+    else:
+        result += f"Posted: {posted_at}\n"
+        result += f"Status: Published\n"
     
     if lock_at:
         lock_at_formatted = format_date(response.get("lock_at"))
@@ -1051,68 +1058,6 @@ async def create_announcement(course_identifier: Union[str, int],
     
     return result
 
-@mcp.tool()
-@validate_params
-async def create_scheduled_discussion(course_identifier: Union[str, int], 
-                                    title: str, 
-                                    message: str,
-                                    delayed_post_at: str,
-                                    lock_at: Optional[str] = None) -> str:
-    """Create a discussion topic scheduled for future posting.
-    
-    This is a workaround for Canvas's limitation that announcements cannot be scheduled.
-    Creates a discussion topic that posts at the specified time.
-    
-    Args:
-        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-        title: The title/subject of the discussion
-        message: The content/body of the discussion
-        delayed_post_at: ISO 8601 datetime to schedule posting (e.g., "2024-01-15T12:00:00Z")
-        lock_at: Optional ISO 8601 datetime to automatically lock the discussion
-    """
-    course_id = await get_course_id(course_identifier)
-    
-    data = {
-        "title": title,
-        "message": message,
-        "is_announcement": False,  # Regular discussion topic (can be scheduled)
-        "published": False,  # Draft state for scheduling
-        "delayed_post_at": delayed_post_at
-    }
-    
-    if lock_at:
-        data["lock_at"] = lock_at
-    
-    response = await make_canvas_request(
-        "post", f"/courses/{course_id}/discussion_topics", data=data
-    )
-    
-    if "error" in response:
-        return f"Error creating scheduled discussion: {response['error']}"
-    
-    # Extract response details
-    topic_id = response.get("id")
-    topic_title = response.get("title", title)
-    created_at = format_date(response.get("created_at"))
-    delayed_post_at_response = format_date(response.get("delayed_post_at"))
-    
-    # Build response message
-    course_display = await get_course_code(course_id) or course_identifier
-    result = f"Scheduled discussion created in course {course_display}:\n\n"
-    result += f"ID: {topic_id}\n"
-    result += f"Title: {topic_title}\n"
-    result += f"Created: {created_at}\n"
-    result += f"Scheduled to post: {delayed_post_at_response}\n"
-    result += f"Status: Scheduled Discussion Topic\n"
-    result += f"\nNote: This is a discussion topic, not an announcement, due to Canvas API limitations.\n"
-    result += f"Announcements cannot be scheduled - they must be posted immediately.\n"
-    
-    if lock_at:
-        lock_at_formatted = format_date(response.get("lock_at"))
-        if lock_at_formatted != "N/A":
-            result += f"Will lock: {lock_at_formatted}\n"
-    
-    return result
 
 # ===== GROUPS TOOLS =====
 
