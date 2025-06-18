@@ -2,12 +2,14 @@
 from typing import Any, Dict, List, Optional, Union, TypedDict, Callable, TypeVar, cast, get_type_hints
 import os
 import sys
-import httpx
 import json
 import datetime
 import functools
 import inspect
 import re
+
+import httpx
+
 from mcp.server.fastmcp import FastMCP
 
 # Date/Time Formatting Standard
@@ -1055,6 +1057,687 @@ async def create_announcement(course_identifier: Union[str, int],
         lock_at_formatted = format_date(response.get("lock_at"))
         if lock_at_formatted != "N/A":
             result += f"Will lock: {lock_at_formatted}\n"
+    
+    return result
+
+
+# ===== DISCUSSION TOOLS =====
+
+@mcp.tool()
+@validate_params
+async def list_discussion_topics(course_identifier: Union[str, int], 
+                                include_announcements: bool = False) -> str:
+    """List discussion topics for a specific course.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+        include_announcements: Whether to include announcements in the list (default: False)
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    params = {
+        "per_page": 100
+    }
+    
+    # By default, exclude announcements unless specifically requested
+    if not include_announcements:
+        params["only_announcements"] = "false"
+    
+    topics = await fetch_all_paginated_results(
+        f"/courses/{course_id}/discussion_topics", params
+    )
+    
+    if isinstance(topics, dict) and "error" in topics:
+        return f"Error fetching discussion topics: {topics['error']}"
+    
+    if not topics:
+        return f"No discussion topics found for course {course_identifier}."
+    
+    # Format the output
+    course_display = await get_course_code(course_id) or course_identifier
+    topics_info = []
+    
+    for topic in topics:
+        topic_id = topic.get("id")
+        title = topic.get("title", "Untitled")
+        is_announcement = topic.get("is_announcement", False)
+        
+        # Skip announcements if not requested
+        if is_announcement and not include_announcements:
+            continue
+            
+        message = topic.get("message", "")
+        if message:
+            # Truncate long messages for list view
+            message = message[:200] + "..." if len(message) > 200 else message
+            message = message.replace("\n", " ").strip()
+        
+        author = topic.get("author", {}).get("display_name", "Unknown author")
+        created_at = format_date(topic.get("created_at"))
+        updated_at = format_date(topic.get("updated_at"))
+        
+        # Discussion topic statistics
+        discussion_entries_count = topic.get("discussion_entries_count", 0)
+        unread_count = topic.get("unread_count", 0)
+        subscribed = topic.get("subscribed", False)
+        
+        # Lock status
+        locked = topic.get("locked", False)
+        lock_at = format_date(topic.get("lock_at"))
+        
+        # Posting status
+        posted_at = format_date(topic.get("posted_at"))
+        delayed_post_at = format_date(topic.get("delayed_post_at"))
+        
+        topic_type = "Announcement" if is_announcement else "Discussion"
+        
+        topic_info = f"[{topic_type}] {title}\n"
+        topic_info += f"ID: {topic_id}\n"
+        topic_info += f"Author: {author}\n"
+        topic_info += f"Created: {created_at}\n"
+        
+        if updated_at != "N/A" and updated_at != created_at:
+            topic_info += f"Updated: {updated_at}\n"
+        
+        # Posting status
+        if delayed_post_at and delayed_post_at != "N/A":
+            topic_info += f"Scheduled to post: {delayed_post_at}\n"
+        elif posted_at and posted_at != "N/A":
+            topic_info += f"Posted: {posted_at}\n"
+        
+        topic_info += f"Entries: {discussion_entries_count}"
+        if unread_count > 0:
+            topic_info += f" ({unread_count} unread)"
+        topic_info += "\n"
+        
+        if subscribed:
+            topic_info += "Subscribed: Yes\n"
+        
+        if locked:
+            topic_info += "Status: Locked"
+            if lock_at != "N/A":
+                topic_info += f" (since {lock_at})"
+            topic_info += "\n"
+        
+        if message:
+            topic_info += f"Preview: {message}\n"
+        
+        topics_info.append(topic_info)
+    
+    if not topics_info:
+        return f"No discussion topics found for course {course_display}."
+    
+    return f"Discussion Topics for Course {course_display}:\n\n" + "\n".join(topics_info)
+
+
+@mcp.tool()
+@validate_params
+async def get_discussion_topic_details(course_identifier: Union[str, int], 
+                                       topic_id: Union[str, int]) -> str:
+    """Get detailed information about a specific discussion topic.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+        topic_id: The Canvas discussion topic ID
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    response = await make_canvas_request(
+        "get", f"/courses/{course_id}/discussion_topics/{topic_id}"
+    )
+    
+    if "error" in response:
+        return f"Error fetching discussion topic details: {response['error']}"
+    
+    # Extract topic details
+    title = response.get("title", "Untitled")
+    message = response.get("message", "")
+    is_announcement = response.get("is_announcement", False)
+    author = response.get("author", {})
+    author_name = author.get("display_name", "Unknown author")
+    author_id = author.get("id", "Unknown")
+    
+    created_at = format_date(response.get("created_at"))
+    updated_at = format_date(response.get("updated_at"))
+    posted_at = format_date(response.get("posted_at"))
+    delayed_post_at = format_date(response.get("delayed_post_at"))
+    
+    # Discussion statistics
+    discussion_entries_count = response.get("discussion_entries_count", 0)
+    unread_count = response.get("unread_count", 0)
+    read_state = response.get("read_state", "unknown")
+    subscribed = response.get("subscribed", False)
+    
+    # Topic settings
+    locked = response.get("locked", False)
+    lock_at = format_date(response.get("lock_at"))
+    unlock_at = format_date(response.get("unlock_at"))
+    pinned = response.get("pinned", False)
+    podcast_enabled = response.get("podcast_enabled", False)
+    require_initial_post = response.get("require_initial_post", False)
+    
+    # Assignment info (if this is a graded discussion)
+    assignment = response.get("assignment")
+    is_graded = assignment is not None
+    
+    # Permissions
+    permissions = response.get("permissions", {})
+    can_attach = permissions.get("attach", False)
+    can_update = permissions.get("update", False)
+    can_delete = permissions.get("delete", False)
+    can_reply = permissions.get("reply", False)
+    
+    # Format the output
+    course_display = await get_course_code(course_id) or course_identifier
+    topic_type = "Announcement" if is_announcement else "Discussion"
+    
+    result = f"{topic_type} Details for Course {course_display}:\n\n"
+    result += f"Title: {title}\n"
+    result += f"ID: {topic_id}\n"
+    result += f"Type: {topic_type}\n"
+    result += f"Author: {author_name} (ID: {author_id})\n"
+    result += f"Created: {created_at}\n"
+    
+    if updated_at != "N/A" and updated_at != created_at:
+        result += f"Updated: {updated_at}\n"
+    
+    # Posting status
+    if delayed_post_at and delayed_post_at != "N/A":
+        result += f"Scheduled to post: {delayed_post_at}\n"
+        result += f"Status: Scheduled\n"
+    elif posted_at and posted_at != "N/A":
+        result += f"Posted: {posted_at}\n"
+        result += f"Status: Published\n"
+    
+    # Lock status
+    if locked:
+        result += f"Status: Locked"
+        if lock_at != "N/A":
+            result += f" (since {lock_at})"
+        result += "\n"
+    elif unlock_at != "N/A":
+        result += f"Will unlock: {unlock_at}\n"
+    
+    # Discussion stats
+    result += f"Total Entries: {discussion_entries_count}\n"
+    if unread_count > 0:
+        result += f"Unread Entries: {unread_count}\n"
+    result += f"Read State: {read_state.title()}\n"
+    result += f"Subscribed: {'Yes' if subscribed else 'No'}\n"
+    
+    # Topic settings
+    if pinned:
+        result += f"Pinned: Yes\n"
+    if podcast_enabled:
+        result += f"Podcast Enabled: Yes\n"
+    if require_initial_post:
+        result += f"Requires Initial Post: Yes\n"
+    
+    # Graded discussion info
+    if is_graded and assignment:
+        points_possible = assignment.get("points_possible", 0)
+        due_at = format_date(assignment.get("due_at"))
+        result += f"Graded Discussion: Yes ({points_possible} points)\n"
+        if due_at != "N/A":
+            result += f"Due Date: {due_at}\n"
+    
+    # Permissions
+    result += f"\nPermissions:\n"
+    result += f"  Can reply: {'Yes' if can_reply else 'No'}\n"
+    result += f"  Can attach files: {'Yes' if can_attach else 'No'}\n"
+    result += f"  Can update: {'Yes' if can_update else 'No'}\n"
+    result += f"  Can delete: {'Yes' if can_delete else 'No'}\n"
+    
+    # Message content
+    if message:
+        result += f"\nContent:\n{message}\n"
+    
+    return result
+
+
+@mcp.tool()
+@validate_params
+async def list_discussion_entries(course_identifier: Union[str, int], 
+                                  topic_id: Union[str, int]) -> str:
+    """List discussion entries (posts) for a specific discussion topic.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+        topic_id: The Canvas discussion topic ID
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    entries = await fetch_all_paginated_results(
+        f"/courses/{course_id}/discussion_topics/{topic_id}/entries", 
+        {"per_page": 100}
+    )
+    
+    if isinstance(entries, dict) and "error" in entries:
+        return f"Error fetching discussion entries: {entries['error']}"
+    
+    if not entries:
+        return f"No discussion entries found for topic {topic_id}."
+    
+    # Get topic details for context
+    topic_response = await make_canvas_request(
+        "get", f"/courses/{course_id}/discussion_topics/{topic_id}"
+    )
+    
+    topic_title = "Unknown Topic"
+    if "error" not in topic_response:
+        topic_title = topic_response.get("title", "Unknown Topic")
+    
+    # Format the output
+    course_display = await get_course_code(course_id) or course_identifier
+    entries_info = []
+    
+    for entry in entries:
+        entry_id = entry.get("id")
+        user_id = entry.get("user_id")
+        user_name = entry.get("user_name", "Unknown user")
+        message = entry.get("message", "")
+        
+        # Clean up HTML content for display
+        import re
+        if message:
+            # Remove HTML tags for preview
+            message_preview = re.sub(r'<[^>]+>', '', message)
+            # Truncate long messages for list view
+            if len(message_preview) > 300:
+                message_preview = message_preview[:300] + "..."
+            message_preview = message_preview.replace("\n", " ").strip()
+        else:
+            message_preview = "[No content]"
+        
+        created_at = format_date(entry.get("created_at"))
+        updated_at = format_date(entry.get("updated_at"))
+        
+        # Entry status
+        read_state = entry.get("read_state", "unknown")
+        forced_read_state = entry.get("forced_read_state", False)
+        
+        # Replies info
+        recent_replies = entry.get("recent_replies", [])
+        has_more_replies = entry.get("has_more_replies", False)
+        total_replies = len(recent_replies)
+        if has_more_replies:
+            total_replies_text = f"{total_replies}+ replies"
+        elif total_replies > 0:
+            total_replies_text = f"{total_replies} replies"
+        else:
+            total_replies_text = "No replies"
+        
+        # Attachment info
+        attachment = entry.get("attachment")
+        has_attachment = attachment is not None
+        
+        entry_info = f"Entry ID: {entry_id}\n"
+        entry_info += f"Author: {user_name} (ID: {user_id})\n"
+        entry_info += f"Posted: {created_at}\n"
+        
+        if updated_at != "N/A" and updated_at != created_at:
+            entry_info += f"Updated: {updated_at}\n"
+        
+        entry_info += f"Read State: {read_state.title()}\n"
+        if forced_read_state:
+            entry_info += f"Forced Read State: Yes\n"
+        
+        entry_info += f"Replies: {total_replies_text}\n"
+        
+        if has_attachment:
+            attachment_name = attachment.get("display_name", "Unnamed attachment")
+            entry_info += f"Attachment: {attachment_name}\n"
+        
+        entry_info += f"Content: {message_preview}\n"
+        
+        # Show recent replies preview
+        if recent_replies:
+            entry_info += f"Recent Replies:\n"
+            for reply in recent_replies[:3]:  # Show up to 3 recent replies
+                reply_user = reply.get("user_name", "Unknown user")
+                reply_created = format_date(reply.get("created_at"))
+                reply_message = reply.get("message", "")
+                # Clean and truncate reply content
+                reply_preview = re.sub(r'<[^>]+>', '', reply_message)
+                if len(reply_preview) > 100:
+                    reply_preview = reply_preview[:100] + "..."
+                reply_preview = reply_preview.replace("\n", " ").strip()
+                
+                entry_info += f"  • {reply_user} ({reply_created}): {reply_preview}\n"
+            
+            if has_more_replies:
+                entry_info += f"  ... and more replies\n"
+        
+        entries_info.append(entry_info)
+    
+    result = f"Discussion Entries for '{topic_title}' in Course {course_display}:\n"
+    result += f"Topic ID: {topic_id}\n"
+    result += f"Total Entries: {len(entries)}\n\n"
+    result += "\n".join(entries_info)
+    
+    return result
+
+
+@mcp.tool()
+@validate_params
+async def get_discussion_entry_details(course_identifier: Union[str, int], 
+                                       topic_id: Union[str, int],
+                                       entry_id: Union[str, int]) -> str:
+    """Get detailed information about a specific discussion entry including all its replies.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+        topic_id: The Canvas discussion topic ID
+        entry_id: The Canvas discussion entry ID
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    # Get the specific entry details
+    entry_response = await make_canvas_request(
+        "get", f"/courses/{course_id}/discussion_topics/{topic_id}/entries/{entry_id}"
+    )
+    
+    if "error" in entry_response:
+        return f"Error fetching discussion entry details: {entry_response['error']}"
+    
+    # Get all replies to this entry
+    replies = await fetch_all_paginated_results(
+        f"/courses/{course_id}/discussion_topics/{topic_id}/entries/{entry_id}/replies", 
+        {"per_page": 100}
+    )
+    
+    if isinstance(replies, dict) and "error" in replies:
+        replies = []  # If we can't get replies, continue with entry details
+    
+    # Get topic details for context
+    topic_response = await make_canvas_request(
+        "get", f"/courses/{course_id}/discussion_topics/{topic_id}"
+    )
+    
+    topic_title = "Unknown Topic"
+    if "error" not in topic_response:
+        topic_title = topic_response.get("title", "Unknown Topic")
+    
+    # Format the entry details
+    course_display = await get_course_code(course_id) or course_identifier
+    
+    user_id = entry_response.get("user_id")
+    user_name = entry_response.get("user_name", "Unknown user")
+    message = entry_response.get("message", "")
+    created_at = format_date(entry_response.get("created_at"))
+    updated_at = format_date(entry_response.get("updated_at"))
+    
+    # Entry status
+    read_state = entry_response.get("read_state", "unknown")
+    forced_read_state = entry_response.get("forced_read_state", False)
+    
+    # Attachment info
+    attachment = entry_response.get("attachment")
+    
+    result = f"Discussion Entry Details for '{topic_title}' in Course {course_display}:\n\n"
+    result += f"Topic ID: {topic_id}\n"
+    result += f"Entry ID: {entry_id}\n"
+    result += f"Author: {user_name} (ID: {user_id})\n"
+    result += f"Posted: {created_at}\n"
+    
+    if updated_at != "N/A" and updated_at != created_at:
+        result += f"Updated: {updated_at}\n"
+    
+    result += f"Read State: {read_state.title()}\n"
+    if forced_read_state:
+        result += f"Forced Read State: Yes\n"
+    
+    if attachment:
+        attachment_name = attachment.get("display_name", "Unnamed attachment")
+        attachment_url = attachment.get("url", "")
+        attachment_content_type = attachment.get("content-type", "unknown")
+        result += f"Attachment: {attachment_name} ({attachment_content_type})\n"
+        if attachment_url:
+            result += f"Attachment URL: {attachment_url}\n"
+    
+    result += f"\nContent:\n{message}\n"
+    
+    # Format replies
+    if replies:
+        result += f"\nReplies ({len(replies)}):\n"
+        result += "=" * 50 + "\n"
+        
+        for i, reply in enumerate(replies, 1):
+            reply_id = reply.get("id")
+            reply_user_id = reply.get("user_id")
+            reply_user_name = reply.get("user_name", "Unknown user")
+            reply_message = reply.get("message", "")
+            reply_created_at = format_date(reply.get("created_at"))
+            reply_updated_at = format_date(reply.get("updated_at"))
+            reply_read_state = reply.get("read_state", "unknown")
+            reply_forced_read_state = reply.get("forced_read_state", False)
+            
+            # Reply attachment
+            reply_attachment = reply.get("attachment")
+            
+            result += f"\nReply #{i}:\n"
+            result += f"Reply ID: {reply_id}\n"
+            result += f"Author: {reply_user_name} (ID: {reply_user_id})\n"
+            result += f"Posted: {reply_created_at}\n"
+            
+            if reply_updated_at != "N/A" and reply_updated_at != reply_created_at:
+                result += f"Updated: {reply_updated_at}\n"
+            
+            result += f"Read State: {reply_read_state.title()}\n"
+            if reply_forced_read_state:
+                result += f"Forced Read State: Yes\n"
+            
+            if reply_attachment:
+                reply_attachment_name = reply_attachment.get("display_name", "Unnamed attachment")
+                reply_attachment_content_type = reply_attachment.get("content-type", "unknown")
+                result += f"Attachment: {reply_attachment_name} ({reply_attachment_content_type})\n"
+            
+            result += f"Content:\n{reply_message}\n"
+            
+            if i < len(replies):
+                result += "-" * 30 + "\n"
+    else:
+        result += f"\nNo replies to this entry.\n"
+    
+    return result
+
+
+@mcp.tool()
+@validate_params
+async def reply_to_discussion_entry(course_identifier: Union[str, int], 
+                                    topic_id: Union[str, int],
+                                    entry_id: Union[str, int],
+                                    message: str) -> str:
+    """Reply to a student's discussion entry/comment.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+        topic_id: The Canvas discussion topic ID
+        entry_id: The Canvas discussion entry ID to reply to
+        message: The reply message content
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    # Prepare the reply data
+    data = {
+        "message": message
+    }
+    
+    # Post the reply
+    response = await make_canvas_request(
+        "post", f"/courses/{course_id}/discussion_topics/{topic_id}/entries/{entry_id}/replies", 
+        data=data
+    )
+    
+    if "error" in response:
+        return f"Error posting reply: {response['error']}"
+    
+    # Get context information for confirmation
+    topic_response = await make_canvas_request(
+        "get", f"/courses/{course_id}/discussion_topics/{topic_id}"
+    )
+    
+    entry_response = await make_canvas_request(
+        "get", f"/courses/{course_id}/discussion_topics/{topic_id}/entries/{entry_id}"
+    )
+    
+    topic_title = "Unknown Topic"
+    if "error" not in topic_response:
+        topic_title = topic_response.get("title", "Unknown Topic")
+    
+    original_author = "Unknown Author"
+    if "error" not in entry_response:
+        original_author = entry_response.get("user_name", "Unknown Author")
+    
+    # Extract reply details from response
+    reply_id = response.get("id")
+    reply_created_at = format_date(response.get("created_at"))
+    reply_user_name = response.get("user_name", "You")
+    
+    # Build confirmation message
+    course_display = await get_course_code(course_id) or course_identifier
+    result = f"Reply posted successfully!\n\n"
+    result += f"Course: {course_display}\n"
+    result += f"Discussion Topic: {topic_title} (ID: {topic_id})\n"
+    result += f"Original Entry Author: {original_author} (ID: {entry_id})\n"
+    result += f"Reply ID: {reply_id}\n"
+    result += f"Reply Author: {reply_user_name}\n"
+    result += f"Posted: {reply_created_at}\n\n"
+    result += f"Your Reply:\n{message}\n"
+    
+    return result
+
+
+@mcp.tool()
+@validate_params
+async def create_discussion_topic(course_identifier: Union[str, int], 
+                                  title: str, 
+                                  message: str,
+                                  delayed_post_at: Optional[str] = None,
+                                  lock_at: Optional[str] = None,
+                                  require_initial_post: bool = False,
+                                  pinned: bool = False) -> str:
+    """Create a new discussion topic for a course.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+        title: The title/subject of the discussion topic
+        message: The content/body of the discussion topic
+        delayed_post_at: Optional ISO 8601 datetime to schedule posting (e.g., "2024-01-15T12:00:00Z")
+        lock_at: Optional ISO 8601 datetime to automatically lock the discussion
+        require_initial_post: Whether students must post before seeing other posts
+        pinned: Whether to pin this discussion topic
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    data = {
+        "title": title,
+        "message": message,
+        "is_announcement": False,
+        "published": True,
+        "require_initial_post": require_initial_post,
+        "pinned": pinned
+    }
+    
+    if delayed_post_at:
+        data["delayed_post_at"] = delayed_post_at
+    
+    if lock_at:
+        data["lock_at"] = lock_at
+    
+    response = await make_canvas_request(
+        "post", f"/courses/{course_id}/discussion_topics", data=data
+    )
+    
+    if "error" in response:
+        return f"Error creating discussion topic: {response['error']}"
+    
+    # Extract response details
+    topic_id = response.get("id")
+    topic_title = response.get("title", title)
+    created_at = format_date(response.get("created_at"))
+    posted_at = format_date(response.get("posted_at"))
+    delayed_post_at_response = format_date(response.get("delayed_post_at"))
+    
+    # Build response message
+    course_display = await get_course_code(course_id) or course_identifier
+    result = f"Discussion topic created successfully in course {course_display}:\n\n"
+    result += f"ID: {topic_id}\n"
+    result += f"Title: {topic_title}\n"
+    result += f"Created: {created_at}\n"
+    
+    if delayed_post_at_response and delayed_post_at_response != "N/A":
+        result += f"Scheduled to post: {delayed_post_at_response}\n"
+        result += f"Status: Scheduled\n"
+    else:
+        result += f"Posted: {posted_at}\n"
+        result += f"Status: Published\n"
+    
+    if lock_at:
+        lock_at_formatted = format_date(response.get("lock_at"))
+        if lock_at_formatted != "N/A":
+            result += f"Will lock: {lock_at_formatted}\n"
+    
+    if require_initial_post:
+        result += f"Requires Initial Post: Yes\n"
+    
+    if pinned:
+        result += f"Pinned: Yes\n"
+    
+    return result
+
+
+@mcp.tool()
+@validate_params
+async def post_discussion_entry(course_identifier: Union[str, int], 
+                                topic_id: Union[str, int],
+                                message: str) -> str:
+    """Post a new top-level entry to a discussion topic.
+    
+    Args:
+        course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+        topic_id: The Canvas discussion topic ID
+        message: The entry message content
+    """
+    course_id = await get_course_id(course_identifier)
+    
+    # Prepare the entry data
+    data = {
+        "message": message
+    }
+    
+    # Post the entry
+    response = await make_canvas_request(
+        "post", f"/courses/{course_id}/discussion_topics/{topic_id}/entries", 
+        data=data
+    )
+    
+    if "error" in response:
+        return f"Error posting discussion entry: {response['error']}"
+    
+    # Get context information for confirmation
+    topic_response = await make_canvas_request(
+        "get", f"/courses/{course_id}/discussion_topics/{topic_id}"
+    )
+    
+    topic_title = "Unknown Topic"
+    if "error" not in topic_response:
+        topic_title = topic_response.get("title", "Unknown Topic")
+    
+    # Extract entry details from response
+    entry_id = response.get("id")
+    entry_created_at = format_date(response.get("created_at"))
+    entry_user_name = response.get("user_name", "You")
+    
+    # Build confirmation message
+    course_display = await get_course_code(course_id) or course_identifier
+    result = f"Discussion entry posted successfully!\n\n"
+    result += f"Course: {course_display}\n"
+    result += f"Discussion Topic: {topic_title} (ID: {topic_id})\n"
+    result += f"Entry ID: {entry_id}\n"
+    result += f"Entry Author: {entry_user_name}\n"
+    result += f"Posted: {entry_created_at}\n\n"
+    result += f"Your Entry:\n{message}\n"
     
     return result
 

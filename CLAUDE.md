@@ -20,6 +20,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Architecture Overview
 
 ### Core Design Patterns
+- **FastMCP framework**: Built on FastMCP for robust MCP server implementation with proper tool registration
 - **Type-driven validation**: All MCP tools use `@validate_params` decorator with sophisticated Union/Optional type handling
 - **Dual-layer caching**: Bidirectional course code ↔ ID mapping via `course_code_to_id_cache` and `id_to_course_code_cache`
 - **Flexible identifiers**: Support for Canvas IDs, course codes, and SIS IDs through `get_course_id()` abstraction
@@ -27,9 +28,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### MCP Tool Organization
 - **Progressive disclosure**: List → Details → Content → Analytics pattern
-- **Functional grouping**: Tools organized by Canvas entity (courses, assignments, pages, etc.)
+- **Functional grouping**: Tools organized by Canvas entity (courses, assignments, pages, discussions, etc.)
 - **Consistent naming**: `{action}_{entity}[_{specifier}]` pattern
 - **Educational analytics focus**: Student performance, completion rates, missing work identification
+- **Discussion workflow**: Browse → View → Read → Reply pattern for student interaction
 
 ### API Layer Architecture
 - **Centralized requests**: All Canvas API calls go through `make_canvas_request()`
@@ -62,6 +64,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Course identifiers**: Use `Union[str, int]` and `get_course_id()` for flexibility
 - **Date handling**: Use `format_date()` for all date outputs
 - **Error responses**: Return JSON strings with "error" key for failures
+
+## Discussion Forum Interaction Workflow
+- **Browse discussions**: `list_discussion_topics(course_id)` - Find available discussion forums
+- **View student posts**: `list_discussion_entries(course_id, topic_id)` - See all posts in a discussion
+- **Read full content**: `get_discussion_entry_details(course_id, topic_id, entry_id)` - Get complete student comment
+- **Reply to students**: `reply_to_discussion_entry(course_id, topic_id, entry_id, "Your response")` - Respond to student comments
+- **Create discussions**: `create_discussion_topic(course_id, title, message)` - Start new discussion forums
+- **Post new entries**: `post_discussion_entry(course_id, topic_id, message)` - Add top-level posts
 
 ## Canvas API Specifics
 - Base URL from `CANVAS_API_URL` environment variable
