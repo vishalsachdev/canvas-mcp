@@ -36,7 +36,7 @@ echo "Changed directory to: $(pwd)" >&2
 
 # Run the Python script with the specific python from the virtualenv
 echo "Starting server with Python at: $VENV_PATH/bin/python" >&2
-"$VENV_PATH/bin/python" "canvas_server_cached.py"
+"$VENV_PATH/bin/python" "canvas_server_refactored.py"
 
 # Exit message
 echo "Server stopped" >&2

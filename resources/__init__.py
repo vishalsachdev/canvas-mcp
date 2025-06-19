@@ -1,0 +1,1 @@
+"""MCP resources and prompts for Canvas integration."""
