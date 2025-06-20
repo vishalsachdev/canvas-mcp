@@ -8,13 +8,7 @@ This repository contains a Message Control Protocol (MCP) server implementation 
 
 ## Overview
 
-The Canvas MCP Server provides a local interface to Canvas LMS API, allowing you to:
-- List and manage courses
-- Access assignments and submissions
-- View announcements
-- Retrieve course syllabi and modules
-- Manage users and enrollments
-- Generate course summaries
+The Canvas MCP Server bridges the gap between Claude Desktop and Canvas Learning Management System, providing educators with an intelligent interface to their Canvas environment. Built on the Message Control Protocol (MCP), it enables natural language interactions with Canvas data while maintaining security through local API access.
 
 ## Prerequisites
 
@@ -100,49 +94,15 @@ The Canvas MCP Server provides a comprehensive set of tools for interacting with
 
 ### Tool Categories
 
-1. **Course Tools**
-   - List and manage courses
-   - Get detailed course information
-   - Generate course summaries
-   
-   📚 [View Course Tools Documentation](tools/courses.md)
+1. **Course Tools** - List and manage courses, get detailed information, generate summaries
+2. **Assignment Tools** - Handle assignments, submissions, and peer reviews with analytics
+3. **Rubric Tools** - Create, manage, and grade with rubrics
+4. **Discussion & Announcement Tools** - Manage discussions, announcements, and replies
+5. **Page & Content Tools** - Access pages, modules, and course content
+6. **User & Enrollment Tools** - Manage enrollments, users, and groups
+7. **Analytics Tools** - View student analytics, assignment statistics, and progress tracking
 
-2. **Assignment Tools**
-   - List and manage assignments
-   - Handle submissions and peer reviews
-   - Get assignment details and analytics
-   
-   📝 [View Assignment Tools Documentation](tools/assignments.md)
-
-3. **Rubric Tools**
-   - Create and manage rubrics
-   - Attach rubrics to assignments
-   - Grade submissions using rubrics
-   
-   📊 [View Rubric Tools Documentation](tools/rubrics.md)
-
-4. **Discussion & Announcement Tools**
-   - Manage discussion topics and entries
-   - Create and list announcements
-   - Handle discussion replies and threads
-   
-5. **Page & Content Tools**
-   - List and view pages
-   - Access module content
-   - Get course front page
-   - View page revision history
-   
-6. **User & Enrollment Tools**
-   - List course enrollments
-   - Get user details
-   - Manage user groups
-
-7. **Analytics Tools**
-   - View student analytics
-   - Get assignment statistics
-   - Track course progress
-
-📖 [View Full Documentation](tools/README.md) for detailed information about all available tools, including parameters, return values, and examples.
+📖 [View Full Tool Documentation](tools/README.md) for detailed information about all available tools.
 
 ## Usage with Claude Desktop
 
@@ -159,144 +119,72 @@ For manual testing, you can start the server directly:
 
 ## Project Structure
 
-The project follows a modular architecture for better maintainability and organization:
-
 ```
 .
 ├── core/                      # Core functionality modules
-│   ├── __init__.py
 │   ├── cache.py              # Caching utilities
 │   ├── client.py             # HTTP client for Canvas API
 │   ├── dates.py              # Date handling utilities
 │   ├── types.py              # Type definitions
 │   └── validation.py         # Input validation
 ├── tools/                    # MCP tool implementations
-│   ├── __init__.py
 │   ├── assignments.py        # Assignment-related tools
 │   ├── courses.py            # Course-related tools
 │   ├── other_tools.py        # Miscellaneous tools
-│   ├── rubrics.py            # Rubric-related tools
-│   └── README.md             # Tools documentation index
+│   └── rubrics.py            # Rubric-related tools
 ├── utils/                    # Utility scripts
-│   ├── extract_canvas_api_docs.py  # API documentation extractor
-│   └── get_course_grades.py        # Course grade exporter
 ├── resources/                # Resource files
-├── docs/                     # Additional documentation (generated)
-├── .env.template             # Environment template
-├── README.md                 # This file
-├── requirements.txt          # Python dependencies
-├── CLAUDE.md                 # Development guide for Claude Code
-├── PAGES_IMPLEMENTATION.md   # Pages feature documentation
-├── REFACTORING_TEST_RESULTS.md # Refactoring test results
-├── RUBRIC_FEATURES.md        # Rubric features documentation
+├── docs/                     # Additional documentation
 └── canvas_server_refactored.py # Main server entry point
 ```
 
 ## Documentation
 
-### Core Documentation
-
-Comprehensive documentation is available in the `tools/` directory:
-
-- [Tools Documentation](./tools/README.md) - Main index of all available tools
-- [Course Tools](./tools/courses.md) - Documentation for course-related tools
-- [Assignment Tools](./tools/assignments.md) - Documentation for assignment management
-- [Rubric Tools](./tools/rubrics.md) - Documentation for rubric functionality
-- [Other Tools](./tools/other_tools.md) - Documentation for miscellaneous tools
-
-### Implementation Guides
-
-For developers and advanced users, these guides provide in-depth implementation details:
-
-- [Pages Implementation Guide](./PAGES_IMPLEMENTATION.md) - Comprehensive guide to the Pages feature, including:
-  - Core page tools and their usage
-  - Integration with course modules
-  - Advanced features and examples
-  - Best practices for page management
-
-- [Rubric Features Guide](./RUBRIC_FEATURES.md) - Detailed documentation on rubric functionality, including:
-  - Creating and managing rubrics
-  - Advanced assessment workflows
-  - Integration with assignments
-  - Real-world examples and use cases
-
-### Development Resources
-
-- [Development Guide](./CLAUDE.md) - For contributors working on the codebase
-- [Refactoring Results](./REFACTORING_TEST_RESULTS.md) - Test results and validation from the refactoring process
+- **[Tool Documentation](./tools/README.md)** - Complete reference for all available tools
+- **[Pages Implementation Guide](./PAGES_IMPLEMENTATION.md)** - Comprehensive Pages feature guide
+- **[Rubric Features Guide](./RUBRIC_FEATURES.md)** - Advanced rubric functionality and workflows
+- **[Development Guide](./CLAUDE.md)** - Architecture details and contribution guidelines
 ## Technical Details
 
 ### Architecture
 
-The server is built with a modular architecture for better maintainability and extensibility:
+The server uses a modular architecture built on FastMCP for robust MCP server implementation:
 
-- **Core Components**: Found in `core/` for shared functionality
-  - Caching, HTTP client, validation, and type definitions
-  - Common utilities used across all tools
-
-- **Tool Modules**: Organized by domain in `tools/`
-  - Each tool is self-contained with clear responsibilities
-  - Consistent patterns for error handling and API interaction
-  - Comprehensive documentation for each tool
-
-- **Asynchronous Design**: Built with `asyncio` and `httpx` for high performance
-  - Non-blocking I/O operations
-  - Efficient handling of concurrent requests
-  - Automatic rate limiting and retry logic
+- **Core Components** (`core/`): Shared functionality including caching, HTTP client, validation, and type definitions
+- **Tool Modules** (`tools/`): Domain-organized tools with self-contained responsibilities and consistent error handling patterns
+- **Asynchronous Design**: Built with `asyncio` and `httpx` for non-blocking I/O and efficient concurrent request handling
 
 ### Key Features
 
-- **Unified Interface**: All Canvas API interactions go through a single client
-- **Intelligent Caching**: Reduces API calls and improves performance
-- **Comprehensive Error Handling**: Clear error messages and recovery options
-- **Type Safety**: Full type hints for better code quality and IDE support
-- **Documentation**: Extensive inline documentation and examples
-
-### Performance Considerations
-
-- **Caching Layer**: Redundant API calls are minimized
-- **Batch Processing**: Where possible, operations are batched for efficiency
-- **Lazy Loading**: Resources are loaded only when needed
-- **Connection Pooling**: HTTP connections are reused for better performance
-
-For developers, see the [Development Guide](CLAUDE.md) for more information on the architecture and contribution guidelines.
+- **Unified Interface**: All Canvas API interactions through a single client with intelligent caching
+- **Type Safety**: Full type hints with comprehensive error handling and recovery options
+- **Performance Optimized**: Caching layer, batch processing, lazy loading, and connection pooling
+- **Educational Focus**: Student analytics, performance tracking, and discussion workflow tools
 
 ### Dependencies
 
-The server requires the following Python packages (see `requirements.txt` for specific versions):
-- `httpx`: For asynchronous HTTP requests
-- `fastmcp`: For MCP server implementation
-- `python-dotenv`: For environment variable management
-- `python-dateutil`: For date parsing and manipulation
-- `pydantic`: For data validation and settings management
-- `typing-extensions`: For type hints support
+Core packages (see `requirements.txt` for versions):
+- `fastmcp`: MCP server implementation
+- `httpx`: Asynchronous HTTP requests  
+- `python-dotenv`: Environment management
+- `python-dateutil`: Date parsing
+- `pydantic`: Data validation
 
 ### Utility Scripts
 
-- `utils/extract_canvas_api_docs.py`: Script to extract and generate API documentation from Canvas
-- `utils/get_course_grades.py`: Script to export course grades to a CSV file
+- `extract_canvas_api_docs.py`: Generate API documentation from Canvas
+- `get_course_grades.py`: Export course grades to CSV
+
+For developers, see the [Development Guide](CLAUDE.md) for architecture details and contribution guidelines.
 
 ## Troubleshooting
 
 If you encounter issues:
 
-1. **Server Won't Start**
-   - Check that your `.env` file exists and contains valid credentials
-   - Verify the virtual environment path in `start_canvas_server.sh`
-   - Ensure all dependencies are installed
-
-2. **Authentication Errors**
-   - Verify your Canvas API token is valid and not expired
-   - Check that you have the necessary permissions in Canvas
-
-3. **Connection Issues**
-   - Ensure your Canvas API URL is correct
-   - Check your internet connection
-   - Verify your institution hasn't restricted API access
-
-4. **Debugging**
-   - Check the server logs in the Claude Desktop console
-   - Try running the server manually to see error output
+1. **Server Won't Start** - Verify your [Configuration](#configuration) setup: `.env` file, virtual environment path, and dependencies
+2. **Authentication Errors** - Check your Canvas API token validity and permissions
+3. **Connection Issues** - Verify Canvas API URL correctness and network access
+4. **Debugging** - Check Claude Desktop console logs or run server manually for error output
 
 ## Security Considerations
 
