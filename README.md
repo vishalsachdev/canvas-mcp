@@ -198,23 +198,23 @@ The project follows a modular architecture for better maintainability and organi
 
 Comprehensive documentation is available in the `tools/` directory:
 
-- [Tools Documentation](tools/README.md) - Main index of all available tools
-- [Course Tools](tools/courses.md) - Documentation for course-related tools
-- [Assignment Tools](tools/assignments.md) - Documentation for assignment management
-- [Rubric Tools](tools/rubrics.md) - Documentation for rubric functionality
-- [Other Tools](tools/other_tools.md) - Documentation for miscellaneous tools
+- [Tools Documentation](./tools/README.md) - Main index of all available tools
+- [Course Tools](./tools/courses.md) - Documentation for course-related tools
+- [Assignment Tools](./tools/assignments.md) - Documentation for assignment management
+- [Rubric Tools](./tools/rubrics.md) - Documentation for rubric functionality
+- [Other Tools](./tools/other_tools.md) - Documentation for miscellaneous tools
 
 ### Implementation Guides
 
 For developers and advanced users, these guides provide in-depth implementation details:
 
-- [Pages Implementation Guide](PAGES_IMPLEMENTATION.md) - Comprehensive guide to the Pages feature, including:
+- [Pages Implementation Guide](./PAGES_IMPLEMENTATION.md) - Comprehensive guide to the Pages feature, including:
   - Core page tools and their usage
   - Integration with course modules
   - Advanced features and examples
   - Best practices for page management
 
-- [Rubric Features Guide](RUBRIC_FEATURES.md) - Detailed documentation on rubric functionality, including:
+- [Rubric Features Guide](./RUBRIC_FEATURES.md) - Detailed documentation on rubric functionality, including:
   - Creating and managing rubrics
   - Advanced assessment workflows
   - Integration with assignments
@@ -222,8 +222,8 @@ For developers and advanced users, these guides provide in-depth implementation 
 
 ### Development Resources
 
-- [Development Guide](CLAUDE.md) - For contributors working on the codebase
-- [Refactoring Results](REFACTORING_TEST_RESULTS.md) - Test results and validation from the refactoring process
+- [Development Guide](./CLAUDE.md) - For contributors working on the codebase
+- [Refactoring Results](./REFACTORING_TEST_RESULTS.md) - Test results and validation from the refactoring process
 ## Technical Details
 
 ### Architecture
