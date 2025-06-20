@@ -25,15 +25,13 @@ Documentation for assignment-related functionality.
 ### 3. Rubric Tools
 Documentation for rubric-related functionality.
 
-- [rubrics.md](rubrics.md) - Tools for creating, managing, and using rubrics for assessment.
-- [Rubric Features Guide](../RUBRIC_FEATURES.md) - In-depth guide to rubric functionality with advanced examples and workflows.
+- [rubrics.md](rubrics.md) - Complete guide to rubric tools including workflows, grading features, and educator benefits.
 
 ### 4. Other Tools
 Documentation for additional Canvas functionality.
 
 - [other_tools.md](other_tools.md) - Miscellaneous tools including:
   - Discussions and announcements
-  - Pages and content management
   - User and enrollment management
   - Analytics and reporting
 

@@ -204,85 +204,12 @@ await create_announcement(
 
 ## Page Tools
 
-### list_pages
-
-Lists pages in a course.
-
-**Parameters:**
-- `course_identifier`: Canvas course code or ID
-- `sort`: Sort field (title, created_at, updated_at)
-- `order`: Sort order (asc, desc)
-- `search_term`: Filter by search term
-- `published`: Filter by published status (True/False/None for all)
-
-**Example:**
-```python
-# List all pages
-await list_pages("badm_554_120251_246794")
-
-# List published pages sorted by title
-await list_pages(12345, sort="title", order="asc", published=True)
-```
-
----
-
-### get_page_details
-
-Gets details about a specific page.
-
-**Parameters:**
-- `course_identifier`: Canvas course code or ID
-- `page_url_or_id`: Page URL or ID
-
-**Example:**
-```python
-await get_page_details("badm_554_120251_246794", "syllabus")
-```
-
----
-
-### get_page_content
-
-Gets the content of a specific page.
-
-**Parameters:**
-- `course_identifier`: Canvas course code or ID
-- `page_url_or_id`: Page URL or ID
-
-**Example:**
-```python
-await get_page_content("badm_554_120251_246794", "syllabus")
-```
-
----
-
-### get_front_page
-
-Gets the front page of the course.
-
-**Parameters:**
-- `course_identifier`: Canvas course code or ID
-
-**Example:**
-```python
-await get_front_page("badm_554_120251_246794")
-```
-
----
-
-### list_module_items
-
-Lists items in a module.
-
-**Parameters:**
-- `course_identifier`: Canvas course code or ID
-- `module_id`: Canvas module ID
-- `include_content_details`: Include additional item details (default: True)
-
-**Example:**
-```python
-await list_module_items("badm_554_120251_246794", 12345)
-```
+For comprehensive page-related functionality, see the [Pages Implementation Guide](../PAGES_IMPLEMENTATION.md) which covers:
+- Listing and managing pages
+- Getting page details and content
+- Working with front pages
+- Module integration
+- Advanced page workflows
 
 ---
 

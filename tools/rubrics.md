@@ -289,3 +289,78 @@ await get_rubric_assessment("badm_554_120251_246794", 98765, "student123",
 3. **Invalid Data**: Check that rubric criteria and ratings are properly formatted
 4. **Rate Limiting**: Tools include backoff and retry logic
 5. **Network Issues**: Handles temporary network failures gracefully
+
+---
+
+## Typical Rubric Workflow
+
+### 1. Discover Rubrics
+```bash
+# Find rubrics for an assignment
+list_assignment_rubrics(course_id, assignment_id)
+```
+
+### 2. Understand Criteria
+```bash
+# Get detailed rubric breakdown
+get_rubric_details(course_id, rubric_id)
+```
+
+### 3. Review Existing Grades
+```bash  
+# Check current rubric assessment
+get_submission_rubric_assessment(course_id, assignment_id, user_id)
+```
+
+### 4. Submit New Grades
+```bash
+# Grade using rubric criteria
+grade_with_rubric(course_id, assignment_id, user_id, assessment_json, comment)
+```
+
+## Key Features
+
+### Comprehensive Error Handling
+- Validates rubric existence and accessibility
+- Provides clear error messages for missing data
+- Handles JSON parsing errors gracefully
+
+### Rich Data Display
+- Formatted rubric criteria with descriptions
+- Point breakdowns and rating level details
+- Student-friendly assessment summaries
+
+### Flexible Grading
+- Support for partial points within criteria
+- Individual comments per criterion
+- Overall submission comments
+
+### Integration Ready
+- Follows modular architecture patterns
+- Consistent with existing tool design
+- Compatible with current caching and validation systems
+
+## Benefits for Educators
+
+### Streamlined Grading
+- View complete rubric structure before grading
+- Apply consistent criteria across submissions
+- Track detailed feedback per learning objective
+
+### Quality Assurance
+- Review existing rubric assessments
+- Ensure grading consistency across sections
+- Maintain detailed grading records
+
+### Efficient Workflows
+- Batch process rubric-based grading
+- Integrate with external grading tools
+- Export detailed assessment data
+
+## Getting Started
+
+1. **Update Server**: Use `canvas_server_refactored.py`
+2. **Test Connection**: Verify Canvas API access
+3. **Find Assignment**: Use existing assignment tools
+4. **Explore Rubrics**: Start with `list_assignment_rubrics`
+5. **Grade Students**: Use `grade_with_rubric` for assessment
