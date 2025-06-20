@@ -27,11 +27,18 @@ Documentation for rubric-related functionality.
 
 - [rubrics.md](rubrics.md) - Complete guide to rubric tools including workflows, grading features, and educator benefits.
 
-### 4. Other Tools
+### 4. Discussion & Announcement Tools
+Documentation for discussion and announcement functionality.
+
+- [discussions.md](discussions.md) - Complete guide to discussion and announcement tools including:
+  - Discussion topic management and participation
+  - Creating and managing announcements
+  - Student engagement workflows
+
+### 5. Other Tools
 Documentation for additional Canvas functionality.
 
 - [other_tools.md](other_tools.md) - Miscellaneous tools including:
-  - Discussions and announcements
   - User and enrollment management
   - Analytics and reporting
 

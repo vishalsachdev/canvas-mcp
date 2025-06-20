@@ -1,16 +1,12 @@
-"""Other MCP tools for Canvas API (discussions, announcements, pages, users, analytics)."""
+"""Other MCP tools for Canvas API (pages, users, analytics)."""
 
 from typing import Union, Optional
 from mcp.server.fastmcp import FastMCP
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from core.client import fetch_all_paginated_results, make_canvas_request
-from core.cache import get_course_id, get_course_code
-from core.validation import validate_params
-from core.dates import format_date, truncate_text
+from ..core.client import fetch_all_paginated_results, make_canvas_request
+from ..core.cache import get_course_id, get_course_code
+from ..core.validation import validate_params
+from ..core.dates import format_date, truncate_text
 
 
 def register_other_tools(mcp: FastMCP):
@@ -192,6 +188,90 @@ def register_other_tools(mcp: FastMCP):
         # Try to get the course code for display
         course_display = await get_course_code(course_id) or course_identifier
         return f"Front Page '{title}' for Course {course_display} (Updated: {updated_at}):\n\n{body}"
+
+    @mcp.tool()
+    @validate_params
+    async def edit_page_content(course_identifier: Union[str, int], 
+                               page_url_or_id: str, 
+                               new_content: str,
+                               title: Optional[str] = None) -> str:
+        """Edit the content of a specific page.
+        
+        Args:
+            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            page_url_or_id: The page URL or page ID
+            new_content: The new HTML content for the page
+            title: Optional new title for the page
+        """
+        course_id = await get_course_id(course_identifier)
+        
+        # Prepare the data for updating the page
+        update_data = {
+            "wiki_page": {
+                "body": new_content
+            }
+        }
+        
+        if title:
+            update_data["wiki_page"]["title"] = title
+        
+        # Update the page
+        response = await make_canvas_request(
+            "put", 
+            f"/courses/{course_id}/pages/{page_url_or_id}",
+            data=update_data
+        )
+        
+        if "error" in response:
+            return f"Error updating page: {response['error']}"
+        
+        page_title = response.get("title", "Unknown page")
+        updated_at = format_date(response.get("updated_at"))
+        course_display = await get_course_code(course_id) or course_identifier
+        
+        return f"Successfully updated page '{page_title}' in course {course_display}. Last updated: {updated_at}"
+
+    @mcp.tool()
+    async def get_anonymization_status() -> str:
+        """Get current data anonymization status and statistics.
+        
+        Returns:
+            Status information about data anonymization
+        """
+        from ..core.config import get_config
+        from ..core.anonymization import get_anonymization_stats
+        
+        config = get_config()
+        stats = get_anonymization_stats()
+        
+        result = "🔒 Data Anonymization Status:\n\n"
+        
+        if config.enable_data_anonymization:
+            result += "✅ **ANONYMIZATION ENABLED** - Student data is protected\n\n"
+            result += f"📊 Session Statistics:\n"
+            result += f"  • Total unique students anonymized: {stats['total_anonymized_ids']}\n"
+            result += f"  • Privacy protection: {stats['privacy_status']}\n"
+            result += f"  • Debug logging: {'ON' if config.anonymization_debug else 'OFF'}\n\n"
+            
+            if stats['total_anonymized_ids'] > 0:
+                result += "🎭 Anonymous ID Examples:\n"
+                for i, (real_hint, anon_id) in enumerate(stats['sample_mappings'].items()):
+                    result += f"  • {real_hint} → {anon_id}\n"
+                    if i >= 2:  # Limit to 3 examples
+                        break
+                result += "\n"
+            
+            result += "🛡️ **FERPA Compliance**: Data anonymized before AI processing\n"
+            result += "📍 **Data Location**: All processing happens locally on your machine\n"
+            
+        else:
+            result += "⚠️ **ANONYMIZATION DISABLED** - Student data is NOT protected\n\n"
+            result += "🚨 **PRIVACY RISK**: Real student names and data sent to AI\n"
+            result += "⚖️ **COMPLIANCE**: May violate FERPA requirements\n\n"
+            result += "💡 **Recommendation**: Enable anonymization in your .env file:\n"
+            result += "   ENABLE_DATA_ANONYMIZATION=true\n"
+        
+        return result
 
     @mcp.tool()
     @validate_params

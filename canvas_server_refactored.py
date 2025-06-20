@@ -13,6 +13,7 @@ from mcp.server.fastmcp import FastMCP
 # Import all modules
 from tools.courses import register_course_tools
 from tools.assignments import register_assignment_tools  
+from tools.discussions import register_discussion_tools
 from tools.other_tools import register_other_tools
 from tools.rubrics import register_rubric_tools
 from resources.resources import register_resources_and_prompts
@@ -42,6 +43,7 @@ def register_all_tools():
     # Register tools by category
     register_course_tools(mcp)
     register_assignment_tools(mcp)
+    register_discussion_tools(mcp)
     register_other_tools(mcp)
     register_rubric_tools(mcp)
     

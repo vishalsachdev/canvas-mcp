@@ -8,85 +8,100 @@ This repository contains a Message Control Protocol (MCP) server implementation 
 
 ## Overview
 
-The Canvas MCP Server bridges the gap between Claude Desktop and Canvas Learning Management System, providing educators with an intelligent interface to their Canvas environment. Built on the Message Control Protocol (MCP), it enables natural language interactions with Canvas data while maintaining security through local API access.
+The Canvas MCP Server bridges the gap between Claude Desktop and Canvas Learning Management System, providing educators with an intelligent interface to their Canvas environment. Built on the Message Control Protocol (MCP), it enables natural language interactions with Canvas data while maintaining **FERPA compliance** through advanced privacy protection features.
+
+## 🔒 Privacy-First Student Data Protection
+
+**The Problem**: Using AI tools with student data creates FERPA compliance risks and privacy violations.
+
+**What We Built**:
+- **Source-level data anonymization** that converts real names to consistent anonymous IDs (Student_xxxxxxxx)
+- **Automatic email masking** and PII filtering from discussion posts and submissions  
+- **Local-only processing** with configurable privacy controls (`ENABLE_DATA_ANONYMIZATION=true`)
+- **FERPA-compliant analytics**: Ask "Which students need support?" without exposing real identities
+
+All student data is anonymized **before** it reaches AI systems, ensuring complete privacy protection while maintaining full educational functionality.
 
 ## Prerequisites
 
-- Python 3.x
-- Virtual environment (venv)
-- Canvas API Token
-- Canvas API URL (e.g., https://canvas.illinois.edu/api/v1)
+- **Python 3.10+** - Required for modern features and type hints
+- **Canvas API Access** - API token and institution URL
+- **Claude Desktop** - For MCP integration
 
-## Installation
+## Quick Start (Automated Installation)
 
-1. Clone this repository:
+The fastest way to get started is with our automated installer:
+
 ```bash
+# Clone the repository
 git clone https://github.com/vishalsachdev/canvas-mcp.git
 cd canvas-mcp
+
+# Run the automated installer
+python scripts/install.py
 ```
 
-2. Create and activate a virtual environment:
+The installer will:
+- ✅ Set up Python environment with `uv` package manager
+- ✅ Install all dependencies automatically  
+- ✅ Create environment configuration template
+- ✅ Configure Claude Desktop integration
+- ✅ Test the installation
+
+## Manual Installation
+
+If you prefer manual setup:
+
+### 1. Install Dependencies
+
 ```bash
-python -m venv canvas-mcp
-source canvas-mcp/bin/activate  # On Unix/macOS
+# Install uv package manager (faster than pip)
+pip install uv
+
+# Install the package
+uv pip install -e .
 ```
 
-3. Install dependencies:
+### 2. Configure Environment
+
 ```bash
-pip install -r requirements.txt
+# Copy environment template
+cp env.template .env
+
+# Edit with your Canvas credentials
+# Required: CANVAS_API_TOKEN, CANVAS_API_URL
 ```
 
-## Configuration
+Get your Canvas API token from: **Canvas → Account → Settings → New Access Token**
 
-### 1. Create Environment File
+### 3. Claude Desktop Setup
 
-Create a `.env` file in the root directory with the following variables:
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
-```
-CANVAS_API_TOKEN=your_canvas_api_token_here
-CANVAS_API_URL=https://canvas.youruniversity.edu/api/v1
-```
-
-Replace the values with:
-- Your Canvas API Token ([How to get your Canvas API token](https://community.canvaslms.com/t5/Canvas-Basics-Guide/How-do-I-manage-API-access-tokens-in-my-user-account/ta-p/615312))
-- Your university's Canvas API URL
-
-### 2. Configure Start Script
-
-The `start_canvas_server.sh` script is already configured to:
-- Load environment variables from the `.env` file
-- Activate the virtual environment
-- Run the cached server implementation
-
-Make the start script executable:
-```bash
-chmod +x start_canvas_server.sh
-```
-
-### 3. Claude Desktop Configuration
-
-1. Install [Claude Desktop](https://claude.ai/download) if you haven't already.
-
-2. Create or edit the Claude Desktop configuration file:
-```bash
-vim ~/Library/Application\ Support/Claude/claude_desktop_config.json
-```
-
-3. Add the Canvas MCP server configuration:
 ```json
 {
-  "mcpServers": [
-    {
-      "name": "canvas-api",
-      "command": "/Users/YOUR_USERNAME/path/to/canvas-mcp/start_canvas_server.sh"
+  "mcpServers": {
+    "canvas-api": {
+      "command": "canvas-mcp-server"
     }
-  ]
+  }
 }
 ```
 
-Replace `/Users/YOUR_USERNAME/path/to/canvas-mcp` with the absolute path to where you cloned this repository.
+## Verification
 
-4. Restart Claude Desktop to load the new configuration.
+Test your setup:
+
+```bash
+# Test Canvas API connection
+canvas-mcp-server --test
+
+# View configuration
+canvas-mcp-server --config
+
+# Start server (for manual testing)
+canvas-mcp-server
+```
 
 ## Available Tools
 
@@ -106,76 +121,94 @@ The Canvas MCP Server provides a comprehensive set of tools for interacting with
 
 ## Usage with Claude Desktop
 
-This MCP server is designed to work seamlessly with Claude Desktop:
+This MCP server works seamlessly with Claude Desktop:
 
-1. Claude Desktop will automatically start the server when needed
-2. You'll see the Canvas API tools in the Claude Desktop interface (hammer icon 🔨)
-3. You can ask Claude to perform Canvas operations like "Show me my courses" or "Get the syllabus for my Biology course"
-
-For manual testing, you can start the server directly:
-```bash
-./start_canvas_server.sh
-```
+1. **Automatic Startup**: Claude Desktop starts the server when needed
+2. **Tool Integration**: Canvas tools appear in Claude's interface (🔨 hammer icon)
+3. **Natural Language**: Ask Claude things like:
+   - *"Show me my courses"*
+   - *"Which students haven't submitted the latest assignment?"*
+   - *"Create an announcement about tomorrow's exam"*
 
 ## Project Structure
 
+Modern Python package structure following 2025 best practices:
+
 ```
-.
-├── core/                      # Core functionality modules
-│   ├── cache.py              # Caching utilities
-│   ├── client.py             # HTTP client for Canvas API
-│   ├── dates.py              # Date handling utilities
-│   ├── types.py              # Type definitions
-│   └── validation.py         # Input validation
-├── tools/                    # MCP tool implementations
-│   ├── assignments.py        # Assignment-related tools
-│   ├── courses.py            # Course-related tools
-│   ├── other_tools.py        # Miscellaneous tools
-│   └── rubrics.py            # Rubric-related tools
-├── utils/                    # Utility scripts
-├── resources/                # Resource files
-├── docs/                     # Additional documentation
-└── canvas_server_refactored.py # Main server entry point
+canvas-mcp/
+├── pyproject.toml             # Modern Python project config
+├── env.template              # Environment configuration template
+├── src/
+│   └── canvas_mcp/            # Main package
+│       ├── __init__.py        # Package initialization
+│       ├── server.py          # Main server entry point
+│       ├── core/              # Core utilities
+│       │   ├── config.py      # Configuration management
+│       │   ├── client.py      # HTTP client
+│       │   ├── cache.py       # Caching system
+│       │   └── validation.py  # Input validation
+│       ├── tools/             # MCP tool implementations
+│       │   ├── courses.py     # Course management
+│       │   ├── assignments.py # Assignment tools
+│       │   ├── discussions.py # Discussion tools
+│       │   ├── rubrics.py     # Rubric tools
+│       │   └── other_tools.py # Misc tools
+│       └── resources/         # MCP resources
+├── scripts/
+│   └── install.py            # Automated installation
+└── docs/                     # Documentation
 ```
 
 ## Documentation
 
 - **[Tool Documentation](./tools/README.md)** - Complete reference for all available tools
-- **[Pages Implementation Guide](./PAGES_IMPLEMENTATION.md)** - Comprehensive Pages feature guide
-- **[Rubric Features Guide](./RUBRIC_FEATURES.md)** - Advanced rubric functionality and workflows
-- **[Development Guide](./CLAUDE.md)** - Architecture details and contribution guidelines
+- **[Pages Implementation Guide](./docs/PAGES_IMPLEMENTATION.md)** - Comprehensive Pages feature guide
+- **[Development Guide](./docs/CLAUDE.md)** - Architecture details and contribution guidelines
 ## Technical Details
 
-### Architecture
+### Modern Architecture (2025)
 
-The server uses a modular architecture built on FastMCP for robust MCP server implementation:
+Built with current Python ecosystem best practices:
 
-- **Core Components** (`core/`): Shared functionality including caching, HTTP client, validation, and type definitions
-- **Tool Modules** (`tools/`): Domain-organized tools with self-contained responsibilities and consistent error handling patterns
-- **Asynchronous Design**: Built with `asyncio` and `httpx` for non-blocking I/O and efficient concurrent request handling
+- **Package Structure**: Modern `src/` layout with `pyproject.toml`
+- **Dependency Management**: Fast `uv` package manager with locked dependencies
+- **Configuration**: Environment-based config with validation and templates
+- **Entry Points**: Proper CLI commands via `pyproject.toml` scripts
+- **Type Safety**: Full type hints and runtime validation
 
-### Key Features
+### Core Components
 
-- **Unified Interface**: All Canvas API interactions through a single client with intelligent caching
-- **Type Safety**: Full type hints with comprehensive error handling and recovery options
-- **Performance Optimized**: Caching layer, batch processing, lazy loading, and connection pooling
-- **Educational Focus**: Student analytics, performance tracking, and discussion workflow tools
+- **FastMCP Framework**: Robust MCP server implementation with tool registration
+- **Async Architecture**: `httpx` client with connection pooling and rate limiting
+- **Smart Caching**: Intelligent request caching with configurable TTL
+- **Configuration System**: Environment-based config with validation and defaults
+- **Educational Focus**: Tools designed for real teaching workflows
 
 ### Dependencies
 
-Core packages (see `requirements.txt` for versions):
-- `fastmcp`: MCP server implementation
-- `httpx`: Asynchronous HTTP requests  
-- `python-dotenv`: Environment management
-- `python-dateutil`: Date parsing
-- `pydantic`: Data validation
+Modern Python packages (see `pyproject.toml`):
+- **`fastmcp`**: MCP server framework
+- **`httpx`**: Async HTTP client
+- **`python-dotenv`**: Environment configuration
+- **`pydantic`**: Data validation and settings
+- **`python-dateutil`**: Date/time handling
 
-### Utility Scripts
+### Performance Features
 
-- `extract_canvas_api_docs.py`: Generate API documentation from Canvas
-- `get_course_grades.py`: Export course grades to CSV
+- **Connection Pooling**: Reuse HTTP connections for efficiency
+- **Request Caching**: Minimize redundant Canvas API calls
+- **Async Operations**: Non-blocking I/O for concurrent requests
+- **Smart Pagination**: Automatic handling of Canvas API pagination
+- **Rate Limiting**: Respect Canvas API limits with backoff
 
-For developers, see the [Development Guide](CLAUDE.md) for architecture details and contribution guidelines.
+### Development Tools
+
+- **Automated Setup**: One-command installation script
+- **Configuration Testing**: Built-in connection and config testing
+- **Type Checking**: `mypy` support for type safety
+- **Code Quality**: `ruff` and `black` for formatting and linting
+
+For contributors, see the [Development Guide](CLAUDE.md) for detailed architecture and contribution guidelines.
 
 ## Troubleshooting
 
@@ -186,12 +219,29 @@ If you encounter issues:
 3. **Connection Issues** - Verify Canvas API URL correctness and network access
 4. **Debugging** - Check Claude Desktop console logs or run server manually for error output
 
-## Security Considerations
+## Security & Privacy Features
 
+### FERPA-Compliant Data Protection
+- **Automatic anonymization** of all student data (names, emails, IDs) before AI processing
+- **PII filtering** removes phone numbers, emails, and SSNs from discussion content
+- **Consistent anonymous IDs** maintain educational relationships while protecting identity
+- **Local-only processing** - no data leaves your machine except anonymous analytics
+
+### API Security
 - Your Canvas API token grants access to your Canvas account
-- Never commit your `.env` file to version control
+- Never commit your `.env` file to version control  
 - Consider using a token with limited permissions if possible
 - The server runs locally on your machine and doesn't expose your credentials externally
+
+### Privacy Controls
+Configure privacy settings in your `.env` file:
+```bash
+# Enable automatic student data anonymization (recommended)
+ENABLE_DATA_ANONYMIZATION=true
+
+# Debug anonymization process (for testing)
+ANONYMIZATION_DEBUG=true
+```
 
 ## Contributing
 
