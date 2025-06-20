@@ -1,8 +1,10 @@
 # Canvas MCP Server
 
-
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 This repository contains a Message Control Protocol (MCP) server implementation for interacting with the Canvas Learning Management System API. The server is designed to work with Claude Desktop and potentially other MCP clients.
+
+> **Note**: Recently refactored to a modular architecture for better maintainability. The legacy monolithic implementation has been archived.
 
 ## Overview
 
@@ -94,47 +96,53 @@ Replace `/Users/YOUR_USERNAME/path/to/canvas-mcp` with the absolute path to wher
 
 ## Available Tools
 
-The server provides the following tools for Canvas LMS interaction:
+The Canvas MCP Server provides a comprehensive set of tools for interacting with the Canvas LMS API. These tools are organized into logical categories for better discoverability and maintainability.
 
-### Course Management
-- `list_courses`: List all courses for the authenticated user
-- `get_course_details`: Get detailed information about a specific course
-- `summarize_course`: Generate a comprehensive summary of a course
+### Tool Categories
 
-### Assignments
-- `list_assignments`: List all assignments for a course
-- `get_assignment_details`: Get detailed information about a specific assignment
-- `get_assignment_description`: Get the full description of an assignment
+1. **Course Tools**
+   - List and manage courses
+   - Get detailed course information
+   - Generate course summaries
+   
+   📚 [View Course Tools Documentation](tools/courses.md)
 
-### Submissions
-- `list_submissions`: List all submissions for a specific assignment
+2. **Assignment Tools**
+   - List and manage assignments
+   - Handle submissions and peer reviews
+   - Get assignment details and analytics
+   
+   📝 [View Assignment Tools Documentation](tools/assignments.md)
 
-### Users
-- `list_users`: List all users enrolled in a course
+3. **Rubric Tools**
+   - Create and manage rubrics
+   - Attach rubrics to assignments
+   - Grade submissions using rubrics
+   
+   📊 [View Rubric Tools Documentation](tools/rubrics.md)
 
-### Pages
-- `list_pages`: List all pages in a course with filtering and sorting options
-- `get_page_details`: Get detailed information about a specific page
-- `get_page_content`: Get the full content body of a specific page
-- `get_front_page`: Get the front page content for a course
-- `get_page_revisions`: Get the revision history for a specific page
+4. **Discussion & Announcement Tools**
+   - Manage discussion topics and entries
+   - Create and list announcements
+   - Handle discussion replies and threads
+   
+5. **Page & Content Tools**
+   - List and view pages
+   - Access module content
+   - Get course front page
+   - View page revision history
+   
+6. **User & Enrollment Tools**
+   - List course enrollments
+   - Get user details
+   - Manage user groups
 
-### Modules
-- `list_module_items`: List items within a specific module (including pages, assignments, etc.)
+7. **Analytics Tools**
+   - View student analytics
+   - Get assignment statistics
+   - Track course progress
 
-### Content Overview
-- `get_course_content_overview`: Get a comprehensive overview of course content including pages and modules
-
-### Announcements
-- `list_announcements`: List all announcements for a course with scheduling status
-- `create_announcement`: Create new announcements (immediate posting only)
-- `create_scheduled_discussion`: Create scheduled discussion topics (workaround for announcement scheduling)
-
-### Resources
-- `get_course_syllabus`: Get the syllabus for a course
-- `get_course_modules`: Get all modules for a course
-- `page-content`: Direct access to page content via URI
-- `course-front-page`: Direct access to course front page content
+📖 [View Full Documentation](tools/README.md) for detailed information about all available tools, including parameters, return values, and examples.
 
 ## Usage with Claude Desktop
 
@@ -149,29 +157,124 @@ For manual testing, you can start the server directly:
 ./start_canvas_server.sh
 ```
 
+## Project Structure
+
+The project follows a modular architecture for better maintainability and organization:
+
+```
+.
+├── core/                      # Core functionality modules
+│   ├── __init__.py
+│   ├── cache.py              # Caching utilities
+│   ├── client.py             # HTTP client for Canvas API
+│   ├── dates.py              # Date handling utilities
+│   ├── types.py              # Type definitions
+│   └── validation.py         # Input validation
+├── tools/                    # MCP tool implementations
+│   ├── __init__.py
+│   ├── assignments.py        # Assignment-related tools
+│   ├── courses.py            # Course-related tools
+│   ├── other_tools.py        # Miscellaneous tools
+│   ├── rubrics.py            # Rubric-related tools
+│   └── README.md             # Tools documentation index
+├── utils/                    # Utility scripts
+│   ├── extract_canvas_api_docs.py  # API documentation extractor
+│   └── get_course_grades.py        # Course grade exporter
+├── resources/                # Resource files
+├── docs/                     # Additional documentation (generated)
+├── .env.template             # Environment template
+├── README.md                 # This file
+├── requirements.txt          # Python dependencies
+├── CLAUDE.md                 # Development guide for Claude Code
+├── PAGES_IMPLEMENTATION.md   # Pages feature documentation
+├── REFACTORING_TEST_RESULTS.md # Refactoring test results
+├── RUBRIC_FEATURES.md        # Rubric features documentation
+└── canvas_server_refactored.py # Main server entry point
+```
+
+## Documentation
+
+### Core Documentation
+
+Comprehensive documentation is available in the `tools/` directory:
+
+- [Tools Documentation](tools/README.md) - Main index of all available tools
+- [Course Tools](tools/courses.md) - Documentation for course-related tools
+- [Assignment Tools](tools/assignments.md) - Documentation for assignment management
+- [Rubric Tools](tools/rubrics.md) - Documentation for rubric functionality
+- [Other Tools](tools/other_tools.md) - Documentation for miscellaneous tools
+
+### Implementation Guides
+
+For developers and advanced users, these guides provide in-depth implementation details:
+
+- [Pages Implementation Guide](PAGES_IMPLEMENTATION.md) - Comprehensive guide to the Pages feature, including:
+  - Core page tools and their usage
+  - Integration with course modules
+  - Advanced features and examples
+  - Best practices for page management
+
+- [Rubric Features Guide](RUBRIC_FEATURES.md) - Detailed documentation on rubric functionality, including:
+  - Creating and managing rubrics
+  - Advanced assessment workflows
+  - Integration with assignments
+  - Real-world examples and use cases
+
+### Development Resources
+
+- [Development Guide](CLAUDE.md) - For contributors working on the codebase
+- [Refactoring Results](REFACTORING_TEST_RESULTS.md) - Test results and validation from the refactoring process
 ## Technical Details
 
-### Server Implementation
+### Architecture
 
-The server uses:
-- `fastmcp`: A Python library for building MCP servers
-- `httpx`: For asynchronous HTTP requests to the Canvas API
-- Caching mechanisms to improve performance for course lookups
+The server is built with a modular architecture for better maintainability and extensibility:
 
-The main implementation file is `canvas_server_cached.py`, which provides:
-- Efficient caching of course information
-- Pagination handling for Canvas API requests
-- Error handling and reporting
-- Support for both course IDs and course codes
+- **Core Components**: Found in `core/` for shared functionality
+  - Caching, HTTP client, validation, and type definitions
+  - Common utilities used across all tools
 
+- **Tool Modules**: Organized by domain in `tools/`
+  - Each tool is self-contained with clear responsibilities
+  - Consistent patterns for error handling and API interaction
+  - Comprehensive documentation for each tool
+
+- **Asynchronous Design**: Built with `asyncio` and `httpx` for high performance
+  - Non-blocking I/O operations
+  - Efficient handling of concurrent requests
+  - Automatic rate limiting and retry logic
+
+### Key Features
+
+- **Unified Interface**: All Canvas API interactions go through a single client
+- **Intelligent Caching**: Reduces API calls and improves performance
+- **Comprehensive Error Handling**: Clear error messages and recovery options
+- **Type Safety**: Full type hints for better code quality and IDE support
+- **Documentation**: Extensive inline documentation and examples
+
+### Performance Considerations
+
+- **Caching Layer**: Redundant API calls are minimized
+- **Batch Processing**: Where possible, operations are batched for efficiency
+- **Lazy Loading**: Resources are loaded only when needed
+- **Connection Pooling**: HTTP connections are reused for better performance
+
+For developers, see the [Development Guide](CLAUDE.md) for more information on the architecture and contribution guidelines.
 
 ### Dependencies
 
-The server requires the following Python packages:
-- `httpx`: For HTTP requests
+The server requires the following Python packages (see `requirements.txt` for specific versions):
+- `httpx`: For asynchronous HTTP requests
 - `fastmcp`: For MCP server implementation
-- `requests`: For some HTTP operations
-- Other standard libraries for encoding and networking
+- `python-dotenv`: For environment variable management
+- `python-dateutil`: For date parsing and manipulation
+- `pydantic`: For data validation and settings management
+- `typing-extensions`: For type hints support
+
+### Utility Scripts
+
+- `utils/extract_canvas_api_docs.py`: Script to extract and generate API documentation from Canvas
+- `utils/get_course_grades.py`: Script to export course grades to a CSV file
 
 ## Troubleshooting
 
