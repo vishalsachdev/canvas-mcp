@@ -140,8 +140,11 @@ def update_claude_desktop_config():
     # Get the absolute path to the current directory
     project_path = Path.cwd().absolute()
     
+    # Use the full path to the wrapper script
+    wrapper_path = Path.home() / ".local" / "bin" / "canvas-mcp-server"
+    
     config["mcpServers"]["canvas-api"] = {
-        "command": "canvas-mcp-server",
+        "command": str(wrapper_path),
         "env": {
             "PYTHONPATH": str(project_path / "src")
         }
@@ -153,6 +156,33 @@ def update_claude_desktop_config():
     
     print(f"✓ Claude Desktop config updated: {config_path}")
     print("✓ Canvas MCP server added to Claude Desktop")
+
+
+def create_executable_wrapper():
+    """Create an executable wrapper in ~/.local/bin/."""
+    local_bin = Path.home() / ".local" / "bin"
+    local_bin.mkdir(parents=True, exist_ok=True)
+    
+    wrapper_path = local_bin / "canvas-mcp-server"
+    project_path = Path.cwd().absolute()
+    venv_python = project_path / ".venv" / "bin" / "python"
+    
+    # Create wrapper script
+    wrapper_content = f"""#!/bin/bash
+# Canvas MCP Server wrapper script
+export PYTHONPATH="{project_path / 'src'}"
+cd "{project_path}"
+"{venv_python}" -m canvas_mcp.server "$@"
+"""
+    
+    with open(wrapper_path, 'w') as f:
+        f.write(wrapper_content)
+    
+    # Make executable
+    wrapper_path.chmod(0o755)
+    
+    print(f"✓ Executable wrapper created: {wrapper_path}")
+    print("✓ canvas-mcp-server is now available in your PATH")
 
 
 def test_installation():
@@ -190,6 +220,9 @@ def main():
     
     # Update Claude Desktop config
     update_claude_desktop_config()
+    
+    # Create executable wrapper
+    create_executable_wrapper()
     
     # Test installation
     test_installation()
