@@ -1,66 +1,121 @@
-### **Title: Fix FERPA Compliance Gap by Anonymizing Student Data in Tool Outputs**
+# Canvas MCP Server Development TODO
 
-### **Description**
+## Completed Features ✅
 
-**Problem:**
-Currently, several tools in the MCP server (e.g., `list_discussion_entries`, `get_assignment_analytics`) fetch and return raw student data, including Personally Identifiable Information (PII) like names and user IDs. This data is then passed to the AI model, which constitutes a significant FERPA compliance violation as it involves disclosing protected student information to a third-party system without authorization.
+### **FERPA Compliance Implementation** 
+**Status: COMPLETED** - All 8 core tools now include comprehensive privacy protection with production-ready error handling.
 
-While the project contains a robust anonymization module (`src/canvas_mcp/core/anonymization.py`), it is not being utilized by the data-handling tools.
+- [x] All tools that return student data are modified to use the `anonymize_response_data` function
+- [x] Running tools like `list_discussion_entries` no longer exposes student names in the output
+- [x] The `create_student_anonymization_map` tool successfully creates CSV files in the correct format
+- [x] The `local_maps/` directory and its contents are correctly ignored by Git
+- [x] Anonymous IDs are consistent across tool calls
+- [x] Canvas User IDs are preserved for faculty identification
+- [x] No PII leakage in error messages or logs
 
-**Proposed Solution:**
-To address this, we need to integrate the existing anonymization logic into all tools that process or return student data.
+## Upcoming Features - Canvas Analytics Enhancement 🚀
 
-### **Scope of Work**
+### **Phase 1: Core Analytics (High Priority)**
 
-**1. Integrate Anonymization into Core Tools:**
-- Modify the tool functions in the following files to apply the `anonymize_response_data` function to their results before returning them:
-    - `src/canvas_mcp/tools/assignments.py` (use `data_type="assignments"`)
-    - `src/canvas_mcp/tools/discussions.py` (use `data_type="discussions"`)
-    - `src/canvas_mcp/tools/other_tools.py` (use `data_type="users"` or `data_type="analytics"`)
-    - `src/canvas_mcp/tools/rubrics.py` (use `data_type="assignments"`)
-- The anonymized output should replace real names with a consistent anonymous ID (e.g., `Student_a1b2c3d4`) but should retain the real Canvas User ID to allow faculty to identify the student in the official Canvas UI.
+**1. Early Warning System** 
+- **Tool:** `detect_at_risk_students(course_identifier, threshold_days=7)`
+- **Purpose:** Identify students who are disengaging early for intervention
+- **Data Sources:** Course activity analytics, student summaries, assignment analytics
+- **Output:** Risk scores, engagement trends, intervention recommendations
 
-**Implementation Priority:**
-1. **High Priority:** `list_discussion_entries`, `get_student_analytics`, `list_users`
-2. **Medium Priority:** `list_submissions`, `get_assignment_analytics`, `list_groups`
-3. **Low Priority:** `list_peer_reviews`, `get_submission_rubric_assessment`
+**2. Performance Trajectory Analysis**
+- **Tool:** `analyze_student_performance_trends(course_identifier, student_id=None)`
+- **Purpose:** Track performance trends and predict final outcomes
+- **Data Sources:** Assignment analytics, grade progressions
+- **Output:** Performance trajectories, predicted grades, trend analysis
 
-**Example Implementation (`discussions.py`):**
-```python
-# Before
-from ..core.dates import format_date, truncate_text
+**3. Discussion Quality Analytics**
+- **Tool:** `analyze_discussion_engagement(course_identifier, topic_id=None)`
+- **Purpose:** Understand quality of discussions and meaningful contributions
+- **Data Sources:** Discussion topics, entries, response patterns
+- **Output:** Engagement quality scores, participation patterns, quiet student identification
 
-# ... inside a tool function
-return entries # This contains raw PII
+### **Phase 2: Assessment Analytics (Medium Priority)**
 
-# After
-from ..core.anonymization import anonymize_response_data
-from ..core.dates import format_date, truncate_text
+**4. Assignment Effectiveness Analysis**
+- **Tool:** `evaluate_assignment_performance(course_identifier, assignment_id=None)`
+- **Purpose:** Understand which assignments are too easy, hard, or ineffective
+- **Data Sources:** Assignment analytics, grade distributions
+- **Output:** Difficulty indices, discrimination scores, improvement recommendations
 
-# ... inside a tool function
-return anonymize_response_data(entries, data_type="discussions")
-```
+**5. Learning Outcome Mastery Tracking**
+- **Tool:** `track_learning_outcomes(course_identifier, outcome_id=None)`
+- **Purpose:** Track student progress toward learning outcomes across assessments
+- **Data Sources:** Outcome results, rubric assessments
+- **Output:** Mastery progression, outcome area analysis, accreditation reports
 
-**2. Create a Local De-anonymization Mapping Tool (Faculty-Requested Feature):**
-- Implement a new tool, e.g., `create_student_anonymization_map(course_identifier: str)`.
-- This tool will fetch the student list for a given course and generate a local CSV file containing the mapping between the real student data and their generated anonymous IDs.
-- **File Format:** The CSV should have the following headers: `real_name`, `real_id`, `anonymous_id`.
-- **File Location:** The file should be saved to a new, dedicated directory, for example: `local_maps/`.
+**6. Participation Quality Assessment**
+- **Tool:** `assess_engagement_quality(course_identifier, user_id=None)`
+- **Purpose:** Understand participation quality and depth beyond frequency
+- **Data Sources:** Activity analytics, resource access patterns
+- **Output:** Quality participation scores, engagement depth analysis
 
-**3. Ensure Privacy of the Mapping File:**
-- The directory used to store the mapping files (`local_maps/`) **must** be added to the project's `.gitignore` file to prevent the accidental commit of this sensitive data to the repository.
-- Add the following line to `.gitignore`:
-  ```
-  # Local de-anonymization maps (contains PII)
-  local_maps/
-  ```
-- **Security Note:** This file acts as a de-anonymization key. Its presence on a local machine is a security risk. It must be handled with extreme care and should not be shared or stored in an unsecured location.
+### **Phase 3: Advanced Analytics (Low Priority)**
 
-### **Acceptance Criteria**
-- [ ] All tools that return student data are modified to use the `anonymize_response_data` function.
-- [ ] Running tools like `list_discussion_entries` no longer exposes student names in the output, showing anonymous IDs instead.
-- [ ] The new `create_student_anonymization_map` tool successfully creates a CSV file in the correct format and location.
-- [ ] The `local_maps/` directory and its contents are correctly ignored by Git.
-- [ ] Test with a real course to verify anonymous IDs are consistent across tool calls.
-- [ ] Verify Canvas User IDs are preserved for faculty identification.
-- [ ] Confirm no PII leakage in error messages or logs.
+**7. Cross-Course Comparative Analytics**
+- **Tool:** `compare_course_performance(course_identifiers, metric_type="grades")`
+- **Purpose:** Compare performance across multiple course sections
+- **Data Sources:** Multi-course analytics, grade distributions
+- **Output:** Comparative analysis, instructor effectiveness, section metrics
+
+**8. Help-Seeking Behavior Analysis**
+- **Tool:** `analyze_support_patterns(course_identifier, user_id=None)`
+- **Purpose:** Understand when and how students seek help
+- **Data Sources:** Communication analytics, message patterns
+- **Output:** Help-seeking timing analysis, correlation with performance
+
+**9. Predictive Intervention System**
+- **Tool:** `predict_student_success(course_identifier, prediction_horizon="4_weeks")`
+- **Purpose:** Predict which students are at risk of dropping out or failing
+- **Data Sources:** Multi-factor engagement and performance data
+- **Output:** Risk predictions, automated intervention triggers
+
+### **Phase 4: Optimization Tools (Future)**
+
+**10. Learning Path Optimization**
+- **Tool:** `optimize_curriculum_sequence(course_identifier, content_type="modules")`
+- **Purpose:** Understand optimal learning sequences and identify bottlenecks
+- **Data Sources:** Module progression, concept mastery patterns
+- **Output:** Sequence recommendations, bottleneck identification
+
+## Infrastructure & Technical Tasks
+
+### **Analytics Infrastructure**
+- [ ] Research Canvas Analytics API rate limits and implement intelligent caching strategy
+- [ ] Design analytics data privacy framework ensuring FERPA compliance with anonymization
+- [ ] Create analytics tools module structure and integrate with existing MCP server architecture
+- [ ] Implement data aggregation utilities for multi-source analytics
+- [ ] Add analytics result visualization and export capabilities
+
+### **API Integration Enhancements**
+- [ ] Implement Canvas Analytics API client with proper error handling
+- [ ] Add support for Canvas Data 2.0 integration for advanced analytics
+- [ ] Create data preprocessing pipelines for analytics tools
+- [ ] Implement configurable analytics privacy controls
+
+### **Testing & Documentation**
+- [ ] Create comprehensive test suite for analytics tools
+- [ ] Document analytics tool usage patterns and educational use cases
+- [ ] Add analytics configuration guide for educators
+- [ ] Create performance benchmarking for analytics operations
+
+---
+
+## Development Notes
+
+**API Considerations:**
+- Canvas Analytics APIs have 4-24 hour data delays but higher rate limits
+- All analytics tools must integrate with existing anonymization framework
+- Batch requests where possible to minimize API calls
+- Implement intelligent caching for repeated analytics queries
+
+**Educational Focus:**
+- Prioritize actionable insights over raw data presentation
+- Ensure tools provide specific intervention recommendations
+- Design for non-technical educator users
+- Include comparative benchmarks and context for metrics
