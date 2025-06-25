@@ -168,8 +168,6 @@ canvas-mcp/
 - **[Tool Documentation](./tools/README.md)** - Complete reference for all available tools
 - **[Pages Implementation Guide](./docs/PAGES_IMPLEMENTATION.md)** - Comprehensive Pages feature guide
 - **[Development Guide](./docs/CLAUDE.md)** - Architecture details and contribution guidelines
-- **[Claude Co-Developer Experience](./docs/claude_codeveloper_experience.md)** - 4-month journey building with Claude Code
-- **[5-Day FERPA Sprint](./docs/claude_codeveloper_5day_sprint.md)** - Recent privacy compliance implementation story
 ## Technical Details
 
 ### Modern Architecture (2025)
