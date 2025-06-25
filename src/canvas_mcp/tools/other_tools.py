@@ -7,6 +7,7 @@ from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.cache import get_course_id, get_course_code
 from ..core.validation import validate_params
 from ..core.dates import format_date, truncate_text
+from ..core.anonymization import anonymize_response_data
 
 
 def register_other_tools(mcp: FastMCP):
@@ -434,6 +435,12 @@ def register_other_tools(mcp: FastMCP):
             elif not members:
                 output += "No members in this group.\n"
             else:
+                # Anonymize member data to protect student privacy
+                try:
+                    members = anonymize_response_data(members, data_type="users")
+                except Exception as e:
+                    print(f"Warning: Failed to anonymize group member data: {str(e)}")
+                    # Continue with original data for functionality
                 output += "Members:\n"
                 for member in members:
                     member_id = member.get("id")
@@ -468,6 +475,13 @@ def register_other_tools(mcp: FastMCP):
         
         if not users:
             return f"No users found for course {course_identifier}."
+        
+        # Anonymize user data to protect student privacy
+        try:
+            users = anonymize_response_data(users, data_type="users")
+        except Exception as e:
+            print(f"Warning: Failed to anonymize user data: {str(e)}")
+            # Continue with original data for functionality
         
         users_info = []
         for user in users:
@@ -522,6 +536,13 @@ def register_other_tools(mcp: FastMCP):
         if isinstance(students, dict) and "error" in students:
             return f"Error fetching students: {students['error']}"
         
+        # Anonymize student data to protect privacy
+        try:
+            students = anonymize_response_data(students, data_type="users")
+        except Exception as e:
+            print(f"Warning: Failed to anonymize student analytics data: {str(e)}")
+            # Continue with original data for functionality
+        
         # Get assignments
         assignments = await fetch_all_paginated_results(
             f"/courses/{course_id}/assignments", 
@@ -549,3 +570,91 @@ def register_other_tools(mcp: FastMCP):
         output += "For detailed individual student analytics, use specific assignment analytics tools."
         
         return output
+
+    @mcp.tool()
+    @validate_params
+    async def create_student_anonymization_map(course_identifier: Union[str, int]) -> str:
+        """Create a local CSV file mapping real student data to anonymous IDs for a course.
+        
+        This tool generates a de-anonymization key that allows faculty to identify students
+        from their anonymous IDs. The file is saved locally and should be kept secure.
+        
+        Args:
+            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+        """
+        import csv
+        import os
+        from pathlib import Path
+        from ..core.anonymization import generate_anonymous_id
+        
+        course_id = await get_course_id(course_identifier)
+        
+        # Get all students in the course
+        params = {
+            "enrollment_type[]": "student",
+            "include[]": ["email"],
+            "per_page": 100
+        }
+        
+        students = await fetch_all_paginated_results(
+            f"/courses/{course_id}/users", params
+        )
+        
+        if isinstance(students, dict) and "error" in students:
+            return f"Error fetching students: {students['error']}"
+        
+        if not students:
+            return f"No students found for course {course_identifier}."
+        
+        # Create local_maps directory if it doesn't exist
+        maps_dir = Path("local_maps")
+        maps_dir.mkdir(exist_ok=True)
+        
+        # Generate filename with course identifier
+        course_display = await get_course_code(course_id) or str(course_identifier)
+        safe_course_name = "".join(c for c in course_display if c.isalnum() or c in ("-", "_"))
+        filename = f"anonymization_map_{safe_course_name}.csv"
+        filepath = maps_dir / filename
+        
+        # Create mapping data
+        mapping_data = []
+        for student in students:
+            real_id = student.get("id")
+            real_name = student.get("name", "Unknown")
+            real_email = student.get("email", "No email")
+            
+            # Generate the same anonymous ID that would be used by the anonymization system
+            anonymous_id = generate_anonymous_id(real_id, prefix="Student")
+            
+            mapping_data.append({
+                "real_name": real_name,
+                "real_id": real_id,
+                "real_email": real_email,
+                "anonymous_id": anonymous_id
+            })
+        
+        # Write to CSV file
+        try:
+            with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
+                fieldnames = ["real_name", "real_id", "real_email", "anonymous_id"]
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                
+                writer.writeheader()
+                writer.writerows(mapping_data)
+            
+            result = f"✅ Student anonymization map created successfully!\n\n"
+            result += f"📁 File location: {filepath}\n"
+            result += f"👥 Students mapped: {len(mapping_data)}\n"
+            result += f"🏫 Course: {course_display}\n\n"
+            result += f"⚠️ **SECURITY WARNING:**\n"
+            result += f"This file contains sensitive student information and should be:\n"
+            result += f"• Kept secure and not shared\n"
+            result += f"• Deleted when no longer needed\n"
+            result += f"• Never committed to version control\n\n"
+            result += f"📋 File format: CSV with columns real_name, real_id, real_email, anonymous_id\n"
+            result += f"🔍 Use this file to identify students from their anonymous IDs in tool outputs."
+            
+            return result
+            
+        except Exception as e:
+            return f"Error creating anonymization map: {str(e)}"

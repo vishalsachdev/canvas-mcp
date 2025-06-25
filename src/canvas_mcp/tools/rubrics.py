@@ -7,6 +7,7 @@ from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.cache import get_course_id, get_course_code
 from ..core.validation import validate_params
 from ..core.dates import format_date, truncate_text
+from ..core.anonymization import anonymize_response_data
 
 
 def register_rubric_tools(mcp: FastMCP):
@@ -289,6 +290,13 @@ def register_rubric_tools(mcp: FastMCP):
         
         if "error" in response:
             return f"Error fetching submission rubric assessment: {response['error']}"
+        
+        # Anonymize submission data to protect student privacy
+        try:
+            response = anonymize_response_data(response, data_type="submissions")
+        except Exception as e:
+            print(f"Warning: Failed to anonymize rubric assessment data: {str(e)}")
+            # Continue with original data for functionality
         
         # Check if submission has rubric assessment
         rubric_assessment = response.get("rubric_assessment")

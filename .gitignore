@@ -50,3 +50,6 @@ show_student_mappings.py
 _**
 .aider*
 test_*.py
+
+# Local de-anonymization maps (contains PII)
+local_maps/

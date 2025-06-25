@@ -7,6 +7,7 @@ from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.cache import get_course_id, get_course_code
 from ..core.validation import validate_params
 from ..core.dates import format_date, truncate_text
+from ..core.anonymization import anonymize_response_data
 
 
 def register_discussion_tools(mcp: FastMCP):
@@ -153,6 +154,25 @@ def register_discussion_tools(mcp: FastMCP):
         
         if not entries:
             return f"No discussion entries found for topic {topic_id}."
+        
+        # Anonymize entries to protect student privacy
+        try:
+            anonymized_entries = anonymize_response_data(entries, data_type="discussions")
+            # Basic validation: check that anonymization occurred
+            if anonymized_entries and isinstance(anonymized_entries, list) and len(anonymized_entries) > 0:
+                # Verify first entry was anonymized (has anonymous user_name)
+                first_entry = anonymized_entries[0]
+                if first_entry.get("user_name", "").startswith("Student_"):
+                    entries = anonymized_entries  # Use anonymized data
+                else:
+                    print("Warning: Anonymization may not have been applied properly")
+            else:
+                entries = anonymized_entries  # Use result even if validation unclear
+        except Exception as e:
+            # Log error but continue with original data rather than failing completely
+            # In production, consider logging this error for audit purposes
+            print(f"Warning: Failed to anonymize discussion entries: {str(e)}")
+            # Continue with original data - this maintains functionality while logging the issue
         
         # Enhanced content fetching using multiple methods
         if include_full_content or include_replies:
