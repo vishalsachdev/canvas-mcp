@@ -68,6 +68,7 @@ jobs:
     
     - name: Comment on PR (if applicable)
       if: github.event_name == 'pull_request' && hashFiles('test_report.md') != ''
+      continue-on-error: true
       uses: actions/github-script@v6
       with:
         script: |
