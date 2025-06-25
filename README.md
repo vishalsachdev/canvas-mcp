@@ -12,6 +12,8 @@ The Canvas MCP Server bridges the gap between Claude Desktop and Canvas Learning
 
 ## 🔒 Privacy-First Student Data Protection
 
+**Recently Implemented**: Complete FERPA compliance through systematic data anonymization across all tools.
+
 **The Problem**: Using AI tools with student data creates FERPA compliance risks and privacy violations.
 
 **What We Built**:
@@ -19,8 +21,10 @@ The Canvas MCP Server bridges the gap between Claude Desktop and Canvas Learning
 - **Automatic email masking** and PII filtering from discussion posts and submissions  
 - **Local-only processing** with configurable privacy controls (`ENABLE_DATA_ANONYMIZATION=true`)
 - **FERPA-compliant analytics**: Ask "Which students need support?" without exposing real identities
+- **De-anonymization mapping tool** for faculty to correlate anonymous IDs with real students locally
+- **Robust error handling** ensures tools continue working even if anonymization fails
 
-All student data is anonymized **before** it reaches AI systems, ensuring complete privacy protection while maintaining full educational functionality.
+All student data is anonymized **before** it reaches AI systems, ensuring complete privacy protection while maintaining full educational functionality. **8 core tools** now include comprehensive privacy protection with production-ready error handling.
 
 ## Prerequisites
 
@@ -164,6 +168,8 @@ canvas-mcp/
 - **[Tool Documentation](./tools/README.md)** - Complete reference for all available tools
 - **[Pages Implementation Guide](./docs/PAGES_IMPLEMENTATION.md)** - Comprehensive Pages feature guide
 - **[Development Guide](./docs/CLAUDE.md)** - Architecture details and contribution guidelines
+- **[Claude Co-Developer Experience](./docs/claude_codeveloper_experience.md)** - 4-month journey building with Claude Code
+- **[5-Day FERPA Sprint](./docs/claude_codeveloper_5day_sprint.md)** - Recent privacy compliance implementation story
 ## Technical Details
 
 ### Modern Architecture (2025)
@@ -222,9 +228,11 @@ If you encounter issues:
 ## Security & Privacy Features
 
 ### FERPA-Compliant Data Protection
-- **Automatic anonymization** of all student data (names, emails, IDs) before AI processing
+- **Automatic anonymization** of all student data (names, emails, IDs) before AI processing across 8 core tools
 - **PII filtering** removes phone numbers, emails, and SSNs from discussion content
 - **Consistent anonymous IDs** maintain educational relationships while protecting identity
+- **Local de-anonymization mapping** creates secure CSV files for faculty correlation
+- **Production-ready error handling** with graceful fallbacks if anonymization fails
 - **Local-only processing** - no data leaves your machine except anonymous analytics
 
 ### API Security
