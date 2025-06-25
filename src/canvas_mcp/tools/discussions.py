@@ -7,6 +7,7 @@ from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.cache import get_course_id, get_course_code
 from ..core.validation import validate_params
 from ..core.dates import format_date, truncate_text
+from ..core.anonymization import anonymize_response_data
 
 
 def register_discussion_tools(mcp: FastMCP):
@@ -153,6 +154,9 @@ def register_discussion_tools(mcp: FastMCP):
         
         if not entries:
             return f"No discussion entries found for topic {topic_id}."
+        
+        # Anonymize entries to protect student privacy
+        entries = anonymize_response_data(entries, data_type="discussions")
         
         # Enhanced content fetching using multiple methods
         if include_full_content or include_replies:

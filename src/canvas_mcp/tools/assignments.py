@@ -9,6 +9,7 @@ from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.cache import get_course_id, get_course_code
 from ..core.validation import validate_params
 from ..core.dates import format_date, truncate_text
+from ..core.anonymization import anonymize_response_data
 
 
 def register_assignment_tools(mcp: FastMCP):
@@ -185,6 +186,9 @@ def register_assignment_tools(mcp: FastMCP):
         if not submissions:
             return f"No submissions found for assignment {assignment_id}."
         
+        # Anonymize submission data to protect student privacy
+        submissions = anonymize_response_data(submissions, data_type="submissions")
+        
         # Get all users in the course for name lookups
         users = await fetch_all_paginated_results(
             f"/courses/{course_id}/users",
@@ -193,6 +197,9 @@ def register_assignment_tools(mcp: FastMCP):
         
         if isinstance(users, dict) and "error" in users:
             return f"Error fetching users: {users['error']}"
+        
+        # Anonymize user data to protect student privacy
+        users = anonymize_response_data(users, data_type="users")
         
         # Create a mapping of user IDs to names
         user_map = {}
@@ -292,6 +299,9 @@ def register_assignment_tools(mcp: FastMCP):
         if not submissions:
             return f"No submissions found for assignment {assignment_id}."
         
+        # Anonymize submission data to protect student privacy
+        submissions = anonymize_response_data(submissions, data_type="submissions")
+        
         submissions_info = []
         for submission in submissions:
             user_id = submission.get("user_id")
@@ -345,6 +355,9 @@ def register_assignment_tools(mcp: FastMCP):
         if not students:
             return f"No students found for course {course_identifier}."
         
+        # Anonymize student data to protect privacy
+        students = anonymize_response_data(students, data_type="users")
+        
         # Get submissions for this assignment
         submissions = await fetch_all_paginated_results(
             f"/courses/{course_id}/assignments/{assignment_id}/submissions", 
@@ -353,6 +366,9 @@ def register_assignment_tools(mcp: FastMCP):
         
         if isinstance(submissions, dict) and "error" in submissions:
             return f"Error fetching submissions: {submissions['error']}"
+        
+        # Anonymize submission data to protect student privacy
+        submissions = anonymize_response_data(submissions, data_type="submissions")
         
         # Extract assignment details
         assignment_name = assignment.get("name", "Unknown Assignment")
