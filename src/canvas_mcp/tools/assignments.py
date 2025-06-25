@@ -187,7 +187,11 @@ def register_assignment_tools(mcp: FastMCP):
             return f"No submissions found for assignment {assignment_id}."
         
         # Anonymize submission data to protect student privacy
-        submissions = anonymize_response_data(submissions, data_type="submissions")
+        try:
+            submissions = anonymize_response_data(submissions, data_type="submissions")
+        except Exception as e:
+            print(f"Warning: Failed to anonymize submission data in peer reviews: {str(e)}")
+            # Continue with original data for functionality
         
         # Get all users in the course for name lookups
         users = await fetch_all_paginated_results(
@@ -199,7 +203,11 @@ def register_assignment_tools(mcp: FastMCP):
             return f"Error fetching users: {users['error']}"
         
         # Anonymize user data to protect student privacy
-        users = anonymize_response_data(users, data_type="users")
+        try:
+            users = anonymize_response_data(users, data_type="users")
+        except Exception as e:
+            print(f"Warning: Failed to anonymize user data in peer reviews: {str(e)}")
+            # Continue with original data for functionality
         
         # Create a mapping of user IDs to names
         user_map = {}
@@ -300,7 +308,11 @@ def register_assignment_tools(mcp: FastMCP):
             return f"No submissions found for assignment {assignment_id}."
         
         # Anonymize submission data to protect student privacy
-        submissions = anonymize_response_data(submissions, data_type="submissions")
+        try:
+            submissions = anonymize_response_data(submissions, data_type="submissions")
+        except Exception as e:
+            print(f"Warning: Failed to anonymize submission data: {str(e)}")
+            # Continue with original data for functionality
         
         submissions_info = []
         for submission in submissions:
@@ -356,7 +368,11 @@ def register_assignment_tools(mcp: FastMCP):
             return f"No students found for course {course_identifier}."
         
         # Anonymize student data to protect privacy
-        students = anonymize_response_data(students, data_type="users")
+        try:
+            students = anonymize_response_data(students, data_type="users")
+        except Exception as e:
+            print(f"Warning: Failed to anonymize student data in analytics: {str(e)}")
+            # Continue with original data for functionality
         
         # Get submissions for this assignment
         submissions = await fetch_all_paginated_results(
@@ -368,7 +384,11 @@ def register_assignment_tools(mcp: FastMCP):
             return f"Error fetching submissions: {submissions['error']}"
         
         # Anonymize submission data to protect student privacy
-        submissions = anonymize_response_data(submissions, data_type="submissions")
+        try:
+            submissions = anonymize_response_data(submissions, data_type="submissions")
+        except Exception as e:
+            print(f"Warning: Failed to anonymize submission data in analytics: {str(e)}")
+            # Continue with original data for functionality
         
         # Extract assignment details
         assignment_name = assignment.get("name", "Unknown Assignment")

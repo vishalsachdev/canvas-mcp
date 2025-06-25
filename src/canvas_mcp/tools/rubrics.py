@@ -292,7 +292,11 @@ def register_rubric_tools(mcp: FastMCP):
             return f"Error fetching submission rubric assessment: {response['error']}"
         
         # Anonymize submission data to protect student privacy
-        response = anonymize_response_data(response, data_type="submissions")
+        try:
+            response = anonymize_response_data(response, data_type="submissions")
+        except Exception as e:
+            print(f"Warning: Failed to anonymize rubric assessment data: {str(e)}")
+            # Continue with original data for functionality
         
         # Check if submission has rubric assessment
         rubric_assessment = response.get("rubric_assessment")

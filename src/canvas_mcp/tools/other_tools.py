@@ -436,7 +436,11 @@ def register_other_tools(mcp: FastMCP):
                 output += "No members in this group.\n"
             else:
                 # Anonymize member data to protect student privacy
-                members = anonymize_response_data(members, data_type="users")
+                try:
+                    members = anonymize_response_data(members, data_type="users")
+                except Exception as e:
+                    print(f"Warning: Failed to anonymize group member data: {str(e)}")
+                    # Continue with original data for functionality
                 output += "Members:\n"
                 for member in members:
                     member_id = member.get("id")
@@ -473,7 +477,11 @@ def register_other_tools(mcp: FastMCP):
             return f"No users found for course {course_identifier}."
         
         # Anonymize user data to protect student privacy
-        users = anonymize_response_data(users, data_type="users")
+        try:
+            users = anonymize_response_data(users, data_type="users")
+        except Exception as e:
+            print(f"Warning: Failed to anonymize user data: {str(e)}")
+            # Continue with original data for functionality
         
         users_info = []
         for user in users:
@@ -529,7 +537,11 @@ def register_other_tools(mcp: FastMCP):
             return f"Error fetching students: {students['error']}"
         
         # Anonymize student data to protect privacy
-        students = anonymize_response_data(students, data_type="users")
+        try:
+            students = anonymize_response_data(students, data_type="users")
+        except Exception as e:
+            print(f"Warning: Failed to anonymize student analytics data: {str(e)}")
+            # Continue with original data for functionality
         
         # Get assignments
         assignments = await fetch_all_paginated_results(
