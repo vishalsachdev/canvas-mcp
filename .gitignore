@@ -44,3 +44,5 @@ canvas_api_docs/
 get_course_grades.py
 gradebook.json
 .env.template
+_**
+.aider*
