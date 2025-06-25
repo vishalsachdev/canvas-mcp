@@ -195,6 +195,57 @@ def register_other_tools(mcp: FastMCP):
 
     @mcp.tool()
     @validate_params
+    async def create_page(course_identifier: Union[str, int], 
+                         title: str,
+                         body: str,
+                         published: bool = True,
+                         front_page: bool = False,
+                         editing_roles: str = "teachers") -> str:
+        """Create a new page in a Canvas course.
+        
+        Args:
+            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            title: The title of the new page
+            body: The HTML content for the page
+            published: Whether the page should be published (default: True)
+            front_page: Whether this should be the course front page (default: False)
+            editing_roles: Who can edit the page (default: "teachers")
+        """
+        course_id = await get_course_id(course_identifier)
+        
+        data = {
+            "wiki_page[title]": title,
+            "wiki_page[body]": body,
+            "wiki_page[published]": published,
+            "wiki_page[front_page]": front_page,
+            "wiki_page[editing_roles]": editing_roles
+        }
+        
+        response = await make_canvas_request("post", f"/courses/{course_id}/pages", data=data)
+        
+        if "error" in response:
+            return f"Error creating page: {response['error']}"
+        
+        page_url = response.get("url", "")
+        page_title = response.get("title", title)
+        created_at = format_date(response.get("created_at"))
+        published_status = "Published" if response.get("published", False) else "Unpublished"
+        
+        course_display = await get_course_code(course_id) or course_identifier
+        
+        result = f"Successfully created page in Course {course_display}:\n\n"
+        result += f"Title: {page_title}\n"
+        result += f"URL: {page_url}\n"
+        result += f"Status: {published_status}\n"
+        result += f"Created: {created_at}\n"
+        
+        if front_page:
+            result += f"Set as front page: Yes\n"
+        
+        return result
+
+    @mcp.tool()
+    @validate_params
     async def list_module_items(course_identifier: Union[str, int], 
                                module_id: Union[str, int],
                                include_content_details: bool = True) -> str:

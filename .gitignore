@@ -49,3 +49,4 @@ student_anonymization_mapping.txt
 show_student_mappings.py
 _**
 .aider*
+test_*.py

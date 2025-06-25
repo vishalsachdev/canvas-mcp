@@ -129,15 +129,20 @@ def register_discussion_tools(mcp: FastMCP):
     @mcp.tool()
     @validate_params
     async def list_discussion_entries(course_identifier: Union[str, int], 
-                                    topic_id: Union[str, int]) -> str:
-        """List discussion entries (posts) for a specific discussion topic.
+                                    topic_id: Union[str, int],
+                                    include_full_content: bool = False,
+                                    include_replies: bool = False) -> str:
+        """List discussion entries (posts) for a specific discussion topic with optional full content and replies.
         
         Args:
             course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
             topic_id: The Canvas discussion topic ID
+            include_full_content: Whether to fetch full content for each entry (default: False)
+            include_replies: Whether to fetch replies for each entry (default: False)
         """
         course_id = await get_course_id(course_identifier)
         
+        # Get basic entries first
         entries = await fetch_all_paginated_results(
             f"/courses/{course_id}/discussion_topics/{topic_id}/entries", 
             {"per_page": 100}
@@ -148,6 +153,41 @@ def register_discussion_tools(mcp: FastMCP):
         
         if not entries:
             return f"No discussion entries found for topic {topic_id}."
+        
+        # Enhanced content fetching using multiple methods
+        if include_full_content or include_replies:
+            # Method 1: Try to get everything from discussion view (most efficient)
+            full_entries_map = {}
+            try:
+                view_response = await make_canvas_request(
+                    "get", f"/courses/{course_id}/discussion_topics/{topic_id}/view"
+                )
+                
+                if "error" not in view_response and "view" in view_response:
+                    for view_entry in view_response.get("view", []):
+                        full_entries_map[str(view_entry.get("id"))] = view_entry
+            except Exception:
+                pass  # Fall back to individual calls
+            
+            # Method 2: For entries not found in view, try entry_list endpoint
+            missing_entry_ids = []
+            for entry in entries:
+                entry_id = str(entry.get("id"))
+                if entry_id not in full_entries_map:
+                    missing_entry_ids.append(entry_id)
+            
+            if missing_entry_ids:
+                try:
+                    entry_list_response = await make_canvas_request(
+                        "get", f"/courses/{course_id}/discussion_topics/{topic_id}/entry_list",
+                        params={"ids[]": missing_entry_ids}
+                    )
+                    
+                    if "error" not in entry_list_response and isinstance(entry_list_response, list):
+                        for full_entry in entry_list_response:
+                            full_entries_map[str(full_entry.get("id"))] = full_entry
+                except Exception:
+                    pass  # Continue with what we have
         
         # Get topic details for context
         topic_response = await make_canvas_request(
@@ -164,75 +204,205 @@ def register_discussion_tools(mcp: FastMCP):
         
         for entry in entries:
             entry_id = entry.get("id")
+            entry_id_str = str(entry_id)
             user_id = entry.get("user_id")
             user_name = entry.get("user_name", "Unknown user")
-            message = entry.get("message", "")
-            
-            # Clean up HTML content for display
-            import re
-            if message:
-                # Remove HTML tags for preview
-                message_preview = re.sub(r'<[^>]+>', '', message)
-                # Truncate long messages for list view
-                if len(message_preview) > 300:
-                    message_preview = message_preview[:300] + "..."
-                message_preview = message_preview.replace("\n", " ").strip()
-            else:
-                message_preview = "[No content]"
-            
             created_at = format_date(entry.get("created_at"))
             
-            # Replies info
-            recent_replies = entry.get("recent_replies", [])
-            has_more_replies = entry.get("has_more_replies", False)
-            total_replies = len(recent_replies)
-            if has_more_replies:
-                total_replies_text = f"{total_replies}+ replies"
-            elif total_replies > 0:
-                total_replies_text = f"{total_replies} replies"
+            # Get message content
+            if include_full_content and entry_id_str in full_entries_map:
+                # Use full content from enhanced fetch
+                full_entry = full_entries_map[entry_id_str]
+                message = full_entry.get("message", entry.get("message", ""))
             else:
-                total_replies_text = "No replies"
+                # Use basic content from original entry
+                message = entry.get("message", "")
             
+            # Process message content
+            import re
+            if message:
+                if include_full_content:
+                    # For full content, clean HTML but keep the full text
+                    message_display = re.sub(r'<[^>]+>', '', message)
+                    message_display = message_display.strip()
+                    if not message_display:
+                        message_display = "[Content contains only HTML/formatting]"
+                else:
+                    # For preview, truncate as before
+                    message_preview = re.sub(r'<[^>]+>', '', message)
+                    if len(message_preview) > 300:
+                        message_preview = message_preview[:300] + "..."
+                    message_display = message_preview.replace("\n", " ").strip()
+            else:
+                message_display = "[No content]"
+            
+            # Handle replies
+            replies_info = ""
+            if include_replies:
+                replies = []
+                
+                # Try to get replies from enhanced fetch first
+                if entry_id_str in full_entries_map:
+                    replies = full_entries_map[entry_id_str].get("replies", [])
+                
+                # If no replies from enhanced fetch, try basic recent_replies
+                if not replies:
+                    replies = entry.get("recent_replies", [])
+                
+                # If still no replies or need more, try direct API call
+                has_more_replies = entry.get("has_more_replies", False)
+                if not replies or has_more_replies:
+                    try:
+                        replies_response = await fetch_all_paginated_results(
+                            f"/courses/{course_id}/discussion_topics/{topic_id}/entries/{entry_id}/replies", 
+                            {"per_page": 100}
+                        )
+                        
+                        if not isinstance(replies_response, dict) or "error" not in replies_response:
+                            replies = replies_response
+                    except Exception:
+                        pass  # Use what we have
+                
+                if replies:
+                    replies_info = f"\n  Replies ({len(replies)}):\n"
+                    for i, reply in enumerate(replies, 1):
+                        reply_user = reply.get("user_name", "Unknown")
+                        reply_created = format_date(reply.get("created_at"))
+                        reply_msg = reply.get("message", "")
+                        
+                        # Clean reply message
+                        if reply_msg:
+                            reply_clean = re.sub(r'<[^>]+>', '', reply_msg)
+                            if len(reply_clean) > 200:
+                                reply_clean = reply_clean[:200] + "..."
+                            reply_clean = reply_clean.replace("\n", " ").strip()
+                        else:
+                            reply_clean = "[No content]"
+                        
+                        replies_info += f"    {i}. {reply_user} ({reply_created}): {reply_clean}\n"
+                else:
+                    replies_info = f"\n  No replies found.\n"
+            else:
+                # Just show reply count without fetching
+                recent_replies = entry.get("recent_replies", [])
+                has_more_replies = entry.get("has_more_replies", False)
+                total_replies = len(recent_replies)
+                if has_more_replies:
+                    total_replies_text = f"{total_replies}+ replies"
+                elif total_replies > 0:
+                    total_replies_text = f"{total_replies} replies"
+                else:
+                    total_replies_text = "No replies"
+                
+                replies_info = f"\n  Replies: {total_replies_text}"
+            
+            # Build entry info
             entry_info = f"Entry ID: {entry_id}\n"
             entry_info += f"Author: {user_name} (ID: {user_id})\n"
-            entry_info += f"Posted: {created_at}\n"
-            entry_info += f"Replies: {total_replies_text}\n"
-            entry_info += f"Content: {message_preview}\n"
+            entry_info += f"Posted: {created_at}{replies_info}\n"
+            
+            if include_full_content:
+                entry_info += f"Full Content:\n{message_display}\n"
+            else:
+                entry_info += f"Content Preview: {message_display}\n"
             
             entries_info.append(entry_info)
         
-        return f"Discussion Entries for '{topic_title}' in Course {course_display}:\n\n" + "\n".join(entries_info)
+        # Add helpful footer information
+        footer = ""
+        if not include_full_content:
+            footer += "\n💡 Tip: Use include_full_content=True to get complete post content in one call"
+        if not include_replies:
+            footer += "\n💡 Tip: Use include_replies=True to fetch all replies"
+        
+        return f"Discussion Entries for '{topic_title}' in Course {course_display}:\n\n" + "\n".join(entries_info) + footer
 
     @mcp.tool()
     @validate_params
     async def get_discussion_entry_details(course_identifier: Union[str, int], 
                                          topic_id: Union[str, int],
-                                         entry_id: Union[str, int]) -> str:
+                                         entry_id: Union[str, int],
+                                         include_replies: bool = True) -> str:
         """Get detailed information about a specific discussion entry including all its replies.
         
         Args:
             course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
             topic_id: The Canvas discussion topic ID
             entry_id: The Canvas discussion entry ID
+            include_replies: Whether to fetch and include replies (default: True)
         """
         course_id = await get_course_id(course_identifier)
         
-        # Get the specific entry details
-        entry_response = await make_canvas_request(
-            "get", f"/courses/{course_id}/discussion_topics/{topic_id}/entries/{entry_id}"
-        )
+        # Method 1: Try to get entry details from the discussion view endpoint
+        entry_response = None
+        replies = []
         
-        if "error" in entry_response:
-            return f"Error fetching discussion entry details: {entry_response['error']}"
+        try:
+            # First try the discussion view endpoint which includes all entries
+            view_response = await make_canvas_request(
+                "get", f"/courses/{course_id}/discussion_topics/{topic_id}/view"
+            )
+            
+            if "error" not in view_response and "view" in view_response:
+                # Find our specific entry in the view
+                for entry in view_response.get("view", []):
+                    if str(entry.get("id")) == str(entry_id):
+                        entry_response = entry
+                        if include_replies:
+                            replies = entry.get("replies", [])
+                        break
+        except Exception:
+            pass  # Fall back to other methods
         
-        # Get all replies to this entry
-        replies = await fetch_all_paginated_results(
-            f"/courses/{course_id}/discussion_topics/{topic_id}/entries/{entry_id}/replies", 
-            {"per_page": 100}
-        )
+        # Method 2: If view method failed, try the entry_list endpoint
+        if not entry_response:
+            try:
+                entry_list_response = await make_canvas_request(
+                    "get", f"/courses/{course_id}/discussion_topics/{topic_id}/entry_list",
+                    params={"ids[]": entry_id}
+                )
+                
+                if "error" not in entry_list_response and isinstance(entry_list_response, list):
+                    if entry_list_response:
+                        entry_response = entry_list_response[0]
+            except Exception:
+                pass
         
-        if isinstance(replies, dict) and "error" in replies:
-            replies = []  # If we can't get replies, continue with entry details
+        # Method 3: Fallback to getting all entries and finding our target
+        if not entry_response:
+            try:
+                all_entries = await fetch_all_paginated_results(
+                    f"/courses/{course_id}/discussion_topics/{topic_id}/entries", 
+                    {"per_page": 100}
+                )
+                
+                if not isinstance(all_entries, dict) or "error" not in all_entries:
+                    for entry in all_entries:
+                        if str(entry.get("id")) == str(entry_id):
+                            entry_response = entry
+                            # Get recent_replies from this method
+                            if include_replies:
+                                replies = entry.get("recent_replies", [])
+                            break
+            except Exception:
+                pass
+        
+        # If we still don't have the entry, return error
+        if not entry_response:
+            return f"Error: Could not find discussion entry {entry_id} in topic {topic_id}. The entry may not exist or you may not have permission to view it."
+        
+        # Method 4: If we have the entry but no replies yet, try the replies endpoint
+        if include_replies and not replies:
+            try:
+                replies_response = await fetch_all_paginated_results(
+                    f"/courses/{course_id}/discussion_topics/{topic_id}/entries/{entry_id}/replies", 
+                    {"per_page": 100}
+                )
+                
+                if not isinstance(replies_response, dict) or "error" not in replies_response:
+                    replies = replies_response
+            except Exception:
+                pass  # Continue without replies
         
         # Get topic details for context
         topic_response = await make_canvas_request(
@@ -266,23 +436,149 @@ def register_discussion_tools(mcp: FastMCP):
         result += f"\nContent:\n{message}\n"
         
         # Format replies
-        if replies:
-            result += f"\nReplies ({len(replies)}):\n"
-            result += "=" * 50 + "\n"
-            
-            for i, reply in enumerate(replies, 1):
-                reply_id = reply.get("id")
-                reply_user_name = reply.get("user_name", "Unknown user")
-                reply_message = reply.get("message", "")
-                reply_created_at = format_date(reply.get("created_at"))
+        if include_replies:
+            if replies:
+                result += f"\nReplies ({len(replies)}):\n"
+                result += "=" * 50 + "\n"
                 
-                result += f"\nReply #{i}:\n"
-                result += f"Reply ID: {reply_id}\n"
-                result += f"Author: {reply_user_name}\n"
-                result += f"Posted: {reply_created_at}\n"
-                result += f"Content:\n{reply_message}\n"
+                for i, reply in enumerate(replies, 1):
+                    reply_id = reply.get("id")
+                    reply_user_name = reply.get("user_name", "Unknown user")
+                    reply_message = reply.get("message", "")
+                    reply_created_at = format_date(reply.get("created_at"))
+                    
+                    result += f"\nReply #{i}:\n"
+                    result += f"Reply ID: {reply_id}\n"
+                    result += f"Author: {reply_user_name}\n"
+                    result += f"Posted: {reply_created_at}\n"
+                    result += f"Content:\n{reply_message}\n"
+            else:
+                result += "\nNo replies found for this entry."
         else:
-            result += "\nNo replies to this entry."
+            result += "\n(Replies not included - set include_replies=True to fetch them)"
+        
+        return result
+
+    @mcp.tool()
+    @validate_params
+    async def get_discussion_with_replies(course_identifier: Union[str, int], 
+                                        topic_id: Union[str, int],
+                                        include_replies: bool = False) -> str:
+        """Enhanced function to get discussion entries with optional reply fetching.
+        
+        Args:
+            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            topic_id: The Canvas discussion topic ID
+            include_replies: Whether to fetch detailed replies for all entries (default: False)
+        """
+        course_id = await get_course_id(course_identifier)
+        
+        # Get basic entries first
+        entries = await fetch_all_paginated_results(
+            f"/courses/{course_id}/discussion_topics/{topic_id}/entries", 
+            {"per_page": 100}
+        )
+        
+        if isinstance(entries, dict) and "error" in entries:
+            return f"Error fetching discussion entries: {entries['error']}"
+        
+        if not entries:
+            return f"No discussion entries found for topic {topic_id}."
+        
+        # Get topic details for context
+        topic_response = await make_canvas_request(
+            "get", f"/courses/{course_id}/discussion_topics/{topic_id}"
+        )
+        
+        topic_title = "Unknown Topic"
+        if "error" not in topic_response:
+            topic_title = topic_response.get("title", "Unknown Topic")
+        
+        course_display = await get_course_code(course_id) or course_identifier
+        result = f"Discussion '{topic_title}' in Course {course_display}:\n\n"
+        
+        # Process each entry
+        for entry in entries:
+            entry_id = entry.get("id")
+            user_name = entry.get("user_name", "Unknown user")
+            message = entry.get("message", "")
+            created_at = format_date(entry.get("created_at"))
+            
+            # Clean up message for display
+            import re
+            if message:
+                message_preview = re.sub(r'<[^>]+>', '', message)
+                if len(message_preview) > 200:
+                    message_preview = message_preview[:200] + "..."
+                message_preview = message_preview.replace("\n", " ").strip()
+            else:
+                message_preview = "[No content]"
+            
+            result += f"📝 Entry {entry_id} by {user_name}\n"
+            result += f"   Posted: {created_at}\n"
+            result += f"   Content: {message_preview}\n"
+            
+            # Handle replies
+            if include_replies:
+                replies = []
+                
+                # Method 1: Check recent_replies from the entry
+                recent_replies = entry.get("recent_replies", [])
+                if recent_replies:
+                    replies = recent_replies
+                
+                # Method 2: If no recent_replies or has_more_replies, try direct API call
+                has_more_replies = entry.get("has_more_replies", False)
+                if not replies or has_more_replies:
+                    try:
+                        replies_response = await fetch_all_paginated_results(
+                            f"/courses/{course_id}/discussion_topics/{topic_id}/entries/{entry_id}/replies", 
+                            {"per_page": 100}
+                        )
+                        
+                        if not isinstance(replies_response, dict) or "error" not in replies_response:
+                            replies = replies_response
+                    except Exception:
+                        pass  # Use what we have
+                
+                # Display replies
+                if replies:
+                    result += f"   💬 Replies ({len(replies)}):\n"
+                    for i, reply in enumerate(replies, 1):
+                        reply_user = reply.get("user_name", "Unknown")
+                        reply_created = format_date(reply.get("created_at"))
+                        reply_msg = reply.get("message", "")
+                        
+                        # Clean reply message
+                        if reply_msg:
+                            reply_preview = re.sub(r'<[^>]+>', '', reply_msg)
+                            if len(reply_preview) > 150:
+                                reply_preview = reply_preview[:150] + "..."
+                            reply_preview = reply_preview.replace("\n", " ").strip()
+                        else:
+                            reply_preview = "[No content]"
+                        
+                        result += f"      └─ Reply {i} by {reply_user} ({reply_created}): {reply_preview}\n"
+                else:
+                    recent_count = len(entry.get("recent_replies", []))
+                    has_more = entry.get("has_more_replies", False)
+                    if recent_count > 0 or has_more:
+                        result += f"   💬 Replies: {recent_count}{'+ (has more)' if has_more else ''} (failed to fetch details)\n"
+                    else:
+                        result += f"   💬 No replies\n"
+            else:
+                # Just show reply count without fetching
+                recent_count = len(entry.get("recent_replies", []))
+                has_more = entry.get("has_more_replies", False)
+                if recent_count > 0 or has_more:
+                    result += f"   💬 Replies: {recent_count}{'+ (has more)' if has_more else ''}\n"
+                else:
+                    result += f"   💬 No replies\n"
+            
+            result += "\n"
+        
+        if not include_replies:
+            result += "\n💡 Tip: Use include_replies=True to fetch detailed reply content"
         
         return result
 

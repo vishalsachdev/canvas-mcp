@@ -1,0 +1,63 @@
+name: Canvas MCP Enhancement Testing
+
+on:
+  push:
+    branches: [ main, development ]
+    paths: 
+      - 'src/canvas_mcp/tools/discussions.py'
+      - 'tests/**'
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-enhancements:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-asyncio
+    
+    - name: Run Enhancement Tests
+      run: |
+        python tests/test_discussion_enhancements.py
+    
+    - name: Generate Test Report
+      run: |
+        echo "## 🧪 Canvas MCP Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        cat test_report.md >> $GITHUB_STEP_SUMMARY
+    
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: test_report.md
+    
+    - name: Performance Regression Check
+      run: |
+        python scripts/performance_check.py
+    
+    - name: Comment on PR (if applicable)
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const testReport = fs.readFileSync('test_report.md', 'utf8');
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## 🧪 Automated Test Results\n\n${testReport}`
+          });
