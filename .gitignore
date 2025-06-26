@@ -7,7 +7,6 @@
 venv/
 fresh_venv/
 .venv/
-canvas-mcp/
 
 # Python cache files
 __pycache__/
