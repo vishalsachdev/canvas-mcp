@@ -167,6 +167,7 @@ canvas-mcp/
 
 - **[Tool Documentation](./tools/README.md)** - Complete reference for all available tools
 - **[Pages Implementation Guide](./docs/PAGES_IMPLEMENTATION.md)** - Comprehensive Pages feature guide
+- **[Course Documentation Template](./docs/course_documentation_prompt_template.md)** - Hybrid approach for efficient course documentation
 - **[Development Guide](./docs/CLAUDE.md)** - Architecture details and contribution guidelines
 ## Technical Details
 
