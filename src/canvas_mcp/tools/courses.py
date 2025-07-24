@@ -1,5 +1,6 @@
 """Course-related MCP tools for Canvas API."""
 
+import re
 from typing import Union
 from mcp.server.fastmcp import FastMCP
 
@@ -7,6 +8,28 @@ from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.cache import get_course_id, get_course_code, course_code_to_id_cache, id_to_course_code_cache
 from ..core.validation import validate_params
 from ..core.dates import format_date
+
+
+def strip_html_tags(html_content: str) -> str:
+    """Remove HTML tags and clean up text content."""
+    if not html_content:
+        return ""
+    
+    # Remove HTML tags
+    clean_text = re.sub(r'<[^>]+>', '', html_content)
+    
+    # Replace common HTML entities
+    clean_text = clean_text.replace('&nbsp;', ' ')
+    clean_text = clean_text.replace('&amp;', '&')
+    clean_text = clean_text.replace('&lt;', '<')
+    clean_text = clean_text.replace('&gt;', '>')
+    clean_text = clean_text.replace('&quot;', '"')
+    
+    # Clean up whitespace
+    clean_text = re.sub(r'\s+', ' ', clean_text)
+    clean_text = clean_text.strip()
+    
+    return clean_text
 
 
 def register_course_tools(mcp: FastMCP):
@@ -96,13 +119,15 @@ def register_course_tools(mcp: FastMCP):
     @validate_params
     async def get_course_content_overview(course_identifier: Union[str, int], 
                                         include_pages: bool = True,
-                                        include_modules: bool = True) -> str:
-        """Get a comprehensive overview of course content including pages and modules.
+                                        include_modules: bool = True,
+                                        include_syllabus: bool = True) -> str:
+        """Get a comprehensive overview of course content including pages, modules, and syllabus.
         
         Args:
             course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
             include_pages: Whether to include pages information
             include_modules: Whether to include modules and their items
+            include_syllabus: Whether to include syllabus content
         """
         course_id = await get_course_id(course_identifier)
         
@@ -185,6 +210,37 @@ def register_course_tools(mcp: FastMCP):
                 
                 overview_sections.append("\n".join(modules_summary))
         
+        # Get syllabus content if requested
+        if include_syllabus:
+            # Fetch the course details with syllabus_body included
+            course_with_syllabus = await make_canvas_request(
+                "get", 
+                f"/courses/{course_id}", 
+                params={"include[]": "syllabus_body"}
+            )
+            
+            if "error" not in course_with_syllabus:
+                syllabus_body = course_with_syllabus.get('syllabus_body', '')
+                
+                if syllabus_body:
+                    # Clean the HTML content
+                    clean_syllabus = strip_html_tags(syllabus_body)
+                    
+                    # For overview, limit to first 1000 characters
+                    if len(clean_syllabus) > 1000:
+                        clean_syllabus = clean_syllabus[:1000] + "..."
+                    
+                    syllabus_summary = [
+                        "\nSyllabus Content:",
+                        # Indent the content
+                        "\n".join([f"  {line}" for line in clean_syllabus.split('\n') if line.strip()])
+                    ]
+                    
+                    overview_sections.append("\n".join(syllabus_summary))
+                else:
+                    overview_sections.append("\nSyllabus Content: No syllabus content found")
+            else:
+                overview_sections.append("\nSyllabus Content: Error fetching syllabus")
         # Try to get the course code for display
         course_display = await get_course_code(course_id) or course_identifier
         result = f"Content Overview for Course {course_display}:" + "\n".join(overview_sections)
