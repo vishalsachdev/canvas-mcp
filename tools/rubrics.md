@@ -6,11 +6,13 @@ This document provides detailed documentation for the rubric-related tools avail
 - [list_assignment_rubrics](#list_assignment_rubrics)
 - [get_assignment_rubric_details](#get_assignment_rubric_details)
 - [get_rubric_details](#get_rubric_details)
+- [list_all_rubrics](#list_all_rubrics)
 - [create_rubric](#create_rubric)
 - [update_rubric](#update_rubric)
 - [delete_rubric](#delete_rubric)
-- [assess_with_rubric](#assess_with_rubric)
-- [get_rubric_assessment](#get_rubric_assessment)
+- [associate_rubric_with_assignment](#associate_rubric_with_assignment)
+- [grade_with_rubric](#grade_with_rubric)
+- [get_submission_rubric_assessment](#get_submission_rubric_assessment)
 
 ---
 
@@ -105,80 +107,142 @@ await get_rubric_details("badm_554_120251_246794", 54321)
 
 ---
 
+## list_all_rubrics
+
+Lists all rubrics in a specific course with optional detailed criteria.
+
+### Parameters
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| course_identifier | string or int | Yes | Canvas course code or ID |
+| include_criteria | boolean | No | Whether to include detailed criteria and ratings (default: True) |
+
+### Returns
+A formatted string containing all rubrics in the course with their complete criteria structures.
+
+### Example
+```python
+# List all rubrics in a course
+await list_all_rubrics("badm_554_120251_246794", include_criteria=True)
+```
+
+### Error Handling
+- Validates course existence
+- Handles cases with no rubrics
+- Returns appropriate error messages
+
+---
+
 ## create_rubric
 
-Creates a new rubric in a course.
+Creates a new rubric in a course with comprehensive validation and flexible criteria formats.
 
 ### Parameters
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | course_identifier | string or int | Yes | Canvas course code or ID |
 | title | string | Yes | Rubric title |
-| criteria | list | Yes | List of criterion objects |
-| points_possible | number | No | Total points possible |
-| free_form_criterion_comments | boolean | No | Allow free-form comments |
+| criteria | string or dict | Yes | JSON string or dictionary containing rubric criteria structure |
+| free_form_criterion_comments | boolean | No | Allow free-form comments (default: True) |
+| association_id | string or int | No | ID to associate rubric with (assignment, course, etc.) |
+| association_type | string | No | Type of association (Assignment, Course, Account) |
+| use_for_grading | boolean | No | Whether to use rubric for grade calculation (default: False) |
+| purpose | string | No | Purpose of the rubric association (grading, bookmark) |
 
 ### Returns
-A success message with the new rubric ID, or an error message.
+A success message with the new rubric details, or detailed error message with debugging information.
 
-### Example
+### Example Criteria Format
 ```python
-# Create a new rubric
-criteria = [
-    {
-        "description": "Content Quality",
-        "points": 10,
+# Object format for ratings
+criteria = {
+    "1": {
+        "description": "Quality of Work",
+        "points": 25,
+        "long_description": "Detailed description of quality expectations",
+        "ratings": {
+            "1": {"description": "Excellent", "points": 25, "long_description": "Exceeds expectations"},
+            "2": {"description": "Good", "points": 20, "long_description": "Meets expectations"},
+            "3": {"description": "Satisfactory", "points": 15, "long_description": "Approaches expectations"},
+            "4": {"description": "Needs Improvement", "points": 10, "long_description": "Below expectations"}
+        }
+    }
+}
+
+# Array format for ratings (also supported)
+criteria_alt = {
+    "1": {
+        "description": "Quality of Work",
+        "points": 25,
         "ratings": [
-            {"description": "Excellent", "points": 10},
-            {"description": "Good", "points": 7},
-            {"description": "Needs Work", "points": 3}
+            {"description": "Excellent", "points": 25},
+            {"description": "Good", "points": 20},
+            {"description": "Satisfactory", "points": 15},
+            {"description": "Needs Improvement", "points": 10}
         ]
     }
-]
-await create_rubric("badm_554_120251_246794", "Research Paper Rubric", criteria, 10)
+}
+
+await create_rubric("badm_554_120251_246794", "Research Paper Rubric", criteria)
 ```
 
 ### Error Handling
-- Validates input parameters
-- Checks for duplicate rubric names
-- Returns detailed error messages for API failures
+- Comprehensive JSON validation with detailed error messages
+- Support for both string and dictionary input
+- Debugging information for malformed criteria
+- Graceful handling of Canvas API errors
 
 ---
 
 ## update_rubric
 
-Updates an existing rubric.
+Updates an existing rubric with comprehensive validation and flexible criteria formats.
 
 ### Parameters
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | course_identifier | string or int | Yes | Canvas course code or ID |
 | rubric_id | string or int | Yes | Canvas rubric ID |
-| updates | dict | Yes | Dictionary of fields to update |
+| title | string | No | Optional new title for the rubric |
+| criteria | string or dict | No | Optional JSON string or dictionary containing updated rubric criteria |
+| free_form_criterion_comments | boolean | No | Optional boolean to allow free-form comments |
+| skip_updating_points_possible | boolean | No | Skip updating points possible calculation (default: False) |
 
 ### Returns
-A success message with the updated rubric details, or an error message.
+A success message with the updated rubric details, or detailed error message with debugging information.
 
 ### Example
 ```python
-# Update a rubric
-updates = {
-    "title": "Updated Rubric Name",
-    "free_form_criterion_comments": True
+# Update rubric title and settings
+await update_rubric("badm_554_120251_246794", 54321, 
+                   title="Updated Rubric Name", 
+                   free_form_criterion_comments=True)
+
+# Update rubric criteria
+new_criteria = {
+    "1": {
+        "description": "Updated Quality Criterion",
+        "points": 30,
+        "ratings": [
+            {"description": "Excellent", "points": 30},
+            {"description": "Good", "points": 20},
+            {"description": "Needs Work", "points": 10}
+        ]
+    }
 }
-await update_rubric("badm_554_120251_246794", 54321, updates)
+await update_rubric("badm_554_120251_246794", 54321, criteria=new_criteria)
 ```
 
 ### Error Handling
-- Validates rubric existence
-- Checks for permission to update
-- Returns appropriate error messages
+- Validates rubric existence and permissions
+- Comprehensive criteria validation with debugging information
+- Handles partial updates gracefully
 
 ---
 
 ## delete_rubric
 
-Deletes a rubric from a course.
+Deletes a rubric and removes all its associations.
 
 ### Parameters
 | Parameter | Type | Required | Description |
@@ -187,7 +251,7 @@ Deletes a rubric from a course.
 | rubric_id | string or int | Yes | Canvas rubric ID |
 
 ### Returns
-A success message, or an error message if the deletion fails.
+A success message with deletion confirmation, or an error message if the deletion fails.
 
 ### Example
 ```python
@@ -197,8 +261,38 @@ await delete_rubric("badm_554_120251_246794", 54321)
 
 ### Error Handling
 - Validates rubric existence
-- Checks for rubric usage before deletion
-- Returns appropriate error messages
+- Provides confirmation of rubric details before deletion
+- Handles association removal automatically
+
+---
+
+## associate_rubric_with_assignment
+
+Associates an existing rubric with an assignment.
+
+### Parameters
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| course_identifier | string or int | Yes | Canvas course code or ID |
+| rubric_id | string or int | Yes | Canvas rubric ID |
+| assignment_id | string or int | Yes | Canvas assignment ID |
+| use_for_grading | boolean | No | Whether to use rubric for grade calculation (default: False) |
+| purpose | string | No | Purpose of the association (grading, bookmark) (default: grading) |
+
+### Returns
+A success message with association details, or an error message.
+
+### Example
+```python
+# Associate rubric with assignment for grading
+await associate_rubric_with_assignment("badm_554_120251_246794", 54321, 98765, 
+                                      use_for_grading=True, purpose="grading")
+```
+
+### Error Handling
+- Validates rubric and assignment existence
+- Confirms association creation
+- Returns detailed error messages
 
 ---
 

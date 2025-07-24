@@ -113,9 +113,9 @@ The Canvas MCP Server provides a comprehensive set of tools for interacting with
 
 ### Tool Categories
 
-1. **Course Tools** - List and manage courses, get detailed information, generate summaries
+1. **Course Tools** - List and manage courses, get detailed information, generate summaries with syllabus content
 2. **Assignment Tools** - Handle assignments, submissions, and peer reviews with analytics
-3. **Rubric Tools** - Create, manage, and grade with rubrics
+3. **Rubric Tools** - Full CRUD operations for rubrics with validation, association management, and grading
 4. **Discussion & Announcement Tools** - Manage discussions, announcements, and replies
 5. **Page & Content Tools** - Access pages, modules, and course content
 6. **User & Enrollment Tools** - Manage enrollments, users, and groups
