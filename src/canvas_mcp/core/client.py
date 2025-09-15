@@ -84,7 +84,8 @@ async def make_canvas_request(
     method: str, 
     endpoint: str, 
     params: Optional[Dict[str, Any]] = None,
-    data: Optional[Dict[str, Any]] = None
+    data: Optional[Dict[str, Any]] = None,
+    use_form_data: bool = False
 ) -> Dict[str, Any]:
     """Make a request to the Canvas API with proper error handling."""
     
@@ -107,9 +108,15 @@ async def make_canvas_request(
         if method.lower() == "get":
             response = await client.get(url, params=params)
         elif method.lower() == "post":
-            response = await client.post(url, json=data)
+            if use_form_data:
+                response = await client.post(url, data=data)
+            else:
+                response = await client.post(url, json=data)
         elif method.lower() == "put":
-            response = await client.put(url, json=data)
+            if use_form_data:
+                response = await client.put(url, data=data)
+            else:
+                response = await client.put(url, json=data)
         elif method.lower() == "delete":
             response = await client.delete(url, params=params)
         else:
