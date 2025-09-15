@@ -19,6 +19,7 @@ from .tools import (
     register_other_tools,
     register_rubric_tools,
     register_peer_review_tools,
+    register_peer_review_comment_tools,
     register_messaging_tools
 )
 from .resources import register_resources_and_prompts
@@ -42,6 +43,7 @@ def register_all_tools(mcp: FastMCP) -> None:
     register_other_tools(mcp)
     register_rubric_tools(mcp)
     register_peer_review_tools(mcp)
+    register_peer_review_comment_tools(mcp)
     register_messaging_tools(mcp)
     
     # Register resources and prompts

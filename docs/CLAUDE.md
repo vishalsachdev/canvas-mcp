@@ -70,6 +70,9 @@ canvas-mcp/
 - `get_student_analytics()`: Multi-dimensional educational data analysis
 - `get_assignment_analytics()`: Statistical performance analysis with grade distribution
 - `get_peer_review_completion_analytics()`: Peer review tracking and completion analysis
+- `get_peer_review_comments()`: Extract actual peer review comment text and analysis
+- `analyze_peer_review_quality()`: Comprehensive comment quality analysis with metrics
+- `identify_problematic_peer_reviews()`: Automated flagging of low-quality reviews
 - Temporal filtering (current vs. all assignments)
 - Risk identification and performance categorization
 
@@ -105,6 +108,14 @@ canvas-mcp/
 - **Send reminders**: `send_peer_review_reminders()` for targeted messaging
 - **Bulk campaigns**: `send_peer_review_followup_campaign()` for complete automated workflow
 - **Monitor delivery**: Check Canvas inbox for message delivery confirmation
+
+## Peer Review Comment Analysis Workflow
+- **Extract comments**: `get_peer_review_comments(course_id, assignment_id)` - Get all review text and metadata
+- **Analyze quality**: `analyze_peer_review_quality(course_id, assignment_id)` - Generate comprehensive quality metrics
+- **Flag problems**: `identify_problematic_peer_reviews(course_id, assignment_id)` - Find reviews needing attention
+- **Export data**: `extract_peer_review_dataset(course_id, assignment_id, format="csv")` - Export for further analysis
+- **Generate reports**: `generate_peer_review_feedback_report(course_id, assignment_id)` - Create instructor-ready reports
+- **Take action**: Use problematic review lists to provide targeted feedback or follow-up
 
 ## Canvas API Specifics
 - Base URL from `CANVAS_API_URL` environment variable
