@@ -53,3 +53,6 @@ test_*.py
 # Local de-anonymization maps (contains PII)
 local_maps/
 docs/hybrid_builder_launch.md
+
+# Archive directory - old structure and development files
+archive/
