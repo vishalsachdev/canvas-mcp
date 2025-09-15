@@ -5,17 +5,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Canvas MCP Development Guide
 
 ## Environment Setup
-- Create virtual env: `python -m venv canvas-mcp`
-- Activate: `source canvas-mcp/bin/activate`
+- Create virtual env: `python -m venv .venv`
+- Activate: `source .venv/bin/activate`
 - Install dependencies: `pip install -r requirements.txt`
 - Create `.env` file with `CANVAS_API_TOKEN` and `CANVAS_API_URL`
 
 ## Commands
 - **Start server**: `./start_canvas_server.sh`
 - **Test MCP server**: Start server manually and check stderr output for debugging
-- **Extract API docs**: `python extract_canvas_api_docs.py` (creates canvas_api_docs/ directory)
-- **Get course grades**: `python get_course_grades.py <course_id>` (outputs gradebook.json)
 - **Claude Desktop config**: Update `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+## Repository Structure
+```
+canvas-mcp/
+├── src/canvas_mcp/        # Main application code
+│   ├── core/             # Core utilities (client, config, validation)
+│   ├── tools/            # MCP tool implementations
+│   ├── resources/        # MCP resources and prompts
+│   └── server.py         # FastMCP server entry point
+├── docs/                 # Essential documentation
+├── archive/              # Legacy code and development specs (git-ignored)
+├── .env                  # Configuration
+└── start_canvas_server.sh # Server startup script
+```
 
 ## Architecture Overview
 
@@ -28,16 +40,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### MCP Tool Organization
 - **Progressive disclosure**: List → Details → Content → Analytics pattern
-- **Functional grouping**: Tools organized by Canvas entity (courses, assignments, pages, discussions, etc.)
+- **Functional grouping**: Tools organized by Canvas entity (courses, assignments, discussions, messaging, etc.)
 - **Consistent naming**: `{action}_{entity}[_{specifier}]` pattern
 - **Educational analytics focus**: Student performance, completion rates, missing work identification
 - **Discussion workflow**: Browse → View → Read → Reply pattern for student interaction
+- **Messaging workflow**: Analytics → Target → Template → Send pattern for automated communications
 
 ### API Layer Architecture
 - **Centralized requests**: All Canvas API calls go through `make_canvas_request()`
-- **Automatic pagination**: `fetch_all_paginated_results()` handles Canvas pagination transparently  
+- **Form data support**: Messaging endpoints use `use_form_data=True` for Canvas compatibility
+- **Automatic pagination**: `fetch_all_paginated_results()` handles Canvas pagination transparently
 - **Async throughout**: All I/O operations use async/await
 - **Graceful error handling**: Returns JSON error responses rather than raising exceptions
+- **Privacy protection**: Student data anonymization via configurable `anonymize_response_data()`
 
 ## Key Components
 
@@ -54,8 +69,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Analytics Engine
 - `get_student_analytics()`: Multi-dimensional educational data analysis
 - `get_assignment_analytics()`: Statistical performance analysis with grade distribution
+- `get_peer_review_completion_analytics()`: Peer review tracking and completion analysis
 - Temporal filtering (current vs. all assignments)
 - Risk identification and performance categorization
+
+### Messaging System
+- `send_conversation()`: Core Canvas messaging with form data support
+- `send_peer_review_reminders()`: Automated peer review reminder workflow
+- `send_peer_review_followup_campaign()`: Complete analytics → messaging pipeline
+- `MessageTemplates`: Flexible template system for various communication types
+- Privacy-aware: Works with anonymization while preserving functional user IDs
 
 ## Coding Standards
 - **Type hints**: Mandatory for all functions, use Union/Optional appropriately
@@ -64,6 +87,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Course identifiers**: Use `Union[str, int]` and `get_course_id()` for flexibility
 - **Date handling**: Use `format_date()` for all date outputs
 - **Error responses**: Return JSON strings with "error" key for failures
+- **Form data**: Use `use_form_data=True` for Canvas messaging endpoints
+- **Privacy**: Student IDs preserved, names anonymized in `_should_anonymize_endpoint()`
 
 ## Discussion Forum Interaction Workflow
 - **Browse discussions**: `list_discussion_topics(course_id)` - Find available discussion forums
@@ -73,9 +98,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Create discussions**: `create_discussion_topic(course_id, title, message)` - Start new discussion forums
 - **Post new entries**: `post_discussion_entry(course_id, topic_id, message)` - Add top-level posts
 
+## Canvas Messaging Workflow
+- **Analyze completion**: `get_peer_review_completion_analytics(course_id, assignment_id)` - Get students needing reminders
+- **Target recipients**: Extract user IDs from analytics results for messaging
+- **Choose template**: Use `MessageTemplates.get_template()` or custom message content
+- **Send reminders**: `send_peer_review_reminders()` for targeted messaging
+- **Bulk campaigns**: `send_peer_review_followup_campaign()` for complete automated workflow
+- **Monitor delivery**: Check Canvas inbox for message delivery confirmation
+
 ## Canvas API Specifics
 - Base URL from `CANVAS_API_URL` environment variable
 - Authentication via Bearer token in `CANVAS_API_TOKEN`
 - Always use pagination for list endpoints
 - Course codes preferred over IDs in user-facing output
 - Handle both published and unpublished content states
+- **Messaging requires form data**: Use `use_form_data=True` for `/conversations` endpoints
+- **Privacy protection**: Real user IDs preserved for functionality, names anonymized for privacy
