@@ -62,7 +62,7 @@ def test_connection() -> bool:
 
         from .core.client import make_canvas_request
 
-        async def test_api():
+        async def test_api() -> bool:
             # Test with a simple API call
             response = await make_canvas_request("get", "/users/self")
             if "error" in response:

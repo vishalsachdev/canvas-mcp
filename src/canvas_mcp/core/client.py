@@ -86,7 +86,7 @@ async def make_canvas_request(
     params: dict[str, Any] | None = None,
     data: dict[str, Any] | None = None,
     use_form_data: bool = False
-) -> dict[str, Any]:
+) -> Any:
     """Make a request to the Canvas API with proper error handling."""
 
     try:
@@ -151,7 +151,7 @@ async def make_canvas_request(
         return {"error": f"Request failed: {str(e)}"}
 
 
-async def fetch_all_paginated_results(endpoint: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+async def fetch_all_paginated_results(endpoint: str, params: dict[str, Any] | None = None) -> Any:
     """Fetch all results from a paginated Canvas API endpoint."""
     if params is None:
         params = {}
@@ -160,7 +160,7 @@ async def fetch_all_paginated_results(endpoint: str, params: dict[str, Any] | No
     if "per_page" not in params:
         params["per_page"] = 100
 
-    all_results = []
+    all_results: list[Any] = []
     page = 1
 
     while True:

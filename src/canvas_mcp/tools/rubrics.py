@@ -242,7 +242,7 @@ def build_criteria_structure(criteria: dict[str, Any]) -> dict[str, Any]:
     return formatted_criteria
 
 
-def register_rubric_tools(mcp: FastMCP):
+def register_rubric_tools(mcp: FastMCP) -> None:
     """Register all rubric-related MCP tools."""
 
     @mcp.tool()

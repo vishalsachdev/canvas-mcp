@@ -14,7 +14,7 @@ from .client import fetch_all_paginated_results, make_canvas_request
 class PeerReviewAnalyzer:
     """Handles peer review analytics and reporting for Canvas assignments."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     async def get_assignments(
@@ -45,7 +45,7 @@ class PeerReviewAnalyzer:
             if "error" in peer_reviews_response:
                 return {"error": f"Failed to get peer reviews: {peer_reviews_response['error']}"}
 
-            peer_reviews = peer_reviews_response if isinstance(peer_reviews_response, list) else []
+            peer_reviews: list[Any] = peer_reviews_response if isinstance(peer_reviews_response, list) else []
 
             # Get users if names are requested
             users_map = {}
@@ -183,7 +183,7 @@ class PeerReviewAnalyzer:
                     stats["completion_rate"] = 0.0
 
             # Group by completion status
-            completion_groups = {
+            completion_groups: dict[str, list[Any]] = {
                 "all_complete": [],
                 "partial_complete": [],
                 "none_complete": []

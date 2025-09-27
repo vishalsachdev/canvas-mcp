@@ -17,7 +17,7 @@ from .dates import format_date
 class PeerReviewCommentAnalyzer:
     """Handles peer review comment extraction and analysis for Canvas assignments."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.quality_keywords = {
             'constructive': [
                 'suggest', 'recommend', 'consider', 'improve', 'enhance', 'modify',
@@ -80,7 +80,7 @@ class PeerReviewCommentAnalyzer:
             if "error" in peer_reviews_response:
                 return {"error": f"Failed to get peer reviews: {peer_reviews_response['error']}"}
 
-            peer_reviews = peer_reviews_response if isinstance(peer_reviews_response, list) else []
+            peer_reviews: list[Any] = peer_reviews_response if isinstance(peer_reviews_response, list) else []
 
             # Get users for name mapping if needed
             users_map = {}
@@ -159,7 +159,7 @@ class PeerReviewCommentAnalyzer:
                     }
 
                 # Process comment content - Extract from submission comments
-                review_content = {
+                review_content: dict[str, Any] = {
                     "comment_text": "",
                     "rating": None,
                     "rubric_assessments": [],

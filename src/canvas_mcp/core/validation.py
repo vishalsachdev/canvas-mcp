@@ -159,7 +159,7 @@ def validate_params(func: F) -> F:
     type_hints = get_type_hints(func)
 
     @functools.wraps(func)
-    async def wrapper(*args, **kwargs):
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
         # Combine args and kwargs based on function signature
         bound_args = sig.bind(*args, **kwargs)
         bound_args.apply_defaults()

@@ -42,7 +42,7 @@ def generate_anonymous_id(real_id: str | int, prefix: str = "Student") -> str:
     return anonymous_id
 
 
-def anonymize_user_data(user_data: dict[str, Any]) -> dict[str, Any]:
+def anonymize_user_data(user_data: Any) -> Any:
     """Anonymize a single user record.
 
     Args:
@@ -87,7 +87,7 @@ def anonymize_user_data(user_data: dict[str, Any]) -> dict[str, Any]:
     return anonymized
 
 
-def anonymize_discussion_entry(entry_data: dict[str, Any]) -> dict[str, Any]:
+def anonymize_discussion_entry(entry_data: Any) -> Any:
     """Anonymize a discussion entry.
 
     Args:
@@ -155,7 +155,7 @@ def anonymize_discussion_entry(entry_data: dict[str, Any]) -> dict[str, Any]:
     return anonymized
 
 
-def anonymize_submission_data(submission_data: dict[str, Any]) -> dict[str, Any]:
+def anonymize_submission_data(submission_data: Any) -> Any:
     """Anonymize submission data.
 
     Args:
@@ -189,7 +189,7 @@ def anonymize_submission_data(submission_data: dict[str, Any]) -> dict[str, Any]
     return anonymized
 
 
-def anonymize_assignment_data(assignment_data: dict[str, Any]) -> dict[str, Any]:
+def anonymize_assignment_data(assignment_data: Any) -> Any:
     """Anonymize assignment data (keep assignment details, remove student-specific info).
 
     Args:
@@ -290,7 +290,7 @@ def get_anonymization_stats() -> dict[str, Any]:
     }
 
 
-def clear_anonymization_cache():
+def clear_anonymization_cache() -> None:
     """Clear the anonymization cache (use when switching courses/contexts)."""
     global _anonymization_cache
     _anonymization_cache.clear()

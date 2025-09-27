@@ -103,10 +103,11 @@ async def get_course_code(course_id: str) -> str | None:
     # If we can't find a code, try to fetch the course directly
     response = await make_canvas_request("get", f"/courses/{course_id}")
     if "error" not in response and "course_code" in response:
-        code = response.get("course_code")
+        code = response.get("course_code", "")
         # Update our cache
-        id_to_course_code_cache[course_id] = code
-        course_code_to_id_cache[code] = course_id
+        if code:
+            id_to_course_code_cache[course_id] = code
+            course_code_to_id_cache[code] = course_id
         return code
 
     # Last resort, return the ID

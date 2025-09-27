@@ -11,7 +11,7 @@ load_dotenv()
 class Config:
     """Configuration class for Canvas MCP server."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Required configuration
         self.canvas_api_token = os.getenv("CANVAS_API_TOKEN", "")
         self.canvas_api_url = os.getenv("CANVAS_API_URL", "https://canvas.illinois.edu/api/v1")

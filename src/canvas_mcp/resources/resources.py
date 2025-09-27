@@ -9,7 +9,7 @@ from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.validation import validate_params
 
 
-def register_resources_and_prompts(mcp: FastMCP):
+def register_resources_and_prompts(mcp: FastMCP) -> None:
     """Register all MCP resources and prompts."""
 
     @mcp.resource(

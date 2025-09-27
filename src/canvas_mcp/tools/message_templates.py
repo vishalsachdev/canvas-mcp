@@ -249,7 +249,7 @@ def create_default_variables(
     assignment_name: str = "Assignment",
     instructor_name: str = "Instructor",
     course_name: str = "Course",
-    **kwargs
+    **kwargs: Any
 ) -> dict[str, Any]:
     """
     Create a default set of template variables.
