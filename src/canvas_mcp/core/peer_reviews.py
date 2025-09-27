@@ -6,12 +6,9 @@ for Canvas assignments with accurate reviewer-to-reviewee mapping.
 """
 
 import datetime
-from typing import Dict, List, Any, Optional, Union
-from statistics import mean
+from typing import Any
 
-from .client import make_canvas_request, fetch_all_paginated_results
-from .cache import get_course_id
-from .dates import format_date
+from .client import fetch_all_paginated_results, make_canvas_request
 
 
 class PeerReviewAnalyzer:
@@ -26,7 +23,7 @@ class PeerReviewAnalyzer:
         assignment_id: int,
         include_names: bool = True,
         include_submission_details: bool = False
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Get peer review assignments with clear reviewer-reviewee mapping."""
 
         try:
@@ -59,16 +56,6 @@ class PeerReviewAnalyzer:
                 )
                 if isinstance(users_response, list):
                     users_map = {user["id"]: user.get("name", "Unknown") for user in users_response}
-
-            # Get submission details if requested
-            submissions_map = {}
-            if include_submission_details:
-                submissions_response = await fetch_all_paginated_results(
-                    f"/courses/{course_id}/assignments/{assignment_id}/submissions",
-                    {"include[]": ["user"], "per_page": 100}
-                )
-                if isinstance(submissions_response, list):
-                    submissions_map = {sub["user_id"]: sub for sub in submissions_response}
 
             # Process peer review data
             assignments_list = []
@@ -124,7 +111,7 @@ class PeerReviewAnalyzer:
         assignment_id: int,
         include_student_details: bool = True,
         group_by_status: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Get detailed analytics on peer review completion rates."""
 
         try:
@@ -179,7 +166,7 @@ class PeerReviewAnalyzer:
                                 assignment["assigned_date"].replace("Z", "+00:00")
                             )
                             days_since_assigned = (datetime.datetime.now(datetime.timezone.utc) - assigned_date).days
-                        except:
+                        except ValueError:
                             days_since_assigned = 0
 
                     reviewer_stats[reviewer_id]["pending_reviews"].append({
@@ -251,7 +238,7 @@ class PeerReviewAnalyzer:
         include_student_details: bool = True,
         include_action_items: bool = True,
         include_timeline_analysis: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate comprehensive peer review completion report."""
 
         try:
@@ -291,13 +278,13 @@ class PeerReviewAnalyzer:
 
     def _generate_markdown_report(
         self,
-        analytics: Dict[str, Any],
-        assignment_info: Dict[str, Any],
+        analytics: dict[str, Any],
+        assignment_info: dict[str, Any],
         include_executive_summary: bool,
         include_student_details: bool,
         include_action_items: bool,
         include_timeline_analysis: bool
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """Generate a markdown-formatted report."""
 
         summary = analytics["summary"]
@@ -432,7 +419,7 @@ class PeerReviewAnalyzer:
 
         return {"report": "\n".join(report_lines)}
 
-    def _generate_csv_report(self, analytics: Dict[str, Any], assignment_info: Dict[str, Any]) -> Dict[str, str]:
+    def _generate_csv_report(self, analytics: dict[str, Any], assignment_info: dict[str, Any]) -> dict[str, str]:
         """Generate a CSV-formatted report."""
 
         csv_lines = [
@@ -484,7 +471,7 @@ class PeerReviewAnalyzer:
         priority_filter: str = "all",
         include_contact_info: bool = False,
         days_threshold: int = 3
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Get prioritized list of students requiring instructor follow-up."""
 
         try:

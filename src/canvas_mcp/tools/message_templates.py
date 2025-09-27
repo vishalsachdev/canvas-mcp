@@ -1,11 +1,11 @@
 """Message templates for Canvas conversations."""
 
-from typing import Dict, Any, Optional
+from typing import Any
 
 
 class MessageTemplates:
     """Manages message templates for Canvas conversations."""
-    
+
     # Default templates for peer review reminders
     PEER_REVIEW_TEMPLATES = {
         "urgent_no_reviews": {
@@ -24,7 +24,7 @@ If you have any questions or technical issues, please reach out immediately.
 Best regards,
 {instructor_name}"""
         },
-        
+
         "partial_completion": {
             "subject": "Reminder: Complete Remaining Peer Review for {assignment_name}",
             "body": """Hi {student_name},
@@ -39,7 +39,7 @@ Please complete this by the deadline to receive full participation credit.
 Thanks,
 {instructor_name}"""
         },
-        
+
         "general_reminder": {
             "subject": "Peer Review Reminder: {assignment_name}",
             "body": """Hi {student_name},
@@ -55,7 +55,7 @@ Best regards,
 {instructor_name}"""
         }
     }
-    
+
     # Assignment reminder templates
     ASSIGNMENT_TEMPLATES = {
         "deadline_approaching": {
@@ -73,7 +73,7 @@ Please submit your work before the deadline. If you have any questions or need a
 Best regards,
 {instructor_name}"""
         },
-        
+
         "late_submission": {
             "subject": "Late Submission Notice: {assignment_name}",
             "body": """Hi {student_name},
@@ -89,7 +89,7 @@ Best regards,
 {instructor_name}"""
         }
     }
-    
+
     # Discussion participation templates
     DISCUSSION_TEMPLATES = {
         "participation_reminder": {
@@ -109,7 +109,7 @@ Best regards,
 {instructor_name}"""
         }
     }
-    
+
     # Grade notification templates
     GRADE_TEMPLATES = {
         "grade_available": {
@@ -126,16 +126,16 @@ Best regards,
 {instructor_name}"""
         }
     }
-    
+
     @classmethod
-    def get_template(cls, category: str, template_name: str) -> Optional[Dict[str, str]]:
+    def get_template(cls, category: str, template_name: str) -> dict[str, str] | None:
         """
         Get a specific template by category and name.
-        
+
         Args:
             category: Template category (e.g., 'peer_review', 'assignment')
             template_name: Specific template name within the category
-        
+
         Returns:
             Template dict with 'subject' and 'body' keys, or None if not found
         """
@@ -145,67 +145,67 @@ Best regards,
             "discussion": cls.DISCUSSION_TEMPLATES,
             "grade": cls.GRADE_TEMPLATES
         }
-        
+
         category_templates = category_map.get(category)
         if not category_templates:
             return None
-        
+
         return category_templates.get(template_name)
-    
+
     @classmethod
-    def format_template(cls, template: Dict[str, str], variables: Dict[str, Any]) -> Dict[str, str]:
+    def format_template(cls, template: dict[str, str], variables: dict[str, Any]) -> dict[str, str]:
         """
         Format a template with provided variables.
-        
+
         Args:
             template: Template dict with 'subject' and 'body' keys
             variables: Variables to substitute in the template
-        
+
         Returns:
             Formatted template with variables substituted
         """
         try:
             formatted_subject = template["subject"].format(**variables)
             formatted_body = template["body"].format(**variables)
-            
+
             return {
                 "subject": formatted_subject,
                 "body": formatted_body
             }
-        except KeyError as e:
-            raise ValueError(f"Missing template variable: {e}")
-        except Exception as e:
-            raise ValueError(f"Template formatting error: {e}")
-    
+        except KeyError as err:
+            raise ValueError(f"Missing template variable: {err}") from err
+        except Exception as err:
+            raise ValueError(f"Template formatting error: {err}") from err
+
     @classmethod
     def get_formatted_template(
-        cls, 
-        category: str, 
-        template_name: str, 
-        variables: Dict[str, Any]
-    ) -> Optional[Dict[str, str]]:
+        cls,
+        category: str,
+        template_name: str,
+        variables: dict[str, Any]
+    ) -> dict[str, str] | None:
         """
         Get and format a template in one step.
-        
+
         Args:
             category: Template category
             template_name: Template name
             variables: Variables for formatting
-        
+
         Returns:
             Formatted template or None if template not found
         """
         template = cls.get_template(category, template_name)
         if not template:
             return None
-        
+
         return cls.format_template(template, variables)
-    
+
     @classmethod
-    def list_available_templates(cls) -> Dict[str, list]:
+    def list_available_templates(cls) -> dict[str, list]:
         """
         List all available templates by category.
-        
+
         Returns:
             Dict mapping category names to lists of available template names
         """
@@ -215,52 +215,52 @@ Best regards,
             "discussion": list(cls.DISCUSSION_TEMPLATES.keys()),
             "grade": list(cls.GRADE_TEMPLATES.keys())
         }
-    
+
     @classmethod
     def get_template_variables(cls, category: str, template_name: str) -> list:
         """
         Get the variables used in a specific template.
-        
+
         Args:
             category: Template category
             template_name: Template name
-        
+
         Returns:
             List of variable names used in the template
         """
         template = cls.get_template(category, template_name)
         if not template:
             return []
-        
+
         import re
-        
+
         # Extract variables from both subject and body
         variables = set()
         for content in [template["subject"], template["body"]]:
             # Find all {variable_name} patterns
             matches = re.findall(r'\{([^}]+)\}', content)
             variables.update(matches)
-        
-        return sorted(list(variables))
+
+        return sorted(variables)
 
 
 def create_default_variables(
     student_name: str = "Student",
-    assignment_name: str = "Assignment", 
+    assignment_name: str = "Assignment",
     instructor_name: str = "Instructor",
     course_name: str = "Course",
     **kwargs
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Create a default set of template variables.
-    
+
     Args:
         student_name: Student's display name
         assignment_name: Assignment title
         instructor_name: Instructor's name
         course_name: Course name
         **kwargs: Additional variables
-    
+
     Returns:
         Dict of template variables
     """
@@ -277,8 +277,8 @@ def create_default_variables(
         "remaining_count": "2",
         "assignment_description": ""
     }
-    
+
     # Override with any provided kwargs
     variables.update(kwargs)
-    
+
     return variables

@@ -1,17 +1,17 @@
 """Peer review comment extraction and analysis MCP tools for Canvas API."""
 
-import json
 import csv
-import os
+import json
 import sys
 from datetime import datetime
-from typing import Union, Dict, Any, Optional
+from typing import Any
+
 from mcp.server.fastmcp import FastMCP
 
-from ..core.client import make_canvas_request
 from ..core.cache import get_course_id
-from ..core.validation import validate_params
+from ..core.client import make_canvas_request
 from ..core.peer_review_comments import PeerReviewCommentAnalyzer
+from ..core.validation import validate_params
 
 
 def register_peer_review_comment_tools(mcp: FastMCP):
@@ -20,8 +20,8 @@ def register_peer_review_comment_tools(mcp: FastMCP):
     @mcp.tool()
     @validate_params
     async def get_peer_review_comments(
-        course_identifier: Union[str, int],
-        assignment_id: Union[str, int],
+        course_identifier: str | int,
+        assignment_id: str | int,
         include_reviewer_info: bool = True,
         include_reviewee_info: bool = True,
         include_submission_context: bool = False,
@@ -62,9 +62,9 @@ def register_peer_review_comment_tools(mcp: FastMCP):
     @mcp.tool()
     @validate_params
     async def analyze_peer_review_quality(
-        course_identifier: Union[str, int],
-        assignment_id: Union[str, int],
-        analysis_criteria: Optional[str] = None,
+        course_identifier: str | int,
+        assignment_id: str | int,
+        analysis_criteria: str | None = None,
         generate_report: bool = True
     ) -> str:
         """
@@ -106,9 +106,9 @@ def register_peer_review_comment_tools(mcp: FastMCP):
     @mcp.tool()
     @validate_params
     async def identify_problematic_peer_reviews(
-        course_identifier: Union[str, int],
-        assignment_id: Union[str, int],
-        criteria: Optional[str] = None
+        course_identifier: str | int,
+        assignment_id: str | int,
+        criteria: str | None = None
     ) -> str:
         """
         Flag reviews that may need instructor attention.
@@ -147,13 +147,13 @@ def register_peer_review_comment_tools(mcp: FastMCP):
     @mcp.tool()
     @validate_params
     async def extract_peer_review_dataset(
-        course_identifier: Union[str, int],
-        assignment_id: Union[str, int],
+        course_identifier: str | int,
+        assignment_id: str | int,
         output_format: str = "csv",
         include_analytics: bool = True,
         anonymize_data: bool = True,
         save_locally: bool = True,
-        filename: Optional[str] = None
+        filename: str | None = None
     ) -> str:
         """
         Export all peer review data in various formats for analysis.
@@ -266,8 +266,8 @@ def register_peer_review_comment_tools(mcp: FastMCP):
     @mcp.tool()
     @validate_params
     async def generate_peer_review_feedback_report(
-        course_identifier: Union[str, int],
-        assignment_id: Union[str, int],
+        course_identifier: str | int,
+        assignment_id: str | int,
         report_type: str = "comprehensive",
         include_student_names: bool = False,
         format_type: str = "markdown"
@@ -319,13 +319,12 @@ def register_peer_review_comment_tools(mcp: FastMCP):
         except Exception as e:
             return f"Error in generate_peer_review_feedback_report: {str(e)}"
 
-    import sys
     print("Peer review comment analysis tools registered successfully!", file=sys.stderr)
 
 
 def _generate_markdown_report(
-    analytics_data: Dict[str, Any],
-    problematic_data: Dict[str, Any],
+    analytics_data: dict[str, Any],
+    problematic_data: dict[str, Any],
     assignment_name: str,
     report_type: str
 ) -> str:

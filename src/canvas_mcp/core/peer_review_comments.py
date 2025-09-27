@@ -5,18 +5,13 @@ Provides comprehensive peer review comment extraction, analysis, and reporting
 capabilities for Canvas assignments.
 """
 
-import re
-import json
-import csv
 import statistics
-from datetime import datetime
-from typing import Dict, List, Any, Optional, Union
-from collections import Counter, defaultdict
+from collections import Counter
+from typing import Any
 
-from .client import make_canvas_request, fetch_all_paginated_results
-from .cache import get_course_id
-from .dates import format_date
 from .anonymization import generate_anonymous_id
+from .client import fetch_all_paginated_results, make_canvas_request
+from .dates import format_date
 
 
 class PeerReviewCommentAnalyzer:
@@ -50,7 +45,7 @@ class PeerReviewCommentAnalyzer:
         include_reviewee_info: bool = True,
         include_submission_context: bool = False,
         anonymize_students: bool = False
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Retrieve actual comment text for peer reviews on a specific assignment.
 
@@ -115,7 +110,6 @@ class PeerReviewCommentAnalyzer:
             comments_with_text = 0
             empty_comments = 0
             total_word_count = 0
-            total_ratings = []
 
             for pr in peer_reviews:
                 reviewer_id = pr.get("assessor_id")
@@ -251,9 +245,9 @@ class PeerReviewCommentAnalyzer:
         self,
         course_id: int,
         assignment_id: int,
-        analysis_criteria: Optional[Dict[str, Any]] = None,
+        analysis_criteria: dict[str, Any] | None = None,
         generate_report: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Analyze the quality and content of peer review comments.
 
@@ -393,7 +387,7 @@ class PeerReviewCommentAnalyzer:
 
         return max(0.0, min(5.0, score))
 
-    def _calculate_word_count_stats(self, word_counts: List[int]) -> Dict[str, float]:
+    def _calculate_word_count_stats(self, word_counts: list[int]) -> dict[str, float]:
         """Calculate word count statistics."""
         if not word_counts:
             return {"mean": 0, "median": 0, "std_dev": 0, "min": 0, "max": 0}
@@ -406,7 +400,7 @@ class PeerReviewCommentAnalyzer:
             "max": max(word_counts)
         }
 
-    def _analyze_constructiveness(self, comment_texts: List[str]) -> Dict[str, int]:
+    def _analyze_constructiveness(self, comment_texts: list[str]) -> dict[str, int]:
         """Analyze constructiveness of comments."""
         constructive_count = 0
         generic_count = 0
@@ -433,7 +427,7 @@ class PeerReviewCommentAnalyzer:
             "specific_suggestions": specific_count
         }
 
-    def _analyze_sentiment(self, comment_texts: List[str]) -> Dict[str, float]:
+    def _analyze_sentiment(self, comment_texts: list[str]) -> dict[str, float]:
         """Basic sentiment analysis of comments."""
         positive_words = ['good', 'great', 'excellent', 'nice', 'well', 'correct', 'clear']
         negative_words = ['bad', 'wrong', 'poor', 'unclear', 'confusing', 'incorrect']
@@ -463,10 +457,10 @@ class PeerReviewCommentAnalyzer:
 
     def _generate_recommendations(
         self,
-        flagged_reviews: List[Dict],
-        word_count_stats: Dict,
-        constructiveness_analysis: Dict
-    ) -> List[str]:
+        flagged_reviews: list[dict],
+        word_count_stats: dict,
+        constructiveness_analysis: dict
+    ) -> list[str]:
         """Generate recommendations based on analysis."""
         recommendations = []
 
@@ -494,8 +488,8 @@ class PeerReviewCommentAnalyzer:
         self,
         course_id: int,
         assignment_id: int,
-        criteria: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        criteria: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
         Flag reviews that may need instructor attention.
 

@@ -4,15 +4,15 @@ Debug script to understand Canvas API peer review comment structure.
 """
 
 import asyncio
-import sys
-import os
 import json
+import os
+import sys
 
 # Add the src directory to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from canvas_mcp.core.client import make_canvas_request
 from canvas_mcp.core.cache import get_course_id
+from canvas_mcp.core.client import make_canvas_request
 
 
 async def debug_peer_review_api():
@@ -143,7 +143,7 @@ async def debug_peer_review_api():
         if "error" in assignment_response:
             print(f"   ❌ Error: {assignment_response['error']}")
         else:
-            print(f"   ✅ Assignment details:")
+            print("   ✅ Assignment details:")
             print(f"     Name: {assignment_response.get('name')}")
             print(f"     Peer reviews enabled: {assignment_response.get('peer_reviews')}")
             print(f"     Has rubric: {'rubric' in assignment_response}")

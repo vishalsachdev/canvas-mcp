@@ -1,13 +1,12 @@
 """Peer review analytics MCP tools for Canvas API."""
 
 import json
-from typing import Union
+
 from mcp.server.fastmcp import FastMCP
 
-from ..core.client import make_canvas_request
 from ..core.cache import get_course_id
-from ..core.validation import validate_params
 from ..core.peer_reviews import PeerReviewAnalyzer
+from ..core.validation import validate_params
 
 
 def register_peer_review_tools(mcp: FastMCP):
@@ -16,8 +15,8 @@ def register_peer_review_tools(mcp: FastMCP):
     @mcp.tool()
     @validate_params
     async def get_peer_review_assignments(
-        course_identifier: Union[str, int],
-        assignment_id: Union[str, int],
+        course_identifier: str | int,
+        assignment_id: str | int,
         include_names: bool = True,
         include_submission_details: bool = False
     ) -> str:
@@ -51,8 +50,8 @@ def register_peer_review_tools(mcp: FastMCP):
     @mcp.tool()
     @validate_params
     async def get_peer_review_completion_analytics(
-        course_identifier: Union[str, int],
-        assignment_id: Union[str, int],
+        course_identifier: str | int,
+        assignment_id: str | int,
         include_student_details: bool = True,
         group_by_status: bool = True
     ) -> str:
@@ -86,8 +85,8 @@ def register_peer_review_tools(mcp: FastMCP):
     @mcp.tool()
     @validate_params
     async def generate_peer_review_report(
-        course_identifier: Union[str, int],
-        assignment_id: Union[str, int],
+        course_identifier: str | int,
+        assignment_id: str | int,
         report_format: str = "markdown",
         include_executive_summary: bool = True,
         include_student_details: bool = True,
@@ -154,8 +153,8 @@ def register_peer_review_tools(mcp: FastMCP):
     @mcp.tool()
     @validate_params
     async def get_peer_review_followup_list(
-        course_identifier: Union[str, int],
-        assignment_id: Union[str, int],
+        course_identifier: str | int,
+        assignment_id: str | int,
         priority_filter: str = "all",
         include_contact_info: bool = False,
         days_threshold: int = 3
