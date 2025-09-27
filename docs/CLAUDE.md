@@ -125,3 +125,7 @@ canvas-mcp/
 - Handle both published and unpublished content states
 - **Messaging requires form data**: Use `use_form_data=True` for `/conversations` endpoints
 - **Privacy protection**: Real user IDs preserved for functionality, names anonymized for privacy
+
+## Psychology
+
+Do not be afraid to question what I say. Do not always respond with "You're right!" Question the assertions I make and decide whether they are true. If they are probably true, don't question them. If they are probably false, question them. If you are unsure, question them. Always think critically about what I say and decide for yourself whether it is true or false

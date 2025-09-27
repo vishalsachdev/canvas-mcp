@@ -75,11 +75,11 @@ class PeerReviewCommentAnalyzer:
             if "error" in assignment_response:
                 return {"error": f"Failed to get assignment: {assignment_response['error']}"}
 
-            # Get peer reviews with submission comments
+            # Get peer reviews (these don't include comments directly)
             peer_reviews_response = await make_canvas_request(
                 "get",
                 f"/courses/{course_id}/assignments/{assignment_id}/peer_reviews",
-                params={"include[]": ["submission_comment", "user", "assessor"]}
+                params={"include[]": ["user", "assessor"]}
             )
 
             if "error" in peer_reviews_response:
@@ -97,15 +97,17 @@ class PeerReviewCommentAnalyzer:
                 if isinstance(users_response, list):
                     users_map = {user["id"]: user for user in users_response}
 
-            # Get submissions for context if needed
+            # Get ALL submissions with comments (needed to extract peer review comments)
             submissions_map = {}
-            if include_submission_context:
-                submissions_response = await fetch_all_paginated_results(
-                    f"/courses/{course_id}/assignments/{assignment_id}/submissions",
-                    {"include[]": ["submission_comments"], "per_page": 100}
-                )
-                if isinstance(submissions_response, list):
-                    submissions_map = {sub["user_id"]: sub for sub in submissions_response}
+            submissions_by_id = {}
+            submissions_response = await fetch_all_paginated_results(
+                f"/courses/{course_id}/assignments/{assignment_id}/submissions",
+                {"include[]": ["submission_comments"], "per_page": 100}
+            )
+            if isinstance(submissions_response, list):
+                for sub in submissions_response:
+                    submissions_map[sub["user_id"]] = sub
+                    submissions_by_id[sub["id"]] = sub
 
             # Process peer review comments
             processed_reviews = []
@@ -162,7 +164,7 @@ class PeerReviewCommentAnalyzer:
                         "attempt": sub.get("attempt", 1)
                     }
 
-                # Process comment content
+                # Process comment content - Extract from submission comments
                 review_content = {
                     "comment_text": "",
                     "rating": None,
@@ -172,22 +174,35 @@ class PeerReviewCommentAnalyzer:
                     "character_count": 0
                 }
 
-                # Extract comment from submission_comment if present
-                submission_comment = pr.get("submission_comment")
-                if submission_comment:
-                    comment_text = submission_comment.get("comment", "")
-                    review_content.update({
-                        "comment_text": comment_text,
-                        "timestamp": format_date(submission_comment.get("created_at")),
-                        "word_count": len(comment_text.split()) if comment_text else 0,
-                        "character_count": len(comment_text) if comment_text else 0
-                    })
+                # Get the submission that was reviewed
+                asset_id = pr.get("asset_id")  # This is the submission ID
+                if asset_id and asset_id in submissions_by_id:
+                    submission = submissions_by_id[asset_id]
+                    submission_comments = submission.get("submission_comments", [])
 
-                    total_word_count += review_content["word_count"]
-                    if comment_text.strip():
-                        comments_with_text += 1
+                    # Find comments from this specific reviewer
+                    for comment in submission_comments:
+                        if comment.get("author_id") == reviewer_id:
+                            comment_text = comment.get("comment", "")
+                            review_content.update({
+                                "comment_text": comment_text,
+                                "timestamp": format_date(comment.get("created_at")),
+                                "word_count": len(comment_text.split()) if comment_text else 0,
+                                "character_count": len(comment_text) if comment_text else 0
+                            })
+
+                            total_word_count += review_content["word_count"]
+                            if comment_text.strip():
+                                comments_with_text += 1
+                            else:
+                                empty_comments += 1
+                            break  # Use the first comment from this reviewer
                     else:
+                        # No comment found from this reviewer
                         empty_comments += 1
+                else:
+                    # No submission found for this asset_id
+                    empty_comments += 1
 
                 # Try to extract rating from rubric assessments if available
                 # Note: This would require additional API calls to get rubric assessments
