@@ -5,14 +5,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Canvas MCP Development Guide
 
 ## Environment Setup
-- Create virtual env: `python -m venv .venv`
-- Activate: `source .venv/bin/activate`
-- Install dependencies: `pip install -r requirements.txt`
+- Install uv package manager: `pip install uv`
+- Install dependencies: `uv pip install -e .`
 - Create `.env` file with `CANVAS_API_TOKEN` and `CANVAS_API_URL`
+- Server installed as CLI command: `canvas-mcp-server`
 
 ## Commands
-- **Start server**: `./start_canvas_server.sh`
-- **Test MCP server**: Start server manually and check stderr output for debugging
+- **Start server**: `canvas-mcp-server` (or `./start_canvas_server.sh` for legacy setup)
+- **Test server**: `canvas-mcp-server --test`
+- **View config**: `canvas-mcp-server --config`
 - **Claude Desktop config**: Update `~/Library/Application Support/Claude/claude_desktop_config.json`
 
 ## Repository Structure

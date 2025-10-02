@@ -13,6 +13,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Tool caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
 # Distribution / packaging
 dist/
 build/

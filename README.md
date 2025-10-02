@@ -168,7 +168,7 @@ canvas-mcp/
 - **[Tool Documentation](./tools/README.md)** - Complete reference for all available tools
 - **[Pages Implementation Guide](./docs/PAGES_IMPLEMENTATION.md)** - Comprehensive Pages feature guide
 - **[Course Documentation Template](./docs/course_documentation_prompt_template.md)** - Hybrid approach for efficient course documentation
-- **[Development Guide](./docs/CLAUDE.md)** - Architecture details and contribution guidelines
+- **[Development Guide](./docs/CLAUDE.md)** - Architecture details and development reference
 ## Technical Details
 
 ### Modern Architecture (2025)
@@ -213,7 +213,7 @@ Modern Python packages (see `pyproject.toml`):
 - **Type Checking**: `mypy` support for type safety
 - **Code Quality**: `ruff` and `black` for formatting and linting
 
-For contributors, see the [Development Guide](CLAUDE.md) for detailed architecture and contribution guidelines.
+For contributors, see the [Development Guide](./docs/CLAUDE.md) for detailed architecture and development reference.
 
 ## Troubleshooting
 
