@@ -8,23 +8,48 @@ This repository contains a Model Context Protocol (MCP) server implementation fo
 
 ## Overview
 
-The Canvas MCP Server bridges the gap between Claude Desktop and Canvas Learning Management System, providing educators with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data while maintaining **FERPA compliance** through advanced privacy protection features.
+The Canvas MCP Server bridges the gap between Claude Desktop and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data.
 
-## 🔒 Privacy-First Student Data Protection
+### For Students 👨‍🎓
+Get AI-powered assistance with:
+- Tracking upcoming assignments and deadlines
+- Monitoring your grades across all courses
+- Managing peer review assignments
+- Accessing course content and discussions
+- Organizing your TODO list
 
-**Recently Implemented**: Complete FERPA compliance through systematic data anonymization across all tools.
+**[→ Get Started as a Student](./docs/STUDENT_GUIDE.md)**
 
-**The Problem**: Using AI tools with student data creates FERPA compliance risks and privacy violations.
+### For Educators 👨‍🏫
+Enhance your teaching with:
+- Assignment and grading management
+- Student analytics and performance tracking
+- Discussion and peer review facilitation
+- **FERPA-compliant** student data handling
+- Bulk messaging and communication tools
 
-**What We Built**:
-- **Source-level data anonymization** that converts real names to consistent anonymous IDs (Student_xxxxxxxx)
-- **Automatic email masking** and PII filtering from discussion posts and submissions  
+**[→ Get Started as an Educator](./docs/EDUCATOR_GUIDE.md)**
+
+## 🔒 Privacy & Data Protection
+
+### For Educators: FERPA Compliance
+
+Complete FERPA compliance through systematic data anonymization when working with student data:
+
+- **Source-level data anonymization** converts real names to consistent anonymous IDs (Student_xxxxxxxx)
+- **Automatic email masking** and PII filtering from discussion posts and submissions
 - **Local-only processing** with configurable privacy controls (`ENABLE_DATA_ANONYMIZATION=true`)
 - **FERPA-compliant analytics**: Ask "Which students need support?" without exposing real identities
 - **De-anonymization mapping tool** for faculty to correlate anonymous IDs with real students locally
-- **Robust error handling** ensures tools continue working even if anonymization fails
 
-All student data is anonymized **before** it reaches AI systems, ensuring complete privacy protection while maintaining full educational functionality. **8 core tools** now include comprehensive privacy protection with production-ready error handling.
+All student data is anonymized **before** it reaches AI systems. See [Educator Guide](./docs/EDUCATOR_GUIDE.md) for configuration details.
+
+### For Students: Your Data Stays Private
+
+- **Your data only**: Student tools access only your own Canvas data via Canvas API's "self" endpoints
+- **Local processing**: Everything runs on your machine - no data sent to external servers
+- **No tracking**: Your Canvas usage and AI interactions remain private
+- **No anonymization needed**: Since you're only accessing your own data, there are no privacy concerns
 
 ## Prerequisites
 
@@ -113,13 +138,23 @@ The Canvas MCP Server provides a comprehensive set of tools for interacting with
 
 ### Tool Categories
 
+**Student Tools** (New!)
+- Personal assignment tracking and deadline management
+- Grade monitoring across all courses
+- TODO list and peer review management
+- Submission status tracking
+
+**Shared Tools** (Both Students & Educators)
 1. **Course Tools** - List and manage courses, get detailed information, generate summaries with syllabus content
-2. **Assignment Tools** - Handle assignments, submissions, and peer reviews with analytics
-3. **Rubric Tools** - Full CRUD operations for rubrics with validation, association management, and grading
-4. **Discussion & Announcement Tools** - Manage discussions, announcements, and replies
-5. **Page & Content Tools** - Access pages, modules, and course content
+2. **Discussion & Announcement Tools** - Manage discussions, announcements, and replies
+3. **Page & Content Tools** - Access pages, modules, and course content
+
+**Educator Tools**
+4. **Assignment Tools** - Handle assignments, submissions, and peer reviews with analytics
+5. **Rubric Tools** - Full CRUD operations for rubrics with validation, association management, and grading
 6. **User & Enrollment Tools** - Manage enrollments, users, and groups
 7. **Analytics Tools** - View student analytics, assignment statistics, and progress tracking
+8. **Messaging Tools** - Send messages and announcements to students
 
 📖 [View Full Tool Documentation](tools/README.md) for detailed information about all available tools.
 
@@ -130,9 +165,17 @@ This MCP server works seamlessly with Claude Desktop:
 1. **Automatic Startup**: Claude Desktop starts the server when needed
 2. **Tool Integration**: Canvas tools appear in Claude's interface (🔨 hammer icon)
 3. **Natural Language**: Ask Claude things like:
-   - *"Show me my courses"*
-   - *"Which students haven't submitted the latest assignment?"*
-   - *"Create an announcement about tomorrow's exam"*
+
+**Students:**
+- *"What assignments do I have due this week?"*
+- *"Show me my current grades"*
+- *"What peer reviews do I need to complete?"*
+- *"Have I submitted everything for BADM 350?"*
+
+**Educators:**
+- *"Which students haven't submitted the latest assignment?"*
+- *"Create an announcement about tomorrow's exam"*
+- *"Show me peer review completion analytics"*
 
 ## Project Structure
 
@@ -226,29 +269,27 @@ If you encounter issues:
 
 ## Security & Privacy Features
 
-### FERPA-Compliant Data Protection
-- **Automatic anonymization** of all student data (names, emails, IDs) before AI processing across 8 core tools
-- **PII filtering** removes phone numbers, emails, and SSNs from discussion content
-- **Consistent anonymous IDs** maintain educational relationships while protecting identity
-- **Local de-anonymization mapping** creates secure CSV files for faculty correlation
-- **Production-ready error handling** with graceful fallbacks if anonymization fails
-- **Local-only processing** - no data leaves your machine except anonymous analytics
-
 ### API Security
 - Your Canvas API token grants access to your Canvas account
-- Never commit your `.env` file to version control  
+- Never commit your `.env` file to version control
+- The server runs locally on your machine - no external data transmission
 - Consider using a token with limited permissions if possible
-- The server runs locally on your machine and doesn't expose your credentials externally
 
-### Privacy Controls
-Configure privacy settings in your `.env` file:
+### Privacy Controls (Educators Only)
+
+Educators working with student data can enable FERPA-compliant anonymization:
+
 ```bash
-# Enable automatic student data anonymization (recommended)
-ENABLE_DATA_ANONYMIZATION=true
-
-# Debug anonymization process (for testing)
-ANONYMIZATION_DEBUG=true
+# In your .env file
+ENABLE_DATA_ANONYMIZATION=true  # Anonymizes student names/emails before AI processing
+ANONYMIZATION_DEBUG=true        # Debug anonymization (optional)
 ```
+
+Students don't need anonymization since they only access their own data.
+
+For detailed privacy configuration, see:
+- **[Educator Guide](./docs/EDUCATOR_GUIDE.md)** - FERPA compliance and anonymization
+- **[Student Guide](./docs/STUDENT_GUIDE.md)** - Privacy information for students
 
 ## Contributing
 

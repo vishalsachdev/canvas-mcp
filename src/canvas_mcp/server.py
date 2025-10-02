@@ -3,8 +3,9 @@
 Canvas MCP Server
 
 A Model Context Protocol server for Canvas LMS integration.
-Provides educators with AI-powered tools for course management,
-assignment handling, discussion facilitation, and student analytics.
+Provides educators and students with AI-powered tools for course management,
+assignment handling, discussion facilitation, student analytics, and personal
+academic tracking.
 """
 
 import argparse
@@ -23,6 +24,7 @@ from .tools import (
     register_peer_review_comment_tools,
     register_peer_review_tools,
     register_rubric_tools,
+    register_student_tools,
 )
 
 
@@ -46,6 +48,7 @@ def register_all_tools(mcp: FastMCP) -> None:
     register_peer_review_tools(mcp)
     register_peer_review_comment_tools(mcp)
     register_messaging_tools(mcp)
+    register_student_tools(mcp)
 
     # Register resources and prompts
     register_resources_and_prompts(mcp)
