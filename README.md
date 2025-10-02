@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-This repository contains a Model Context Protocol (MCP) server implementation for interacting with the Canvas Learning Management System API. The server is designed to work with Claude Desktop and potentially other MCP clients.
+This repository contains a Model Context Protocol (MCP) server implementation for interacting with the Canvas Learning Management System API. The server is designed to work with Claude Desktop and other MCP-compatible clients.
 
 > **Note**: Recently refactored to a modular architecture for better maintainability. The legacy monolithic implementation has been archived.
 
@@ -55,7 +55,31 @@ All student data is anonymized **before** it reaches AI systems. See [Educator G
 
 - **Python 3.10+** - Required for modern features and type hints
 - **Canvas API Access** - API token and institution URL
-- **Claude Desktop** - For MCP integration
+- **MCP Client** - Claude Desktop (recommended) or other MCP-compatible client
+
+### Supported MCP Clients
+
+Canvas MCP works with any application that supports the Model Context Protocol. Popular options include:
+
+**Recommended:**
+- **[Claude Desktop](https://claude.ai/download)** - Official Anthropic desktop app with full MCP support
+
+**AI Coding Assistants:**
+- **[Zed](https://zed.dev)** - High-performance code editor with built-in MCP support
+- **[Cursor](https://cursor.sh)** - AI-first code editor
+- **[Windsurf IDE](https://codeium.com/windsurf)** (by Codeium) - AI-powered development environment
+- **[Continue](https://continue.dev)** - Open-source AI code assistant
+
+**Development Platforms:**
+- **[Replit](https://replit.com)** - Cloud-based coding platform with MCP integration
+- **[Sourcegraph Cody](https://sourcegraph.com/cody)** - AI coding assistant with MCP support
+
+**Enterprise:**
+- **[Microsoft Copilot Studio](https://www.microsoft.com/microsoft-copilot/microsoft-copilot-studio)** - MCP support in enterprise environments
+
+See the [official MCP clients list](https://modelcontextprotocol.io/clients) for more options.
+
+> **Note**: While Canvas MCP is designed to work with any MCP client, setup instructions in this guide focus on Claude Desktop. Configuration for other clients may vary.
 
 ## Quick Start (Automated Installation)
 
@@ -158,13 +182,13 @@ The Canvas MCP Server provides a comprehensive set of tools for interacting with
 
 📖 [View Full Tool Documentation](tools/README.md) for detailed information about all available tools.
 
-## Usage with Claude Desktop
+## Usage with MCP Clients
 
-This MCP server works seamlessly with Claude Desktop:
+This MCP server works seamlessly with any MCP-compatible client:
 
-1. **Automatic Startup**: Claude Desktop starts the server when needed
-2. **Tool Integration**: Canvas tools appear in Claude's interface (🔨 hammer icon)
-3. **Natural Language**: Ask Claude things like:
+1. **Automatic Startup**: MCP clients start the server when needed
+2. **Tool Integration**: Canvas tools appear in your AI assistant's interface
+3. **Natural Language**: Interact naturally with prompts like:
 
 **Students:**
 - *"What assignments do I have due this week?"*
