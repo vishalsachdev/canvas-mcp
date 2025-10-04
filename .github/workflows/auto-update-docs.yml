@@ -1,0 +1,50 @@
+name: Auto-Update Documentation
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'src/canvas_mcp/tools/**'
+      - 'src/canvas_mcp/server.py'
+
+jobs:
+  update-docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Run Claude Documentation Update
+        id: claude-docs
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Tool files have been modified in this PR. Please:
+
+            1. Review the changes in src/canvas_mcp/tools/ to understand what new tools or modifications were made
+            2. Update the README.md to reflect:
+               - New tools added (with descriptions and examples)
+               - Modified tool signatures or parameters
+               - New features or capabilities
+            3. Ensure the documentation accurately describes:
+               - Tool categories (assignments, discussions, pages, rubrics, etc.)
+               - Required parameters
+               - Example usage
+            4. Keep the documentation style consistent with existing format
+            5. If changes are needed, commit them directly to this PR branch
+
+            Use git commands to commit your documentation updates if needed.
+
+          claude_args: '--allowed-tools "Bash(git:*),Read,Write,Edit,Glob,Grep"'

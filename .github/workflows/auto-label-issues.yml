@@ -1,0 +1,50 @@
+name: Auto-Label Issues
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  auto-label:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE NUMBER: ${{ github.event.issue.number }}
+
+            A new issue has been opened. Please analyze the issue and add appropriate labels.
+
+            Categories to consider:
+            - **Canvas API Category**: assignments, discussions, pages, rubrics, peer-reviews, conversations, announcements, users, groups, analytics
+            - **Type**: bug, enhancement, feature-request, question, documentation
+            - **Priority**: critical, high, medium, low
+            - **Student vs Faculty**: student-facing, faculty-facing, both
+
+            Available labels (add as appropriate):
+            - bug, enhancement, documentation, question
+            - assignments, discussions, pages, rubrics, peer-reviews, conversations, announcements
+            - student-tool, faculty-tool
+            - priority:high, priority:medium, priority:low
+            - good-first-issue (if suitable for new contributors)
+
+            Use gh CLI to add labels to the issue. For example:
+            gh issue edit ${{ github.event.issue.number }} --add-label "bug,assignments,faculty-tool"
+
+            Also add a brief comment explaining your categorization.
+
+          claude_args: '--allowed-tools "Bash(gh issue:*),Read,Grep"'
