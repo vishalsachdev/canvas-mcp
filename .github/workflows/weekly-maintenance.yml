@@ -1,0 +1,82 @@
+name: Weekly Maintenance
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # Every Sunday at midnight UTC
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run Claude Maintenance Tasks
+        id: claude-maintenance
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+
+            Please perform weekly maintenance tasks for this Canvas MCP server project:
+
+            1. **Dependency Analysis**
+               - Check pyproject.toml for outdated dependencies
+               - Verify canvasapi library compatibility with latest Canvas API
+               - Check if mcp library has updates
+               - Review Python version requirements
+
+            2. **Canvas API Compatibility**
+               - Review recent Canvas API changelog (if accessible via web search)
+               - Identify any deprecated endpoints we're using
+               - Check if new Canvas API features should be added
+
+            3. **Code Quality**
+               - Scan for TODO comments older than 30 days
+               - Check for unused imports or dead code
+               - Review error handling patterns
+
+            4. **Documentation Health**
+               - Verify README examples are still accurate
+               - Check if new tools need documentation
+               - Ensure CLAUDE.md instructions are current
+
+            5. **Issue Management**
+               - Review open issues older than 60 days
+               - Suggest closing stale issues or adding updates
+               - Identify issues that could be "good-first-issue"
+
+            6. **Security**
+               - Check for any hardcoded secrets or credentials
+               - Review environment variable usage
+               - Scan for common security anti-patterns
+
+            Create a detailed maintenance report as a GitHub issue with:
+            - Summary of findings
+            - Actionable recommendations
+            - Priority levels for each item
+            - Links to relevant files/lines
+
+            Use gh CLI to create the issue with label "maintenance".
+
+          claude_args: '--allowed-tools "Bash(gh:*),Read,Glob,Grep,WebSearch"'
