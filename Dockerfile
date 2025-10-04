@@ -17,16 +17,22 @@ COPY src/ ./src/
 # Install dependencies using uv
 RUN uv pip install --system --no-cache -e .
 
-# Expose port for MCP server (if needed for networking)
-# Note: MCP servers typically use stdio, but this is here for flexibility
-EXPOSE 3000
+# Create non-root user for security
+RUN adduser --disabled-password --gecos '' mcp && \
+    chown -R mcp:mcp /app
 
-# Set environment variables (users should override these)
-ENV CANVAS_API_TOKEN="" \
-    CANVAS_API_URL="" \
-    MCP_SERVER_NAME="canvas-mcp" \
+# Set environment variables (users must provide CANVAS_API_TOKEN and CANVAS_API_URL at runtime)
+# Example: docker run -e CANVAS_API_TOKEN=xyz -e CANVAS_API_URL=https://... canvas-mcp
+ENV MCP_SERVER_NAME="canvas-mcp" \
     ENABLE_DATA_ANONYMIZATION="false" \
     ANONYMIZATION_DEBUG="false"
+
+# Switch to non-root user
+USER mcp
+
+# Health check to verify installation
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD python -c "import canvas_mcp; print('OK')" || exit 1
 
 # Run the MCP server
 CMD ["canvas-mcp-server"]
