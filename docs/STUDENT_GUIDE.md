@@ -63,7 +63,7 @@ Your `.env` file should look like this:
 ```bash
 # Canvas API Configuration
 CANVAS_API_TOKEN=your_token_here
-CANVAS_API_URL=https://canvas.youruniversity.edu
+CANVAS_API_URL=https://canvas.youruniversity.edu/api/v1
 
 # MCP Server Configuration (optional)
 MCP_SERVER_NAME=canvas-mcp
@@ -72,7 +72,7 @@ MCP_SERVER_NAME=canvas-mcp
 ENABLE_DATA_ANONYMIZATION=false
 ```
 
-**Important**: Replace `https://canvas.youruniversity.edu` with your actual Canvas URL.
+**Important**: Replace `https://canvas.youruniversity.edu/api/v1` with your actual Canvas URL (including the `/api/v1` suffix).
 
 ### 5. Configure Claude Desktop
 
