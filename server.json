@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "io.github.vishalsachdev/canvas-mcp",
   "description": "Canvas LMS integration for students and educators with FERPA-compliant analytics and workflows",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "websiteUrl": "https://vishalsachdev.github.io/canvas-mcp",
   "repository": {
     "url": "https://github.com/vishalsachdev/canvas-mcp",
@@ -31,7 +31,7 @@
     {
       "registryType": "pypi",
       "identifier": "canvas-mcp",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "transport": {
         "type": "stdio",
         "python": {
