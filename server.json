@@ -1,0 +1,57 @@
+{
+  "$schema": "https://registry.modelcontextprotocol.io/v0/server.schema.json",
+  "name": "canvas-mcp",
+  "namespace": "io.github.vishalsachdev",
+  "description": "Model Context Protocol server for Canvas Learning Management System. Provides students and educators with tools for managing courses, assignments, discussions, grades, peer reviews, rubrics, and analytics with FERPA-compliant student data handling.",
+  "homepage": "https://github.com/vishalsachdev/canvas-mcp",
+  "sourceCode": "https://github.com/vishalsachdev/canvas-mcp",
+  "tags": [
+    "education",
+    "lms",
+    "canvas",
+    "teaching",
+    "learning",
+    "api",
+    "student-tools",
+    "educator-tools",
+    "peer-review",
+    "rubrics",
+    "analytics",
+    "ferpa"
+  ],
+  "license": "MIT",
+  "deployment": {
+    "type": "package",
+    "package": {
+      "type": "pypi",
+      "name": "canvas-mcp",
+      "validation": {
+        "type": "server-name",
+        "serverName": "canvas-mcp"
+      }
+    }
+  },
+  "configuration": {
+    "type": "env",
+    "env": {
+      "CANVAS_API_TOKEN": {
+        "description": "Your Canvas API access token. Get this from Canvas → Account → Settings → New Access Token",
+        "required": true
+      },
+      "CANVAS_API_URL": {
+        "description": "Your Canvas instance URL (e.g., https://canvas.instructure.com)",
+        "required": true
+      },
+      "ENABLE_DATA_ANONYMIZATION": {
+        "description": "Enable FERPA-compliant student data anonymization (educators only)",
+        "required": false,
+        "default": "false"
+      },
+      "ANONYMIZATION_DEBUG": {
+        "description": "Enable anonymization debugging output",
+        "required": false,
+        "default": "false"
+      }
+    }
+  }
+}

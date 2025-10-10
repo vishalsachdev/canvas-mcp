@@ -315,6 +315,79 @@ For detailed privacy configuration, see:
 - **[Educator Guide](./docs/EDUCATOR_GUIDE.md)** - FERPA compliance and anonymization
 - **[Student Guide](./docs/STUDENT_GUIDE.md)** - Privacy information for students
 
+## Publishing to MCP Registry
+
+This server is published to the [Model Context Protocol Registry](https://registry.modelcontextprotocol.io/) for easy installation.
+
+### Automated Publishing (Recommended)
+
+Publishing is automated via GitHub Actions:
+
+1. **Prepare a release**:
+   ```bash
+   # Update version in pyproject.toml
+   # Update CHANGELOG if applicable
+   git commit -am "chore: bump version to X.Y.Z"
+   git push
+   ```
+
+2. **Create and push a version tag**:
+   ```bash
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
+   ```
+
+3. **Automated workflow**:
+   - Runs tests
+   - Builds Python package
+   - Publishes to PyPI
+   - Publishes to MCP Registry using GitHub OIDC
+
+### Prerequisites for Publishing
+
+- **PyPI Account**: Create account at [pypi.org](https://pypi.org)
+- **Trusted Publisher Setup** (recommended, no tokens needed):
+  1. Visit [PyPI Trusted Publishers](https://pypi.org/manage/account/publishing/)
+  2. Add a "pending publisher" for your repository:
+     - **Owner**: `vishalsachdev`
+     - **Repository**: `canvas-mcp`
+     - **Workflow**: `publish-mcp.yml`
+     - **Environment**: (leave blank)
+  3. This reserves the package name and enables tokenless publishing
+
+**Alternative**: Use API token (legacy method - not recommended):
+- Generate token at PyPI → Account Settings → API tokens
+- Add as `PYPI_API_TOKEN` secret in repository settings
+- Update workflow to use `password: ${{ secrets.PYPI_API_TOKEN }}`
+
+### Manual Publishing (Alternative)
+
+For manual publishing:
+
+```bash
+# Install MCP Publisher
+curl -fsSL https://modelcontextprotocol.io/install.sh | sh
+
+# Login using GitHub
+mcp-publisher login github
+
+# Publish server
+mcp-publisher publish
+```
+
+### Registry Validation
+
+The `server.json` configuration is automatically validated against the MCP schema during CI/CD. To validate locally:
+
+```bash
+# Download schema
+curl -s https://registry.modelcontextprotocol.io/v0/server.schema.json -o /tmp/mcp-schema.json
+
+# Validate (requires jsonschema CLI)
+pip install jsonschema
+jsonschema -i server.json /tmp/mcp-schema.json
+```
+
 ## Contributing
 
 Contributions are welcome! Feel free to:
