@@ -1,10 +1,14 @@
 {
-  "$schema": "https://registry.modelcontextprotocol.io/v0/server.schema.json",
-  "name": "canvas-mcp",
-  "namespace": "io.github.vishalsachdev",
-  "description": "Model Context Protocol server for Canvas Learning Management System. Provides students and educators with tools for managing courses, assignments, discussions, grades, peer reviews, rubrics, and analytics with FERPA-compliant student data handling.",
-  "homepage": "https://github.com/vishalsachdev/canvas-mcp",
-  "sourceCode": "https://github.com/vishalsachdev/canvas-mcp",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "io.github.vishalsachdev/canvas-mcp",
+  "description": "Canvas LMS integration for students and educators with FERPA-compliant analytics and workflows",
+  "version": "1.0.0",
+  "websiteUrl": "https://github.com/vishalsachdev/canvas-mcp",
+  "repository": {
+    "url": "https://github.com/vishalsachdev/canvas-mcp",
+    "source": "github",
+    "id": "940427833"
+  },
   "tags": [
     "education",
     "lms",
@@ -20,17 +24,22 @@
     "ferpa"
   ],
   "license": "MIT",
-  "deployment": {
-    "type": "package",
-    "package": {
-      "type": "pypi",
-      "name": "canvas-mcp",
-      "validation": {
-        "type": "server-name",
-        "serverName": "canvas-mcp"
+  "transport": {
+    "type": "stdio"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "canvas-mcp",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio",
+        "python": {
+          "module": "canvas_mcp.server"
+        }
       }
     }
-  },
+  ],
   "configuration": {
     "type": "env",
     "env": {
