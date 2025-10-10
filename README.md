@@ -20,7 +20,7 @@ Get AI-powered assistance with:
 - Accessing course content and discussions
 - Organizing your TODO list
 
-**[→ Get Started as a Student](./docs/STUDENT_GUIDE.md)**
+**[→ Get Started as a Student](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/STUDENT_GUIDE.md)**
 
 ### For Educators 👨‍🏫
 Enhance your teaching with:
@@ -30,7 +30,7 @@ Enhance your teaching with:
 - **FERPA-compliant** student data handling
 - Bulk messaging and communication tools
 
-**[→ Get Started as an Educator](./docs/EDUCATOR_GUIDE.md)**
+**[→ Get Started as an Educator](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/EDUCATOR_GUIDE.md)**
 
 ## 🔒 Privacy & Data Protection
 
@@ -44,7 +44,7 @@ Complete FERPA compliance through systematic data anonymization when working wit
 - **FERPA-compliant analytics**: Ask "Which students need support?" without exposing real identities
 - **De-anonymization mapping tool** for faculty to correlate anonymous IDs with real students locally
 
-All student data is anonymized **before** it reaches AI systems. See [Educator Guide](./docs/EDUCATOR_GUIDE.md) for configuration details.
+All student data is anonymized **before** it reaches AI systems. See [Educator Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/EDUCATOR_GUIDE.md) for configuration details.
 
 ### For Students: Your Data Stays Private
 
@@ -234,10 +234,10 @@ canvas-mcp/
 
 ## Documentation
 
-- **[Tool Documentation](./tools/README.md)** - Complete reference for all available tools
-- **[Pages Implementation Guide](./docs/PAGES_IMPLEMENTATION.md)** - Comprehensive Pages feature guide
-- **[Course Documentation Template](./docs/course_documentation_prompt_template.md)** - Hybrid approach for efficient course documentation
-- **[Development Guide](./docs/CLAUDE.md)** - Architecture details and development reference
+- **[Tool Documentation](https://github.com/vishalsachdev/canvas-mcp/blob/main/tools/README.md)** - Complete reference for all available tools
+- **[Pages Implementation Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/PAGES_IMPLEMENTATION.md)** - Comprehensive Pages feature guide
+- **[Course Documentation Template](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/course_documentation_prompt_template.md)** - Hybrid approach for efficient course documentation
+- **[Development Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/CLAUDE.md)** - Architecture details and development reference
 ## Technical Details
 
 ### Modern Architecture (2025)
@@ -282,7 +282,7 @@ Modern Python packages (see `pyproject.toml`):
 - **Type Checking**: `mypy` support for type safety
 - **Code Quality**: `ruff` and `black` for formatting and linting
 
-For contributors, see the [Development Guide](./docs/CLAUDE.md) for detailed architecture and development reference.
+For contributors, see the [Development Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/CLAUDE.md) for detailed architecture and development reference.
 
 ## Troubleshooting
 
@@ -314,8 +314,8 @@ ANONYMIZATION_DEBUG=true        # Debug anonymization (optional)
 Students don't need anonymization since they only access their own data.
 
 For detailed privacy configuration, see:
-- **[Educator Guide](./docs/EDUCATOR_GUIDE.md)** - FERPA compliance and anonymization
-- **[Student Guide](./docs/STUDENT_GUIDE.md)** - Privacy information for students
+- **[Educator Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/EDUCATOR_GUIDE.md)** - FERPA compliance and anonymization
+- **[Student Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/STUDENT_GUIDE.md)** - Privacy information for students
 
 ## Publishing to MCP Registry
 
