@@ -48,7 +48,10 @@ jobs:
 
       - name: Install MCP Publisher
         run: |
-          curl -L "https://github.com/modelcontextprotocol/registry/releases/download/latest/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+          VERSION="1.2.3"
+          OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+          ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/download/v${VERSION}/mcp-publisher_${VERSION}_${OS}_${ARCH}.tar.gz" | tar xz
           sudo mv mcp-publisher /usr/local/bin/
           mcp-publisher --version
 
