@@ -1,5 +1,7 @@
 # Canvas MCP Server
 
+<!--mcp-name: io.github.vishalsachdev/canvas-mcp-->
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 This repository contains a Model Context Protocol (MCP) server implementation for interacting with the Canvas Learning Management System API. The server is designed to work with Claude Desktop and other MCP-compatible clients.
