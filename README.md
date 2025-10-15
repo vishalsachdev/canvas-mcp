@@ -83,29 +83,7 @@ See the [official MCP clients list](https://modelcontextprotocol.io/clients) for
 
 > **Note**: While Canvas MCP is designed to work with any MCP client, setup instructions in this guide focus on Claude Desktop. Configuration for other clients may vary.
 
-## Quick Start (Automated Installation)
-
-The fastest way to get started is with our automated installer:
-
-```bash
-# Clone the repository
-git clone https://github.com/vishalsachdev/canvas-mcp.git
-cd canvas-mcp
-
-# Run the automated installer
-python scripts/install.py
-```
-
-The installer will:
-- ✅ Set up Python environment with `uv` package manager
-- ✅ Install all dependencies automatically  
-- ✅ Create environment configuration template
-- ✅ Configure Claude Desktop integration
-- ✅ Test the installation
-
-## Manual Installation
-
-If you prefer manual setup:
+## Installation
 
 ### 1. Install Dependencies
 
@@ -128,6 +106,8 @@ cp env.template .env
 ```
 
 Get your Canvas API token from: **Canvas → Account → Settings → New Access Token**
+
+> **Note for Students**: Some educational institutions restrict API token creation for students. If you see an error like "There is a limit to the number of access tokens you can create" or cannot find the token creation option, contact your institution's Canvas administrator or IT support department to request API access or assistance in creating a token.
 
 ### 3. Claude Desktop Setup
 
@@ -227,8 +207,6 @@ canvas-mcp/
 │       │   ├── rubrics.py     # Rubric tools
 │       │   └── other_tools.py # Misc tools
 │       └── resources/         # MCP resources
-├── scripts/
-│   └── install.py            # Automated installation
 └── docs/                     # Documentation
 ```
 
