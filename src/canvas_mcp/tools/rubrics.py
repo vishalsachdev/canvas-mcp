@@ -242,6 +242,54 @@ def build_criteria_structure(criteria: dict[str, Any]) -> dict[str, Any]:
     return formatted_criteria
 
 
+def build_rubric_assessment_form_data(
+    rubric_assessment: dict[str, Any],
+    comment: str | None = None
+) -> dict[str, str]:
+    """Convert rubric assessment dict to Canvas form-encoded format.
+
+    Canvas API expects rubric assessment data as form-encoded parameters with
+    bracket notation: rubric_assessment[criterion_id][field]=value
+
+    Args:
+        rubric_assessment: Dict mapping criterion IDs to assessment data
+                          Format: {"criterion_id": {"points": X, "rating_id": Y, "comments": Z}}
+        comment: Optional overall comment for the submission
+
+    Returns:
+        Flattened dict with Canvas bracket notation keys
+
+    Example:
+        Input: {"_8027": {"points": 2, "rating_id": "blank", "comments": "Great work"}}
+        Output: {
+            "rubric_assessment[_8027][points]": "2",
+            "rubric_assessment[_8027][rating_id]": "blank",
+            "rubric_assessment[_8027][comments]": "Great work"
+        }
+    """
+    form_data: dict[str, str] = {}
+
+    # Transform rubric_assessment object into Canvas's form-encoded format
+    for criterion_id, assessment in rubric_assessment.items():
+        # Points are required
+        if "points" in assessment:
+            form_data[f"rubric_assessment[{criterion_id}][points]"] = str(assessment["points"])
+
+        # Rating ID is optional but recommended
+        if "rating_id" in assessment:
+            form_data[f"rubric_assessment[{criterion_id}][rating_id]"] = str(assessment["rating_id"])
+
+        # Comments are optional
+        if "comments" in assessment:
+            form_data[f"rubric_assessment[{criterion_id}][comments]"] = str(assessment["comments"])
+
+    # Add optional overall comment
+    if comment:
+        form_data["comment[text_comment]"] = comment
+
+    return form_data
+
+
 def register_rubric_tools(mcp: FastMCP) -> None:
     """Register all rubric-related MCP tools."""
 
@@ -610,54 +658,97 @@ def register_rubric_tools(mcp: FastMCP) -> None:
     async def grade_with_rubric(course_identifier: str | int,
                               assignment_id: str | int,
                               user_id: str | int,
-                              rubric_assessment: str,
+                              rubric_assessment: dict[str, Any],
                               comment: str | None = None) -> str:
         """Submit grades using rubric criteria.
+
+        This tool submits grades for individual rubric criteria. The rubric must already be
+        associated with the assignment and configured for grading (use_for_grading=true).
+
+        IMPORTANT NOTES:
+        - Criterion IDs often start with underscore (e.g., "_8027")
+        - Use list_assignment_rubrics or get_rubric_details to find criterion IDs and rating IDs
+        - Points must be within the range defined by the rubric criterion
+        - The rubric must be attached to the assignment before grading
 
         Args:
             course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
             assignment_id: The Canvas assignment ID
             user_id: The Canvas user ID of the student
-            rubric_assessment: JSON string with rubric assessment data (format: {"criterion_id": {"points": X, "comments": "..."}, ...})
+            rubric_assessment: Dict mapping criterion IDs to assessment data
+                             Format: {
+                               "criterion_id": {
+                                 "points": <number>,           # Required: points awarded
+                                 "rating_id": "<string>",      # Optional: specific rating ID
+                                 "comments": "<string>"        # Optional: feedback comments
+                               }
+                             }
             comment: Optional overall comment for the submission
+
+        Example Usage:
+            {
+              "course_identifier": "60366",
+              "assignment_id": "1440586",
+              "user_id": "9824",
+              "rubric_assessment": {
+                "_8027": {
+                  "points": 2,
+                  "rating_id": "blank",
+                  "comments": "Great work!"
+                }
+              },
+              "comment": "Nice job on this assignment"
+            }
         """
         course_id = await get_course_id(course_identifier)
         assignment_id_str = str(assignment_id)
         user_id_str = str(user_id)
 
-        # Parse rubric assessment JSON
-        try:
-            import json
-            assessment_data = json.loads(rubric_assessment)
-        except json.JSONDecodeError:
-            return "Error: rubric_assessment must be valid JSON format. Example: {\"123\": {\"points\": 5, \"comments\": \"Good work\"}}"
+        # CRITICAL: Verify rubric is configured for grading BEFORE submitting
+        assignment_check = await make_canvas_request(
+            "get",
+            f"/courses/{course_id}/assignments/{assignment_id_str}",
+            params={"include[]": ["rubric_settings"]}
+        )
 
-        # Prepare submission data
-        submission_data = {
-            "rubric_assessment": assessment_data
-        }
+        if "error" not in assignment_check:
+            use_rubric_for_grading = assignment_check.get("use_rubric_for_grading", False)
+            if not use_rubric_for_grading:
+                return (
+                    "⚠️  ERROR: Rubric is not configured for grading!\n\n"
+                    "The rubric exists but 'use_for_grading' is set to FALSE.\n"
+                    "Grades will NOT be saved to the gradebook.\n\n"
+                    "To fix this:\n"
+                    "1. Use list_assignment_rubrics to verify rubric settings\n"
+                    "2. Use associate_rubric_with_assignment with use_for_grading=True\n"
+                    "3. Or configure the rubric in Canvas UI: Assignment Settings → Rubric → Use for Grading\n\n"
+                    f"Assignment: {assignment_check.get('name', 'Unknown')}\n"
+                    f"Course ID: {course_id}\n"
+                    f"Assignment ID: {assignment_id}\n"
+                )
 
-        if comment:
-            submission_data["comment"] = comment
+        # Build form data in Canvas's expected format
+        form_data = build_rubric_assessment_form_data(rubric_assessment, comment)
 
-        # Submit the grade with rubric assessment
+        # Submit the grade with rubric assessment using form encoding
         response = await make_canvas_request(
             "put",
             f"/courses/{course_id}/assignments/{assignment_id_str}/submissions/{user_id_str}",
-            data=submission_data
+            data=form_data,
+            use_form_data=True
         )
 
         if "error" in response:
             return f"Error submitting rubric grade: {response['error']}"
 
-        # Get assignment and user details for confirmation
+        # Get assignment details for confirmation
         assignment_response = await make_canvas_request(
             "get", f"/courses/{course_id}/assignments/{assignment_id_str}"
         )
         assignment_name = assignment_response.get("name", "Unknown Assignment") if "error" not in assignment_response else "Unknown Assignment"
 
         # Calculate total points from rubric assessment
-        total_points = sum(criterion.get("points", 0) for criterion in assessment_data.values())
+        total_points = sum(criterion.get("points", 0) for criterion in rubric_assessment.values())
 
         course_display = await get_course_code(course_id) or course_identifier
 
@@ -666,18 +757,23 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         result += f"Assignment: {assignment_name}\n"
         result += f"Student ID: {user_id}\n"
         result += f"Total Rubric Points: {total_points}\n"
+        result += f"Grade: {response.get('grade', 'N/A')}\n"
+        result += f"Score: {response.get('score', 'N/A')}\n"
         result += f"Graded At: {format_date(response.get('graded_at'))}\n"
 
         if comment:
-            result += f"Comment: {comment}\n"
+            result += f"Overall Comment: {comment}\n"
 
         result += "\nRubric Assessment Summary:\n"
-        for criterion_id, assessment in assessment_data.items():
+        for criterion_id, assessment in rubric_assessment.items():
             points = assessment.get("points", 0)
+            rating_id = assessment.get("rating_id", "")
             comments = assessment.get("comments", "")
             result += f"  Criterion {criterion_id}: {points} points"
+            if rating_id:
+                result += f" (Rating: {rating_id})"
             if comments:
-                result += f" - {truncate_text(comments, 50)}"
+                result += f"\n    Comment: {truncate_text(comments, 100)}"
             result += "\n"
 
         return result
