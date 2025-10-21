@@ -32,6 +32,24 @@ Enhance your teaching with:
 
 **[→ Get Started as an Educator](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/EDUCATOR_GUIDE.md)**
 
+## ⚡ NEW: Claude Skills Integration
+
+Canvas MCP now supports **Claude Skills** for intelligent, workflow-driven Canvas interactions. Skills provide higher-level automation on top of Canvas MCP's API tools.
+
+**What Skills Add**:
+- **Autonomous workflows**: Skills activate automatically based on context
+- **Built-in expertise**: Educational best practices built into every workflow
+- **Strategic intelligence**: Not just data access, but analysis and recommendations
+
+**Example Skills**:
+- 📚 **Weekly Planner** (Students): "Help me plan my week" → Complete prioritized study plan
+- ✍️ **Grading Assistant** (Educators): "Grade these submissions" → Consistent rubric application + personalized feedback
+- 📊 **Course Analytics** (Educators): "How is my class performing?" → Comprehensive insights + recommendations
+
+**[→ Skills Quick Start Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/SKILLS_QUICK_START.md)** | **[→ View Example Skills](https://github.com/vishalsachdev/canvas-mcp/tree/main/examples/skills)** | **[→ Full Skills Analysis](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/SKILLS_IMPROVEMENT_ANALYSIS.md)**
+
+> **Note**: Skills complement the MCP server - the server provides Canvas API access, while Skills provide workflow intelligence and automation.
+
 ## 🔒 Privacy & Data Protection
 
 ### For Educators: FERPA Compliance
@@ -212,6 +230,16 @@ canvas-mcp/
 
 ## Documentation
 
+### User Guides
+- **[Student Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/STUDENT_GUIDE.md)** - Getting started as a student
+- **[Educator Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/EDUCATOR_GUIDE.md)** - Getting started as an educator
+
+### Skills (New!)
+- **[Skills Quick Start](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/SKILLS_QUICK_START.md)** - Get started with Claude Skills
+- **[Skills Analysis](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/SKILLS_IMPROVEMENT_ANALYSIS.md)** - Comprehensive skills integration roadmap
+- **[Example Skills](https://github.com/vishalsachdev/canvas-mcp/tree/main/examples/skills)** - Ready-to-use skill implementations
+
+### Technical Documentation
 - **[Tool Documentation](https://github.com/vishalsachdev/canvas-mcp/blob/main/tools/README.md)** - Complete reference for all available tools
 - **[Pages Implementation Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/PAGES_IMPLEMENTATION.md)** - Comprehensive Pages feature guide
 - **[Course Documentation Template](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/course_documentation_prompt_template.md)** - Hybrid approach for efficient course documentation
