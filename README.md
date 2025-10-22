@@ -164,6 +164,63 @@ The Canvas MCP Server provides a comprehensive set of tools for interacting with
 
 📖 [View Full Tool Documentation](tools/README.md) for detailed information about all available tools.
 
+## Claude Skills (New!)
+
+This repository includes **Claude Skills** that add pedagogical expertise and workflow guidance on top of the MCP tools. Skills teach Claude *when* and *how* to use Canvas tools effectively for educational contexts.
+
+### What Are Skills?
+
+Skills are specialized instruction sets that load automatically when relevant. Think of them as expert onboarding materials that package domain knowledge alongside the technical tools.
+
+**Skills vs. MCP Tools:**
+- **MCP Tools** = Technical functions (e.g., `get_assignment`, `grade_with_rubric`)
+- **Skills** = Educational expertise (e.g., "how to grade consistently with rubrics")
+- Together they create an expert educational assistant
+
+### Available Skills
+
+**For Educators:**
+- **`rubric-grading`** - Expert guidance for fair, consistent rubric-based grading
+  - Calibration techniques for grading consistency
+  - Criterion-by-criterion grading methodology
+  - Quality assurance and feedback best practices
+  - FERPA-compliant grading workflows
+
+**For Students:**
+- **`assignment-tracker`** - Smart study planning and deadline management
+  - Strategic prioritization (urgency vs. importance)
+  - Time estimation and workload balancing
+  - Study strategies by assignment type
+  - Academic success habits and red flag detection
+
+### Using Skills
+
+Skills are located in `.claude/skills/` and work automatically with:
+- **Claude Desktop** - Skills load when you work on this project
+- **Claude Code** - Skills activate based on your queries
+- **Claude API** - Skills can be packaged and deployed
+
+**Example with rubric-grading skill:**
+```
+You: "I need to grade 30 essay submissions for History 101"
+
+Claude (with skill loaded):
+- Retrieves assignment and rubric details
+- Recommends calibration with 3-5 sample submissions
+- Guides criterion-by-criterion grading approach
+- Helps maintain consistency across all submissions
+- Ensures FERPA-compliant data handling
+```
+
+### Customizing Skills
+
+Skills are just markdown files with YAML frontmatter. You can:
+1. **Modify existing skills** - Edit `.claude/skills/*/SKILL.md` to match your institution
+2. **Create new skills** - Add folders with your own educational workflows
+3. **Share with colleagues** - Skills are portable and easy to distribute
+
+Learn more about Skills: [Anthropic Skills Documentation](https://www.anthropic.com/news/skills)
+
 ## Usage with MCP Clients
 
 This MCP server works seamlessly with any MCP-compatible client:
