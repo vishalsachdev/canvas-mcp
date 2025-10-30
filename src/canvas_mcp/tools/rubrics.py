@@ -9,6 +9,7 @@ from ..core.anonymization import anonymize_response_data
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, truncate_text
+from ..core.logging import log_error
 from ..core.validation import validate_params
 
 
@@ -575,7 +576,13 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         try:
             response = anonymize_response_data(response, data_type="submissions")
         except Exception as e:
-            print(f"Warning: Failed to anonymize rubric assessment data: {str(e)}")
+            log_error(
+                "Failed to anonymize rubric assessment data",
+                exc=e,
+                course_id=course_id,
+                assignment_id=assignment_id,
+                user_id=user_id
+            )
             # Continue with original data for functionality
 
         # Check if submission has rubric assessment

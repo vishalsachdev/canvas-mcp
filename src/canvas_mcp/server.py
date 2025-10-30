@@ -14,6 +14,7 @@ import sys
 from mcp.server.fastmcp import FastMCP
 
 from .core.config import get_config, validate_config
+from .core.logging import log_error, log_info
 from .resources import register_resources_and_prompts
 from .tools import (
     register_accessibility_tools,
@@ -38,7 +39,7 @@ def create_server() -> FastMCP:
 
 def register_all_tools(mcp: FastMCP) -> None:
     """Register all MCP tools, resources, and prompts."""
-    print("Registering Canvas MCP tools...", file=sys.stderr)
+    log_info("Registering Canvas MCP tools...")
 
     # Register tools by category
     register_course_tools(mcp)
@@ -55,12 +56,12 @@ def register_all_tools(mcp: FastMCP) -> None:
     # Register resources and prompts
     register_resources_and_prompts(mcp)
 
-    print("All Canvas MCP tools registered successfully!", file=sys.stderr)
+    log_info("All Canvas MCP tools registered successfully!")
 
 
 def test_connection() -> bool:
     """Test the Canvas API connection."""
-    print("Testing Canvas API connection...", file=sys.stderr)
+    log_info("Testing Canvas API connection...")
 
     try:
         import asyncio
@@ -71,17 +72,17 @@ def test_connection() -> bool:
             # Test with a simple API call
             response = await make_canvas_request("get", "/users/self")
             if "error" in response:
-                print(f"API test failed: {response['error']}", file=sys.stderr)
+                log_error(f"API test failed: {response['error']}")
                 return False
             else:
                 user_name = response.get("name", "Unknown")
-                print(f"✓ API connection successful! Connected as: {user_name}", file=sys.stderr)
+                log_info(f"✓ API connection successful! Connected as: {user_name}")
                 return True
 
         return asyncio.run(test_api())
 
     except Exception as e:
-        print(f"API test failed with exception: {e}", file=sys.stderr)
+        log_error("API test failed with exception", exc=e)
         return False
 
 
@@ -132,10 +133,10 @@ def main() -> None:
             sys.exit(1)
 
     # Normal server startup
-    print(f"Starting Canvas MCP server with API URL: {config.canvas_api_url}", file=sys.stderr)
+    log_info(f"Starting Canvas MCP server with API URL: {config.canvas_api_url}")
     if config.institution_name:
-        print(f"Institution: {config.institution_name}", file=sys.stderr)
-    print("Use Ctrl+C to stop the server", file=sys.stderr)
+        log_info(f"Institution: {config.institution_name}")
+    log_info("Use Ctrl+C to stop the server")
 
     # Create and configure server
     mcp = create_server()
@@ -145,13 +146,13 @@ def main() -> None:
         # Run the server
         mcp.run()
     except KeyboardInterrupt:
-        print("\nShutting down server...", file=sys.stderr)
+        log_info("\nShutting down server...")
     except Exception as e:
-        print(f"Server error: {e}", file=sys.stderr)
+        log_error("Server error", exc=e)
         sys.exit(1)
     finally:
         # Cleanup
-        print("Server stopped", file=sys.stderr)
+        log_info("Server stopped")
 
 
 if __name__ == "__main__":

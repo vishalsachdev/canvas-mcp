@@ -3,10 +3,11 @@
 import functools
 import inspect
 import json
-import sys
 import types
 from collections.abc import Callable
 from typing import Any, TypeVar, Union, cast, get_args, get_origin, get_type_hints
+
+from .logging import log_error
 
 # Type definitions for parameter validation
 T = TypeVar('T')
@@ -175,7 +176,7 @@ def validate_params(func: F) -> F:
                 except ValueError as e:
                     # Return error as JSON response
                     error_message = str(e)
-                    print(f"Parameter validation error: {error_message}", file=sys.stderr)
+                    log_error(f"Parameter validation error: {error_message}", param_name=param_name, value=param_value)
                     return json.dumps({"error": error_message})
 
         # Call the original function with validated parameters
