@@ -10,6 +10,7 @@ from ..core.anonymization import anonymize_response_data
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, truncate_text
+from ..core.logging import log_error, log_warning
 from ..core.validation import validate_params
 
 
@@ -168,13 +169,21 @@ def register_discussion_tools(mcp: FastMCP):
                 if first_entry.get("user_name", "").startswith("Student_"):
                     entries = anonymized_entries  # Use anonymized data
                 else:
-                    print("Warning: Anonymization may not have been applied properly")
+                    log_warning(
+                        "Anonymization may not have been applied properly",
+                        course_id=course_id,
+                        topic_id=topic_id
+                    )
             else:
                 entries = anonymized_entries  # Use result even if validation unclear
         except Exception as e:
             # Log error but continue with original data rather than failing completely
-            # In production, consider logging this error for audit purposes
-            print(f"Warning: Failed to anonymize discussion entries: {str(e)}")
+            log_error(
+                "Failed to anonymize discussion entries",
+                exc=e,
+                course_id=course_id,
+                topic_id=topic_id
+            )
             # Continue with original data - this maintains functionality while logging the issue
 
         # Enhanced content fetching using multiple methods
@@ -189,8 +198,13 @@ def register_discussion_tools(mcp: FastMCP):
                 if "error" not in view_response and "view" in view_response:
                     for view_entry in view_response.get("view", []):
                         full_entries_map[str(view_entry.get("id"))] = view_entry
-            except Exception:
-                pass  # Fall back to individual calls
+            except Exception as e:
+                log_warning(
+                    "Failed to fetch discussion view, falling back to individual calls",
+                    exc=e,
+                    course_id=course_id,
+                    topic_id=topic_id
+                )
 
             # Method 2: For entries not found in view, try entry_list endpoint
             missing_entry_ids = []
@@ -209,8 +223,14 @@ def register_discussion_tools(mcp: FastMCP):
                     if "error" not in entry_list_response and isinstance(entry_list_response, list):
                         for full_entry in entry_list_response:
                             full_entries_map[str(full_entry.get("id"))] = full_entry
-                except Exception:
-                    pass  # Continue with what we have
+                except Exception as e:
+                    log_warning(
+                        "Failed to fetch entry list",
+                        exc=e,
+                        course_id=course_id,
+                        topic_id=topic_id,
+                        missing_count=len(missing_entry_ids)
+                    )
 
         # Get topic details for context
         topic_response = await make_canvas_request(
@@ -283,8 +303,14 @@ def register_discussion_tools(mcp: FastMCP):
 
                         if not isinstance(replies_response, dict) or "error" not in replies_response:
                             replies = replies_response
-                    except Exception:
-                        pass  # Use what we have
+                    except Exception as e:
+                        log_warning(
+                            "Failed to fetch entry replies",
+                            exc=e,
+                            course_id=course_id,
+                            topic_id=topic_id,
+                            entry_id=entry_id
+                        )
 
                 if replies:
                     replies_info = f"\n  Replies ({len(replies)}):\n"
@@ -374,8 +400,14 @@ def register_discussion_tools(mcp: FastMCP):
                         if include_replies:
                             replies = entry.get("replies", [])
                         break
-        except Exception:
-            pass  # Fall back to other methods
+        except Exception as e:
+            log_warning(
+                "Failed to fetch discussion view for entry details",
+                exc=e,
+                course_id=course_id,
+                topic_id=topic_id,
+                entry_id=entry_id
+            )
 
         # Method 2: If view method failed, try the entry_list endpoint
         if not entry_response:
@@ -388,8 +420,14 @@ def register_discussion_tools(mcp: FastMCP):
                 if "error" not in entry_list_response and isinstance(entry_list_response, list):
                     if entry_list_response:
                         entry_response = entry_list_response[0]
-            except Exception:
-                pass
+            except Exception as e:
+                log_warning(
+                    "Failed to fetch entry from entry_list",
+                    exc=e,
+                    course_id=course_id,
+                    topic_id=topic_id,
+                    entry_id=entry_id
+                )
 
         # Method 3: Fallback to getting all entries and finding our target
         if not entry_response:
@@ -407,8 +445,14 @@ def register_discussion_tools(mcp: FastMCP):
                             if include_replies:
                                 replies = entry.get("recent_replies", [])
                             break
-            except Exception:
-                pass
+            except Exception as e:
+                log_warning(
+                    "Failed to fetch all entries as fallback",
+                    exc=e,
+                    course_id=course_id,
+                    topic_id=topic_id,
+                    entry_id=entry_id
+                )
 
         # If we still don't have the entry, return error
         if not entry_response:
@@ -424,8 +468,14 @@ def register_discussion_tools(mcp: FastMCP):
 
                 if not isinstance(replies_response, dict) or "error" not in replies_response:
                     replies = replies_response
-            except Exception:
-                pass  # Continue without replies
+            except Exception as e:
+                log_warning(
+                    "Failed to fetch entry replies from replies endpoint",
+                    exc=e,
+                    course_id=course_id,
+                    topic_id=topic_id,
+                    entry_id=entry_id
+                )
 
         # Get topic details for context
         topic_response = await make_canvas_request(
@@ -561,8 +611,14 @@ def register_discussion_tools(mcp: FastMCP):
 
                         if not isinstance(replies_response, dict) or "error" not in replies_response:
                             replies = replies_response
-                    except Exception:
-                        pass  # Use what we have
+                    except Exception as e:
+                        log_warning(
+                            "Failed to fetch detailed replies",
+                            exc=e,
+                            course_id=course_id,
+                            topic_id=topic_id,
+                            entry_id=entry_id
+                        )
 
                 # Display replies
                 if replies:
