@@ -26,7 +26,7 @@ classifiers = [
 ]
 keywords = ["canvas", "lms", "mcp", "claude", "education", "api"]
 dependencies = [
-    "fastmcp>=1.0.0",
+    "fastmcp>=2.10.0",
     "httpx>=0.28.1",
     "requests>=2.32.0",
     "python-dotenv>=1.0.0",
