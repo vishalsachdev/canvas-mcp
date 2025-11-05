@@ -164,6 +164,103 @@ The Canvas MCP Server provides a comprehensive set of tools for interacting with
 
 📖 [View Full Tool Documentation](tools/README.md) for detailed information about all available tools.
 
+## 🚀 Code Execution API (New!)
+
+The Canvas MCP now supports **code execution patterns** for maximum token efficiency when performing bulk operations.
+
+### When to Use Each Approach
+
+**Traditional Tool Calling** (for simple queries):
+```
+Ask Claude: "Show me my courses"
+Ask Claude: "Get assignment details for assignment 123"
+```
+✅ Best for: Single queries, small datasets, quick lookups
+
+**Code Execution** (for bulk operations):
+```
+Ask Claude: "Grade all 90 Jupyter notebook submissions"
+Ask Claude: "Send reminders to all students who haven't submitted"
+```
+✅ Best for: Bulk processing, large datasets, complex analysis
+
+### Token Savings Example
+
+**Scenario**: Grading 90 Jupyter notebook submissions
+
+| Approach | Token Usage | Efficiency |
+|----------|-------------|-----------|
+| **Traditional** | 1.35M tokens | Loads all submissions into context |
+| **Code Execution** | 3.5K tokens | **99.7% reduction!** 🎉 |
+
+### Example: Bulk Grading
+
+```typescript
+import { bulkGrade } from './canvas/grading/bulkGrade';
+
+await bulkGrade({
+  courseIdentifier: "60366",
+  assignmentId: "123",
+  gradingFunction: (submission) => {
+    // Analysis happens locally, not in Claude's context!
+    const notebook = submission.attachments?.find(f =>
+      f.filename.endsWith('.ipynb')
+    );
+
+    if (!notebook) return null; // Skip
+
+    const hasErrors = analyzeNotebook(notebook.url);
+
+    return hasErrors ? null : {
+      points: 100,
+      rubricAssessment: { "_8027": { points: 100 } },
+      comment: "Great work! No errors."
+    };
+  }
+});
+```
+
+### Discovering Available Tools
+
+Use the `search_canvas_tools` MCP tool to discover what's available:
+
+```typescript
+// Search for grading tools
+search_canvas_tools("grading", "signatures")
+
+// List all tools
+search_canvas_tools("", "names")
+
+// Get full details
+search_canvas_tools("bulk", "full")
+```
+
+### Code API File Structure
+
+```
+src/canvas_mcp/code_api/
+├── client.ts              # Base MCP client bridge
+├── index.ts               # Main entry point
+└── canvas/
+    ├── assignments/       # Assignment operations
+    │   └── listSubmissions.ts
+    ├── grading/          # Grading operations
+    │   ├── gradeWithRubric.ts
+    │   └── bulkGrade.ts  # ⭐ Bulk grading (99.7% token savings!)
+    ├── discussions/      # Discussion operations
+    ├── courses/          # Course operations
+    └── communications/   # Messaging operations
+```
+
+### How It Works
+
+1. **Discovery**: Use `search_canvas_tools` to find available operations
+2. **Execution**: Claude reads TypeScript code API files and executes them locally
+3. **Processing**: Data stays in execution environment (no context cost!)
+4. **Results**: Only summaries flow back to Claude's context
+
+📖 [View Bulk Grading Example](examples/bulk_grading_example.md) for a detailed walkthrough.
+
 ## Usage with MCP Clients
 
 This MCP server works seamlessly with any MCP-compatible client:
@@ -205,8 +302,16 @@ canvas-mcp/
 │       │   ├── assignments.py # Assignment tools
 │       │   ├── discussions.py # Discussion tools
 │       │   ├── rubrics.py     # Rubric tools
+│       │   ├── discovery.py   # Code API tool discovery (NEW!)
 │       │   └── other_tools.py # Misc tools
+│       ├── code_api/          # Code execution API (NEW!)
+│       │   ├── client.ts      # MCP client bridge
+│       │   └── canvas/        # Canvas operations
+│       │       ├── grading/   # Bulk grading (99.7% token savings!)
+│       │       ├── courses/   # Course operations
+│       │       └── ...        # Other modules
 │       └── resources/         # MCP resources
+├── examples/                 # Usage examples (NEW!)
 └── docs/                     # Documentation
 ```
 

@@ -10,6 +10,7 @@ from .peer_review_comments import register_peer_review_comment_tools
 from .messaging import register_messaging_tools
 from .student_tools import register_student_tools
 from .accessibility import register_accessibility_tools
+from .discovery import register_discovery_tools
 
 __all__ = [
     'register_course_tools',
@@ -21,5 +22,6 @@ __all__ = [
     'register_peer_review_comment_tools',
     'register_messaging_tools',
     'register_student_tools',
-    'register_accessibility_tools'
+    'register_accessibility_tools',
+    'register_discovery_tools'
 ]
