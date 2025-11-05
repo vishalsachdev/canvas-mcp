@@ -1,17 +1,22 @@
-import { callCanvasTool } from "../../client.js";
+import { canvasPost } from "../../client.js";
 
 export interface SendMessageInput {
   recipients: string[];
   subject: string;
   body: string;
   contextCode?: string;
-  attachmentIds?: string[];
+  attachmentIds?: number[];
 }
 
-export interface SendMessageResponse {
-  success: boolean;
-  conversationId?: string;
-  error?: string;
+export interface Conversation {
+  id: number;
+  subject: string;
+  workflow_state: string;
+  last_message: string;
+  participants: Array<{
+    id: number;
+    name: string;
+  }>;
 }
 
 /**
@@ -21,10 +26,26 @@ export interface SendMessageResponse {
  * "course_123_students" or "course_123_teachers".
  *
  * @param input - Message parameters
- * @returns Response with success status and conversation ID
+ * @returns Canvas API response with conversation data
  */
 export async function sendMessage(
   input: SendMessageInput
-): Promise<SendMessageResponse> {
-  return callCanvasTool<SendMessageResponse>('send_message', input);
+): Promise<Conversation[]> {
+  const { recipients, subject, body, contextCode, attachmentIds } = input;
+
+  const requestBody: Record<string, any> = {
+    recipients,
+    subject,
+    body
+  };
+
+  if (contextCode) {
+    requestBody.context_code = contextCode;
+  }
+
+  if (attachmentIds && attachmentIds.length > 0) {
+    requestBody.attachment_ids = attachmentIds;
+  }
+
+  return canvasPost<Conversation[]>('/conversations', requestBody);
 }

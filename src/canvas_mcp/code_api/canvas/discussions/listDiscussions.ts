@@ -1,19 +1,19 @@
-import { callCanvasTool } from "../../client.js";
+import { fetchAllPaginated } from "../../client.js";
 
 export interface ListDiscussionsInput {
   courseIdentifier: string | number;
 }
 
 export interface Discussion {
-  id: string;
+  id: number;
   title: string;
   message?: string;
-  postedAt: string;
+  posted_at: string;
   author?: {
-    id: string;
-    displayName: string;
+    id: number;
+    display_name: string;
   };
-  discussionType?: string;
+  discussion_type?: string;
   published: boolean;
 }
 
@@ -26,5 +26,9 @@ export interface Discussion {
 export async function listDiscussions(
   input: ListDiscussionsInput
 ): Promise<Discussion[]> {
-  return callCanvasTool<Discussion[]>('list_discussions', input);
+  const { courseIdentifier } = input;
+  return fetchAllPaginated<Discussion>(
+    `/courses/${courseIdentifier}/discussion_topics`,
+    { per_page: 100 }
+  );
 }

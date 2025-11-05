@@ -1,16 +1,17 @@
-import { callCanvasTool } from "../../client.js";
+import { canvasPost } from "../../client.js";
 
 export interface PostEntryInput {
   courseIdentifier: string | number;
   topicId: string | number;
   message: string;
-  attachmentIds?: string[];
+  attachmentIds?: number[];
 }
 
-export interface PostResponse {
-  success: boolean;
-  entryId?: string;
-  error?: string;
+export interface DiscussionEntry {
+  id: number;
+  user_id: number;
+  message: string;
+  created_at: string;
 }
 
 /**
@@ -20,10 +21,23 @@ export interface PostResponse {
  * in class discussions or announcements.
  *
  * @param input - Discussion posting parameters
- * @returns Response with success status and entry ID
+ * @returns Canvas API response with created entry data
  */
 export async function postEntry(
   input: PostEntryInput
-): Promise<PostResponse> {
-  return callCanvasTool<PostResponse>('post_discussion_entry', input);
+): Promise<DiscussionEntry> {
+  const { courseIdentifier, topicId, message, attachmentIds } = input;
+
+  const body: Record<string, any> = {
+    message
+  };
+
+  if (attachmentIds && attachmentIds.length > 0) {
+    body.attachment_ids = attachmentIds;
+  }
+
+  return canvasPost<DiscussionEntry>(
+    `/courses/${courseIdentifier}/discussion_topics/${topicId}/entries`,
+    body
+  );
 }
