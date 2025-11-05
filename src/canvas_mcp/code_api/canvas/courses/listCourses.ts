@@ -1,13 +1,13 @@
-import { callCanvasTool } from "../../client.js";
+import { fetchAllPaginated } from "../../client.js";
 
 export interface Course {
-  id: string;
+  id: number;
   name: string;
-  courseCode: string;
-  workflowState: string;
-  startAt?: string;
-  endAt?: string;
-  enrollmentTermId?: string;
+  course_code: string;
+  workflow_state: string;
+  start_at?: string;
+  end_at?: string;
+  enrollment_term_id?: number;
 }
 
 /**
@@ -17,5 +17,7 @@ export interface Course {
  * Useful for discovering course identifiers before performing other operations.
  */
 export async function listCourses(): Promise<Course[]> {
-  return callCanvasTool<Course[]>('list_courses', {});
+  return fetchAllPaginated<Course>('/courses', {
+    per_page: 100
+  });
 }
