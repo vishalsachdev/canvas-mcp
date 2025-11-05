@@ -223,6 +223,49 @@ await bulkGrade({
 });
 ```
 
+### Example: Bulk Discussion Grading
+
+Grade discussion posts with initial post + peer review requirements:
+
+```typescript
+import { bulkGradeDiscussion } from './canvas/discussions/bulkGradeDiscussion';
+
+// Preview grades first (dry run)
+await bulkGradeDiscussion({
+  courseIdentifier: "60365",
+  topicId: "990001",
+  criteria: {
+    initialPostPoints: 10,      // Points for initial post
+    peerReviewPointsEach: 5,    // Points per peer review
+    requiredPeerReviews: 2,     // Must review 2 peers
+    maxPeerReviewPoints: 10     // Cap at 10 pts for reviews
+  },
+  dryRun: true  // Preview first!
+});
+
+// Then apply grades
+await bulkGradeDiscussion({
+  courseIdentifier: "60365",
+  topicId: "990001",
+  assignmentId: "1234567",  // Required to write grades
+  criteria: {
+    initialPostPoints: 10,
+    peerReviewPointsEach: 5,
+    requiredPeerReviews: 2,
+    maxPeerReviewPoints: 10
+  },
+  dryRun: false
+});
+```
+
+**Features:**
+- Automatically analyzes initial posts vs peer reviews
+- Configurable grading criteria with point allocation
+- Optional late penalties with customizable deadline
+- Dry run mode to preview grades before applying
+- Concurrent processing with rate limiting
+- Returns comprehensive participation analytics
+
 ### Discovering Available Tools
 
 The Canvas MCP Server includes a **`search_canvas_tools`** MCP tool that helps you discover and explore available code execution API operations. This tool searches through the TypeScript code API files and returns information about available Canvas operations.
@@ -276,6 +319,9 @@ src/canvas_mcp/code_api/
     │   ├── gradeWithRubric.ts
     │   └── bulkGrade.ts  # ⭐ Bulk grading (99.7% token savings!)
     ├── discussions/      # Discussion operations
+    │   ├── listDiscussions.ts
+    │   ├── postEntry.ts
+    │   └── bulkGradeDiscussion.ts  # ⭐ Bulk discussion grading
     ├── courses/          # Course operations
     └── communications/   # Messaging operations
 ```
