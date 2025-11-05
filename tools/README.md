@@ -7,6 +7,7 @@ This document provides a comprehensive overview of all tools available in the Ca
 - [Student Tools](#student-tools)
 - [Educator Tools](#educator-tools)
 - [Shared Tools](#shared-tools-both-students--educators)
+- [Developer Tools](#developer-tools)
 - [Tool Usage Guidelines](#tool-usage-guidelines)
 
 ---
@@ -552,6 +553,52 @@ Create a new discussion post.
 - `course_identifier`: Course code or ID
 - `topic_id`: Discussion topic ID
 - `message`: Post content
+
+---
+
+## Developer Tools
+
+These tools help developers discover and explore the Canvas code execution API.
+
+### Tool Discovery
+
+#### `search_canvas_tools`
+Search and discover available Canvas code execution API operations by keyword.
+
+**Parameters:**
+- `query` (optional): Search term to filter tools. Empty string returns all tools. Examples: "grading", "assignment", "discussion", "bulk"
+- `detail_level` (optional): How much information to return. Default: "signatures"
+  - `"names"`: Just file paths (most efficient for quick lookups)
+  - `"signatures"`: File paths + function signatures + descriptions (recommended)
+  - `"full"`: Complete file contents (use sparingly for detailed inspection)
+
+**Example:**
+```
+"Search for grading tools in the code API"
+"What bulk operations are available?"
+"Show me all code API tools"
+"Find discussion-related operations"
+```
+
+**Returns:** JSON with query, detail_level, count, and array of matching tools.
+
+**Usage Tips:**
+- Use empty query (`""`) to list all available tools
+- Use `"signatures"` detail level for most tasks (default)
+- Use `"names"` when you just need a quick overview
+- Use `"full"` only when you need to see complete implementation details
+
+**Example Direct Usage:**
+```typescript
+// Search for grading-related tools with signatures
+search_canvas_tools("grading", "signatures")
+
+// List all available tools (names only)
+search_canvas_tools("", "names")
+
+// Get full implementation details for bulk operations
+search_canvas_tools("bulk", "full")
+```
 
 ---
 
