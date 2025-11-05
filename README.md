@@ -162,6 +162,9 @@ The Canvas MCP Server provides a comprehensive set of tools for interacting with
 7. **Analytics Tools** - View student analytics, assignment statistics, and progress tracking
 8. **Messaging Tools** - Send messages and announcements to students
 
+**Developer Tools**
+9. **Discovery Tools** - Search and explore available code execution API operations with `search_canvas_tools`
+
 📖 [View Full Tool Documentation](tools/README.md) for detailed information about all available tools.
 
 ## 🚀 Code Execution API (New!)
@@ -222,18 +225,43 @@ await bulkGrade({
 
 ### Discovering Available Tools
 
-Use the `search_canvas_tools` MCP tool to discover what's available:
+The Canvas MCP Server includes a **`search_canvas_tools`** MCP tool that helps you discover and explore available code execution API operations. This tool searches through the TypeScript code API files and returns information about available Canvas operations.
 
+**Tool Parameters:**
+- `query` (string, optional): Search term to filter tools by keyword (e.g., "grading", "assignment", "discussion"). Empty string returns all available tools.
+- `detail_level` (string, optional): Controls how much information to return. Options:
+  - `"names"`: Just file paths (most efficient for quick lookups)
+  - `"signatures"`: File paths + function signatures + descriptions (recommended, default)
+  - `"full"`: Complete file contents (use sparingly for detailed inspection)
+
+**Example Usage:**
+
+Ask Claude in natural language:
+- *"Search for grading tools in the code API"*
+- *"What bulk operations are available?"*
+- *"Show me all code API tools"*
+
+Or use directly via MCP:
 ```typescript
-// Search for grading tools
+// Search for grading-related tools with signatures
 search_canvas_tools("grading", "signatures")
 
-// List all tools
+// List all available tools (names only)
 search_canvas_tools("", "names")
 
-// Get full details
+// Get full implementation details for bulk operations
 search_canvas_tools("bulk", "full")
+
+// Find discussion-related operations
+search_canvas_tools("discussion", "signatures")
 ```
+
+**Returns:**
+JSON response with:
+- `query`: The search term used
+- `detail_level`: The detail level requested
+- `count`: Number of matching tools found
+- `tools`: Array of matching tools with requested detail level
 
 ### Code API File Structure
 
@@ -302,8 +330,10 @@ canvas-mcp/
 │       │   ├── assignments.py # Assignment tools
 │       │   ├── discussions.py # Discussion tools
 │       │   ├── rubrics.py     # Rubric tools
+│       │   ├── student_tools.py # Student-specific tools
+│       │   ├── messaging.py   # Communication tools
 │       │   ├── discovery.py   # Code API tool discovery (NEW!)
-│       │   └── other_tools.py # Misc tools
+│       │   └── ...            # Other tool modules
 │       ├── code_api/          # Code execution API (NEW!)
 │       │   ├── client.ts      # MCP client bridge
 │       │   └── canvas/        # Canvas operations
