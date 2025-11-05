@@ -1,4 +1,4 @@
-import { canvasGet, canvasPut, fetchAllPaginated } from "../../client.js";
+import { canvasGet, canvasPut, canvasPutForm, fetchAllPaginated } from "../../client.js";
 
 export interface DiscussionEntry {
   id: number;
@@ -82,52 +82,104 @@ export interface BulkGradeDiscussionResult {
 }
 
 /**
+ * Validate grading criteria to prevent invalid configurations
+ */
+function validateCriteria(criteria: GradingCriteria): void {
+  if (criteria.initialPostPoints < 0) {
+    throw new Error('initialPostPoints cannot be negative');
+  }
+
+  if (criteria.peerReviewPointsEach < 0) {
+    throw new Error('peerReviewPointsEach cannot be negative');
+  }
+
+  if (criteria.peerReviewPointsEach === 0 && criteria.requiredPeerReviews > 0) {
+    throw new Error('peerReviewPointsEach cannot be 0 when peer reviews are required');
+  }
+
+  if (criteria.requiredPeerReviews < 0) {
+    throw new Error('requiredPeerReviews cannot be negative');
+  }
+
+  if (criteria.maxPeerReviewPoints !== undefined && criteria.maxPeerReviewPoints < 0) {
+    throw new Error('maxPeerReviewPoints cannot be negative');
+  }
+
+  if (criteria.latePenalty?.enabled) {
+    if (criteria.latePenalty.penaltyPercent < 0 || criteria.latePenalty.penaltyPercent > 1) {
+      throw new Error('latePenalty.penaltyPercent must be between 0 and 1');
+    }
+  }
+}
+
+/**
  * Fetch all discussion entries including nested replies
  */
 async function fetchAllDiscussionEntries(
   courseIdentifier: string | number,
   topicId: string | number
 ): Promise<DiscussionEntry[]> {
-  // Fetch all top-level entries
-  const entries = await fetchAllPaginated<DiscussionEntry>(
-    `/courses/${courseIdentifier}/discussion_topics/${topicId}/entries`,
-    { per_page: 100 }
-  );
+  try {
+    // Fetch all top-level entries
+    const entries = await fetchAllPaginated<DiscussionEntry>(
+      `/courses/${courseIdentifier}/discussion_topics/${topicId}/entries`,
+      { per_page: 100 }
+    );
 
-  // Now fetch replies for each entry
-  const allEntries: DiscussionEntry[] = [...entries];
-
-  for (const entry of entries) {
-    try {
-      const replies = await fetchAllPaginated<DiscussionEntry>(
-        `/courses/${courseIdentifier}/discussion_topics/${topicId}/entries/${entry.id}/replies`,
-        { per_page: 100 }
-      );
-
-      if (replies && Array.isArray(replies)) {
-        allEntries.push(...replies);
-      }
-    } catch (error) {
-      console.warn(`Failed to fetch replies for entry ${entry.id}:`, error);
-      // Continue processing other entries
+    if (!entries || !Array.isArray(entries)) {
+      throw new Error('Failed to fetch discussion entries: Invalid response format');
     }
-  }
 
-  return allEntries;
+    // Now fetch replies for each entry
+    const allEntries: DiscussionEntry[] = [...entries];
+
+    for (const entry of entries) {
+      try {
+        const replies = await fetchAllPaginated<DiscussionEntry>(
+          `/courses/${courseIdentifier}/discussion_topics/${topicId}/entries/${entry.id}/replies`,
+          { per_page: 100 }
+        );
+
+        if (replies && Array.isArray(replies)) {
+          allEntries.push(...replies);
+        }
+      } catch (error) {
+        console.warn(`Failed to fetch replies for entry ${entry.id}:`, error);
+        // Continue processing other entries
+      }
+    }
+
+    return allEntries;
+  } catch (error: any) {
+    throw new Error(
+      `Failed to fetch discussion entries for topic ${topicId}: ${error.message || error}`
+    );
+  }
 }
 
 /**
- * Find the top-level parent post for a reply
+ * Build an index for O(1) parent lookups
+ */
+function buildEntryIndex(entries: DiscussionEntry[]): Map<number, DiscussionEntry> {
+  const index = new Map<number, DiscussionEntry>();
+  for (const entry of entries) {
+    index.set(entry.id, entry);
+  }
+  return index;
+}
+
+/**
+ * Find the top-level parent post for a reply using O(1) index lookup
  */
 function findTopLevelParent(
   reply: DiscussionEntry,
-  allEntries: DiscussionEntry[]
+  entryIndex: Map<number, DiscussionEntry>
 ): DiscussionEntry | null {
 
   let current = reply;
 
   while (current.parent_id) {
-    const parent = allEntries.find(e => e.id === current.parent_id);
+    const parent = entryIndex.get(current.parent_id);
     if (!parent) break;
     current = parent;
   }
@@ -144,49 +196,35 @@ function analyzeStudentParticipation(
 
   const participationMap = new Map<number, StudentParticipation>();
 
-  // Separate top-level posts from replies
-  const topLevelPosts = entries.filter(e => !e.parent_id);
-  const replies = entries.filter(e => e.parent_id);
+  // Build index for O(1) parent lookups
+  const entryIndex = buildEntryIndex(entries);
 
-  // Build map of initial posts (top-level by each user)
-  for (const post of topLevelPosts) {
-    if (!participationMap.has(post.user_id)) {
-      participationMap.set(post.user_id, {
-        userId: post.user_id,
-        userName: post.user_name || `User ${post.user_id}`,
-        hasInitialPost: false,
-        peerReviews: [],
-        peerReviewCount: 0,
-        totalPosts: 0
-      });
+  // Single pass through entries - classify as we go
+  const topLevelPostsByUser = new Map<number, DiscussionEntry[]>();
+  const repliesByUser = new Map<number, DiscussionEntry[]>();
+
+  for (const entry of entries) {
+    if (!entry.parent_id) {
+      // Top-level post
+      if (!topLevelPostsByUser.has(entry.user_id)) {
+        topLevelPostsByUser.set(entry.user_id, []);
+      }
+      topLevelPostsByUser.get(entry.user_id)!.push(entry);
+    } else {
+      // Reply
+      if (!repliesByUser.has(entry.user_id)) {
+        repliesByUser.set(entry.user_id, []);
+      }
+      repliesByUser.get(entry.user_id)!.push(entry);
     }
-
-    const participation = participationMap.get(post.user_id)!;
-
-    // First top-level post is the initial post
-    if (!participation.hasInitialPost) {
-      participation.hasInitialPost = true;
-      participation.initialPostId = post.id;
-      participation.initialPostDate = post.created_at;
-    }
-
-    participation.totalPosts++;
   }
 
-  // Build map of replies (peer reviews)
-  for (const reply of replies) {
-    // Find the top-level post that was reviewed
-    const parentPost = findTopLevelParent(reply, entries);
-
-    if (!parentPost || parentPost.user_id === reply.user_id) {
-      // Skip self-replies or invalid replies
-      continue;
-    }
-
-    if (!participationMap.has(reply.user_id)) {
-      participationMap.set(reply.user_id, {
-        userId: reply.user_id,
-        userName: reply.user_name || `User ${reply.user_id}`,
+  // Process top-level posts
+  for (const [userId, posts] of topLevelPostsByUser.entries()) {
+    if (!participationMap.has(userId)) {
+      participationMap.set(userId, {
+        userId: userId,
+        userName: posts[0].user_name || `User ${userId}`,
         hasInitialPost: false,
         peerReviews: [],
         peerReviewCount: 0,
@@ -194,15 +232,62 @@ function analyzeStudentParticipation(
       });
     }
 
-    const participation = participationMap.get(reply.user_id)!;
+    const participation = participationMap.get(userId)!;
 
-    participation.peerReviews.push({
-      reviewedUserId: parentPost.user_id,
-      entryId: reply.id,
-      date: reply.created_at
-    });
-    participation.peerReviewCount++;
-    participation.totalPosts++;
+    // Find the EARLIEST top-level post by this user (true initial post)
+    // Sort by created_at to handle Canvas returning entries in any order
+    const sortedPosts = posts.sort((a, b) =>
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+    const earliestPost = sortedPosts[0];
+    participation.hasInitialPost = true;
+    participation.initialPostId = earliestPost.id;
+    participation.initialPostDate = earliestPost.created_at;
+    participation.totalPosts += posts.length;
+  }
+
+  // Process replies (peer reviews)
+  for (const [userId, replies] of repliesByUser.entries()) {
+    if (!participationMap.has(userId)) {
+      participationMap.set(userId, {
+        userId: userId,
+        userName: replies[0].user_name || `User ${userId}`,
+        hasInitialPost: false,
+        peerReviews: [],
+        peerReviewCount: 0,
+        totalPosts: 0
+      });
+    }
+
+    const participation = participationMap.get(userId)!;
+
+    // Track unique peers reviewed (to avoid counting duplicate reviews of same peer)
+    const uniquePeersReviewed = new Set<number>();
+
+    for (const reply of replies) {
+      // Find the top-level post that was reviewed
+      const parentPost = findTopLevelParent(reply, entryIndex);
+
+      if (!parentPost || parentPost.user_id === userId) {
+        // Skip self-replies or invalid replies
+        continue;
+      }
+
+      // Only count first review of each unique peer
+      if (!uniquePeersReviewed.has(parentPost.user_id)) {
+        uniquePeersReviewed.add(parentPost.user_id);
+
+        participation.peerReviews.push({
+          reviewedUserId: parentPost.user_id,
+          entryId: reply.id,
+          date: reply.created_at
+        });
+        participation.peerReviewCount++;
+      }
+
+      participation.totalPosts++;
+    }
   }
 
   return participationMap;
@@ -229,18 +314,20 @@ function calculateGrade(
     notes.push(`Missing initial post: 0 pts`);
   }
 
-  // Calculate peer review points
-  const peerReviewsCompleted = Math.min(
-    participation.peerReviewCount,
-    criteria.maxPeerReviewPoints
-      ? Math.floor(criteria.maxPeerReviewPoints / criteria.peerReviewPointsEach)
-      : participation.peerReviewCount
-  );
+  // Calculate peer review points (safe from division by zero)
+  if (criteria.peerReviewPointsEach > 0) {
+    const peerReviewsCompleted = Math.min(
+      participation.peerReviewCount,
+      criteria.maxPeerReviewPoints
+        ? Math.floor(criteria.maxPeerReviewPoints / criteria.peerReviewPointsEach)
+        : participation.peerReviewCount
+    );
 
-  peerReviewPoints = peerReviewsCompleted * criteria.peerReviewPointsEach;
+    peerReviewPoints = peerReviewsCompleted * criteria.peerReviewPointsEach;
 
-  if (criteria.maxPeerReviewPoints) {
-    peerReviewPoints = Math.min(peerReviewPoints, criteria.maxPeerReviewPoints);
+    if (criteria.maxPeerReviewPoints) {
+      peerReviewPoints = Math.min(peerReviewPoints, criteria.maxPeerReviewPoints);
+    }
   }
 
   if (participation.peerReviewCount >= criteria.requiredPeerReviews) {
@@ -309,7 +396,8 @@ async function gradeDiscussionSubmission(
     formData['comment[text_comment]'] = comment;
   }
 
-  await canvasPut(endpoint, formData);
+  // Use canvasPutForm for proper form-encoded data
+  await canvasPutForm(endpoint, formData);
 }
 
 /**
@@ -376,6 +464,9 @@ export async function bulkGradeDiscussion(
   console.log(`Starting bulk discussion grading for topic ${input.topicId}...`);
   console.log(`Criteria:`, JSON.stringify(input.criteria, null, 2));
 
+  // Validate criteria before processing
+  validateCriteria(input.criteria);
+
   // Step 1: Fetch all discussion entries with replies
   const entries = await fetchAllDiscussionEntries(
     input.courseIdentifier,
@@ -398,9 +489,12 @@ export async function bulkGradeDiscussion(
   }
 
   // Step 4: Apply grades (if not dry run and assignmentId provided)
-  let graded = 0;
-  let skipped = 0;
-  let failed = 0;
+  // Use a stats object to avoid race conditions
+  const stats = {
+    graded: 0,
+    skipped: 0,
+    failed: 0
+  };
   const failedResults: Array<{ userId: number; userName: string; error: string }> = [];
 
   if (!input.dryRun && input.assignmentId) {
@@ -427,19 +521,29 @@ export async function bulkGradeDiscussion(
               result.score,
               result.notes.join('\n')
             );
-            graded++;
             console.log(`✓ Graded ${result.userName}: ${result.score} points`);
+            return { status: 'success' as const };
           } catch (error: any) {
-            failed++;
-            failedResults.push({
+            const errorResult = {
               userId: result.userId,
               userName: result.userName,
               error: error.message || String(error)
-            });
+            };
+            failedResults.push(errorResult);
             console.error(`✗ Failed to grade ${result.userName}: ${error.message || error}`);
+            return { status: 'failed' as const, error: errorResult };
           }
         })
       );
+
+      // Count results after batch completes (no race condition)
+      for (const result of results) {
+        if (result.status === 'fulfilled' && result.value.status === 'success') {
+          stats.graded++;
+        } else {
+          stats.failed++;
+        }
+      }
 
       // Rate limit between batches
       if (i + maxConcurrent < gradingResults.length) {
@@ -447,7 +551,7 @@ export async function bulkGradeDiscussion(
       }
     }
   } else {
-    skipped = gradingResults.length;
+    stats.skipped = gradingResults.length;
     if (input.dryRun) {
       console.log(`\nDry run mode - no grades applied`);
     } else if (!input.assignmentId) {
@@ -470,9 +574,9 @@ export async function bulkGradeDiscussion(
   console.log(`Bulk Discussion Grading Complete!`);
   console.log(`${'='.repeat(60)}`);
   console.log(`Total students: ${gradingResults.length}`);
-  console.log(`Graded: ${graded}`);
-  console.log(`Skipped: ${skipped}`);
-  console.log(`Failed: ${failed}`);
+  console.log(`Graded: ${stats.graded}`);
+  console.log(`Skipped: ${stats.skipped}`);
+  console.log(`Failed: ${stats.failed}`);
   console.log(`Average score: ${averageScore.toFixed(2)}`);
   console.log(`\nParticipation Summary:`);
   console.log(`  With initial post: ${withInitialPost}`);
@@ -482,9 +586,9 @@ export async function bulkGradeDiscussion(
 
   return {
     total: gradingResults.length,
-    graded,
-    skipped,
-    failed,
+    graded: stats.graded,
+    skipped: stats.skipped,
+    failed: stats.failed,
     averageScore,
     summary: {
       withInitialPost,
