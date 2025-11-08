@@ -3,6 +3,12 @@
 <!--mcp-name: io.github.vishalsachdev/canvas-mcp-->
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI version](https://img.shields.io/badge/pypi-v1.0.3-blue)](https://pypi.org/project/canvas-mcp/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io/)
+[![Canvas API](https://img.shields.io/badge/Canvas-API%20v1-orange.svg)](https://canvas.instructure.com/doc/api/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 This repository contains a Model Context Protocol (MCP) server implementation for interacting with the Canvas Learning Management System API. The server is designed to work with Claude Desktop and other MCP-compatible clients.
 
@@ -83,6 +89,44 @@ See the [official MCP clients list](https://modelcontextprotocol.io/clients) for
 
 > **Note**: While Canvas MCP is designed to work with any MCP client, setup instructions in this guide focus on Claude Desktop. Configuration for other clients may vary.
 
+## Quick Start
+
+Get up and running in 5 minutes:
+
+```bash
+# 1. Install dependencies
+pip install uv
+uv pip install -e .
+
+# 2. Configure environment
+cp env.template .env
+# Edit .env with your Canvas API token and URL
+
+# 3. Test connection
+canvas-mcp-server --test
+
+# 4. Add to Claude Desktop config
+# See detailed setup below
+```
+
+> **Visual Walkthrough**: See screenshots and GIFs in our [Visual Setup Guide](#visual-setup-guide) for step-by-step instructions.
+
+## Feature Comparison
+
+| Feature | Students | Educators | Notes |
+|---------|----------|-----------|-------|
+| Assignment Tracking | ✓ | ✓ | Students: personal view; Educators: class-wide |
+| Grade Monitoring | ✓ | ✓ | Students: own grades; Educators: class analytics |
+| Peer Review Management | ✓ | ✓ | Students: track TODO; Educators: analytics & reminders |
+| Discussion Forums | ✓ | ✓ | Students: read & post; Educators: moderate & analyze |
+| Course Content Access | ✓ | ✓ | Pages, announcements, syllabus |
+| Rubric Management | - | ✓ | Create, edit, associate with assignments |
+| Student Analytics | - | ✓ | Performance tracking, at-risk identification |
+| Bulk Grading | - | ✓ | Token-efficient bulk operations (99.7% savings) |
+| Messaging & Reminders | - | ✓ | Automated student communications |
+| Data Anonymization | - | ✓ | FERPA-compliant student data handling |
+| Code Execution API | ✓ | ✓ | For advanced bulk operations |
+
 ## Installation
 
 ### 1. Install Dependencies
@@ -121,6 +165,22 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
     }
   }
 }
+```
+
+## Visual Setup Guide
+
+> **Note for Maintainers**: Add screenshots/GIFs in this section to enhance documentation:
+> - Screenshot: Canvas API token creation page
+> - Screenshot: Claude Desktop configuration file location (macOS/Windows/Linux)
+> - GIF: Complete installation process from start to finish
+> - Screenshot: Successful test output from `canvas-mcp-server --test`
+> - GIF: Example of using Canvas MCP in Claude Desktop
+> - Screenshot: Example tool usage showing the 🔨 hammer icon
+
+To contribute visual assets, place them in `docs/images/` and update this section with:
+```markdown
+![Token Creation](docs/images/token-creation.png)
+![Claude Config](docs/images/claude-config.png)
 ```
 
 ## Verification
@@ -445,12 +505,142 @@ For contributors, see the [Development Guide](https://github.com/vishalsachdev/c
 
 ## Troubleshooting
 
-If you encounter issues:
+### Common Issues and Solutions
 
-1. **Server Won't Start** - Verify your [Configuration](#configuration) setup: `.env` file, virtual environment path, and dependencies
-2. **Authentication Errors** - Check your Canvas API token validity and permissions
-3. **Connection Issues** - Verify Canvas API URL correctness and network access
-4. **Debugging** - Check Claude Desktop console logs or run server manually for error output
+#### Installation & Setup
+
+**Q: Server won't start or shows "command not found"**
+- **Solution**: Ensure you ran `uv pip install -e .` in the canvas-mcp directory
+- Verify your Python version: `python --version` (must be 3.10+)
+- Try reinstalling: `uv pip uninstall canvas-mcp && uv pip install -e .`
+
+**Q: "ModuleNotFoundError" or import errors**
+- **Solution**: Make sure you're using the correct Python environment
+- Reinstall dependencies: `uv pip install -e .`
+- Check your virtual environment is activated if you're using one
+
+**Q: Claude Desktop doesn't show Canvas tools**
+- **Solution**:
+  1. Verify your `claude_desktop_config.json` is in the correct location
+  2. Restart Claude Desktop completely (Quit and reopen)
+  3. Check the command path is correct: `"command": "canvas-mcp-server"`
+  4. Look for errors in Claude Desktop logs (Developer → View Logs)
+
+#### Authentication & Connection
+
+**Q: "Authentication failed" or 401 errors**
+- **Solution**:
+  - Verify your Canvas API token is correct in `.env`
+  - Check the token hasn't expired (some institutions have expiration policies)
+  - Ensure the token has appropriate permissions
+  - Generate a new token if needed: Canvas → Account → Settings → New Access Token
+
+**Q: "Connection refused" or timeout errors**
+- **Solution**:
+  - Verify your `CANVAS_API_URL` is correct in `.env`
+  - Should be: `https://canvas.youruniversity.edu/api/v1`
+  - Check your network connection
+  - Verify you can access Canvas in your browser
+  - Some institutions require VPN - ensure you're connected if needed
+
+**Q: Canvas API token creation restricted (students)**
+- **Solution**: Some institutions limit API access for students
+  - Contact your Canvas administrator or IT support
+  - Request API access for educational purposes
+  - Provide this project's GitHub URL as reference
+
+#### Tool Usage
+
+**Q: "No courses found" or empty results**
+- **Solution**:
+  - Verify you're enrolled in courses for the current term
+  - For students: Check if your institution allows API access to course data
+  - For educators: Ensure you have instructor/TA role in courses
+  - Try `include_concluded=true` parameter for past courses
+
+**Q: Tools returning "Permission denied" errors**
+- **Solution**:
+  - Student tools require student enrollment
+  - Educator tools require instructor/TA permissions
+  - Check your Canvas role in the affected course
+  - Some features may be restricted by your institution
+
+**Q: Slow response times or timeouts**
+- **Solution**:
+  - Canvas API may be slow during peak usage
+  - Try requesting smaller date ranges
+  - Use pagination for large result sets
+  - Consider using code execution API for bulk operations
+
+#### Privacy & Anonymization (Educators)
+
+**Q: Student names not anonymized**
+- **Solution**:
+  - Set `ENABLE_DATA_ANONYMIZATION=true` in `.env`
+  - Restart the Canvas MCP server
+  - Check `local_maps/` folder is created
+  - Set `ANONYMIZATION_DEBUG=true` to troubleshoot
+
+**Q: Cannot find mapping file to de-anonymize**
+- **Solution**:
+  - Mapping files are in `local_maps/` directory
+  - Named by course code: `course_XXXX_mapping.csv`
+  - Generated when anonymization is first used
+  - Keep this folder secure and never commit to git
+
+#### Code Execution API
+
+**Q: Code execution not working or showing errors**
+- **Solution**:
+  - Ensure TypeScript files are accessible
+  - Check environment variables are passed to execution context
+  - Try the traditional tool approach instead
+  - Review error messages for specific issues
+
+**Q: "search_canvas_tools" returns no results**
+- **Solution**:
+  - Check your search query is correct
+  - Try empty string `""` to list all tools
+  - Verify code_api directory structure is intact
+  - Files may need to be TypeScript (.ts) not JavaScript
+
+### Testing Your Setup
+
+Run these commands to verify everything is working:
+
+```bash
+# Test Canvas API connection
+canvas-mcp-server --test
+
+# View your configuration
+canvas-mcp-server --config
+
+# Start server manually to see debug output
+canvas-mcp-server
+```
+
+### Getting Help
+
+Still having issues? Here's how to get support:
+
+1. **Check Existing Issues**: [GitHub Issues](https://github.com/vishalsachdev/canvas-mcp/issues)
+2. **Search Documentation**: Review [Student Guide](docs/STUDENT_GUIDE.md) or [Educator Guide](docs/EDUCATOR_GUIDE.md)
+3. **Open an Issue**: Provide:
+   - Your OS and Python version
+   - Canvas MCP version (`pip show canvas-mcp`)
+   - Error messages (with sensitive data removed)
+   - Steps to reproduce the issue
+4. **Check MCP Registry**: [Model Context Protocol Registry](https://registry.modelcontextprotocol.io/)
+
+### Debug Mode
+
+Enable detailed logging for troubleshooting:
+
+```bash
+# In your .env file
+MCP_DEBUG=true
+ANONYMIZATION_DEBUG=true  # For privacy debugging (educators only)
+```
 
 ## Security & Privacy Features
 

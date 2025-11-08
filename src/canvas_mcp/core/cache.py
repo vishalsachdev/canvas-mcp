@@ -2,24 +2,39 @@
 
 import sys
 
+from .cache_manager import get_course_cache
 from .client import fetch_all_paginated_results, make_canvas_request
+from .performance import monitor_performance
 from .validation import validate_params
 
-# Global cache for course codes to IDs
+# Global cache for course codes to IDs (legacy, redirects to EnhancedCache)
 course_code_to_id_cache: dict[str, str] = {}
 id_to_course_code_cache: dict[str, str] = {}
 
 
+@monitor_performance()
 async def refresh_course_cache() -> bool:
-    """Refresh the global course cache."""
+    """Refresh the global course cache with TTL support."""
     global course_code_to_id_cache, id_to_course_code_cache
 
     print("Refreshing course cache...", file=sys.stderr)
-    courses = await fetch_all_paginated_results("/courses", {"per_page": 100})
 
-    if isinstance(courses, dict) and "error" in courses:
-        print(f"Error building course cache: {courses.get('error')}", file=sys.stderr)
-        return False
+    # Check if we have a valid cached result
+    cache = get_course_cache()
+    cached_data = cache.get("all_courses")
+
+    if cached_data is not None:
+        courses = cached_data
+        print(f"Using cached courses data ({cache.size} entries)", file=sys.stderr)
+    else:
+        courses = await fetch_all_paginated_results("/courses", {"per_page": 100})
+
+        if isinstance(courses, dict) and "error" in courses:
+            print(f"Error building course cache: {courses.get('error')}", file=sys.stderr)
+            return False
+
+        # Cache the fetched courses
+        cache.set("all_courses", courses)
 
     # Build caches for bidirectional lookups
     course_code_to_id_cache = {}
@@ -33,11 +48,16 @@ async def refresh_course_cache() -> bool:
             course_code_to_id_cache[course_code] = course_id
             id_to_course_code_cache[course_id] = course_code
 
+            # Also cache individual course mappings
+            cache.set(f"course_code:{course_code}", course_id)
+            cache.set(f"course_id:{course_id}", course_code)
+
     print(f"Cached {len(course_code_to_id_cache)} course codes", file=sys.stderr)
     return True
 
 
 @validate_params
+@monitor_performance()
 async def get_course_id(course_identifier: str | int) -> str | None:
     """Get course ID from either course code or ID, with caching.
 
@@ -63,7 +83,13 @@ async def get_course_id(course_identifier: str | int) -> str | None:
     if course_str.startswith("sis_course_id:"):
         return course_str
 
-    # If it's in our cache, return the ID
+    # Check enhanced cache first
+    cache = get_course_cache()
+    cached_id = cache.get(f"course_code:{course_str}")
+    if cached_id is not None:
+        return cached_id
+
+    # If it's in our legacy cache, return the ID
     if course_str in course_code_to_id_cache:
         return course_code_to_id_cache[course_str]
 
@@ -82,6 +108,7 @@ async def get_course_id(course_identifier: str | int) -> str | None:
     return course_str
 
 
+@monitor_performance()
 async def get_course_code(course_id: str) -> str | None:
     """Get course code from ID, with caching."""
     global id_to_course_code_cache, course_code_to_id_cache
@@ -90,7 +117,13 @@ async def get_course_code(course_id: str) -> str | None:
     if "_" in course_id:
         return course_id
 
-    # If it's in our cache, return the code
+    # Check enhanced cache first
+    cache = get_course_cache()
+    cached_code = cache.get(f"course_id:{course_id}")
+    if cached_code is not None:
+        return cached_code
+
+    # If it's in our legacy cache, return the code
     if course_id in id_to_course_code_cache:
         return id_to_course_code_cache[course_id]
 
@@ -108,6 +141,9 @@ async def get_course_code(course_id: str) -> str | None:
         if code:
             id_to_course_code_cache[course_id] = code
             course_code_to_id_cache[code] = course_id
+            # Also update enhanced cache
+            cache.set(f"course_id:{course_id}", code)
+            cache.set(f"course_code:{code}", course_id)
         return code
 
     # Last resort, return the ID

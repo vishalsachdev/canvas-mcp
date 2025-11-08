@@ -76,7 +76,32 @@ def validate_config() -> bool:
         print("Warning: CANVAS_API_URL should end with '/api/v1'", file=sys.stderr)
         print(f"Current URL: {config.canvas_api_url}", file=sys.stderr)
 
+    # Validate token format
+    from .security import TokenValidator
+    if not TokenValidator.validate_token_format(config.canvas_api_token):
+        print("Error: Canvas API token format is invalid", file=sys.stderr)
+        print("Please check your CANVAS_API_TOKEN in the .env file", file=sys.stderr)
+        return False
+
     return True
+
+
+async def validate_token_permissions() -> bool:
+    """Validate that the API token has proper permissions."""
+    config = get_config()
+
+    from .security import TokenValidator
+    result = await TokenValidator.validate_token_permissions(
+        config.canvas_api_token,
+        config.canvas_api_url
+    )
+
+    if result["valid"]:
+        print(f"✓ Token validation successful! Connected as: {result.get('user_name', 'Unknown')}", file=sys.stderr)
+        return True
+    else:
+        print(f"✗ Token validation failed: {result['message']}", file=sys.stderr)
+        return False
 
 
 # Legacy compatibility - these will be used by existing code

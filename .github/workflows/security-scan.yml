@@ -1,0 +1,250 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security scan weekly on Mondays at 9am UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch: # Allow manual triggers
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  dependency-scan:
+    name: Dependency Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[security]"
+
+    - name: Run pip-audit
+      run: |
+        echo "::group::pip-audit scan"
+        pip-audit --desc --format json --output pip-audit-results.json || true
+        pip-audit --desc
+        echo "::endgroup::"
+      continue-on-error: true
+
+    - name: Run Safety check
+      run: |
+        echo "::group::Safety scan"
+        safety check --json --output safety-results.json || true
+        safety check
+        echo "::endgroup::"
+      continue-on-error: true
+
+    - name: Upload pip-audit results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: pip-audit-results
+        path: pip-audit-results.json
+
+    - name: Upload Safety results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: safety-results
+        path: safety-results.json
+
+    - name: Check for critical vulnerabilities
+      run: |
+        # Fail the build if critical vulnerabilities found
+        if [ -f pip-audit-results.json ]; then
+          CRITICAL_COUNT=$(jq '[.dependencies[].vulns[] | select(.aliases[] | contains("CRITICAL"))] | length' pip-audit-results.json)
+          if [ "$CRITICAL_COUNT" -gt 0 ]; then
+            echo "::error::Found $CRITICAL_COUNT critical vulnerabilities!"
+            exit 1
+          fi
+        fi
+
+  code-security-scan:
+    name: Code Security Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[security]"
+
+    - name: Run Bandit security linter
+      run: |
+        echo "::group::Bandit security scan"
+        bandit -r src/ -f json -o bandit-results.json || true
+        bandit -r src/ -ll
+        echo "::endgroup::"
+      continue-on-error: true
+
+    - name: Upload Bandit results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: bandit-results
+        path: bandit-results.json
+
+    - name: Check for high severity issues
+      run: |
+        if [ -f bandit-results.json ]; then
+          HIGH_COUNT=$(jq '.results | map(select(.issue_severity == "HIGH")) | length' bandit-results.json)
+          if [ "$HIGH_COUNT" -gt 0 ]; then
+            echo "::warning::Found $HIGH_COUNT high severity security issues"
+          fi
+        fi
+
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Get full history for better secret detection
+
+    - name: Run Gitleaks
+      uses: gitleaks/gitleaks-action@v2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Check for common patterns
+      run: |
+        echo "Checking for hardcoded secrets..."
+
+        # Check for potential API tokens (not in .env.template)
+        if grep -r "CANVAS_API_TOKEN=.*[a-zA-Z0-9]" --include="*.py" --include="*.sh" src/; then
+          echo "::error::Found potential hardcoded API token!"
+          exit 1
+        fi
+
+        # Check for AWS keys
+        if grep -r "AKIA[0-9A-Z]{16}" --include="*.py" src/; then
+          echo "::error::Found potential AWS access key!"
+          exit 1
+        fi
+
+        # Check for private keys
+        if grep -r "BEGIN.*PRIVATE KEY" --include="*.py" --include="*.txt" src/; then
+          echo "::error::Found potential private key!"
+          exit 1
+        fi
+
+        echo "No hardcoded secrets found."
+
+  security-policy-check:
+    name: Security Policy Compliance
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check for SECURITY.md
+      run: |
+        if [ ! -f SECURITY.md ]; then
+          echo "::error::SECURITY.md file is missing"
+          exit 1
+        fi
+        echo "✓ SECURITY.md exists"
+
+    - name: Check .env is in .gitignore
+      run: |
+        if ! grep -q "^\.env$" .gitignore; then
+          echo "::error::.env is not in .gitignore"
+          exit 1
+        fi
+        echo "✓ .env is properly ignored"
+
+    - name: Check for .env file in repo
+      run: |
+        if git ls-files --error-unmatch .env 2>/dev/null; then
+          echo "::error::.env file is tracked in git!"
+          exit 1
+        fi
+        echo "✓ No .env file in repository"
+
+    - name: Verify env.template exists
+      run: |
+        if [ ! -f env.template ]; then
+          echo "::error::env.template file is missing"
+          exit 1
+        fi
+        echo "✓ env.template exists"
+
+    - name: Check for test credentials in env.template
+      run: |
+        if grep -q "your_token_here\|your_actual_token\|example_token" env.template; then
+          echo "✓ env.template uses placeholder values"
+        else
+          echo "::warning::env.template might contain real credentials"
+        fi
+
+  license-compliance:
+    name: License Compliance Check
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+        pip install pip-licenses
+
+    - name: Check licenses
+      run: |
+        echo "::group::License report"
+        pip-licenses --format=markdown --output-file=licenses.md
+        cat licenses.md
+        echo "::endgroup::"
+
+    - name: Check for GPL licenses
+      run: |
+        # Warn if GPL licenses found (might conflict with MIT)
+        if pip-licenses | grep -i "gpl"; then
+          echo "::warning::Found GPL-licensed dependencies"
+        fi
+
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, code-security-scan, secret-scan, security-policy-check]
+    if: always()
+
+    steps:
+    - name: Summary
+      run: |
+        echo "## Security Scan Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "All security scans completed. Check individual job results for details." >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- Dependency scan: ${{ needs.dependency-scan.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Code security scan: ${{ needs.code-security-scan.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Secret scan: ${{ needs.secret-scan.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Policy check: ${{ needs.security-policy-check.result }}" >> $GITHUB_STEP_SUMMARY

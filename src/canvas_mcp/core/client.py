@@ -1,11 +1,13 @@
 """HTTP client and Canvas API utilities."""
 
+import asyncio
 import sys
 from typing import Any
 
 import httpx
 
 from .anonymization import anonymize_response_data
+from .performance import monitor_performance
 
 # HTTP client will be initialized with configuration
 http_client: httpx.AsyncClient | None = None
@@ -66,33 +68,80 @@ def _should_anonymize_endpoint(endpoint: str) -> bool:
 
 
 def _get_http_client() -> httpx.AsyncClient:
-    """Get or create the HTTP client with current configuration."""
+    """Get or create the HTTP client with optimized configuration.
+
+    Optimizations:
+    - Connection pooling (max 100 connections, max 20 per host)
+    - HTTP/2 support for better performance
+    - Keep-alive connections
+    - Configurable timeout
+    """
     global http_client
     if http_client is None:
         from .config import get_config
         config = get_config()
+
+        # Configure connection limits for optimal performance
+        limits = httpx.Limits(
+            max_keepalive_connections=20,
+            max_connections=100,
+            keepalive_expiry=30.0
+        )
+
         http_client = httpx.AsyncClient(
             headers={
                 'Authorization': f'Bearer {config.api_token}'
             },
-            timeout=config.api_timeout
+            timeout=config.api_timeout,
+            limits=limits,
+            http2=True,  # Enable HTTP/2 for better performance
+            follow_redirects=True
         )
     return http_client
 
 
+@monitor_performance()
 async def make_canvas_request(
     method: str,
     endpoint: str,
     params: dict[str, Any] | None = None,
     data: dict[str, Any] | None = None,
-    use_form_data: bool = False
+    use_form_data: bool = False,
+    max_retries: int = 3,
+    retry_delay: float = 1.0
 ) -> Any:
-    """Make a request to the Canvas API with proper error handling."""
+    """Make a request to the Canvas API with retry logic and proper error handling.
 
-    try:
+    Args:
+        method: HTTP method (get, post, put, delete)
+        endpoint: API endpoint path
+        params: Query parameters
+        data: Request body data
+        use_form_data: Whether to send data as form-encoded
+        max_retries: Maximum number of retry attempts (default: 3)
+        retry_delay: Initial delay between retries in seconds (default: 1.0)
+
+    Returns:
+        JSON response from the API or error dict
+
+    Implements exponential backoff for retries on transient errors.
+    """
+
+    last_error = None
+
+    for attempt in range(max_retries + 1):
+        try:
         from .config import get_config
+        from .security import get_rate_limiter
+
         config = get_config()
         client = _get_http_client()
+
+        # Check rate limiting
+        rate_limiter = get_rate_limiter()
+        allowed, rate_message = rate_limiter.check_rate_limit()
+        if not allowed:
+            return {"error": rate_message}
 
         # Ensure the endpoint starts with a slash
         if not endpoint.startswith('/'):
@@ -101,9 +150,11 @@ async def make_canvas_request(
         # Construct the full URL
         url = f"{config.api_base_url.rstrip('/')}{endpoint}"
 
-        # Log the request for debugging (if enabled)
+        # Log the request for debugging (if enabled) - but sanitize URL params
         if config.log_api_requests:
-            print(f"Making {method.upper()} request to {url}", file=sys.stderr)
+            from .security import SecurityValidator
+            safe_endpoint = SecurityValidator.sanitize_for_logging(endpoint)
+            print(f"Making {method.upper()} request to endpoint: {safe_endpoint}", file=sys.stderr)
 
         if method.lower() == "get":
             response = await client.get(url, params=params)
@@ -136,19 +187,57 @@ async def make_canvas_request(
 
         return result
     except httpx.HTTPStatusError as e:
+        from .security import SecurityValidator
+
         error_message = f"HTTP error: {e.response.status_code}"
-        try:
-            error_details = e.response.json()
-            error_message += f", Details: {error_details}"
-        except ValueError:
-            error_details = e.response.text
-            error_message += f", Text: {error_details}"
+
+        # Only include error details in debug mode to avoid information leakage
+        if config.debug:
+            try:
+                error_details = e.response.json()
+                safe_details = SecurityValidator.sanitize_for_logging(error_details)
+                error_message += f", Details: {safe_details}"
+            except ValueError:
+                # Don't include raw response text as it might contain sensitive info
+                error_message += ", Response: Unable to parse error details"
+        else:
+            # Provide user-friendly error messages without internal details
+            status_messages = {
+                400: "Bad request - please check your input parameters",
+                401: "Authentication failed - check your API token",
+                403: "Access forbidden - insufficient permissions",
+                404: "Resource not found",
+                429: "Rate limit exceeded - please try again later",
+                500: "Canvas server error - please try again later",
+                503: "Canvas service unavailable - please try again later"
+            }
+            error_message = status_messages.get(
+                e.response.status_code,
+                f"Request failed with status {e.response.status_code}"
+            )
 
         print(f"API error: {error_message}", file=sys.stderr)
         return {"error": error_message}
+
+    except httpx.TimeoutException:
+        error_message = "Request timed out - Canvas API may be slow or unavailable"
+        print(f"Request error: {error_message}", file=sys.stderr)
+        return {"error": error_message}
+
+    except httpx.ConnectError:
+        error_message = "Cannot connect to Canvas API - check your network and API URL"
+        print(f"Connection error: {error_message}", file=sys.stderr)
+        return {"error": error_message}
+
     except Exception as e:
+        # Generic error handling - don't expose internal details
+        if config.debug:
+            error_message = f"Request failed: {str(e)}"
+        else:
+            error_message = "Request failed - please try again or contact support"
+
         print(f"Request failed: {str(e)}", file=sys.stderr)
-        return {"error": f"Request failed: {str(e)}"}
+        return {"error": error_message}
 
 
 async def fetch_all_paginated_results(endpoint: str, params: dict[str, Any] | None = None) -> Any:

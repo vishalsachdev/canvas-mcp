@@ -11,6 +11,10 @@ from .messaging import register_messaging_tools
 from .student_tools import register_student_tools
 from .accessibility import register_accessibility_tools
 from .discovery import register_discovery_tools
+from .files import register_file_tools
+from .calendar import register_calendar_tools
+from .modules import register_module_tools
+from .quizzes import register_quiz_tools
 
 __all__ = [
     'register_course_tools',
@@ -23,5 +27,9 @@ __all__ = [
     'register_messaging_tools',
     'register_student_tools',
     'register_accessibility_tools',
-    'register_discovery_tools'
+    'register_discovery_tools',
+    'register_file_tools',
+    'register_calendar_tools',
+    'register_module_tools',
+    'register_quiz_tools'
 ]
