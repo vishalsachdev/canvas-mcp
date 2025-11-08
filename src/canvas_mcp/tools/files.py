@@ -130,7 +130,7 @@ def register_file_tools(mcp: FastMCP) -> None:
             f"URL: {response.get('url', 'N/A')}"
         ]
 
-        return f"File Details:\n\n" + "\n".join(details)
+        return "File Details:\n\n" + "\n".join(details)
 
     @mcp.tool()
     @validate_params
@@ -215,7 +215,7 @@ def register_file_tools(mcp: FastMCP) -> None:
             f"Updated: {format_date(response.get('updated_at'))}"
         ]
 
-        return f"Folder Details:\n\n" + "\n".join(details)
+        return "Folder Details:\n\n" + "\n".join(details)
 
     @mcp.tool()
     @validate_params

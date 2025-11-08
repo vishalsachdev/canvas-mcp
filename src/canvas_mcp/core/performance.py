@@ -4,7 +4,8 @@ import functools
 import sys
 import time
 from collections import defaultdict
-from typing import Any, Callable, TypeVar, cast
+from collections.abc import Callable
+from typing import Any, TypeVar, cast
 
 # Global performance statistics
 _perf_stats: dict[str, dict[str, Any]] = defaultdict(
@@ -114,7 +115,7 @@ def monitor_performance(func_name: str | None = None) -> Callable[[F], F]:
             try:
                 result = await func(*args, **kwargs)
                 return result
-            except Exception as e:
+            except Exception:
                 error_occurred = True
                 raise
             finally:
@@ -147,7 +148,7 @@ def monitor_performance(func_name: str | None = None) -> Callable[[F], F]:
             try:
                 result = func(*args, **kwargs)
                 return result
-            except Exception as e:
+            except Exception:
                 error_occurred = True
                 raise
             finally:

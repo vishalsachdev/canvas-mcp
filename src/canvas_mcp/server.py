@@ -23,6 +23,7 @@ from .tools import (
     register_course_tools,
     register_discovery_tools,
     register_discussion_tools,
+    register_export_import_tools,
     register_file_tools,
     register_messaging_tools,
     register_module_tools,
@@ -62,6 +63,7 @@ def register_all_tools(mcp: FastMCP) -> None:
     register_calendar_tools(mcp)
     register_module_tools(mcp)
     register_quiz_tools(mcp)
+    register_export_import_tools(mcp)
 
     # Register resources and prompts
     register_resources_and_prompts(mcp)

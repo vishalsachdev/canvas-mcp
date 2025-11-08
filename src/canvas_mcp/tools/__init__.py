@@ -15,6 +15,7 @@ from .files import register_file_tools
 from .calendar import register_calendar_tools
 from .modules import register_module_tools
 from .quizzes import register_quiz_tools
+from .export_import import register_export_import_tools
 
 __all__ = [
     'register_course_tools',
@@ -31,5 +32,6 @@ __all__ = [
     'register_file_tools',
     'register_calendar_tools',
     'register_module_tools',
-    'register_quiz_tools'
+    'register_quiz_tools',
+    'register_export_import_tools'
 ]

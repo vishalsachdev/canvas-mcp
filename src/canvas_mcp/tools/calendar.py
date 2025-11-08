@@ -131,7 +131,7 @@ def register_calendar_tools(mcp: FastMCP) -> None:
             f"\nDescription:\n{response.get('description', 'No description')}"
         ]
 
-        return f"Calendar Event Details:\n\n" + "\n".join(details)
+        return "Calendar Event Details:\n\n" + "\n".join(details)
 
     @mcp.tool()
     @validate_params

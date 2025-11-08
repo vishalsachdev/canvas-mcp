@@ -2,7 +2,8 @@
 
 import functools
 import json
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from .logging import log_warning
 from .security import SecurityValidator

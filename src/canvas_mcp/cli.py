@@ -162,7 +162,7 @@ async def validate_setup() -> bool:
         from .server import create_server, register_all_tools
         mcp = create_server()
         register_all_tools(mcp)
-        print(f"   ✅ All tools registered successfully")
+        print("   ✅ All tools registered successfully")
     except Exception as e:
         issues.append(f"❌ Tool registration failed: {e}")
 

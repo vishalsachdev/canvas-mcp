@@ -3,8 +3,9 @@
 import asyncio
 import time
 from collections import deque
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 import httpx
 

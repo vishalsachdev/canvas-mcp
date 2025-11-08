@@ -11,7 +11,7 @@ import pytest
 def mock_env(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
     """Set up environment variables for testing."""
     env_vars = {
-        "CANVAS_API_TOKEN": "test_token_123",
+        "CANVAS_API_TOKEN": "test_token_1234567890abcdefghij",  # At least 20 chars
         "CANVAS_API_URL": "https://canvas.test.edu/api/v1",
         "MCP_SERVER_NAME": "test-canvas-api",
         "DEBUG": "false",

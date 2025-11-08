@@ -6,7 +6,7 @@ Allows Claude to search and explore available TypeScript tools.
 import json
 import re
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 from mcp.server.fastmcp import FastMCP
 

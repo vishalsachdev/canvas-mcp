@@ -646,9 +646,11 @@ ANONYMIZATION_DEBUG=true  # For privacy debugging (educators only)
 
 ### API Security
 - Your Canvas API token grants access to your Canvas account
+- Automatic token validation on startup
 - Never commit your `.env` file to version control
 - The server runs locally on your machine - no external data transmission
 - Consider using a token with limited permissions if possible
+- Built-in rate limiting protects against API abuse
 
 ### Privacy Controls (Educators Only)
 
@@ -662,9 +664,28 @@ ANONYMIZATION_DEBUG=true        # Debug anonymization (optional)
 
 Students don't need anonymization since they only access their own data.
 
-For detailed privacy configuration, see:
-- **[Educator Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/EDUCATOR_GUIDE.md)** - FERPA compliance and anonymization
-- **[Student Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/STUDENT_GUIDE.md)** - Privacy information for students
+### Security Features
+
+Canvas MCP includes comprehensive security controls:
+
+- **Input Validation**: All user inputs are validated and sanitized
+- **PII Protection**: Automatic filtering of sensitive data in logs
+- **Rate Limiting**: Prevents API abuse and resource exhaustion
+- **Error Safety**: Production errors don't expose internal details
+- **Token Security**: Format validation and permission verification
+- **Dependency Scanning**: Automated vulnerability detection in dependencies
+
+### Security Documentation
+
+For comprehensive security information:
+- **[SECURITY.md](SECURITY.md)** - Vulnerability disclosure and security policy
+- **[Security Guide](docs/SECURITY_GUIDE.md)** - Best practices and configuration
+- **[Educator Guide](docs/EDUCATOR_GUIDE.md)** - FERPA compliance and anonymization
+- **[Student Guide](docs/STUDENT_GUIDE.md)** - Privacy information for students
+
+### Reporting Security Issues
+
+If you discover a security vulnerability, please follow our responsible disclosure process outlined in [SECURITY.md](SECURITY.md). Do NOT open a public issue for security vulnerabilities.
 
 ## Publishing to MCP Registry
 

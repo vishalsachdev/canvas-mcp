@@ -1,6 +1,5 @@
 """HTTP client and Canvas API utilities."""
 
-import asyncio
 import sys
 from typing import Any
 
@@ -131,113 +130,116 @@ async def make_canvas_request(
 
     for attempt in range(max_retries + 1):
         try:
-        from .config import get_config
-        from .security import get_rate_limiter
+            from .config import get_config
+            from .security import get_rate_limiter
 
-        config = get_config()
-        client = _get_http_client()
+            config = get_config()
+            client = _get_http_client()
 
-        # Check rate limiting
-        rate_limiter = get_rate_limiter()
-        allowed, rate_message = rate_limiter.check_rate_limit()
-        if not allowed:
-            return {"error": rate_message}
+            # Check rate limiting
+            rate_limiter = get_rate_limiter()
+            allowed, rate_message = rate_limiter.check_rate_limit()
+            if not allowed:
+                return {"error": rate_message}
 
-        # Ensure the endpoint starts with a slash
-        if not endpoint.startswith('/'):
-            endpoint = f"/{endpoint}"
+            # Ensure the endpoint starts with a slash
+            if not endpoint.startswith('/'):
+                endpoint = f"/{endpoint}"
 
-        # Construct the full URL
-        url = f"{config.api_base_url.rstrip('/')}{endpoint}"
+            # Construct the full URL
+            url = f"{config.api_base_url.rstrip('/')}{endpoint}"
 
-        # Log the request for debugging (if enabled) - but sanitize URL params
-        if config.log_api_requests:
+            # Log the request for debugging (if enabled) - but sanitize URL params
+            if config.log_api_requests:
+                from .security import SecurityValidator
+                safe_endpoint = SecurityValidator.sanitize_for_logging(endpoint)
+                print(f"Making {method.upper()} request to endpoint: {safe_endpoint}", file=sys.stderr)
+
+            if method.lower() == "get":
+                response = await client.get(url, params=params)
+            elif method.lower() == "post":
+                if use_form_data:
+                    response = await client.post(url, data=data)
+                else:
+                    response = await client.post(url, json=data)
+            elif method.lower() == "put":
+                if use_form_data:
+                    response = await client.put(url, data=data)
+                else:
+                    response = await client.put(url, json=data)
+            elif method.lower() == "delete":
+                response = await client.delete(url, params=params)
+            else:
+                return {"error": f"Unsupported method: {method}"}
+
+            response.raise_for_status()
+            result = response.json()
+
+            # Apply anonymization if enabled and this endpoint contains student data
+            if config.enable_data_anonymization and _should_anonymize_endpoint(endpoint):
+                data_type = _determine_data_type(endpoint)
+                result = anonymize_response_data(result, data_type)
+
+                # Log anonymization for debugging (if enabled)
+                if config.anonymization_debug:
+                    print(f"🔒 Applied {data_type} anonymization to {endpoint}", file=sys.stderr)
+
+            return result
+        except httpx.HTTPStatusError as e:
             from .security import SecurityValidator
-            safe_endpoint = SecurityValidator.sanitize_for_logging(endpoint)
-            print(f"Making {method.upper()} request to endpoint: {safe_endpoint}", file=sys.stderr)
 
-        if method.lower() == "get":
-            response = await client.get(url, params=params)
-        elif method.lower() == "post":
-            if use_form_data:
-                response = await client.post(url, data=data)
+            error_message = f"HTTP error: {e.response.status_code}"
+
+            # Only include error details in debug mode to avoid information leakage
+            if config.debug:
+                try:
+                    error_details = e.response.json()
+                    safe_details = SecurityValidator.sanitize_for_logging(error_details)
+                    error_message += f", Details: {safe_details}"
+                except ValueError:
+                    # Don't include raw response text as it might contain sensitive info
+                    error_message += ", Response: Unable to parse error details"
             else:
-                response = await client.post(url, json=data)
-        elif method.lower() == "put":
-            if use_form_data:
-                response = await client.put(url, data=data)
+                # Provide user-friendly error messages without internal details
+                status_messages = {
+                    400: "Bad request - please check your input parameters",
+                    401: "Authentication failed - check your API token",
+                    403: "Access forbidden - insufficient permissions",
+                    404: "Resource not found",
+                    429: "Rate limit exceeded - please try again later",
+                    500: "Canvas server error - please try again later",
+                    503: "Canvas service unavailable - please try again later"
+                }
+                error_message = status_messages.get(
+                    e.response.status_code,
+                    f"Request failed with status {e.response.status_code}"
+                )
+
+            print(f"API error: {error_message}", file=sys.stderr)
+            last_error = error_message
+
+        except httpx.TimeoutException:
+            error_message = "Request timed out - Canvas API may be slow or unavailable"
+            print(f"Request error: {error_message}", file=sys.stderr)
+            last_error = error_message
+
+        except httpx.ConnectError:
+            error_message = "Cannot connect to Canvas API - check your network and API URL"
+            print(f"Connection error: {error_message}", file=sys.stderr)
+            last_error = error_message
+
+        except Exception as e:
+            # Generic error handling - don't expose internal details
+            if config.debug:
+                error_message = f"Request failed: {str(e)}"
             else:
-                response = await client.put(url, json=data)
-        elif method.lower() == "delete":
-            response = await client.delete(url, params=params)
-        else:
-            return {"error": f"Unsupported method: {method}"}
+                error_message = "Request failed - please try again or contact support"
 
-        response.raise_for_status()
-        result = response.json()
+            print(f"Request failed: {error_message}", file=sys.stderr)
+            last_error = error_message
 
-        # Apply anonymization if enabled and this endpoint contains student data
-        if config.enable_data_anonymization and _should_anonymize_endpoint(endpoint):
-            data_type = _determine_data_type(endpoint)
-            result = anonymize_response_data(result, data_type)
-
-            # Log anonymization for debugging (if enabled)
-            if config.anonymization_debug:
-                print(f"🔒 Applied {data_type} anonymization to {endpoint}", file=sys.stderr)
-
-        return result
-    except httpx.HTTPStatusError as e:
-        from .security import SecurityValidator
-
-        error_message = f"HTTP error: {e.response.status_code}"
-
-        # Only include error details in debug mode to avoid information leakage
-        if config.debug:
-            try:
-                error_details = e.response.json()
-                safe_details = SecurityValidator.sanitize_for_logging(error_details)
-                error_message += f", Details: {safe_details}"
-            except ValueError:
-                # Don't include raw response text as it might contain sensitive info
-                error_message += ", Response: Unable to parse error details"
-        else:
-            # Provide user-friendly error messages without internal details
-            status_messages = {
-                400: "Bad request - please check your input parameters",
-                401: "Authentication failed - check your API token",
-                403: "Access forbidden - insufficient permissions",
-                404: "Resource not found",
-                429: "Rate limit exceeded - please try again later",
-                500: "Canvas server error - please try again later",
-                503: "Canvas service unavailable - please try again later"
-            }
-            error_message = status_messages.get(
-                e.response.status_code,
-                f"Request failed with status {e.response.status_code}"
-            )
-
-        print(f"API error: {error_message}", file=sys.stderr)
-        return {"error": error_message}
-
-    except httpx.TimeoutException:
-        error_message = "Request timed out - Canvas API may be slow or unavailable"
-        print(f"Request error: {error_message}", file=sys.stderr)
-        return {"error": error_message}
-
-    except httpx.ConnectError:
-        error_message = "Cannot connect to Canvas API - check your network and API URL"
-        print(f"Connection error: {error_message}", file=sys.stderr)
-        return {"error": error_message}
-
-    except Exception as e:
-        # Generic error handling - don't expose internal details
-        if config.debug:
-            error_message = f"Request failed: {str(e)}"
-        else:
-            error_message = "Request failed - please try again or contact support"
-
-        print(f"Request failed: {str(e)}", file=sys.stderr)
-        return {"error": error_message}
+    # If all retries failed, return the last error
+    return {"error": last_error if last_error else "Request failed after retries"}
 
 
 async def fetch_all_paginated_results(endpoint: str, params: dict[str, Any] | None = None) -> Any:

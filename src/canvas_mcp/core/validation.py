@@ -155,7 +155,49 @@ def validate_parameter(param_name: str, value: Any, expected_type: Any) -> Any:
 
 
 def validate_params(func: F) -> F:
-    """Decorator to validate function parameters based on type hints."""
+    """
+    Decorator to validate and convert function parameters based on type hints.
+
+    This decorator automatically validates all function parameters against their
+    type annotations, performing intelligent type conversion when possible. It
+    handles complex types including Union, Optional, list, dict, and basic types.
+
+    The decorator is designed specifically for MCP tools and returns JSON error
+    responses on validation failure rather than raising exceptions.
+
+    Args:
+        func: The async function to decorate (must be async)
+
+    Returns:
+        Wrapped function with automatic parameter validation
+
+    Features:
+        - Union type support: Tries each type until one succeeds
+        - Optional type handling: Allows None for Optional[T]
+        - String to JSON conversion: Parses JSON strings for list/dict types
+        - Comma-separated lists: Converts "a,b,c" to ["a", "b", "c"]
+        - Boolean parsing: Understands "true", "yes", "1", etc.
+        - Error responses: Returns {"error": "..."} JSON on validation failure
+
+    Example:
+        >>> @validate_params
+        >>> async def tool(course_id: str | int, active: bool = True) -> str:
+        >>>     # course_id auto-converted to str or int
+        >>>     # active auto-converted to bool
+        >>>     pass
+
+        >>> # Works with: tool("123", "true")
+        >>> # Also works with: tool(123, True)
+
+    Note:
+        This decorator must be used with async functions and should be placed
+        after the @mcp.tool() decorator:
+
+        >>> @mcp.tool()
+        >>> @validate_params
+        >>> async def my_tool(...):
+        >>>     pass
+    """
     sig = inspect.signature(func)
     type_hints = get_type_hints(func)
 
