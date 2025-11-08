@@ -105,6 +105,15 @@ function validateCriteria(criteria: GradingCriteria): void {
     throw new Error('maxPeerReviewPoints cannot be negative');
   }
 
+  if (criteria.maxPeerReviewPoints !== undefined &&
+      criteria.peerReviewPointsEach > 0 &&
+      criteria.maxPeerReviewPoints < criteria.peerReviewPointsEach) {
+    throw new Error(
+      `maxPeerReviewPoints (${criteria.maxPeerReviewPoints}) cannot be less than peerReviewPointsEach (${criteria.peerReviewPointsEach}). ` +
+      'This configuration would result in 0 points for all peer reviews.'
+    );
+  }
+
   if (criteria.latePenalty?.enabled) {
     if (criteria.latePenalty.penaltyPercent < 0 || criteria.latePenalty.penaltyPercent > 1) {
       throw new Error('latePenalty.penaltyPercent must be between 0 and 1');
@@ -143,7 +152,7 @@ async function fetchAllDiscussionEntries(
         if (replies && Array.isArray(replies)) {
           allEntries.push(...replies);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.warn(`Failed to fetch replies for entry ${entry.id}:`, error);
         // Continue processing other entries
       }
