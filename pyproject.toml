@@ -60,6 +60,7 @@ Issues = "https://github.com/vishalsachdev/canvas-mcp/issues"
 
 [project.scripts]
 canvas-mcp-server = "canvas_mcp.server:main"
+canvas-mcp-dev = "canvas_mcp.dev_tools:main"
 
 [tool.hatch.version]
 path = "src/canvas_mcp/__init__.py"

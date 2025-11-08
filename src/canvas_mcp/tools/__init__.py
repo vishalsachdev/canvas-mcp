@@ -16,6 +16,9 @@ from .calendar import register_calendar_tools
 from .modules import register_module_tools
 from .quizzes import register_quiz_tools
 from .export_import import register_export_import_tools
+from .gradebook import register_gradebook_tools
+from .outcomes import register_outcome_tools
+from .batch_operations import register_batch_tools
 
 __all__ = [
     'register_course_tools',
@@ -33,5 +36,8 @@ __all__ = [
     'register_calendar_tools',
     'register_module_tools',
     'register_quiz_tools',
-    'register_export_import_tools'
+    'register_export_import_tools',
+    'register_gradebook_tools',
+    'register_outcome_tools',
+    'register_batch_tools'
 ]

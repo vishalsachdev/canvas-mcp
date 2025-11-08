@@ -19,15 +19,18 @@ from .resources import register_resources_and_prompts
 from .tools import (
     register_accessibility_tools,
     register_assignment_tools,
+    register_batch_tools,
     register_calendar_tools,
     register_course_tools,
     register_discovery_tools,
     register_discussion_tools,
     register_export_import_tools,
     register_file_tools,
+    register_gradebook_tools,
     register_messaging_tools,
     register_module_tools,
     register_other_tools,
+    register_outcome_tools,
     register_peer_review_comment_tools,
     register_peer_review_tools,
     register_quiz_tools,
@@ -64,6 +67,9 @@ def register_all_tools(mcp: FastMCP) -> None:
     register_module_tools(mcp)
     register_quiz_tools(mcp)
     register_export_import_tools(mcp)
+    register_gradebook_tools(mcp)
+    register_outcome_tools(mcp)
+    register_batch_tools(mcp)
 
     # Register resources and prompts
     register_resources_and_prompts(mcp)
