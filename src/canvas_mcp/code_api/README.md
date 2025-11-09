@@ -79,7 +79,13 @@ import { listSubmissions, gradeWithRubric } from './canvas/grading';
 // List submissions (stays in execution environment!)
 const submissions = await listSubmissions({
   courseIdentifier: "60366",
-  assignmentId: "123"
+  assignmentId: "123",
+  includeUser: true  // Include user details (name, email, etc.)
+});
+
+// Access user information
+submissions.forEach(sub => {
+  console.log(`${sub.user?.name} (${sub.user?.email}): ${sub.score ?? 'ungraded'}`);
 });
 
 // Grade a single submission
@@ -205,6 +211,13 @@ interface Submission {
     url: string;
     content_type: string;
   }>;
+  user?: {                // Included when includeUser: true
+    id: number;
+    name: string;
+    email: string;
+    login_id: string;
+    sortable_name: string;
+  };
 }
 ```
 
