@@ -19,6 +19,7 @@ from .resources import register_resources_and_prompts
 from .tools import (
     register_accessibility_tools,
     register_assignment_tools,
+    register_code_execution_tools,
     register_course_tools,
     register_discovery_tools,
     register_discussion_tools,
@@ -54,6 +55,7 @@ def register_all_tools(mcp: FastMCP) -> None:
     register_student_tools(mcp)
     register_accessibility_tools(mcp)
     register_discovery_tools(mcp)
+    register_code_execution_tools(mcp)
 
     # Register resources and prompts
     register_resources_and_prompts(mcp)

@@ -1,0 +1,19 @@
+{
+  "name": "canvas-mcp-code-api",
+  "version": "1.0.0",
+  "description": "TypeScript code execution API for Canvas MCP",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "exec": "node --loader ts-node/esm"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.3.3"
+  }
+}

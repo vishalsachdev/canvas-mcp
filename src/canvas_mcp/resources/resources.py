@@ -1,5 +1,6 @@
 """MCP resources and prompts for Canvas integration."""
 
+from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -116,3 +117,60 @@ Modules: {modules_info}
 Summarize the key information about this course and suggest what the user might want to know about it.
             """}
         ]
+
+    @mcp.resource(
+        name="code-api-file",
+        description="Read TypeScript code execution API files",
+        uri="canvas://code-api/{file_path}"
+    )
+    async def get_code_api_file(file_path: str) -> str:
+        """Get the contents of a TypeScript file from the code execution API.
+
+        Args:
+            file_path: Path to the TypeScript file relative to code_api directory
+                      (e.g., "canvas/grading/bulkGrade.ts")
+
+        Returns:
+            The TypeScript file contents, or an error message if not found.
+        """
+        # Get the code_api directory path
+        code_api_dir = Path(__file__).parent.parent / "code_api"
+
+        # Construct full path
+        full_path = code_api_dir / file_path
+
+        # Security: Ensure the path is within code_api directory
+        try:
+            full_path = full_path.resolve()
+            code_api_dir = code_api_dir.resolve()
+
+            if not str(full_path).startswith(str(code_api_dir)):
+                return "❌ Error: Access denied - path outside code_api directory"
+
+        except Exception:
+            return "❌ Error: Invalid file path"
+
+        # Check if file exists
+        if not full_path.exists():
+            return f"❌ Error: File not found: {file_path}"
+
+        # Check if it's a TypeScript file
+        if full_path.suffix not in ['.ts', '.js', '.mts', '.mjs']:
+            return f"❌ Error: Only TypeScript/JavaScript files are accessible"
+
+        # Read and return the file
+        try:
+            with open(full_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            # Add helpful header
+            header = f"""
+// Code Execution API: {file_path}
+// Use with execute_typescript tool for token-efficient bulk operations
+// Import path: './{file_path.replace('.ts', '.js')}'
+
+"""
+            return header + content
+
+        except Exception as e:
+            return f"❌ Error reading file: {str(e)}"
