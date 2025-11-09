@@ -157,7 +157,7 @@ The Canvas MCP Server provides a comprehensive set of tools for interacting with
 
 **Educator Tools**
 4. **Assignment Tools** - Handle assignments, submissions, and peer reviews with analytics
-5. **Rubric Tools** - Full CRUD operations for rubrics with validation, association management, and grading
+5. **Rubric Tools** - Full CRUD operations for rubrics with validation, association management, and grading (including `bulk_grade_submissions` for efficient batch grading)
 6. **User & Enrollment Tools** - Manage enrollments, users, and groups
 7. **Analytics Tools** - View student analytics, assignment statistics, and progress tracking
 8. **Messaging Tools** - Send messages and announcements to students
@@ -181,12 +181,18 @@ Ask Claude: "Get assignment details for assignment 123"
 ```
 ✅ Best for: Single queries, small datasets, quick lookups
 
-**Code Execution** (for bulk operations):
+**Bulk Grade Submissions Tool** (for batch grading with predefined grades):
 ```
-Ask Claude: "Grade all 90 Jupyter notebook submissions"
+Ask Claude: "Grade these 10 students with their specific rubric scores"
+```
+✅ Best for: Batch grading when you already have the grades/scores, concurrent processing
+
+**Code Execution** (for bulk operations with custom logic):
+```
+Ask Claude: "Grade all 90 Jupyter notebook submissions by analyzing each notebook"
 Ask Claude: "Send reminders to all students who haven't submitted"
 ```
-✅ Best for: Bulk processing, large datasets, complex analysis
+✅ Best for: Bulk processing with custom analysis logic, large datasets, complex conditions
 
 ### Token Savings Example
 
