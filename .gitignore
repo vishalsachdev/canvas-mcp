@@ -62,3 +62,4 @@ docs/hybrid_builder_launch.md
 
 # Archive directory - old structure and development files
 archive/
+node_modules/
