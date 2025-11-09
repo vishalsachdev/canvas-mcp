@@ -165,21 +165,34 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
         """List all available TypeScript modules in the code execution API.
 
         Returns a formatted list of all TypeScript files that can be imported
-        in the execute_typescript tool, organized by category.
+        in the execute_typescript tool, organized by category with descriptions.
 
         This helps Claude discover what operations are available for token-efficient
         bulk processing.
 
         Returns:
-            Formatted string listing all available modules by category.
+            Formatted string listing all available modules by category with descriptions.
         """
         code_api_dir = Path(__file__).parent.parent / "code_api"
 
         if not code_api_dir.exists():
             return "❌ Code API directory not found"
 
+        # Module descriptions mapping
+        module_descriptions = {
+            "bulkGrade": "Grade multiple submissions with local processing function - most token-efficient method",
+            "gradeWithRubric": "Grade a single submission with rubric criteria and optional comments",
+            "bulkGradeDiscussion": "Grade discussion posts in bulk with local processing function",
+            "listSubmissions": "Retrieve all submissions for an assignment (supports includeUser for names/emails)",
+            "listCourses": "List all courses accessible to the current user",
+            "getCourseDetails": "Get detailed information about a specific course",
+            "sendMessage": "Send a message/announcement to course participants",
+            "listDiscussions": "List discussion topics in a course",
+            "postEntry": "Post an entry to a discussion topic",
+        }
+
         # Organize modules by directory
-        modules_by_category: dict[str, list[str]] = {}
+        modules_by_category: dict[str, list[tuple[str, str]]] = {}
 
         for ts_file in code_api_dir.rglob("*.ts"):
             # Skip certain files
@@ -195,10 +208,14 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
             # Get import path (convert .ts to .js for ESM imports)
             import_path = f"./{rel_path.parent}/{rel_path.stem}.js"
 
+            # Get description from mapping
+            module_name = rel_path.stem
+            description = module_descriptions.get(module_name, "")
+
             if category not in modules_by_category:
                 modules_by_category[category] = []
 
-            modules_by_category[category].append(import_path)
+            modules_by_category[category].append((import_path, description))
 
         # Format output
         result_lines = []
@@ -211,8 +228,10 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
         for category, modules in sorted(modules_by_category.items()):
             result_lines.append(f"📁 {category.upper()}")
             result_lines.append("-" * 40)
-            for module in sorted(modules):
-                result_lines.append(f"  {module}")
+            for import_path, description in sorted(modules, key=lambda x: x[0]):
+                result_lines.append(f"  {import_path}")
+                if description:
+                    result_lines.append(f"    • {description}")
             result_lines.append("")
 
         result_lines.append("Example Usage:")
