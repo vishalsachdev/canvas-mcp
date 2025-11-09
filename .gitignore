@@ -25,6 +25,7 @@ build/
 
 # Environment variables
 .env
+env.template
 
 # IDE specific files
 .vscode/
