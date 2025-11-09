@@ -163,7 +163,8 @@ The Canvas MCP Server provides a comprehensive set of tools for interacting with
 8. **Messaging Tools** - Send messages and announcements to students
 
 **Developer Tools**
-9. **Discovery Tools** - Search and explore available code execution API operations with `search_canvas_tools`
+9. **Discovery Tools** - Search and explore available code execution API operations with `search_canvas_tools` and `list_code_api_modules`
+10. **Code Execution Tools** - Execute TypeScript code with `execute_typescript` for token-efficient bulk operations (99.7% token savings!)
 
 📖 [View Full Tool Documentation](tools/README.md) for detailed information about all available tools.
 
@@ -378,7 +379,8 @@ canvas-mcp/
 │       │   ├── rubrics.py     # Rubric tools
 │       │   ├── student_tools.py # Student-specific tools
 │       │   ├── messaging.py   # Communication tools
-│       │   ├── discovery.py   # Code API tool discovery (NEW!)
+│       │   ├── discovery.py   # Code API tool discovery
+│       │   ├── code_execution.py # TypeScript code execution (NEW!)
 │       │   └── ...            # Other tool modules
 │       ├── code_api/          # Code execution API (NEW!)
 │       │   ├── client.ts      # MCP client bridge
