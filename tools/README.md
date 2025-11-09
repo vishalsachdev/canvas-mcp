@@ -558,7 +558,7 @@ Create a new discussion post.
 
 ## Developer Tools
 
-These tools help developers discover and explore the Canvas code execution API.
+These tools help developers discover, explore, and execute Canvas code execution API operations.
 
 ### Tool Discovery
 
@@ -599,6 +599,89 @@ search_canvas_tools("", "names")
 // Get full implementation details for bulk operations
 search_canvas_tools("bulk", "full")
 ```
+
+---
+
+#### `list_code_api_modules`
+List all available TypeScript modules in the code execution API.
+
+**Parameters:** None
+
+**Example:**
+```
+"What TypeScript modules are available?"
+"List all code API modules"
+"Show me the available code execution operations"
+```
+
+**Returns:** Formatted list of all TypeScript files organized by category (grading, assignments, courses, discussions, etc.) with import paths.
+
+**Usage Tips:**
+- Use this for a quick overview of all available operations
+- Results show the exact import paths to use in `execute_typescript`
+- Organized by category for easy navigation
+
+---
+
+### Code Execution
+
+#### `execute_typescript`
+Execute TypeScript code in a Node.js environment with access to Canvas API credentials.
+
+**IMPORTANT:** This tool enables **99.7% token savings** for bulk operations by executing code locally rather than loading all data into Claude's context!
+
+**Parameters:**
+- `code`: TypeScript code to execute. Can import from './canvas/*' modules.
+- `timeout` (optional): Maximum execution time in seconds (default: 120)
+
+**Example:**
+```
+"Grade all 90 Jupyter notebook submissions using bulk grading"
+"Send reminders to all students who haven't submitted"
+"Analyze discussion participation across all students"
+```
+
+**Example Code:**
+```typescript
+import { bulkGrade } from './canvas/grading/bulkGrade.js';
+
+await bulkGrade({
+  courseIdentifier: "60366",
+  assignmentId: "123",
+  gradingFunction: (submission) => {
+    // This runs locally - no token cost!
+    const notebook = submission.attachments?.find(
+      f => f.filename.endsWith('.ipynb')
+    );
+
+    if (!notebook) return null;
+
+    return {
+      points: 100,
+      rubricAssessment: { "_8027": { points: 100 } },
+      comment: "Great work!"
+    };
+  }
+});
+```
+
+**Returns:** Combined stdout and stderr from execution, or error message if failed.
+
+**Security:**
+- Code runs in a temporary file that is deleted after execution
+- Inherits Canvas API credentials from server environment
+- Timeout enforced to prevent runaway processes
+
+**Token Efficiency:**
+- **Traditional approach**: Loads all submissions into context (1.35M tokens for 90 submissions)
+- **Code execution approach**: Only summary results return (3.5K tokens = 99.7% savings!)
+
+**Usage Tips:**
+- First use `search_canvas_tools` or `list_code_api_modules` to discover available operations
+- Import operations from './canvas/*' paths (e.g., './canvas/grading/bulkGrade.js')
+- Processing happens locally - only results flow back to Claude's context
+- Best for bulk operations, large datasets, and complex analysis
+- Traditional tools still best for simple queries and small datasets
 
 ---
 
