@@ -2,13 +2,14 @@ import { listSubmissions, Submission } from "../assignments/listSubmissions.js";
 import { gradeWithRubric } from "./gradeWithRubric.js";
 
 export interface GradeResult {
-  points: number;
-  rubricAssessment: Record<string, {
+  points?: number;
+  rubricAssessment?: Record<string, {
     points: number;
     ratingId?: string;
     comments?: string;
   }>;
-  comment: string;
+  grade?: string | number;
+  comment?: string;
 }
 
 export interface BulkGradeInput {
@@ -60,6 +61,7 @@ async function processBatch(
             assignmentId: input.assignmentId,
             userId: submission.user_id,
             rubricAssessment: gradeResult.rubricAssessment,
+            grade: gradeResult.grade,
             comment: gradeResult.comment
           });
         }

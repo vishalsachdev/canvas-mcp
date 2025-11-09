@@ -4,11 +4,12 @@ export interface GradeWithRubricInput {
   courseIdentifier: string | number;
   assignmentId: string | number;
   userId: string | number;
-  rubricAssessment: Record<string, {
+  rubricAssessment?: Record<string, {
     points: number;
     ratingId?: string;
     comments?: string;
   }>;
+  grade?: string | number;
   comment?: string;
 }
 
@@ -112,17 +113,27 @@ function buildRubricAssessmentFormData(
 export async function gradeWithRubric(
   input: GradeWithRubricInput
 ): Promise<GradeResponse> {
-  const { courseIdentifier, assignmentId, userId, rubricAssessment, comment } = input;
+  const { courseIdentifier, assignmentId, userId, rubricAssessment, grade, comment } = input;
 
-  // Validate input
-  if (!rubricAssessment || Object.keys(rubricAssessment).length === 0) {
-    throw new Error('rubricAssessment cannot be empty');
+  // Validate: Must have either rubricAssessment OR grade
+  if (!rubricAssessment && !grade && grade !== 0) {
+    throw new Error('Must provide either rubricAssessment or grade');
   }
 
-  validateRubricAssessment(rubricAssessment);
+  let formData: Record<string, string> = {};
 
-  // Build form data in Canvas's expected format
-  const formData = buildRubricAssessmentFormData(rubricAssessment, comment);
+  // Handle rubric-based grading
+  if (rubricAssessment && Object.keys(rubricAssessment).length > 0) {
+    validateRubricAssessment(rubricAssessment);
+    formData = buildRubricAssessmentFormData(rubricAssessment, comment);
+  }
+  // Handle simple grading
+  else if (grade !== undefined) {
+    formData['submission[posted_grade]'] = String(grade);
+    if (comment) {
+      formData['comment[text_comment]'] = comment;
+    }
+  }
 
   // Canvas API endpoint for updating submission
   const endpoint = `/courses/${courseIdentifier}/assignments/${assignmentId}/submissions/${userId}`;
