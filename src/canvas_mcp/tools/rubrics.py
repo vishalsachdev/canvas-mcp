@@ -1176,3 +1176,258 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         result += f"Purpose: {purpose}\n"
 
         return result
+
+    @mcp.tool()
+    @validate_params
+    async def bulk_grade_submissions(
+        course_identifier: str | int,
+        assignment_id: str | int,
+        grades: dict[str, Any],
+        dry_run: bool = False,
+        max_concurrent: int = 5,
+        rate_limit_delay: float = 1.0
+    ) -> str:
+        """Grade multiple submissions efficiently with concurrent processing.
+
+        This tool applies grades to multiple student submissions in batches, reducing the
+        number of individual API calls needed. It supports both rubric-based grading and
+        simple point-based grading.
+
+        IMPORTANT: This is the most efficient way to grade bulk submissions!
+        Token savings: Processing submissions in batches without loading all data into context.
+
+        Args:
+            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            assignment_id: The Canvas assignment ID
+            grades: Dictionary mapping user IDs to grade information
+                   Format: {
+                     "user_id": {
+                       "rubric_assessment": {...},  # Optional: rubric-based grading
+                       "grade": <number>,           # Optional: simple grade
+                       "comment": "<string>"        # Optional: feedback comment
+                     }
+                   }
+            dry_run: If True, analyze but don't actually submit grades (for testing)
+            max_concurrent: Maximum concurrent grading operations (default: 5)
+            rate_limit_delay: Delay between batches in seconds (default: 1.0)
+
+        Example Usage - Rubric Grading:
+            {
+              "course_identifier": "60366",
+              "assignment_id": "1440586",
+              "grades": {
+                "9824": {
+                  "rubric_assessment": {
+                    "_8027": {"points": 100, "comments": "Excellent work!"}
+                  },
+                  "comment": "Great job!"
+                },
+                "9825": {
+                  "rubric_assessment": {
+                    "_8027": {"points": 75, "comments": "Good work"}
+                  }
+                }
+              },
+              "dry_run": true
+            }
+
+        Example Usage - Simple Grading:
+            {
+              "course_identifier": "60366",
+              "assignment_id": "1440586",
+              "grades": {
+                "9824": {"grade": 100, "comment": "Perfect!"},
+                "9825": {"grade": 85, "comment": "Very good"}
+              }
+            }
+        """
+        import asyncio
+
+        course_id = await get_course_id(course_identifier)
+        assignment_id_str = str(assignment_id)
+
+        # Validate that we have grades to process
+        if not grades:
+            return "Error: No grades provided. The grades dictionary is empty."
+
+        # Check if rubric is configured for grading (if using rubric assessments)
+        has_rubric_grades = any(
+            "rubric_assessment" in grade_info
+            for grade_info in grades.values()
+        )
+
+        if has_rubric_grades:
+            assignment_check = await make_canvas_request(
+                "get",
+                f"/courses/{course_id}/assignments/{assignment_id_str}",
+                params={"include[]": ["rubric_settings"]}
+            )
+
+            if "error" not in assignment_check:
+                use_rubric_for_grading = assignment_check.get("use_rubric_for_grading", False)
+                if not use_rubric_for_grading and not dry_run:
+                    return (
+                        "⚠️  ERROR: Rubric is not configured for grading!\n\n"
+                        "The rubric exists but 'use_for_grading' is set to FALSE.\n"
+                        "Grades will NOT be saved to the gradebook.\n\n"
+                        "To fix this:\n"
+                        "1. Use list_assignment_rubrics to verify rubric settings\n"
+                        "2. Use associate_rubric_with_assignment with use_for_grading=True\n"
+                        "3. Or set dry_run=True to test without submitting\n"
+                    )
+
+        # Statistics tracking
+        stats = {
+            "total": len(grades),
+            "graded": 0,
+            "failed": 0
+        }
+        failed_results = []
+
+        async def grade_single_submission(user_id: str, grade_info: dict[str, Any]):
+            """Grade a single submission."""
+            try:
+                if dry_run:
+                    # In dry run mode, just validate the data
+                    if "rubric_assessment" in grade_info:
+                        total_points = sum(
+                            criterion.get("points", 0)
+                            for criterion in grade_info["rubric_assessment"].values()
+                        )
+                        return {
+                            "status": "success",
+                            "user_id": user_id,
+                            "message": f"DRY RUN: Would grade with {total_points} rubric points"
+                        }
+                    elif "grade" in grade_info:
+                        return {
+                            "status": "success",
+                            "user_id": user_id,
+                            "message": f"DRY RUN: Would grade with {grade_info['grade']} points"
+                        }
+                    else:
+                        return {
+                            "status": "failed",
+                            "user_id": user_id,
+                            "error": "No rubric_assessment or grade provided"
+                        }
+
+                # Build form data based on grading type
+                form_data = {}
+
+                if "rubric_assessment" in grade_info and grade_info["rubric_assessment"]:
+                    # Rubric-based grading
+                    form_data = build_rubric_assessment_form_data(
+                        grade_info["rubric_assessment"],
+                        grade_info.get("comment")
+                    )
+                elif "grade" in grade_info:
+                    # Simple grading
+                    form_data["submission[posted_grade]"] = str(grade_info["grade"])
+                    if "comment" in grade_info:
+                        form_data["comment[text_comment]"] = grade_info["comment"]
+                else:
+                    return {
+                        "status": "failed",
+                        "user_id": user_id,
+                        "error": "Must provide either rubric_assessment or grade"
+                    }
+
+                # Submit the grade
+                response = await make_canvas_request(
+                    "put",
+                    f"/courses/{course_id}/assignments/{assignment_id_str}/submissions/{user_id}",
+                    data=form_data,
+                    use_form_data=True
+                )
+
+                if "error" in response:
+                    return {
+                        "status": "failed",
+                        "user_id": user_id,
+                        "error": response["error"]
+                    }
+
+                return {
+                    "status": "success",
+                    "user_id": user_id,
+                    "grade": response.get("grade", "N/A")
+                }
+
+            except Exception as e:
+                return {
+                    "status": "failed",
+                    "user_id": user_id,
+                    "error": str(e)
+                }
+
+        # Process in batches
+        user_ids = list(grades.keys())
+        total_batches = (len(user_ids) + max_concurrent - 1) // max_concurrent
+
+        result_lines = []
+        result_lines.append(f"{'=' * 60}")
+        result_lines.append(f"Bulk Grading {'(DRY RUN) ' if dry_run else ''}for Assignment {assignment_id}")
+        result_lines.append(f"{'=' * 60}")
+        result_lines.append(f"Course: {await get_course_code(course_id) or course_identifier}")
+        result_lines.append(f"Total submissions to grade: {stats['total']}")
+        result_lines.append(f"Concurrent processing: {max_concurrent} per batch")
+        result_lines.append(f"Total batches: {total_batches}\n")
+
+        for i in range(0, len(user_ids), max_concurrent):
+            batch = user_ids[i:i + max_concurrent]
+            batch_num = (i // max_concurrent) + 1
+
+            result_lines.append(f"Processing batch {batch_num}/{total_batches} ({len(batch)} submissions)...")
+
+            # Process batch concurrently
+            tasks = [
+                grade_single_submission(user_id, grades[user_id])
+                for user_id in batch
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Update statistics
+            for result in results:
+                if isinstance(result, Exception):
+                    stats["failed"] += 1
+                    failed_results.append({
+                        "user_id": "unknown",
+                        "error": str(result)
+                    })
+                elif result["status"] == "success":
+                    stats["graded"] += 1
+                    result_lines.append(f"  ✓ User {result['user_id']}: {result.get('message', 'Graded')}")
+                else:
+                    stats["failed"] += 1
+                    failed_results.append({
+                        "user_id": result["user_id"],
+                        "error": result["error"]
+                    })
+                    result_lines.append(f"  ✗ User {result['user_id']}: {result['error']}")
+
+            # Rate limit between batches (except after last batch)
+            if i + max_concurrent < len(user_ids):
+                result_lines.append(f"  Waiting {rate_limit_delay}s before next batch...\n")
+                await asyncio.sleep(rate_limit_delay)
+
+        # Summary
+        result_lines.append(f"\n{'=' * 60}")
+        result_lines.append(f"Bulk Grading {'(DRY RUN) ' if dry_run else ''}Complete!")
+        result_lines.append(f"{'=' * 60}")
+        result_lines.append(f"Total:   {stats['total']}")
+        result_lines.append(f"Graded:  {stats['graded']}")
+        result_lines.append(f"Failed:  {stats['failed']}")
+
+        if failed_results:
+            result_lines.append(f"\nFailed Submissions:")
+            for failure in failed_results[:10]:  # Show first 10 failures
+                result_lines.append(f"  User {failure['user_id']}: {failure['error']}")
+            if len(failed_results) > 10:
+                result_lines.append(f"  ... and {len(failed_results) - 10} more failures")
+
+        if dry_run:
+            result_lines.append(f"\n⚠️  DRY RUN MODE: No grades were actually submitted")
+            result_lines.append(f"Set dry_run=false to apply grades")
+
+        return "\n".join(result_lines)
