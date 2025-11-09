@@ -218,6 +218,54 @@ Grade a student submission using a rubric.
 
 ---
 
+#### `bulk_grade_submissions`
+Grade multiple submissions efficiently with concurrent processing. **Most efficient way for bulk grading!**
+
+**IMPORTANT:** This tool provides significant token savings by processing submissions in batches without loading all data into context.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `assignment_id`: Assignment ID
+- `grades`: Dictionary mapping user IDs to grade information
+  ```json
+  {
+    "user_id": {
+      "rubric_assessment": {...},  // Optional: rubric-based grading
+      "grade": <number>,            // Optional: simple grade
+      "comment": "<string>"         // Optional: feedback comment
+    }
+  }
+  ```
+- `dry_run` (optional): If true, analyze but don't submit grades (default: false)
+- `max_concurrent` (optional): Maximum concurrent grading operations (default: 5)
+- `rate_limit_delay` (optional): Delay between batches in seconds (default: 1.0)
+
+**Example Usage - Rubric Grading:**
+```
+"Grade these 3 students using the rubric:
+- User 9824: 100 points for criterion _8027 with comment 'Excellent work!'
+- User 9825: 75 points for criterion _8027 with comment 'Good work'
+- User 9826: 50 points for criterion _8027 with comment 'Needs improvement'"
+```
+
+**Example Usage - Simple Grading:**
+```
+"Grade these submissions with simple points:
+- User 9824: 100 points, comment 'Perfect!'
+- User 9825: 85 points, comment 'Very good'"
+```
+
+**Returns:** Summary of grading operation including total submissions, successfully graded, failed attempts, and any error details.
+
+**Notes:**
+- Supports both rubric-based grading and simple point-based grading
+- Can mix and match grading styles for different students
+- Automatically validates rubric configuration before grading
+- Use `dry_run=true` to preview grades before applying
+- For maximum token efficiency with custom grading logic, consider using the `execute_typescript` tool with `bulkGrade` from the code execution API
+
+---
+
 ### Student Analytics
 
 #### `get_student_analytics`
