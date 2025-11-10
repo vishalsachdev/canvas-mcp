@@ -14,6 +14,40 @@ T = TypeVar('T')
 F = TypeVar('F', bound=Callable[..., Any])
 
 
+def format_error(message: str, details: str | None = None) -> dict[str, str]:
+    """
+    Format an error response consistently.
+
+    Args:
+        message: Primary error message
+        details: Optional additional details
+
+    Returns:
+        Standardized error dictionary
+
+    Example:
+        >>> format_error("Invalid course ID", "Course 12345 not found")
+        {"error": "Invalid course ID", "details": "Course 12345 not found"}
+    """
+    result: dict[str, str] = {"error": message}
+    if details:
+        result["details"] = details
+    return result
+
+
+def is_error_response(response: Any) -> bool:
+    """
+    Check if a response is an error.
+
+    Args:
+        response: Response to check
+
+    Returns:
+        True if response contains an error
+    """
+    return isinstance(response, dict) and "error" in response
+
+
 def validate_parameter(param_name: str, value: Any, expected_type: Any) -> Any:
     """
     Validate and convert a parameter to the expected type.
