@@ -361,6 +361,16 @@ This MCP server works seamlessly with any MCP-compatible client:
 - *"Create an announcement about tomorrow's exam"*
 - *"Show me peer review completion analytics"*
 
+### Quick Start Examples
+
+New to Canvas MCP? Check out these practical guides:
+
+- **[Student Quick Start](examples/student_quickstart.md)** - Common tasks for students
+- **[Educator Quick Start](examples/educator_quickstart.md)** - Essential workflows for teachers
+- **[Real-World Workflows](examples/real_world_workflows.md)** - Complete scenarios combining multiple features
+- **[Common Issues & Solutions](examples/common_issues.md)** - Troubleshooting guide
+- **[Bulk Grading Example](examples/bulk_grading_example.md)** - Token-efficient batch grading
+
 ## Project Structure
 
 Modern Python package structure following 2025 best practices:

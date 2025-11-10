@@ -155,7 +155,11 @@ def main() -> None:
         log_error("Server error", exc=e)
         sys.exit(1)
     finally:
-        # Cleanup
+        # Cleanup HTTP client resources
+        import asyncio
+        from .core.client import cleanup_http_client
+
+        asyncio.run(cleanup_http_client())
         log_info("Server stopped")
 
 
