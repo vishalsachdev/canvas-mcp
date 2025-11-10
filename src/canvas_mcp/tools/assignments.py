@@ -8,7 +8,7 @@ from mcp.server.fastmcp import FastMCP
 from ..core.anonymization import anonymize_response_data
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
-from ..core.dates import format_date, truncate_text
+from ..core.dates import format_date
 from ..core.logging import log_error
 from ..core.validation import validate_params
 
@@ -77,7 +77,7 @@ def register_assignment_tools(mcp: FastMCP):
 
         details = [
             f"Name: {response.get('name', 'N/A')}",
-            f"Description: {truncate_text(response.get('description', 'N/A'), 300)}",
+            f"Description: {response.get('description', 'N/A')}",
             f"Due Date: {format_date(response.get('due_at'))}",
             f"Points Possible: {response.get('points_possible', 'N/A')}",
             f"Submission Types: {', '.join(response.get('submission_types', ['N/A']))}",
