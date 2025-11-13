@@ -12,6 +12,27 @@ This repository contains a Model Context Protocol (MCP) server implementation fo
 
 The Canvas MCP Server bridges the gap between Claude Desktop and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data.
 
+## 🎉 Latest Release: v1.0.4
+
+**Released:** November 10, 2025 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.0.4)**
+
+### Major Features
+- **🚀 Code Execution Environment** - Execute custom TypeScript code for token-efficient bulk operations (99.7% token savings)
+- **📊 New MCP Tools:**
+  - `bulk_grade_submissions` - Efficient batch grading with optional rubric assessment
+  - `bulk_grade_discussions` - Token-efficient discussion grading API  
+  - `search_canvas_tools` - Discover available MCP tools dynamically
+
+### Improvements
+- **MCP 2.10 Compliance** - Updated FastMCP to >=2.10.0
+- **Structured Logging** - Standardized error handling and logging
+- **Flexible Grading** - Rubric assessment now optional for simple grading scenarios
+- **GitHub Actions Integration** - Automated workflows and chat session exports
+- **Enhanced Validation** - Better error handling and validation feedback
+
+### Recent Bug Fix
+- Fixed description truncation in `get_assignment_details` tool (full HTML descriptions now returned)
+
 ### For Students 👨‍🎓
 Get AI-powered assistance with:
 - Tracking upcoming assignments and deadlines
