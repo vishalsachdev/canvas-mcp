@@ -25,7 +25,6 @@ build/
 
 # Environment variables
 .env
-env.template
 
 # IDE specific files
 .vscode/
@@ -48,7 +47,6 @@ extract_canvas_api_docs.py
 canvas_api_docs/
 get_course_grades.py
 gradebook.json
-.env.template
 # Student data and utility scripts
 student_anonymization_mapping.txt
 show_student_mappings.py
