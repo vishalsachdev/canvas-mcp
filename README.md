@@ -109,11 +109,12 @@ See the [official MCP clients list](https://modelcontextprotocol.io/clients) for
 ### 1. Install Dependencies
 
 ```bash
-# Install uv package manager (faster than pip)
-pip install uv
+# (Recommended) Use a dedicated virtualenv so the MCP binary is in a stable location
+python3 -m venv .venv
+. .venv/bin/activate
 
-# Install the package
-uv pip install -e .
+# Install the package editable
+pip install -e .
 ```
 
 ### 2. Configure Environment
@@ -138,11 +139,13 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 {
   "mcpServers": {
     "canvas-api": {
-      "command": "canvas-mcp-server"
+      "command": "/Users/vishal/code/canvas-mcp/.venv/bin/canvas-mcp-server"
     }
   }
 }
 ```
+
+> Tip: Pointing Claude at the absolute path to your virtualenv binary avoids issues with shell-specific PATH entries (e.g., pyenv shims) that can cause `ModuleNotFoundError: No module named 'canvas_mcp'` when Claude launches the server.
 
 ## Verification
 

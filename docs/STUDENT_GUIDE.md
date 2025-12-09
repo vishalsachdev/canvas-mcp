@@ -84,11 +84,13 @@ Add Canvas MCP to Claude Desktop's configuration file:
 {
   "mcpServers": {
     "canvas-api": {
-      "command": "canvas-mcp-server"
+      "command": "/Users/vishal/code/canvas-mcp/.venv/bin/canvas-mcp-server"
     }
   }
 }
 ```
+
+> Tip: Use the absolute path to the virtualenv binary so Claude doesn't accidentally pick up a pyenv shim or other PATH entry that lacks the package.
 
 ### 6. Test Your Setup
 
