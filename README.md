@@ -24,7 +24,7 @@ The Canvas MCP Server bridges the gap between Claude Desktop and Canvas Learning
   - `search_canvas_tools` - Discover available MCP tools dynamically
 
 ### Improvements
-- **MCP 2.10 Compliance** - Updated FastMCP to >=2.10.0
+- **MCP 2.14 Compliance** - Updated FastMCP to >=2.14.0 with production-ready features
 - **Structured Logging** - Standardized error handling and logging
 - **Flexible Grading** - Rubric assessment now optional for simple grading scenarios
 - **GitHub Actions Integration** - Automated workflows and chat session exports
@@ -365,6 +365,36 @@ src/canvas_mcp/code_api/
 4. **Results**: Only summaries flow back to Claude's context
 
 📖 [View Bulk Grading Example](examples/bulk_grading_example.md) for a detailed walkthrough.
+
+### Code Execution Security
+
+The `execute_typescript` tool provides powerful capabilities but requires proper security considerations:
+
+**Security Features:**
+- **Temporary File Isolation**: Code executes in temporary files that are deleted after completion
+- **Environment Isolation**: Inherits only Canvas API credentials from server environment
+- **Timeout Protection**: Configurable timeout prevents runaway processes (default: 120 seconds)
+- **Local Execution**: All code runs on your local machine with no external transmission
+
+**Best Practices:**
+- **Trusted Environment Required**: Only use code execution in environments you control
+- **Review Generated Code**: Always review TypeScript code before execution, especially for bulk operations
+- **Resource Monitoring**: Monitor system resources when processing large datasets
+- **Timeout Configuration**: Adjust timeout values based on expected operation duration
+- **Production Use**: Consider implementing additional resource limits (memory, CPU) in production environments
+
+**What Code Execution Has Access To:**
+- Canvas API credentials from your `.env` file
+- All TypeScript modules in `src/canvas_mcp/code_api/`
+- Standard Node.js modules and npm packages
+- File system access within the execution context
+
+**Limitations:**
+- Cannot access files outside the repository directory
+- Cannot make network requests beyond Canvas API (unless explicitly coded)
+- Subject to Node.js and system resource constraints
+
+For technical implementation details, see `src/canvas_mcp/tools/code_execution.py:67-70`.
 
 ## Usage with MCP Clients
 
