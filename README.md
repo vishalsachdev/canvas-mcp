@@ -10,7 +10,12 @@ This repository contains a Model Context Protocol (MCP) server implementation fo
 
 ## For AI Agents
 
-<!-- INLINE AGENT GUIDE: This section is intentionally verbose because agents often can't fetch linked files -->
+<!--
+  INLINE AGENT GUIDE: Intentionally duplicates AGENTS.md content.
+  WHY: Agents often can't fetch raw.githubusercontent.com or GitHub blob pages.
+  MAINTENANCE: When updating tools, also update AGENTS.md (source of truth).
+  See docs/CLAUDE.md "Documentation Maintenance" for full guidelines.
+-->
 
 Canvas MCP provides **40+ tools** for interacting with Canvas LMS. Tools are organized by user type:
 

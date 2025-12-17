@@ -129,6 +129,58 @@ canvas-mcp/
 - **Messaging requires form data**: Use `use_form_data=True` for `/conversations` endpoints
 - **Privacy protection**: Real user IDs preserved for functionality, names anonymized for privacy
 
+## Documentation Maintenance
+
+### Source of Truth Hierarchy
+
+This repository has multiple documentation files for different audiences. To prevent redundancy:
+
+| File | Audience | Contains | Updates When |
+|------|----------|----------|--------------|
+| `AGENTS.md` | AI agents/MCP clients | Tool tables, workflows, constraints, examples | Tools added/changed |
+| `tools/README.md` | Human users | Comprehensive tool docs with all parameters | Tools added/changed |
+| `tools/TOOL_MANIFEST.json` | Programmatic access | Machine-readable tool catalog | Tools added/changed |
+| `README.md` | Everyone (entry point) | Installation, overview, links to other docs | Major releases only |
+| `examples/*.md` | Human users | Workflow tutorials, not tool reference | New workflows added |
+| `docs/CLAUDE.md` | Developers | Codebase architecture, NOT tool usage | Architecture changes |
+
+### Rules to Prevent Redundancy
+
+1. **Tool documentation**:
+   - Source of truth: `tools/README.md` (humans) and `AGENTS.md` (agents)
+   - `README.md` inline section exists ONLY for fetch-constrained agents
+   - Do NOT add tool details to examples/*.md - link to tools/README.md instead
+
+2. **Example prompts**:
+   - Source of truth: `AGENTS.md` (has example prompts per tool)
+   - `tools/TOOL_MANIFEST.json` mirrors these for machine access
+   - Quickstart guides use DIFFERENT examples (workflow-focused, not tool-focused)
+
+3. **Rate limits/constraints**:
+   - Source of truth: `AGENTS.md` (agent-facing constraints)
+   - Do NOT duplicate in README.md or tools/README.md
+
+4. **Workflows**:
+   - Source of truth: `AGENTS.md` (common workflows) + `examples/*.md` (detailed tutorials)
+   - `TOOL_MANIFEST.json` has simplified workflow references
+
+5. **When adding a new tool**:
+   - Update `tools/README.md` with full documentation
+   - Update `AGENTS.md` tool table (keep it concise)
+   - Update `tools/TOOL_MANIFEST.json` with parameters and examples
+   - Do NOT update README.md unless it's a major feature
+
+6. **When updating tool behavior**:
+   - Update the source of truth files above
+   - Check for stale references in examples/*.md
+
+### What NOT to Do
+
+- Do NOT copy tool tables between files (they drift)
+- Do NOT add installation instructions outside README.md
+- Do NOT add architecture details to AGENTS.md (that's for CLAUDE.md)
+- Do NOT add example prompts to tools/README.md (that's for AGENTS.md)
+
 ## Psychology
 
 Do not be afraid to question what I say. Do not always respond with "You're right!" Question the assertions I make and decide whether they are true. If they are probably true, don't question them. If they are probably false, question them. If you are unsure, question them. Always think critically about what I say and decide for yourself whether it is true or false
