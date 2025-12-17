@@ -8,6 +8,13 @@ This repository contains a Model Context Protocol (MCP) server implementation fo
 
 > **Note**: Recently refactored to a modular architecture for better maintainability. The legacy monolithic implementation has been archived.
 
+## For AI Agents
+
+If you're an AI agent or MCP client, see:
+- **[AGENTS.md](AGENTS.md)** - Quick start guide with tool categories, workflows, and capability boundaries
+- **[tools/TOOL_MANIFEST.json](tools/TOOL_MANIFEST.json)** - Machine-readable tool catalog for programmatic discovery
+- **[tools/README.md](tools/README.md)** - Comprehensive tool documentation
+
 ## Overview
 
 The Canvas MCP Server bridges the gap between Claude Desktop and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data.

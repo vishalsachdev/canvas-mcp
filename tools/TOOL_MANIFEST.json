@@ -1,0 +1,551 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "canvas-mcp",
+  "version": "1.0.4",
+  "description": "MCP server for Canvas Learning Management System API",
+  "categories": [
+    {
+      "id": "student",
+      "name": "Student Tools",
+      "description": "Personal academic tracking using Canvas 'self' endpoints"
+    },
+    {
+      "id": "educator",
+      "name": "Educator Tools",
+      "description": "Course management, grading, and analytics for instructors/TAs"
+    },
+    {
+      "id": "shared",
+      "name": "Shared Tools",
+      "description": "Content access tools for both students and educators"
+    },
+    {
+      "id": "developer",
+      "name": "Developer Tools",
+      "description": "Bulk operations, code execution, and tool discovery"
+    }
+  ],
+  "tools": [
+    {
+      "name": "get_my_upcoming_assignments",
+      "category": "student",
+      "description": "Get your upcoming assignments across all courses",
+      "parameters": [
+        {
+          "name": "days",
+          "type": "integer",
+          "required": false,
+          "default": 7,
+          "description": "Number of days to look ahead"
+        }
+      ],
+      "returns": "List of assignments due within timeframe, sorted by due date",
+      "examples": [
+        "What assignments do I have due this week?",
+        "Show me what's due in the next 3 days"
+      ]
+    },
+    {
+      "name": "get_my_todo_items",
+      "category": "student",
+      "description": "Get your Canvas TODO list",
+      "parameters": [],
+      "returns": "All items requiring attention with due dates and course info",
+      "examples": [
+        "Show me my Canvas TODO list",
+        "What do I need to do?"
+      ]
+    },
+    {
+      "name": "get_my_submission_status",
+      "category": "student",
+      "description": "Check your submission status across assignments",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": false,
+          "description": "Course code or ID to filter (optional)"
+        }
+      ],
+      "returns": "Submitted and missing assignments, with overdue items flagged",
+      "examples": [
+        "Have I submitted everything?",
+        "Show me my submission status for BADM 350"
+      ]
+    },
+    {
+      "name": "get_my_course_grades",
+      "category": "student",
+      "description": "View your current grades across all enrolled courses",
+      "parameters": [],
+      "returns": "Current grade and percentage for each course",
+      "examples": [
+        "What are my current grades?",
+        "Show me how I'm doing in all my courses"
+      ]
+    },
+    {
+      "name": "get_my_peer_reviews_todo",
+      "category": "student",
+      "description": "List peer reviews you need to complete",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": false,
+          "description": "Course code or ID to filter (optional)"
+        }
+      ],
+      "returns": "Incomplete peer reviews with assignment and course info",
+      "examples": [
+        "What peer reviews do I need to complete?",
+        "Show me my pending peer reviews"
+      ]
+    },
+    {
+      "name": "list_assignments",
+      "category": "educator",
+      "description": "List all assignments for a course",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        }
+      ],
+      "returns": "List of assignments with IDs, names, due dates, points",
+      "examples": [
+        "Show me all assignments in BADM 350",
+        "List assignments for course 12345"
+      ]
+    },
+    {
+      "name": "get_assignment_details",
+      "category": "educator",
+      "description": "Get detailed information about a specific assignment",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "assignment_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Assignment ID"
+        }
+      ],
+      "returns": "Full assignment details including description, due date, submission types",
+      "examples": [
+        "Show me details for assignment 456 in course 123"
+      ]
+    },
+    {
+      "name": "list_submissions",
+      "category": "educator",
+      "description": "View student submissions for an assignment",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "assignment_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Assignment ID"
+        }
+      ],
+      "returns": "List of submissions with student info, scores, and status",
+      "examples": [
+        "Who has submitted Assignment 2?",
+        "Show me submissions for the latest assignment"
+      ]
+    },
+    {
+      "name": "get_assignment_analytics",
+      "category": "educator",
+      "description": "Get comprehensive performance analytics for an assignment",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "assignment_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Assignment ID"
+        }
+      ],
+      "returns": "Submission stats, grade distribution, completion rates",
+      "examples": [
+        "Show me analytics for Assignment 3",
+        "What's the submission rate for the final project?"
+      ]
+    },
+    {
+      "name": "get_student_analytics",
+      "category": "educator",
+      "description": "Multi-dimensional student performance analysis",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "student_id",
+          "type": "string | integer",
+          "required": false,
+          "description": "Specific student ID (optional, all students if not provided)"
+        }
+      ],
+      "returns": "Assignment completion, grade trends, risk indicators",
+      "examples": [
+        "Show me student performance in BADM 350",
+        "Analyze Student_abc123's progress"
+      ]
+    },
+    {
+      "name": "bulk_grade_submissions",
+      "category": "educator",
+      "description": "Grade multiple submissions efficiently with concurrent processing",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "assignment_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Assignment ID"
+        },
+        {
+          "name": "grades",
+          "type": "object",
+          "required": true,
+          "description": "Dictionary mapping user IDs to grade info: {user_id: {rubric_assessment?, grade?, comment?}}"
+        },
+        {
+          "name": "dry_run",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "If true, analyze but don't submit grades"
+        },
+        {
+          "name": "max_concurrent",
+          "type": "integer",
+          "required": false,
+          "default": 5,
+          "description": "Maximum concurrent grading operations"
+        },
+        {
+          "name": "rate_limit_delay",
+          "type": "number",
+          "required": false,
+          "default": 1.0,
+          "description": "Delay between batches in seconds"
+        }
+      ],
+      "returns": "Summary of grading: total, successful, failed, error details",
+      "examples": [
+        "Grade these 10 students with their specific rubric scores"
+      ],
+      "notes": "Use dry_run=true first to preview. For complex grading logic, consider execute_typescript instead."
+    },
+    {
+      "name": "grade_submission_with_rubric",
+      "category": "educator",
+      "description": "Grade a single student submission using a rubric",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "assignment_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Assignment ID"
+        },
+        {
+          "name": "user_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Student user ID"
+        },
+        {
+          "name": "rubric_assessment",
+          "type": "object",
+          "required": true,
+          "description": "Rubric criterion ratings: {criterion_id: {points, comments?}}"
+        }
+      ],
+      "returns": "Confirmation of grade submission",
+      "examples": [
+        "Grade student 123's submission with 80 points on criterion _8027"
+      ]
+    },
+    {
+      "name": "send_conversation",
+      "category": "educator",
+      "description": "Send messages to students via Canvas inbox",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "recipients",
+          "type": "array",
+          "required": true,
+          "description": "Array of user IDs to message"
+        },
+        {
+          "name": "subject",
+          "type": "string",
+          "required": true,
+          "description": "Message subject"
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "description": "Message content"
+        }
+      ],
+      "returns": "Confirmation of message sent",
+      "examples": [
+        "Message students who haven't submitted Assignment 3"
+      ]
+    },
+    {
+      "name": "create_announcement",
+      "category": "educator",
+      "description": "Post a course announcement",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "description": "Announcement title"
+        },
+        {
+          "name": "message",
+          "type": "string",
+          "required": true,
+          "description": "Announcement content"
+        }
+      ],
+      "returns": "Confirmation of announcement posted",
+      "examples": [
+        "Create an announcement about tomorrow's exam"
+      ]
+    },
+    {
+      "name": "list_courses",
+      "category": "shared",
+      "description": "List all enrolled courses",
+      "parameters": [],
+      "returns": "List of courses with IDs, names, and codes",
+      "examples": [
+        "Show me my courses",
+        "What courses am I enrolled in?"
+      ]
+    },
+    {
+      "name": "get_course_details",
+      "category": "shared",
+      "description": "Get detailed course information including syllabus",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        }
+      ],
+      "returns": "Course info, syllabus, and enrollment details",
+      "examples": [
+        "Show me the syllabus for BADM 350"
+      ]
+    },
+    {
+      "name": "list_discussion_topics",
+      "category": "shared",
+      "description": "View discussion forums in a course",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "only_announcements",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Filter for announcements only"
+        }
+      ],
+      "returns": "List of discussion topics with IDs and titles",
+      "examples": [
+        "What discussions are active in my course?"
+      ]
+    },
+    {
+      "name": "list_discussion_entries",
+      "category": "shared",
+      "description": "View posts in a discussion",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "topic_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Discussion topic ID"
+        }
+      ],
+      "returns": "List of discussion posts with authors and content",
+      "examples": [
+        "Show me posts in the Week 5 discussion"
+      ]
+    },
+    {
+      "name": "search_canvas_tools",
+      "category": "developer",
+      "description": "Search available Canvas code API operations by keyword",
+      "parameters": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": false,
+          "default": "",
+          "description": "Search term (empty returns all tools)"
+        },
+        {
+          "name": "detail_level",
+          "type": "string",
+          "required": false,
+          "default": "signatures",
+          "description": "names | signatures | full"
+        }
+      ],
+      "returns": "JSON with matching tools based on detail level",
+      "examples": [
+        "Search for grading tools in the code API",
+        "What bulk operations are available?"
+      ]
+    },
+    {
+      "name": "execute_typescript",
+      "category": "developer",
+      "description": "Execute TypeScript code for bulk operations with 99.7% token savings",
+      "parameters": [
+        {
+          "name": "code",
+          "type": "string",
+          "required": true,
+          "description": "TypeScript code to execute (can import from ./canvas/* modules)"
+        },
+        {
+          "name": "timeout",
+          "type": "integer",
+          "required": false,
+          "default": 120,
+          "description": "Maximum execution time in seconds"
+        }
+      ],
+      "returns": "Combined stdout/stderr from execution",
+      "examples": [
+        "Grade all 90 notebook submissions using bulk grading",
+        "Send reminders to all students who haven't submitted"
+      ],
+      "notes": "Use search_canvas_tools first to discover available imports. Best for 30+ items."
+    }
+  ],
+  "workflows": [
+    {
+      "name": "student_weekly_planning",
+      "description": "Check upcoming work and status",
+      "steps": [
+        "get_my_upcoming_assignments(days=7)",
+        "get_my_submission_status()",
+        "get_my_peer_reviews_todo()"
+      ]
+    },
+    {
+      "name": "educator_assignment_review",
+      "description": "Review submissions and send reminders",
+      "steps": [
+        "list_submissions(course_id, assignment_id)",
+        "get_assignment_analytics(course_id, assignment_id)",
+        "send_conversation(course_id, missing_students, subject, reminder)"
+      ]
+    },
+    {
+      "name": "bulk_grading_workflow",
+      "description": "Efficiently grade many submissions",
+      "steps": [
+        "get_rubric_details(course_id, rubric_id)",
+        "bulk_grade_submissions(course_id, assignment_id, grades, dry_run=true)",
+        "bulk_grade_submissions(course_id, assignment_id, grades, dry_run=false)"
+      ]
+    },
+    {
+      "name": "token_efficient_bulk_operation",
+      "description": "Use code execution for large datasets",
+      "steps": [
+        "search_canvas_tools('bulk', 'signatures')",
+        "execute_typescript(code_with_bulkGrade)"
+      ]
+    }
+  ],
+  "constraints": {
+    "rate_limits": {
+      "canvas_api": "~700 requests per 10 minutes (varies by institution)",
+      "recommendation": "Use max_concurrent=5 and rate_limit_delay=1000ms for bulk ops"
+    },
+    "permissions": {
+      "student": "Own data only via /self endpoints",
+      "ta": "Students in assigned sections",
+      "instructor": "All students in their courses"
+    },
+    "cannot_do": [
+      "Create or delete courses",
+      "Modify course settings",
+      "Access data outside user permissions",
+      "Bypass Canvas API rate limits"
+    ]
+  }
+}
