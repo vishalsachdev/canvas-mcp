@@ -10,10 +10,71 @@ This repository contains a Model Context Protocol (MCP) server implementation fo
 
 ## For AI Agents
 
-If you're an AI agent or MCP client, see:
-- **[AGENTS.md](AGENTS.md)** - Quick start guide with tool categories, workflows, and capability boundaries
-- **[tools/TOOL_MANIFEST.json](tools/TOOL_MANIFEST.json)** - Machine-readable tool catalog for programmatic discovery
-- **[tools/README.md](tools/README.md)** - Comprehensive tool documentation
+<!-- INLINE AGENT GUIDE: This section is intentionally verbose because agents often can't fetch linked files -->
+
+Canvas MCP provides **40+ tools** for interacting with Canvas LMS. Tools are organized by user type:
+
+<details>
+<summary><strong>Student Tools</strong> (click to expand)</summary>
+
+| Tool | Purpose | Example Prompt |
+|------|---------|----------------|
+| `get_my_upcoming_assignments` | Due dates for next N days | "What's due this week?" |
+| `get_my_todo_items` | Canvas TODO list | "Show my TODO list" |
+| `get_my_submission_status` | Submitted vs missing | "Have I submitted everything?" |
+| `get_my_course_grades` | Current grades | "What are my grades?" |
+| `get_my_peer_reviews_todo` | Pending peer reviews | "What peer reviews do I need to do?" |
+
+</details>
+
+<details>
+<summary><strong>Educator Tools</strong> (click to expand)</summary>
+
+| Tool | Purpose | Example Prompt |
+|------|---------|----------------|
+| `list_assignments` | All assignments in course | "Show assignments in BADM 350" |
+| `list_submissions` | Student submissions | "Who submitted Assignment 3?" |
+| `bulk_grade_submissions` | Grade multiple at once | "Grade these 10 students" |
+| `get_assignment_analytics` | Performance stats | "Show analytics for Quiz 2" |
+| `send_conversation` | Message students | "Message students who haven't submitted" |
+| `create_announcement` | Post announcements | "Announce the exam date change" |
+
+</details>
+
+<details>
+<summary><strong>Shared Tools</strong> (click to expand)</summary>
+
+| Tool | Purpose |
+|------|---------|
+| `list_courses` | All enrolled courses |
+| `get_course_details` | Course info + syllabus |
+| `list_discussion_topics` | Discussion forums |
+| `list_discussion_entries` | Posts in a discussion |
+| `post_discussion_entry` | Add a post |
+
+</details>
+
+<details>
+<summary><strong>Developer Tools</strong> (for bulk operations)</summary>
+
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| `search_canvas_tools` | Discover code API operations | Finding available bulk ops |
+| `execute_typescript` | Run TypeScript locally | 30+ items, custom logic, 99.7% token savings |
+
+**Decision tree:** Simple query → MCP tools. Batch grading (10+) → `bulk_grade_submissions`. Complex bulk (30+) → `execute_typescript`.
+
+</details>
+
+### Quick Reference
+
+**Course identifiers:** Canvas ID (`12345`), course code (`badm_350_120251_246794`), or SIS ID
+
+**Cannot do:** Create/delete courses, modify course settings, access other users' data
+
+**Rate limits:** ~700 requests/10 min. Use `max_concurrent=5` for bulk operations.
+
+**Full documentation:** [AGENTS.md](AGENTS.md) | [tools/TOOL_MANIFEST.json](tools/TOOL_MANIFEST.json) | [tools/README.md](tools/README.md)
 
 ## Overview
 
