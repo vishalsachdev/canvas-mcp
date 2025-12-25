@@ -915,8 +915,8 @@
                 <li><a href="#features">Features</a></li>
                 <li><a href="#users">For You</a></li>
                 <li><a href="#code">Code API</a></li>
+                <li><a href="#skills">Skills</a></li>
                 <li><a href="#install">Install</a></li>
-                <li><a href="#privacy">Privacy</a></li>
             </ul>
             <div class="nav-cta">
                 <a href="https://github.com/vishalsachdev/canvas-mcp" class="btn btn-secondary">
@@ -1216,6 +1216,44 @@ canvas-mcp-server --test<br>
                     <h3>No Tracking</h3>
                     <p>Your Canvas usage and AI interactions remain completely private.</p>
                 </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Skills Section -->
+    <section class="features" id="skills">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-label">Claude Code Skills</div>
+                <h2 class="section-title">One-Command Workflows</h2>
+                <p class="section-desc">Pre-built skills that combine multiple tools into powerful, repeatable workflows.</p>
+            </div>
+            <div class="features-grid" style="grid-template-columns: repeat(2, 1fr);">
+                <div class="feature-card" style="border-top: 3px solid var(--color-educator);">
+                    <div class="feature-icon" style="background: rgba(236, 72, 153, 0.15);">👨‍🏫</div>
+                    <h3>/canvas-morning-check</h3>
+                    <p style="margin-bottom: 16px;">Educator morning course health check. Get submission rates, identify struggling students, see grade distributions, and upcoming deadlines - all in one command.</p>
+                    <div style="font-size: 0.85rem; color: var(--color-text-muted);">
+                        <strong>Try:</strong> "morning check for CS 101" or "how are my students doing"
+                    </div>
+                </div>
+                <div class="feature-card" style="border-top: 3px solid var(--color-student);">
+                    <div class="feature-icon" style="background: rgba(139, 92, 246, 0.15);">👨‍🎓</div>
+                    <h3>/canvas-week-plan</h3>
+                    <p style="margin-bottom: 16px;">Student weekly planner. See all due dates, submission status, current grades, and pending peer reviews across all courses - prioritized by urgency.</p>
+                    <div style="font-size: 0.85rem; color: var(--color-text-muted);">
+                        <strong>Try:</strong> "what's due this week" or "plan my week"
+                    </div>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 48px; padding: 32px; background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: var(--radius-lg);">
+                <h3 style="margin-bottom: 12px;">Want a Custom Skill?</h3>
+                <p style="color: var(--color-text-secondary); margin-bottom: 20px; max-width: 500px; margin-left: auto; margin-right: auto;">
+                    Instructors: Have a repetitive workflow you'd like automated? Submit an issue describing your use case and we'll create a skill for it!
+                </p>
+                <a href="https://github.com/vishalsachdev/canvas-mcp/issues/new?labels=skill-request&title=[Skill%20Request]%20&body=**Describe%20the%20workflow%20you%20want%20automated:**%0A%0A**Steps%20you%20currently%20take%20manually:**%0A1.%20%0A2.%20%0A3.%20%0A%0A**How%20often%20do%20you%20do%20this?**%0A%0A**Any%20other%20context:**" class="btn btn-primary">
+                    <span>💡</span> Request a Skill
+                </a>
             </div>
         </div>
     </section>
