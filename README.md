@@ -85,26 +85,21 @@ Canvas MCP provides **40+ tools** for interacting with Canvas LMS. Tools are org
 
 The Canvas MCP Server bridges the gap between Claude Desktop and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data.
 
-## 🎉 Latest Release: v1.0.4
+## 🎉 Latest Release: v1.0.5
 
-**Released:** November 10, 2025 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.0.4)**
+**Released:** December 25, 2025 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.0.5)**
 
-### Major Features
+### What's New in v1.0.5
+- **🎯 Claude Code Skills** - One-command workflows for common tasks
+  - `/canvas-morning-check` - Educator course health check
+  - `/canvas-week-plan` - Student weekly assignment planner
+- **🌐 GitHub Pages Website** - Beautiful documentation site at [vishalsachdev.github.io/canvas-mcp](https://vishalsachdev.github.io/canvas-mcp/)
+- **📖 HTML Documentation** - Full guides for students, educators, and developers
+
+### Previous Release (v1.0.4)
 - **🚀 Code Execution Environment** - Execute custom TypeScript code for token-efficient bulk operations (99.7% token savings)
-- **📊 New MCP Tools:**
-  - `bulk_grade_submissions` - Efficient batch grading with optional rubric assessment
-  - `bulk_grade_discussions` - Token-efficient discussion grading API  
-  - `search_canvas_tools` - Discover available MCP tools dynamically
-
-### Improvements
-- **MCP 2.14 Compliance** - Updated FastMCP to >=2.14.0 with production-ready features
-- **Structured Logging** - Standardized error handling and logging
-- **Flexible Grading** - Rubric assessment now optional for simple grading scenarios
-- **GitHub Actions Integration** - Automated workflows and chat session exports
-- **Enhanced Validation** - Better error handling and validation feedback
-
-### Recent Bug Fix
-- Fixed description truncation in `get_assignment_details` tool (full HTML descriptions now returned)
+- **📊 Bulk Operations** - `bulk_grade_submissions`, `bulk_grade_discussions`, `search_canvas_tools`
+- **MCP 2.14 Compliance** - Production-ready features and structured logging
 
 ### For Students 👨‍🎓
 Get AI-powered assistance with:
@@ -125,6 +120,28 @@ Enhance your teaching with:
 - Bulk messaging and communication tools
 
 **[→ Get Started as an Educator](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/EDUCATOR_GUIDE.md)**
+
+## 🎯 Claude Code Skills
+
+Pre-built workflows that combine multiple tools into one-command actions. Skills work with [Claude Code](https://claude.ai/code) (CLI).
+
+| Skill | For | What It Does |
+|-------|-----|--------------|
+| `/canvas-morning-check` | Educators | Course health check: submission rates, struggling students, grade distribution, upcoming deadlines |
+| `/canvas-week-plan` | Students | Weekly planner: all due dates, submission status, grades, peer reviews across courses |
+
+**Example usage:**
+```
+You: /canvas-morning-check CS 101
+Claude: [Generates comprehensive course status report]
+
+You: /canvas-week-plan
+Claude: [Shows prioritized weekly assignment plan]
+```
+
+Skills are located in `.claude/skills/` and can be customized for your workflow.
+
+**Want a custom skill?** [Submit a request](https://github.com/vishalsachdev/canvas-mcp/issues/new?labels=skill-request&title=[Skill%20Request]) describing your repetitive workflow!
 
 ## 🔒 Privacy & Data Protection
 
