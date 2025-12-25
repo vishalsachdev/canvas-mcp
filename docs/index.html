@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas MCP - AI-Powered Canvas LMS Integration</title>
+    <meta name="description" content="Bridge Claude AI with Canvas LMS. 40+ tools for students and educators. FERPA-compliant, privacy-first design.">
+    <meta name="keywords" content="Canvas LMS, MCP, Claude, AI, Education, LMS Integration">
+    <meta property="og:title" content="Canvas MCP - AI-Powered Canvas LMS Integration">
+    <meta property="og:description" content="Bridge Claude AI with Canvas LMS. 40+ tools for students and educators.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://vishalsachdev.github.io/canvas-mcp/">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --color-bg-primary: #0a0f1a;
+            --color-bg-secondary: #111827;
+            --color-bg-card: #1a2332;
+            --color-bg-card-hover: #1f2937;
+            --color-text-primary: #f8fafc;
+            --color-text-secondary: #94a3b8;
+            --color-text-muted: #64748b;
+            --color-accent-primary: #06b6d4;
+            --color-accent-secondary: #0891b2;
+            --color-accent-tertiary: #22d3ee;
+            --color-gradient-start: #06b6d4;
+            --color-gradient-end: #3b82f6;
+            --color-success: #10b981;
+            --color-warning: #f59e0b;
+            --color-student: #8b5cf6;
+            --color-educator: #ec4899;
+            --color-developer: #f97316;
+            --color-border: #334155;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+            --shadow-glow: 0 0 40px rgba(6, 182, 212, 0.3);
+            --radius-sm: 6px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--color-bg-primary);
+            color: var(--color-text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            background: rgba(10, 15, 26, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .nav-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--color-text-primary);
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--color-text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--color-accent-primary);
+        }
+
+        .nav-cta {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: var(--radius-md);
+            font-weight: 500;
+            font-size: 0.9rem;
+            text-decoration: none;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
+            color: white;
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg), var(--shadow-glow);
+        }
+
+        .btn-secondary {
+            background: var(--color-bg-card);
+            color: var(--color-text-primary);
+            border: 1px solid var(--color-border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--color-bg-card-hover);
+            border-color: var(--color-accent-primary);
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            padding: 120px 0 80px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(ellipse at 20% 20%, rgba(6, 182, 212, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(6, 182, 212, 0.05) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .hero-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                linear-gradient(rgba(6, 182, 212, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(6, 182, 212, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(6, 182, 212, 0.1);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            border-radius: 50px;
+            font-size: 0.85rem;
+            color: var(--color-accent-tertiary);
+            margin-bottom: 24px;
+        }
+
+        .badge-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--color-success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .hero h1 {
+            font-size: clamp(2.5rem, 6vw, 4rem);
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, var(--color-text-primary) 0%, var(--color-accent-tertiary) 50%, var(--color-text-primary) 100%);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradient-shift 8s ease infinite;
+        }
+
+        @keyframes gradient-shift {
+            0%, 100% { background-position: 0% center; }
+            50% { background-position: 200% center; }
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--color-text-secondary);
+            max-width: 600px;
+            margin: 0 auto 32px;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .hero-stats {
+            display: flex;
+            justify-content: center;
+            gap: 48px;
+            margin-top: 64px;
+            padding-top: 48px;
+            border-top: 1px solid var(--color-border);
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--color-accent-primary);
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--color-text-muted);
+            margin-top: 4px;
+        }
+
+        /* Features Section */
+        .features {
+            padding: 120px 0;
+            background: var(--color-bg-secondary);
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 64px;
+        }
+
+        .section-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--color-accent-primary);
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            font-size: clamp(2rem, 4vw, 2.75rem);
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .section-desc {
+            font-size: 1.1rem;
+            color: var(--color-text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+        }
+
+        .feature-card {
+            background: var(--color-bg-card);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: 32px;
+            transition: all 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--color-accent-primary);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .feature-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+        }
+
+        .feature-icon.cyan {
+            background: rgba(6, 182, 212, 0.15);
+        }
+
+        .feature-icon.blue {
+            background: rgba(59, 130, 246, 0.15);
+        }
+
+        .feature-icon.green {
+            background: rgba(16, 185, 129, 0.15);
+        }
+
+        .feature-icon.orange {
+            background: rgba(249, 115, 22, 0.15);
+        }
+
+        .feature-card h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .feature-card p {
+            color: var(--color-text-secondary);
+            font-size: 0.95rem;
+        }
+
+        /* User Sections */
+        .user-sections {
+            padding: 120px 0;
+        }
+
+        .user-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 32px;
+        }
+
+        .user-card {
+            background: var(--color-bg-card);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-xl);
+            padding: 40px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .user-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+        }
+
+        .user-card.student::before {
+            background: linear-gradient(90deg, var(--color-student), #a78bfa);
+        }
+
+        .user-card.educator::before {
+            background: linear-gradient(90deg, var(--color-educator), #f472b6);
+        }
+
+        .user-card.developer::before {
+            background: linear-gradient(90deg, var(--color-developer), #fb923c);
+        }
+
+        .user-card-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            margin-bottom: 24px;
+        }
+
+        .user-card.student .user-card-icon {
+            background: rgba(139, 92, 246, 0.15);
+        }
+
+        .user-card.educator .user-card-icon {
+            background: rgba(236, 72, 153, 0.15);
+        }
+
+        .user-card.developer .user-card-icon {
+            background: rgba(249, 115, 22, 0.15);
+        }
+
+        .user-card h3 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .user-card > p {
+            color: var(--color-text-secondary);
+            margin-bottom: 24px;
+        }
+
+        .user-features {
+            list-style: none;
+            margin-bottom: 24px;
+        }
+
+        .user-features li {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 8px 0;
+            font-size: 0.95rem;
+        }
+
+        .user-features li::before {
+            content: '✓';
+            color: var(--color-success);
+            font-weight: 600;
+        }
+
+        /* Code Execution Section */
+        .code-section {
+            padding: 120px 0;
+            background: var(--color-bg-secondary);
+        }
+
+        .code-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 64px;
+            align-items: center;
+        }
+
+        .code-content h2 {
+            font-size: 2.25rem;
+            font-weight: 700;
+            margin-bottom: 24px;
+        }
+
+        .code-content p {
+            color: var(--color-text-secondary);
+            font-size: 1.1rem;
+            margin-bottom: 32px;
+        }
+
+        .savings-card {
+            background: var(--color-bg-card);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .savings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .savings-badge {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--color-success);
+            padding: 6px 12px;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .savings-comparison {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .savings-item {
+            text-align: center;
+        }
+
+        .savings-item .value {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .savings-item .label {
+            font-size: 0.85rem;
+            color: var(--color-text-muted);
+        }
+
+        .savings-item.old .value {
+            color: var(--color-text-muted);
+            text-decoration: line-through;
+        }
+
+        .savings-item.new .value {
+            color: var(--color-success);
+        }
+
+        .savings-arrow {
+            font-size: 1.5rem;
+            color: var(--color-accent-primary);
+        }
+
+        .code-preview {
+            background: var(--color-bg-card);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .code-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .code-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .code-dot.red { background: #ef4444; }
+        .code-dot.yellow { background: #eab308; }
+        .code-dot.green { background: #22c55e; }
+
+        .code-body {
+            padding: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            line-height: 1.7;
+            overflow-x: auto;
+        }
+
+        .code-body pre {
+            margin: 0;
+        }
+
+        .code-keyword { color: #c678dd; }
+        .code-string { color: #98c379; }
+        .code-function { color: #61afef; }
+        .code-comment { color: #5c6370; }
+        .code-number { color: #d19a66; }
+
+        /* Installation Section */
+        .installation {
+            padding: 120px 0;
+        }
+
+        .install-steps {
+            display: grid;
+            gap: 24px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .install-step {
+            display: flex;
+            gap: 24px;
+            background: var(--color-bg-card);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+        }
+
+        .step-number {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .step-content h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .step-content p {
+            color: var(--color-text-secondary);
+            font-size: 0.95rem;
+            margin-bottom: 16px;
+        }
+
+        .step-code {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            overflow-x: auto;
+        }
+
+        /* Privacy Section */
+        .privacy {
+            padding: 120px 0;
+            background: var(--color-bg-secondary);
+        }
+
+        .privacy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+        }
+
+        .privacy-card {
+            background: var(--color-bg-card);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            text-align: center;
+        }
+
+        .privacy-icon {
+            width: 64px;
+            height: 64px;
+            background: rgba(16, 185, 129, 0.15);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.75rem;
+            margin: 0 auto 20px;
+        }
+
+        .privacy-card h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .privacy-card p {
+            color: var(--color-text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* Clients Section */
+        .clients {
+            padding: 120px 0;
+        }
+
+        .clients-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 24px;
+            margin-top: 48px;
+        }
+
+        .client-badge {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--color-bg-card);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: 16px 24px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .client-badge:hover {
+            border-color: var(--color-accent-primary);
+            transform: translateY(-2px);
+        }
+
+        .client-badge img {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+        }
+
+        .client-icon {
+            width: 28px;
+            height: 28px;
+            background: var(--color-accent-primary);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+        }
+
+        /* CTA Section */
+        .cta {
+            padding: 120px 0;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cta-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(ellipse at 50% 0%, rgba(6, 182, 212, 0.2) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .cta-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .cta h2 {
+            font-size: clamp(2rem, 4vw, 3rem);
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .cta p {
+            font-size: 1.1rem;
+            color: var(--color-text-secondary);
+            max-width: 500px;
+            margin: 0 auto 32px;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        /* Footer */
+        footer {
+            padding: 48px 0;
+            border-top: 1px solid var(--color-border);
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 24px;
+        }
+
+        .footer-left {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 24px;
+        }
+
+        .footer-links a {
+            color: var(--color-text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+
+        .footer-links a:hover {
+            color: var(--color-accent-primary);
+        }
+
+        .footer-right {
+            color: var(--color-text-muted);
+            font-size: 0.85rem;
+        }
+
+        /* Mobile Menu */
+        .mobile-menu-btn {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--color-text-primary);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .code-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links, .nav-cta {
+                display: none;
+            }
+
+            .mobile-menu-btn {
+                display: block;
+            }
+
+            .hero-stats {
+                flex-direction: column;
+                gap: 24px;
+            }
+
+            .hero-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .user-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .install-step {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .step-number {
+                margin: 0 auto;
+            }
+
+            .footer-content {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .footer-left {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav>
+        <div class="nav-container">
+            <a href="#" class="logo">
+                <div class="logo-icon">📚</div>
+                Canvas MCP
+            </a>
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#users">For You</a></li>
+                <li><a href="#code">Code API</a></li>
+                <li><a href="#install">Install</a></li>
+                <li><a href="#privacy">Privacy</a></li>
+            </ul>
+            <div class="nav-cta">
+                <a href="https://github.com/vishalsachdev/canvas-mcp" class="btn btn-secondary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    GitHub
+                </a>
+                <a href="#install" class="btn btn-primary">Get Started</a>
+            </div>
+            <button class="mobile-menu-btn">☰</button>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-bg"></div>
+        <div class="hero-grid"></div>
+        <div class="container">
+            <div class="hero-content">
+                <div class="badge">
+                    <span class="badge-dot"></span>
+                    v1.0.4 Now Available
+                </div>
+                <h1>AI-Powered Canvas LMS Integration</h1>
+                <p>Bridge Claude AI with Canvas Learning Management System. 40+ tools for students, educators, and developers. Privacy-first, FERPA-compliant design.</p>
+                <div class="hero-buttons">
+                    <a href="#install" class="btn btn-primary">
+                        <span>🚀</span> Quick Start
+                    </a>
+                    <a href="https://github.com/vishalsachdev/canvas-mcp" class="btn btn-secondary">
+                        View on GitHub
+                    </a>
+                </div>
+                <div class="hero-stats">
+                    <div class="stat">
+                        <div class="stat-value">40+</div>
+                        <div class="stat-label">MCP Tools</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">99.7%</div>
+                        <div class="stat-label">Token Savings</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">FERPA</div>
+                        <div class="stat-label">Compliant</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-label">Features</div>
+                <h2 class="section-title">Everything You Need for Canvas</h2>
+                <p class="section-desc">Comprehensive tools designed for real educational workflows, from simple queries to complex bulk operations.</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon cyan">🎯</div>
+                    <h3>Natural Language Interface</h3>
+                    <p>Ask questions like "What's due this week?" or "Which students haven't submitted?" and get instant answers from your Canvas data.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon blue">⚡</div>
+                    <h3>Code Execution API</h3>
+                    <p>Execute custom TypeScript for bulk operations with 99.7% token savings. Grade 90 submissions without loading them into context.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon green">🔒</div>
+                    <h3>Privacy-First Design</h3>
+                    <p>FERPA-compliant with automatic data anonymization. Student data is protected before it reaches AI systems.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon orange">📊</div>
+                    <h3>Analytics & Insights</h3>
+                    <p>Track student performance, assignment completion rates, peer review analytics, and more with AI-powered analysis.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon cyan">💬</div>
+                    <h3>Discussion Management</h3>
+                    <p>Manage discussions, post announcements, facilitate peer reviews, and grade discussion participation efficiently.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon blue">🔧</div>
+                    <h3>Developer Tools</h3>
+                    <p>Discover APIs with search_canvas_tools, execute TypeScript locally, and build custom integrations with the code API.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- User Sections -->
+    <section class="user-sections" id="users">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-label">For Everyone</div>
+                <h2 class="section-title">Built for Your Role</h2>
+                <p class="section-desc">Whether you're a student tracking assignments or an educator managing courses, Canvas MCP has you covered.</p>
+            </div>
+            <div class="user-grid">
+                <div class="user-card student">
+                    <div class="user-card-icon">👨‍🎓</div>
+                    <h3>For Students</h3>
+                    <p>Get AI-powered assistance with your coursework and stay organized throughout the semester.</p>
+                    <ul class="user-features">
+                        <li>Track upcoming assignments and deadlines</li>
+                        <li>Monitor your grades across all courses</li>
+                        <li>Manage peer review assignments</li>
+                        <li>Access course content and discussions</li>
+                        <li>Organize your TODO list</li>
+                    </ul>
+                    <a href="https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/STUDENT_GUIDE.md" class="btn btn-secondary">Student Guide →</a>
+                </div>
+                <div class="user-card educator">
+                    <div class="user-card-icon">👨‍🏫</div>
+                    <h3>For Educators</h3>
+                    <p>Enhance your teaching with powerful tools for course management and student engagement.</p>
+                    <ul class="user-features">
+                        <li>Assignment and grading management</li>
+                        <li>Student analytics and tracking</li>
+                        <li>Discussion facilitation</li>
+                        <li>FERPA-compliant data handling</li>
+                        <li>Bulk messaging and announcements</li>
+                    </ul>
+                    <a href="https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/EDUCATOR_GUIDE.md" class="btn btn-secondary">Educator Guide →</a>
+                </div>
+                <div class="user-card developer">
+                    <div class="user-card-icon">💻</div>
+                    <h3>For Developers</h3>
+                    <p>Leverage the code execution API for maximum efficiency with custom operations.</p>
+                    <ul class="user-features">
+                        <li>Execute TypeScript locally</li>
+                        <li>99.7% token savings on bulk ops</li>
+                        <li>Discover APIs with search tools</li>
+                        <li>Build custom integrations</li>
+                        <li>Concurrent processing with rate limits</li>
+                    </ul>
+                    <a href="https://github.com/vishalsachdev/canvas-mcp/blob/main/examples/bulk_grading_example.md" class="btn btn-secondary">Code API Docs →</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Code Section -->
+    <section class="code-section" id="code">
+        <div class="container">
+            <div class="code-grid">
+                <div class="code-content">
+                    <div class="section-label">Code Execution API</div>
+                    <h2>Bulk Operations, Minimal Tokens</h2>
+                    <p>Traditional MCP tool calls load every submission into Claude's context. Our code execution API processes data locally, returning only summaries.</p>
+
+                    <div class="savings-card">
+                        <div class="savings-header">
+                            <span>Grading 90 Submissions</span>
+                            <span class="savings-badge">99.7% Reduction</span>
+                        </div>
+                        <div class="savings-comparison">
+                            <div class="savings-item old">
+                                <div class="value">1.35M</div>
+                                <div class="label">Traditional</div>
+                            </div>
+                            <div class="savings-arrow">→</div>
+                            <div class="savings-item new">
+                                <div class="value">3.5K</div>
+                                <div class="label">Code Exec</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <a href="https://github.com/vishalsachdev/canvas-mcp/blob/main/examples/bulk_grading_example.md" class="btn btn-primary">Learn More →</a>
+                </div>
+                <div class="code-preview">
+                    <div class="code-header">
+                        <span class="code-dot red"></span>
+                        <span class="code-dot yellow"></span>
+                        <span class="code-dot green"></span>
+                        <span style="margin-left: 12px; color: var(--color-text-muted); font-size: 0.8rem;">bulkGrade.ts</span>
+                    </div>
+                    <div class="code-body">
+<pre><span class="code-keyword">import</span> { bulkGrade } <span class="code-keyword">from</span> <span class="code-string">'./canvas/grading'</span>;
+
+<span class="code-keyword">await</span> <span class="code-function">bulkGrade</span>({
+  courseIdentifier: <span class="code-string">"60366"</span>,
+  assignmentId: <span class="code-string">"123"</span>,
+  <span class="code-function">gradingFunction</span>: (submission) => {
+    <span class="code-comment">// Analysis happens locally!</span>
+    <span class="code-keyword">const</span> notebook = submission.attachments
+      ?.find(f => f.filename.endsWith(<span class="code-string">'.ipynb'</span>));
+
+    <span class="code-keyword">if</span> (!notebook) <span class="code-keyword">return null</span>;
+
+    <span class="code-keyword">return</span> {
+      points: <span class="code-number">100</span>,
+      comment: <span class="code-string">"Great work!"</span>
+    };
+  }
+});</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Installation Section -->
+    <section class="installation" id="install">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-label">Get Started</div>
+                <h2 class="section-title">Quick Installation</h2>
+                <p class="section-desc">Get up and running with Canvas MCP in just a few minutes.</p>
+            </div>
+            <div class="install-steps">
+                <div class="install-step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h3>Clone & Install Dependencies</h3>
+                        <p>Clone the repository and set up a Python virtual environment with all dependencies.</p>
+                        <div class="step-code">
+git clone https://github.com/vishalsachdev/canvas-mcp.git<br>
+cd canvas-mcp<br>
+python3 -m venv .venv && . .venv/bin/activate<br>
+pip install -e .
+                        </div>
+                    </div>
+                </div>
+                <div class="install-step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h3>Configure Environment</h3>
+                        <p>Copy the template and add your Canvas API credentials.</p>
+                        <div class="step-code">
+cp env.template .env<br>
+# Edit .env with your CANVAS_API_TOKEN and CANVAS_API_URL
+                        </div>
+                    </div>
+                </div>
+                <div class="install-step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h3>Configure Claude Desktop</h3>
+                        <p>Add the server to your Claude Desktop configuration file.</p>
+                        <div class="step-code">
+{<br>
+&nbsp;&nbsp;"mcpServers": {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;"canvas-api": {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"command": "/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"<br>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;}<br>
+}
+                        </div>
+                    </div>
+                </div>
+                <div class="install-step">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <h3>Verify & Start Using</h3>
+                        <p>Test your connection and start interacting with Canvas through Claude.</p>
+                        <div class="step-code">
+canvas-mcp-server --test<br>
+# Then restart Claude Desktop and start chatting!
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Privacy Section -->
+    <section class="privacy" id="privacy">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-label">Security</div>
+                <h2 class="section-title">Privacy-First Design</h2>
+                <p class="section-desc">Your data stays safe with local processing and FERPA-compliant anonymization.</p>
+            </div>
+            <div class="privacy-grid">
+                <div class="privacy-card">
+                    <div class="privacy-icon">🏠</div>
+                    <h3>Local Processing</h3>
+                    <p>Everything runs on your machine. No data is sent to external servers beyond Canvas API.</p>
+                </div>
+                <div class="privacy-card">
+                    <div class="privacy-icon">🔐</div>
+                    <h3>FERPA Compliant</h3>
+                    <p>Automatic student data anonymization for educators. Real names converted to anonymous IDs.</p>
+                </div>
+                <div class="privacy-card">
+                    <div class="privacy-icon">👤</div>
+                    <h3>Self-Only Access</h3>
+                    <p>Students can only access their own data through Canvas API's "self" endpoints.</p>
+                </div>
+                <div class="privacy-card">
+                    <div class="privacy-icon">🚫</div>
+                    <h3>No Tracking</h3>
+                    <p>Your Canvas usage and AI interactions remain completely private.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Clients Section -->
+    <section class="clients">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-label">Compatibility</div>
+                <h2 class="section-title">Works with Your Favorite Tools</h2>
+                <p class="section-desc">Canvas MCP works with any MCP-compatible client.</p>
+            </div>
+            <div class="clients-grid">
+                <div class="client-badge">
+                    <div class="client-icon">🤖</div>
+                    <span>Claude Desktop</span>
+                </div>
+                <div class="client-badge">
+                    <div class="client-icon">⚡</div>
+                    <span>Zed</span>
+                </div>
+                <div class="client-badge">
+                    <div class="client-icon">🖱️</div>
+                    <span>Cursor</span>
+                </div>
+                <div class="client-badge">
+                    <div class="client-icon">🌊</div>
+                    <span>Windsurf</span>
+                </div>
+                <div class="client-badge">
+                    <div class="client-icon">➡️</div>
+                    <span>Continue</span>
+                </div>
+                <div class="client-badge">
+                    <div class="client-icon">💻</div>
+                    <span>Replit</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta">
+        <div class="cta-bg"></div>
+        <div class="container">
+            <div class="cta-content">
+                <h2>Ready to Transform Your Canvas Experience?</h2>
+                <p>Join educators and students using AI to make Canvas more powerful and intuitive.</p>
+                <div class="cta-buttons">
+                    <a href="#install" class="btn btn-primary">
+                        <span>🚀</span> Get Started Now
+                    </a>
+                    <a href="https://github.com/vishalsachdev/canvas-mcp" class="btn btn-secondary">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                        Star on GitHub
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-left">
+                    <a href="#" class="logo">
+                        <div class="logo-icon">📚</div>
+                        Canvas MCP
+                    </a>
+                    <div class="footer-links">
+                        <a href="https://github.com/vishalsachdev/canvas-mcp">GitHub</a>
+                        <a href="https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/STUDENT_GUIDE.md">Student Guide</a>
+                        <a href="https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/EDUCATOR_GUIDE.md">Educator Guide</a>
+                        <a href="https://github.com/vishalsachdev/canvas-mcp/blob/main/LICENSE">MIT License</a>
+                    </div>
+                </div>
+                <div class="footer-right">
+                    Created by <a href="https://github.com/vishalsachdev" style="color: var(--color-accent-primary); text-decoration: none;">Vishal Sachdev</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Add scroll effect to navbar
+        const nav = document.querySelector('nav');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 50) {
+                nav.style.background = 'rgba(10, 15, 26, 0.95)';
+            } else {
+                nav.style.background = 'rgba(10, 15, 26, 0.85)';
+            }
+        });
+
+        // Animate stats on scroll
+        const observerOptions = {
+            threshold: 0.5
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.feature-card, .user-card, .install-step, .privacy-card').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(20px)';
+            el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+            observer.observe(el);
+        });
+    </script>
+</body>
+</html>
