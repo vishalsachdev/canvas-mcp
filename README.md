@@ -170,6 +170,27 @@ All student data is anonymized **before** it reaches AI systems. See [Educator G
 - **Canvas API Access** - API token and institution URL
 - **MCP Client** - Claude Desktop (recommended) or other MCP-compatible client
 
+### Canvas API Compatibility
+
+Canvas MCP is compatible with Canvas LMS API and stays current with Canvas API changes:
+
+| Canvas MCP Version | Canvas API Version | Status | Notes |
+|-------------------|-------------------|--------|-------|
+| v1.0.4+ | 2024-2026 | ✅ Current | Compliant with upcoming 2026 API requirements |
+| v1.0.0-1.0.3 | 2024-2025 | ✅ Compatible | Functional but missing User-Agent header (required Jan 2026) |
+
+**Important Canvas API Changes:**
+- **January 2026**: User-Agent header enforcement (✅ implemented in v1.0.4+)
+- **January 2026**: Deprecation of `limit` parameter in favor of `per_page` (✅ compliant)
+- **Modern Canvas REST API**: All endpoints use current Canvas API standards
+
+**Canvas Instance Requirements:**
+- Canvas Cloud (canvas.instructure.com) - Fully supported
+- Self-hosted Canvas instances - Supported (API v1+)
+- Minimum recommended: Canvas LMS 2020+ for full feature compatibility
+
+For Canvas API changes, see [Canvas API Change Log](https://canvas.instructure.com/doc/api/file.changelog.html)
+
 ### Supported MCP Clients
 
 Canvas MCP works with any application that supports the Model Context Protocol. Popular options include:

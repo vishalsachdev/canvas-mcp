@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/vishalsachdev/canvas-mcp/blob/main/README.md
+    about: Read the Canvas MCP documentation
+  - name: Agent Guide
+    url: https://github.com/vishalsachdev/canvas-mcp/blob/main/AGENTS.md
+    about: Guide for AI agents using Canvas MCP
+  - name: Tool Reference
+    url: https://github.com/vishalsachdev/canvas-mcp/blob/main/tools/README.md
+    about: Complete tool documentation
+  - name: Security Policy
+    url: https://github.com/vishalsachdev/canvas-mcp/blob/main/SECURITY.md
+    about: Report security vulnerabilities
