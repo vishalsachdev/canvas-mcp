@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Execution API - Canvas MCP</title>
+    <meta name="description" content="Learn how to use the Canvas MCP Code Execution API for bulk grading with 99.7% token savings.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav>
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <div class="logo-icon">📚</div>
+                Canvas MCP
+            </a>
+            <ul class="nav-links">
+                <li><a href="index.html#features">Features</a></li>
+                <li><a href="student-guide.html">Students</a></li>
+                <li><a href="educator-guide.html">Educators</a></li>
+                <li><a href="bulk-grading.html" class="active">Code API</a></li>
+            </ul>
+            <div class="nav-cta">
+                <a href="https://github.com/vishalsachdev/canvas-mcp" class="btn btn-secondary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    GitHub
+                </a>
+                <a href="index.html#install" class="btn btn-primary">Get Started</a>
+            </div>
+            <button class="mobile-menu-btn">☰</button>
+        </div>
+    </nav>
+
+    <div class="doc-page">
+        <header class="doc-header">
+            <div class="container">
+                <div class="doc-header-content">
+                    <span class="doc-badge developer">💻 Developer Guide</span>
+                    <h1>Code Execution API</h1>
+                    <p>Achieve 99.7% token savings on bulk operations by executing TypeScript locally instead of loading data into Claude's context.</p>
+                </div>
+            </div>
+        </header>
+
+        <div class="container">
+            <div class="doc-layout">
+                <aside class="doc-sidebar">
+                    <ul class="doc-nav">
+                        <li><a href="#overview">Overview</a></li>
+                        <li><a href="#token-savings">Token Savings</a></li>
+                        <li><a href="#traditional-approach">Traditional Approach</a></li>
+                        <li><a href="#code-execution">Code Execution</a></li>
+                        <li><a href="#bulk-grading">Bulk Grading Example</a></li>
+                        <li><a href="#discussion-grading">Discussion Grading</a></li>
+                        <li><a href="#discovery">Discovering Tools</a></li>
+                        <li><a href="#dry-run">Dry Run Mode</a></li>
+                        <li><a href="#best-practices">Best Practices</a></li>
+                        <li><a href="#troubleshooting">Troubleshooting</a></li>
+                    </ul>
+                </aside>
+
+                <main class="doc-content">
+                    <section id="overview">
+                        <h2>Overview</h2>
+                        <p>The Canvas MCP Code Execution API enables you to perform bulk operations on Canvas data with minimal token usage. Instead of loading all submissions into Claude's context, the code executes locally and returns only summaries.</p>
+
+                        <div class="info-box tip">
+                            <div class="info-box-title">💡 When to Use</div>
+                            <p><strong>Traditional tools:</strong> Simple queries, single items<br>
+                            <strong>bulk_grade_submissions:</strong> Batch grading 10+ items with predefined grades<br>
+                            <strong>Code Execution:</strong> Complex bulk operations with custom logic (30+ items)</p>
+                        </div>
+                    </section>
+
+                    <section id="token-savings">
+                        <h2>Token Savings Comparison</h2>
+
+                        <p>Scenario: Grading 90 Jupyter notebook submissions</p>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Metric</th>
+                                    <th>Traditional</th>
+                                    <th>Code Execution</th>
+                                    <th>Savings</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Token Usage</td>
+                                    <td>1.35M</td>
+                                    <td>3.5K</td>
+                                    <td><strong style="color: var(--color-success);">99.7%</strong></td>
+                                </tr>
+                                <tr>
+                                    <td>Data Location</td>
+                                    <td>Claude's context</td>
+                                    <td>Local execution</td>
+                                    <td>-</td>
+                                </tr>
+                                <tr>
+                                    <td>Processing Speed</td>
+                                    <td>Slow (sequential)</td>
+                                    <td>Fast (concurrent)</td>
+                                    <td>10x+</td>
+                                </tr>
+                                <tr>
+                                    <td>Max Submissions</td>
+                                    <td>~100 (token limits)</td>
+                                    <td>Unlimited</td>
+                                    <td>∞</td>
+                                </tr>
+                                <tr>
+                                    <td>Cost (approx)</td>
+                                    <td>~$5</td>
+                                    <td>~$0.02</td>
+                                    <td>250x</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </section>
+
+                    <section id="traditional-approach">
+                        <h2>Traditional Approach (Inefficient)</h2>
+
+                        <p>The traditional approach loads all submissions into Claude's context:</p>
+
+                        <pre><code><span class="code-comment">// Load ALL submissions into context</span>
+<span class="code-keyword">const</span> submissions = <span class="code-keyword">await</span> <span class="code-function">list_submissions</span>({
+  courseIdentifier: <span class="code-string">"60366"</span>,
+  assignmentId: <span class="code-string">"123"</span>
+});
+<span class="code-comment">// → 90 submissions × 15K tokens each = 1.35M tokens!</span>
+
+<span class="code-comment">// Process each one (more tokens!)</span>
+<span class="code-keyword">for</span> (<span class="code-keyword">const</span> sub <span class="code-keyword">of</span> submissions) {
+  <span class="code-keyword">await</span> <span class="code-function">grade_with_rubric</span>({
+    courseIdentifier: <span class="code-string">"60366"</span>,
+    assignmentId: <span class="code-string">"123"</span>,
+    userId: sub.userId,
+    rubricAssessment: { ... }
+  });
+}</code></pre>
+
+                        <h3>Why This Is Inefficient</h3>
+                        <ul>
+                            <li style="color: var(--color-error);">✗ All 90 submissions loaded into Claude's context</li>
+                            <li style="color: var(--color-error);">✗ ~1.35M tokens consumed</li>
+                            <li style="color: var(--color-error);">✗ Slow execution (sequential processing)</li>
+                            <li style="color: var(--color-error);">✗ Risk of hitting token limits</li>
+                            <li style="color: var(--color-error);">✗ Expensive for large classes</li>
+                        </ul>
+                    </section>
+
+                    <section id="code-execution">
+                        <h2>Code Execution Approach (Efficient)</h2>
+
+                        <p>The code execution API processes data locally:</p>
+
+                        <pre><code><span class="code-keyword">import</span> { bulkGrade } <span class="code-keyword">from</span> <span class="code-string">'./canvas/grading/bulkGrade'</span>;
+
+<span class="code-keyword">await</span> <span class="code-function">bulkGrade</span>({
+  courseIdentifier: <span class="code-string">"60366"</span>,
+  assignmentId: <span class="code-string">"123"</span>,
+  gradingFunction: (submission) => {
+    <span class="code-comment">// ⭐ This function runs LOCALLY</span>
+    <span class="code-comment">// ⭐ Submissions never enter Claude's context!</span>
+
+    <span class="code-keyword">const</span> notebook = submission.attachments?.find(
+      f => f.filename.endsWith(<span class="code-string">'.ipynb'</span>)
+    );
+
+    <span class="code-keyword">if</span> (!notebook) {
+      console.log(<span class="code-string">`No notebook for user ${submission.userId}`</span>);
+      <span class="code-keyword">return null</span>; <span class="code-comment">// Skip this submission</span>
+    }
+
+    <span class="code-comment">// Download and analyze notebook (locally!)</span>
+    <span class="code-keyword">const</span> analysis = <span class="code-function">analyzeNotebook</span>(notebook.url);
+
+    <span class="code-keyword">if</span> (analysis.hasErrors) {
+      <span class="code-keyword">return</span> {
+        points: <span class="code-number">0</span>,
+        rubricAssessment: {
+          <span class="code-string">"_8027"</span>: {
+            points: <span class="code-number">0</span>,
+            comments: <span class="code-string">`Found errors: ${analysis.errors.join(', ')}`</span>
+          }
+        },
+        comment: <span class="code-string">"Please fix errors and resubmit."</span>
+      };
+    }
+
+    <span class="code-keyword">return</span> {
+      points: <span class="code-number">100</span>,
+      rubricAssessment: {
+        <span class="code-string">"_8027"</span>: { points: <span class="code-number">100</span>, comments: <span class="code-string">"Excellent work!"</span> }
+      },
+      comment: <span class="code-string">"Great submission!"</span>
+    };
+  }
+});</code></pre>
+
+                        <h3>Why This Is Efficient</h3>
+                        <ul>
+                            <li style="color: var(--color-success);">✓ Only ~3.5K tokens total (99.7% reduction!)</li>
+                            <li style="color: var(--color-success);">✓ Data processed locally in execution environment</li>
+                            <li style="color: var(--color-success);">✓ Faster execution (can process concurrently)</li>
+                            <li style="color: var(--color-success);">✓ No token limit concerns</li>
+                            <li style="color: var(--color-success);">✓ Scales to 1000+ submissions easily</li>
+                        </ul>
+                    </section>
+
+                    <section id="bulk-grading">
+                        <h2>Bulk Grading Example</h2>
+
+                        <h3>Output Format</h3>
+                        <pre><code>Starting bulk grading for assignment 123...
+Found 90 submissions to process
+
+✓ Graded submission for user 12345
+✓ Graded submission for user 12346
+Skipped submission for user 12347 (no notebook)
+✓ Graded submission for user 12348
+✗ Failed to grade user 12349: Network timeout
+...
+
+Bulk grading complete:
+  Total: 90
+  Graded: 87
+  Skipped: 2
+  Failed: 1</code></pre>
+
+                        <h3>Advanced Custom Analysis</h3>
+                        <pre><code><span class="code-keyword">await</span> <span class="code-function">bulkGrade</span>({
+  courseIdentifier: <span class="code-string">"60366"</span>,
+  assignmentId: <span class="code-string">"123"</span>,
+  gradingFunction: (submission) => {
+    <span class="code-keyword">const</span> notebook = submission.attachments?.find(
+      f => f.filename.endsWith(<span class="code-string">'.ipynb'</span>)
+    );
+
+    <span class="code-keyword">if</span> (!notebook) <span class="code-keyword">return null</span>;
+
+    <span class="code-comment">// Custom analysis logic</span>
+    <span class="code-keyword">const</span> analysis = {
+      cellCount: <span class="code-function">countCells</span>(notebook),
+      hasDocstrings: <span class="code-function">checkDocstrings</span>(notebook),
+      passesTests: <span class="code-function">runTests</span>(notebook),
+      codeQuality: <span class="code-function">analyzeCodeQuality</span>(notebook)
+    };
+
+    <span class="code-comment">// Complex grading rubric</span>
+    <span class="code-keyword">let</span> points = <span class="code-number">0</span>;
+    <span class="code-keyword">const</span> rubricComments = {};
+
+    <span class="code-comment">// Criterion 1: Functionality (50 points)</span>
+    <span class="code-keyword">if</span> (analysis.passesTests) {
+      points += <span class="code-number">50</span>;
+      rubricComments[<span class="code-string">"_8027"</span>] = {
+        points: <span class="code-number">50</span>,
+        comments: <span class="code-string">"All tests pass!"</span>
+      };
+    }
+
+    <span class="code-comment">// Criterion 2: Documentation (30 points)</span>
+    <span class="code-keyword">const</span> docPoints = analysis.hasDocstrings ? <span class="code-number">30</span> : <span class="code-number">15</span>;
+    points += docPoints;
+
+    <span class="code-comment">// Criterion 3: Code Quality (20 points)</span>
+    <span class="code-keyword">const</span> qualityPoints = Math.min(<span class="code-number">20</span>, analysis.codeQuality * <span class="code-number">20</span>);
+    points += qualityPoints;
+
+    <span class="code-keyword">return</span> { points, rubricAssessment: rubricComments };
+  }
+});</code></pre>
+                    </section>
+
+                    <section id="discussion-grading">
+                        <h2>Bulk Discussion Grading</h2>
+
+                        <p>Grade discussion posts with initial post + peer review requirements:</p>
+
+                        <pre><code><span class="code-keyword">import</span> { bulkGradeDiscussion } <span class="code-keyword">from</span> <span class="code-string">'./canvas/discussions/bulkGradeDiscussion'</span>;
+
+<span class="code-comment">// Preview grades first (dry run)</span>
+<span class="code-keyword">await</span> <span class="code-function">bulkGradeDiscussion</span>({
+  courseIdentifier: <span class="code-string">"60365"</span>,
+  topicId: <span class="code-string">"990001"</span>,
+  criteria: {
+    initialPostPoints: <span class="code-number">10</span>,      <span class="code-comment">// Points for initial post</span>
+    peerReviewPointsEach: <span class="code-number">5</span>,    <span class="code-comment">// Points per peer review</span>
+    requiredPeerReviews: <span class="code-number">2</span>,     <span class="code-comment">// Must review 2 peers</span>
+    maxPeerReviewPoints: <span class="code-number">10</span>     <span class="code-comment">// Cap at 10 pts for reviews</span>
+  },
+  dryRun: <span class="code-keyword">true</span>  <span class="code-comment">// Preview first!</span>
+});
+
+<span class="code-comment">// Then apply grades</span>
+<span class="code-keyword">await</span> <span class="code-function">bulkGradeDiscussion</span>({
+  courseIdentifier: <span class="code-string">"60365"</span>,
+  topicId: <span class="code-string">"990001"</span>,
+  assignmentId: <span class="code-string">"1234567"</span>,  <span class="code-comment">// Required to write grades</span>
+  criteria: { ... },
+  dryRun: <span class="code-keyword">false</span>
+});</code></pre>
+
+                        <h3>Features</h3>
+                        <ul>
+                            <li>Automatically analyzes initial posts vs peer reviews</li>
+                            <li>Configurable grading criteria with point allocation</li>
+                            <li>Optional late penalties with customizable deadline</li>
+                            <li>Dry run mode to preview grades before applying</li>
+                            <li>Concurrent processing with rate limiting</li>
+                        </ul>
+                    </section>
+
+                    <section id="discovery">
+                        <h2>Discovering Available Tools</h2>
+
+                        <p>Use the <code>search_canvas_tools</code> MCP tool to discover available operations:</p>
+
+                        <pre><code><span class="code-comment">// Search for grading-related tools</span>
+<span class="code-function">search_canvas_tools</span>(<span class="code-string">"grading"</span>, <span class="code-string">"signatures"</span>)
+
+<span class="code-comment">// List all available tools</span>
+<span class="code-function">search_canvas_tools</span>(<span class="code-string">""</span>, <span class="code-string">"names"</span>)
+
+<span class="code-comment">// Get full implementation details</span>
+<span class="code-function">search_canvas_tools</span>(<span class="code-string">"bulk"</span>, <span class="code-string">"full"</span>)</code></pre>
+
+                        <h3>Natural Language Discovery</h3>
+                        <p>Ask Claude:</p>
+                        <ul>
+                            <li>"Search for grading tools in the code API"</li>
+                            <li>"What bulk operations are available?"</li>
+                            <li>"Show me all code API tools"</li>
+                        </ul>
+
+                        <h3>Code API File Structure</h3>
+                        <pre><code>src/canvas_mcp/code_api/
+├── client.ts              <span class="code-comment"># Base MCP client bridge</span>
+├── index.ts               <span class="code-comment"># Main entry point</span>
+└── canvas/
+    ├── assignments/       <span class="code-comment"># Assignment operations</span>
+    ├── grading/          <span class="code-comment"># Grading operations</span>
+    │   ├── gradeWithRubric.ts
+    │   └── bulkGrade.ts  <span class="code-comment"># ⭐ Bulk grading</span>
+    ├── discussions/      <span class="code-comment"># Discussion operations</span>
+    │   └── bulkGradeDiscussion.ts
+    ├── courses/          <span class="code-comment"># Course operations</span>
+    └── communications/   <span class="code-comment"># Messaging operations</span></code></pre>
+                    </section>
+
+                    <section id="dry-run">
+                        <h2>Dry Run Mode (Testing)</h2>
+
+                        <p>Always test your grading logic before actually grading:</p>
+
+                        <pre><code><span class="code-keyword">await</span> <span class="code-function">bulkGrade</span>({
+  courseIdentifier: <span class="code-string">"60366"</span>,
+  assignmentId: <span class="code-string">"123"</span>,
+  dryRun: <span class="code-keyword">true</span>,  <span class="code-comment">// ⭐ Test mode - doesn't actually grade</span>
+  gradingFunction: (submission) => {
+    console.log(<span class="code-string">`Would grade: ${submission.userId}`</span>);
+    <span class="code-keyword">return</span> { points: <span class="code-number">100</span>, ... };
+  }
+});</code></pre>
+                    </section>
+
+                    <section id="best-practices">
+                        <h2>Best Practices</h2>
+
+                        <ol>
+                            <li><strong>Always test with dry run first</strong> before grading for real</li>
+                            <li><strong>Handle errors gracefully</strong> - return <code>null</code> to skip problematic submissions</li>
+                            <li><strong>Provide detailed rubric comments</strong> to help students understand their grades</li>
+                            <li><strong>Log progress</strong> using <code>console.log()</code> to track grading status</li>
+                            <li><strong>Validate rubric criterion IDs</strong> before grading</li>
+                        </ol>
+
+                        <h3>Common Rubric Criterion ID Patterns</h3>
+                        <p>Canvas rubric criterion IDs typically start with underscore:</p>
+                        <ul>
+                            <li><code>"_8027"</code> - Common format</li>
+                            <li><code>"criterion_123"</code> - Alternative format</li>
+                            <li><code>"8027"</code> - Without underscore (rare)</li>
+                        </ul>
+                    </section>
+
+                    <section id="troubleshooting">
+                        <h2>Troubleshooting</h2>
+
+                        <h3>"No exported function found"</h3>
+                        <ul>
+                            <li>Check that your TypeScript files have <code>export async function</code> declarations</li>
+                            <li>Verify file paths are correct</li>
+                        </ul>
+
+                        <h3>"Criterion ID not found"</h3>
+                        <ul>
+                            <li>Use <code>list_assignment_rubrics</code> to get correct criterion IDs</li>
+                            <li>Remember: IDs often start with underscore (<code>"_8027"</code>)</li>
+                        </ul>
+
+                        <h3>"Rate limit exceeded"</h3>
+                        <ul>
+                            <li>Add delays between grading operations</li>
+                            <li>Reduce <code>maxConcurrent</code> parameter (default: 5)</li>
+                        </ul>
+
+                        <h3>"Submission not found"</h3>
+                        <ul>
+                            <li>Check that <code>courseIdentifier</code> and <code>assignmentId</code> are correct</li>
+                            <li>Verify students have actually submitted</li>
+                        </ul>
+                    </section>
+
+                    <div style="margin-top: 48px; padding: 32px; background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(59, 130, 246, 0.1)); border: 1px solid var(--color-border); border-radius: var(--radius-lg);">
+                        <h3 style="margin-bottom: 16px;">Summary</h3>
+                        <p style="color: var(--color-text-secondary); margin-bottom: 16px;">The code execution API transforms bulk operations from token-intensive processes into efficient, scalable workflows:</p>
+                        <table style="margin-bottom: 16px;">
+                            <tr>
+                                <td><strong>Traditional:</strong></td>
+                                <td style="color: var(--color-text-secondary);">Load everything into context → Expensive, slow, limited</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Code Execution:</strong></td>
+                                <td style="color: var(--color-success);">Process locally → Cheap, fast, unlimited</td>
+                            </tr>
+                        </table>
+                        <p style="margin-bottom: 0;"><strong>Result:</strong> 99.7% token savings + faster execution + better scalability</p>
+                    </div>
+                </main>
+            </div>
+        </div>
+
+        <footer>
+            <div class="container">
+                <div class="footer-content">
+                    <div class="footer-left">
+                        <a href="index.html" class="logo">
+                            <div class="logo-icon">📚</div>
+                            Canvas MCP
+                        </a>
+                        <div class="footer-links">
+                            <a href="https://github.com/vishalsachdev/canvas-mcp">GitHub</a>
+                            <a href="student-guide.html">Student Guide</a>
+                            <a href="educator-guide.html">Educator Guide</a>
+                            <a href="https://github.com/vishalsachdev/canvas-mcp/blob/main/LICENSE">MIT License</a>
+                        </div>
+                    </div>
+                    <div class="footer-right">
+                        Created by <a href="https://github.com/vishalsachdev">Vishal Sachdev</a>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        const sections = document.querySelectorAll('section[id]');
+        const navLinks = document.querySelectorAll('.doc-nav a');
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                if (scrollY >= sectionTop - 150) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === '#' + current) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

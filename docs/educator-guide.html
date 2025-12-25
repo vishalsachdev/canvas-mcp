@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Educator Guide - Canvas MCP</title>
+    <meta name="description" content="Learn how to use Canvas MCP as an educator for FERPA-compliant course management, grading, analytics, and student communication.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav>
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <div class="logo-icon">📚</div>
+                Canvas MCP
+            </a>
+            <ul class="nav-links">
+                <li><a href="index.html#features">Features</a></li>
+                <li><a href="student-guide.html">Students</a></li>
+                <li><a href="educator-guide.html" class="active">Educators</a></li>
+                <li><a href="bulk-grading.html">Code API</a></li>
+            </ul>
+            <div class="nav-cta">
+                <a href="https://github.com/vishalsachdev/canvas-mcp" class="btn btn-secondary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    GitHub
+                </a>
+                <a href="index.html#install" class="btn btn-primary">Get Started</a>
+            </div>
+            <button class="mobile-menu-btn">☰</button>
+        </div>
+    </nav>
+
+    <div class="doc-page">
+        <header class="doc-header">
+            <div class="container">
+                <div class="doc-header-content">
+                    <span class="doc-badge educator">👨‍🏫 Educator Guide</span>
+                    <h1>Canvas MCP for Educators</h1>
+                    <p>AI-powered course management with FERPA-compliant data handling. Track submissions, grade efficiently, and communicate with students.</p>
+                </div>
+            </div>
+        </header>
+
+        <div class="container">
+            <div class="doc-layout">
+                <aside class="doc-sidebar">
+                    <ul class="doc-nav">
+                        <li><a href="#what-can-it-do">What Can It Do?</a></li>
+                        <li><a href="#prerequisites">Prerequisites</a></li>
+                        <li><a href="#installation">Installation</a></li>
+                        <li><a href="#ferpa">FERPA Compliance</a></li>
+                        <li><a href="#how-to-use">How to Use</a></li>
+                        <li><a href="#available-tools">Available Tools</a></li>
+                        <li><a href="#workflows">Example Workflows</a></li>
+                        <li><a href="#advanced">Advanced Features</a></li>
+                        <li><a href="#troubleshooting">Troubleshooting</a></li>
+                    </ul>
+                </aside>
+
+                <main class="doc-content">
+                    <section id="what-can-it-do">
+                        <h2>What Can Canvas MCP Do for You?</h2>
+                        <p>Canvas MCP provides AI-powered assistance for common teaching workflows:</p>
+
+                        <div class="feature-grid">
+                            <div class="feature-item">
+                                <h4>📋 Assignment Management</h4>
+                                <p>Track submissions, identify missing work, analyze completion rates across your courses.</p>
+                            </div>
+                            <div class="feature-item">
+                                <h4>✏️ Grading & Rubrics</h4>
+                                <p>Manage rubrics, grade submissions efficiently, and provide structured feedback.</p>
+                            </div>
+                            <div class="feature-item">
+                                <h4>📊 Student Analytics</h4>
+                                <p>Monitor performance, identify at-risk students, track engagement trends.</p>
+                            </div>
+                            <div class="feature-item">
+                                <h4>👥 Peer Review Management</h4>
+                                <p>Track completion, analyze review quality, send automated reminders.</p>
+                            </div>
+                            <div class="feature-item">
+                                <h4>💬 Discussion Facilitation</h4>
+                                <p>Monitor discussions, respond to students, analyze participation.</p>
+                            </div>
+                            <div class="feature-item">
+                                <h4>📧 Communication</h4>
+                                <p>Send targeted messages, create announcements, automate reminders.</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="prerequisites">
+                        <h2>Prerequisites</h2>
+                        <ul>
+                            <li><strong>Python 3.10+</strong> installed on your computer</li>
+                            <li><strong>Claude Desktop</strong> - Download from <a href="https://claude.ai/download">claude.ai</a></li>
+                            <li><strong>Canvas Account</strong> with instructor/TA permissions</li>
+                        </ul>
+                    </section>
+
+                    <section id="installation">
+                        <h2>Installation</h2>
+
+                        <h3>1. Clone and Install</h3>
+                        <pre><code>git clone https://github.com/vishalsachdev/canvas-mcp.git
+cd canvas-mcp
+
+<span class="code-comment"># Create virtual environment</span>
+python3 -m venv .venv
+. .venv/bin/activate
+
+<span class="code-comment"># Install</span>
+pip install -e .</code></pre>
+
+                        <h3>2. Get Your Canvas API Token</h3>
+                        <ol>
+                            <li>Log in to your Canvas account</li>
+                            <li>Go to <strong>Account</strong> → <strong>Settings</strong></li>
+                            <li>Scroll to <strong>Approved Integrations</strong></li>
+                            <li>Click <strong>+ New Access Token</strong></li>
+                            <li>Name it "Claude AI Teaching Assistant"</li>
+                            <li><strong>Copy the token immediately</strong></li>
+                        </ol>
+
+                        <h3>3. Configure Environment</h3>
+                        <pre><code>cp env.template .env</code></pre>
+
+                        <p>Edit your <code>.env</code> file:</p>
+                        <pre><code><span class="code-comment"># Canvas API Configuration</span>
+CANVAS_API_TOKEN=your_token_here
+CANVAS_API_URL=https://canvas.youruniversity.edu
+
+<span class="code-comment"># Privacy Settings (IMPORTANT for FERPA compliance)</span>
+ENABLE_DATA_ANONYMIZATION=true
+ANONYMIZATION_DEBUG=false</code></pre>
+
+                        <div class="info-box important">
+                            <div class="info-box-title">⚠️ Important</div>
+                            <p>Set <code>ENABLE_DATA_ANONYMIZATION=true</code> for FERPA-compliant student data handling. This anonymizes student names before AI processing.</p>
+                        </div>
+
+                        <h3>4. Configure Claude Desktop</h3>
+                        <p>Add to <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>:</p>
+                        <pre><code>{
+  "mcpServers": {
+    "canvas-api": {
+      "command": "/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
+    }
+  }
+}</code></pre>
+
+                        <h3>5. Test and Start</h3>
+                        <pre><code>canvas-mcp-server --test
+canvas-mcp-server --config</code></pre>
+
+                        <p>Restart Claude Desktop to activate the tools.</p>
+                    </section>
+
+                    <section id="ferpa">
+                        <h2>FERPA Compliance & Privacy</h2>
+
+                        <h3>How Data Anonymization Works</h3>
+                        <p>When <code>ENABLE_DATA_ANONYMIZATION=true</code> is set, Canvas MCP automatically:</p>
+
+                        <ol>
+                            <li><strong>Converts student names</strong> to anonymous IDs (e.g., "John Smith" → "Student_abc123")</li>
+                            <li><strong>Masks email addresses</strong> (e.g., "john@university.edu" → "student_abc123@masked")</li>
+                            <li><strong>Filters PII</strong> from discussion posts and submissions</li>
+                            <li><strong>Maintains consistency</strong> - same student always gets the same anonymous ID</li>
+                            <li><strong>Preserves relationships</strong> - you can still identify patterns and trends</li>
+                        </ol>
+
+                        <h3>De-Anonymization Mapping</h3>
+                        <p>The system creates local mapping files for you to correlate anonymous IDs with real students:</p>
+                        <pre><code>local_maps/
+└── course_BADM_350_mapping.csv</code></pre>
+                        <p>This CSV maps anonymous IDs back to real names - <strong>keep it secure and never commit to version control</strong>.</p>
+
+                        <h3>Privacy Best Practices</h3>
+                        <ul>
+                            <li><strong>Enable anonymization</strong> - Always set <code>ENABLE_DATA_ANONYMIZATION=true</code></li>
+                            <li><strong>Secure your token</strong> - Never share or commit your Canvas API token</li>
+                            <li><strong>Protect mapping files</strong> - Keep <code>local_maps/</code> folder secure</li>
+                            <li><strong>Local processing only</strong> - All data stays on your machine</li>
+                            <li><strong>Review before sharing</strong> - Ensure student data is anonymous in shared conversations</li>
+                        </ul>
+                    </section>
+
+                    <section id="how-to-use">
+                        <h2>How to Use Canvas MCP</h2>
+
+                        <h3>Quick Start Prompts</h3>
+
+                        <h4>Assignment Management</h4>
+                        <ul>
+                            <li>"Which students haven't submitted Assignment 3 in BADM 350?"</li>
+                            <li>"Show me submission statistics for the latest assignment"</li>
+                            <li>"List all assignments in my Spring 2025 courses"</li>
+                        </ul>
+
+                        <h4>Student Analytics</h4>
+                        <ul>
+                            <li>"Which students are falling behind in BADM 350?"</li>
+                            <li>"Show me performance analytics for Assignment 5"</li>
+                            <li>"Who needs academic support based on recent grades?"</li>
+                        </ul>
+
+                        <h4>Peer Review Management</h4>
+                        <ul>
+                            <li>"How many students completed their peer reviews for Assignment 2?"</li>
+                            <li>"Show me peer review completion analytics"</li>
+                            <li>"Analyze the quality of peer review comments"</li>
+                        </ul>
+
+                        <h4>Grading & Rubrics</h4>
+                        <ul>
+                            <li>"Show me the rubric for Assignment 4"</li>
+                            <li>"List all rubrics for BADM 350"</li>
+                            <li>"Create a rubric for the final project"</li>
+                        </ul>
+
+                        <h4>Communication</h4>
+                        <ul>
+                            <li>"Send a reminder to students who haven't completed peer reviews"</li>
+                            <li>"Create an announcement about tomorrow's exam"</li>
+                            <li>"Message students who are missing Assignment 3"</li>
+                        </ul>
+                    </section>
+
+                    <section id="available-tools">
+                        <h2>Available Educator Tools</h2>
+
+                        <h3>Assignment Management</h3>
+                        <ul class="tool-list">
+                            <li><code>list_assignments</code> - View all assignments for a course</li>
+                            <li><code>get_assignment_details</code> - Detailed assignment information</li>
+                            <li><code>list_submissions</code> - Student submission status</li>
+                            <li><code>get_assignment_analytics</code> - Performance and completion statistics</li>
+                        </ul>
+
+                        <h3>Grading & Rubrics</h3>
+                        <ul class="tool-list">
+                            <li><code>create_rubric</code> - Create new rubrics</li>
+                            <li><code>get_rubric_details</code> - View rubric criteria</li>
+                            <li><code>associate_rubric</code> - Link rubric to assignment</li>
+                            <li><code>grade_submission_with_rubric</code> - Grade using rubric</li>
+                            <li><code>bulk_grade_submissions</code> - Batch grading (10+ at once)</li>
+                        </ul>
+
+                        <h3>Student Analytics</h3>
+                        <ul class="tool-list">
+                            <li><code>get_student_analytics</code> - Multi-dimensional performance analysis</li>
+                            <li><code>identify_at_risk_students</code> - Flag students needing support</li>
+                            <li><code>get_peer_review_completion_analytics</code> - Peer review tracking</li>
+                        </ul>
+
+                        <h3>Peer Review Management</h3>
+                        <ul class="tool-list">
+                            <li><code>list_peer_reviews</code> - View peer review assignments</li>
+                            <li><code>get_peer_review_comments</code> - Extract review text and metadata</li>
+                            <li><code>analyze_peer_review_quality</code> - Quality metrics and analysis</li>
+                            <li><code>identify_problematic_peer_reviews</code> - Flag low-quality reviews</li>
+                        </ul>
+
+                        <h3>Communication & Messaging</h3>
+                        <ul class="tool-list">
+                            <li><code>send_conversation</code> - Send messages to students</li>
+                            <li><code>send_peer_review_reminders</code> - Automated reminder workflow</li>
+                            <li><code>create_announcement</code> - Post course announcements</li>
+                        </ul>
+
+                        <h3>Discussion Management</h3>
+                        <ul class="tool-list">
+                            <li><code>list_discussion_topics</code> - View discussion forums</li>
+                            <li><code>get_discussion_entry_details</code> - Read student posts</li>
+                            <li><code>reply_to_discussion_entry</code> - Respond to students</li>
+                            <li><code>create_discussion_topic</code> - Start new discussions</li>
+                        </ul>
+                    </section>
+
+                    <section id="workflows">
+                        <h2>Example Workflows</h2>
+
+                        <div class="workflow-box">
+                            <h4>📋 Monday Morning Check-In</h4>
+                            <p style="margin-bottom: 16px; color: var(--color-text-secondary);">Ask: "Give me a status update on my courses"</p>
+                            <div class="workflow-step">
+                                <span class="step-num">1</span>
+                                <span class="step-content">List your active courses</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">2</span>
+                                <span class="step-content">Check recent assignment submissions</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">3</span>
+                                <span class="step-content">Identify missing work</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">4</span>
+                                <span class="step-content">Flag students needing attention</span>
+                            </div>
+                        </div>
+
+                        <div class="workflow-box">
+                            <h4>📅 After Assignment Due Date</h4>
+                            <p style="margin-bottom: 16px; color: var(--color-text-secondary);">Ask: "Assignment 3 was due Friday in BADM 350. Who hasn't submitted?"</p>
+                            <div class="workflow-step">
+                                <span class="step-num">1</span>
+                                <span class="step-content">Get submission statistics</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">2</span>
+                                <span class="step-content">List non-submitters (anonymized)</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">3</span>
+                                <span class="step-content">Suggest sending reminders</span>
+                            </div>
+                        </div>
+
+                        <div class="workflow-box">
+                            <h4>👥 Peer Review Management</h4>
+                            <p style="margin-bottom: 16px; color: var(--color-text-secondary);">Ask: "Check peer review completion for Assignment 2 in BADM 350"</p>
+                            <div class="workflow-step">
+                                <span class="step-num">1</span>
+                                <span class="step-content">Analyze completion rates</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">2</span>
+                                <span class="step-content">Identify incomplete reviews</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">3</span>
+                                <span class="step-content">Assess review quality</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">4</span>
+                                <span class="step-content">Suggest follow-up actions</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="advanced">
+                        <h2>Advanced Features</h2>
+
+                        <h3>Automated Peer Review Follow-Up</h3>
+                        <p>Run a complete follow-up campaign:</p>
+                        <pre><code>Ask: "Run a peer review follow-up campaign for Assignment 2"
+
+This will:
+1. Analyze completion
+2. Identify incomplete reviews
+3. Send targeted reminders
+4. Generate a report</code></pre>
+
+                        <h3>Bulk Grading (Code Execution API)</h3>
+                        <p>For large-scale grading operations with custom logic, use the <a href="bulk-grading.html">Code Execution API</a> for 99.7% token savings:</p>
+                        <pre><code><span class="code-keyword">await</span> bulkGrade({
+  courseIdentifier: <span class="code-string">"60366"</span>,
+  assignmentId: <span class="code-string">"123"</span>,
+  gradingFunction: (submission) => {
+    <span class="code-comment">// Custom grading logic</span>
+    <span class="code-keyword">return</span> { points: <span class="code-number">100</span>, comment: <span class="code-string">"Great work!"</span> };
+  }
+});</code></pre>
+                        <a href="bulk-grading.html" class="btn btn-secondary" style="margin-top: 16px;">Learn More About Bulk Grading →</a>
+                    </section>
+
+                    <section id="troubleshooting">
+                        <h2>Troubleshooting</h2>
+
+                        <h3>"Connection failed" or "Authentication error"</h3>
+                        <ul>
+                            <li>Check your Canvas API token in <code>.env</code></li>
+                            <li>Verify Canvas URL is correct</li>
+                            <li>Ensure token has instructor permissions</li>
+                        </ul>
+
+                        <h3>"No students showing" or "empty results"</h3>
+                        <ul>
+                            <li>Verify you have instructor/TA role in the course</li>
+                            <li>Check if students are enrolled</li>
+                            <li>Ensure assignments have submissions enabled</li>
+                        </ul>
+
+                        <h3>Anonymization Not Working</h3>
+                        <ul>
+                            <li>Set <code>ENABLE_DATA_ANONYMIZATION=true</code> in <code>.env</code></li>
+                            <li>Restart Canvas MCP server</li>
+                            <li>Check <code>local_maps/</code> folder is created</li>
+                        </ul>
+
+                        <h3>Need More Help?</h3>
+                        <p><a href="https://github.com/vishalsachdev/canvas-mcp/issues">Open an issue on GitHub</a> for additional support.</p>
+                    </section>
+
+                    <div style="text-align: center; margin-top: 48px; padding: 32px; background: var(--color-bg-card); border-radius: var(--radius-lg);">
+                        <h3 style="margin-bottom: 16px;">Ready to Enhance Your Teaching?</h3>
+                        <p style="color: var(--color-text-secondary); margin-bottom: 24px;">Follow the installation guide and start using AI-powered course management today!</p>
+                        <div style="display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
+                            <a href="index.html#install" class="btn btn-primary">Quick Start Guide</a>
+                            <a href="bulk-grading.html" class="btn btn-secondary">Learn Bulk Grading</a>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+
+        <footer>
+            <div class="container">
+                <div class="footer-content">
+                    <div class="footer-left">
+                        <a href="index.html" class="logo">
+                            <div class="logo-icon">📚</div>
+                            Canvas MCP
+                        </a>
+                        <div class="footer-links">
+                            <a href="https://github.com/vishalsachdev/canvas-mcp">GitHub</a>
+                            <a href="student-guide.html">Student Guide</a>
+                            <a href="educator-guide.html">Educator Guide</a>
+                            <a href="https://github.com/vishalsachdev/canvas-mcp/blob/main/LICENSE">MIT License</a>
+                        </div>
+                    </div>
+                    <div class="footer-right">
+                        Created by <a href="https://github.com/vishalsachdev">Vishal Sachdev</a>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        const sections = document.querySelectorAll('section[id]');
+        const navLinks = document.querySelectorAll('.doc-nav a');
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                if (scrollY >= sectionTop - 150) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === '#' + current) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

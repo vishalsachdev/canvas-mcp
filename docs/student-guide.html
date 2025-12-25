@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Guide - Canvas MCP</title>
+    <meta name="description" content="Learn how to use Canvas MCP as a student to track assignments, monitor grades, and manage peer reviews with AI assistance.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav>
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <div class="logo-icon">📚</div>
+                Canvas MCP
+            </a>
+            <ul class="nav-links">
+                <li><a href="index.html#features">Features</a></li>
+                <li><a href="student-guide.html" class="active">Students</a></li>
+                <li><a href="educator-guide.html">Educators</a></li>
+                <li><a href="bulk-grading.html">Code API</a></li>
+            </ul>
+            <div class="nav-cta">
+                <a href="https://github.com/vishalsachdev/canvas-mcp" class="btn btn-secondary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    GitHub
+                </a>
+                <a href="index.html#install" class="btn btn-primary">Get Started</a>
+            </div>
+            <button class="mobile-menu-btn">☰</button>
+        </div>
+    </nav>
+
+    <div class="doc-page">
+        <header class="doc-header">
+            <div class="container">
+                <div class="doc-header-content">
+                    <span class="doc-badge student">👨‍🎓 Student Guide</span>
+                    <h1>Canvas MCP for Students</h1>
+                    <p>Your AI-powered study assistant that helps you track assignments, monitor grades, and stay organized throughout the semester.</p>
+                </div>
+            </div>
+        </header>
+
+        <div class="container">
+            <div class="doc-layout">
+                <aside class="doc-sidebar">
+                    <ul class="doc-nav">
+                        <li><a href="#what-can-it-do">What Can It Do?</a></li>
+                        <li><a href="#prerequisites">Prerequisites</a></li>
+                        <li><a href="#installation">Installation</a></li>
+                        <li><a href="#configuration">Configuration</a></li>
+                        <li><a href="#how-to-use">How to Use</a></li>
+                        <li><a href="#available-tools">Available Tools</a></li>
+                        <li><a href="#privacy">Privacy & Security</a></li>
+                        <li><a href="#workflows">Example Workflows</a></li>
+                        <li><a href="#troubleshooting">Troubleshooting</a></li>
+                    </ul>
+                </aside>
+
+                <main class="doc-content">
+                    <section id="what-can-it-do">
+                        <h2>What Can Canvas MCP Do for You?</h2>
+                        <p>Think of this as having an AI study buddy that knows everything about your Canvas courses:</p>
+
+                        <div class="feature-grid">
+                            <div class="feature-item">
+                                <h4>🎯 Track Assignments</h4>
+                                <p>"What's due this week?" - Get a complete view of deadlines across all courses.</p>
+                            </div>
+                            <div class="feature-item">
+                                <h4>📊 Monitor Grades</h4>
+                                <p>"What's my current grade?" - Stay on top of your academic performance.</p>
+                            </div>
+                            <div class="feature-item">
+                                <h4>👥 Manage Peer Reviews</h4>
+                                <p>"What peer reviews do I need?" - Never miss a review deadline.</p>
+                            </div>
+                            <div class="feature-item">
+                                <h4>📖 Access Content</h4>
+                                <p>"Show me the syllabus" - Quick access to pages and announcements.</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="prerequisites">
+                        <h2>Prerequisites</h2>
+                        <ul>
+                            <li><strong>Python 3.10+</strong> installed on your computer</li>
+                            <li><strong>Claude Desktop</strong> - Download from <a href="https://claude.ai/download">claude.ai</a></li>
+                            <li><strong>Canvas Account</strong> at your university/institution</li>
+                        </ul>
+                    </section>
+
+                    <section id="installation">
+                        <h2>Installation</h2>
+
+                        <h3>1. Clone the Repository</h3>
+                        <pre><code>git clone https://github.com/vishalsachdev/canvas-mcp.git
+cd canvas-mcp</code></pre>
+
+                        <h3>2. Install Dependencies</h3>
+                        <pre><code><span class="code-comment"># Create and activate virtual environment</span>
+python3 -m venv .venv
+. .venv/bin/activate
+
+<span class="code-comment"># Install Canvas MCP</span>
+pip install -e .</code></pre>
+
+                        <h3>3. Get Your Canvas API Token</h3>
+                        <ol>
+                            <li>Log in to your Canvas account</li>
+                            <li>Go to <strong>Account</strong> → <strong>Settings</strong></li>
+                            <li>Scroll down to <strong>Approved Integrations</strong></li>
+                            <li>Click <strong>+ New Access Token</strong></li>
+                            <li>Give it a purpose (e.g., "Claude AI Assistant")</li>
+                            <li>Click <strong>Generate Token</strong></li>
+                            <li><strong>Copy the token immediately</strong> - you won't see it again!</li>
+                        </ol>
+
+                        <div class="info-box tip">
+                            <div class="info-box-title">💡 Note</div>
+                            <p>Some institutions restrict API token creation for students. If you can't create a token, contact your institution's Canvas administrator.</p>
+                        </div>
+                    </section>
+
+                    <section id="configuration">
+                        <h2>Configuration</h2>
+
+                        <h3>4. Configure Canvas MCP</h3>
+                        <pre><code><span class="code-comment"># Copy the template</span>
+cp env.template .env
+
+<span class="code-comment"># Edit the .env file</span></code></pre>
+
+                        <p>Your <code>.env</code> file should look like this:</p>
+                        <pre><code><span class="code-comment"># Canvas API Configuration</span>
+CANVAS_API_TOKEN=your_token_here
+CANVAS_API_URL=https://canvas.youruniversity.edu/api/v1
+
+<span class="code-comment"># Privacy Settings (students don't need anonymization)</span>
+ENABLE_DATA_ANONYMIZATION=false</code></pre>
+
+                        <div class="info-box important">
+                            <div class="info-box-title">⚠️ Important</div>
+                            <p>Replace <code>https://canvas.youruniversity.edu/api/v1</code> with your actual Canvas URL (including the <code>/api/v1</code> suffix).</p>
+                        </div>
+
+                        <h3>5. Configure Claude Desktop</h3>
+                        <p>Add Canvas MCP to your Claude Desktop config file:</p>
+                        <p><strong>macOS:</strong> <code>~/Library/Application Support/Claude/claude_desktop_config.json</code></p>
+                        <pre><code>{
+  "mcpServers": {
+    "canvas-api": {
+      "command": "/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
+    }
+  }
+}</code></pre>
+
+                        <h3>6. Test Your Setup</h3>
+                        <pre><code>canvas-mcp-server --test</code></pre>
+                        <p>You should see: <code>✓ API connection successful!</code></p>
+
+                        <h3>7. Restart Claude Desktop</h3>
+                        <p>Close and reopen Claude Desktop. You should see the 🔨 hammer icon when you start a conversation.</p>
+                    </section>
+
+                    <section id="how-to-use">
+                        <h2>How to Use Canvas MCP</h2>
+
+                        <h3>Quick Start Prompts</h3>
+                        <p>Try these with Claude:</p>
+
+                        <h4>Assignment Tracking</h4>
+                        <ul>
+                            <li>"What assignments do I have due this week?"</li>
+                            <li>"What's coming up in the next 3 days?"</li>
+                            <li>"Show me my Canvas TODO list"</li>
+                        </ul>
+
+                        <h4>Grade Monitoring</h4>
+                        <ul>
+                            <li>"What are my current grades in all my courses?"</li>
+                            <li>"Show me my grades"</li>
+                            <li>"How am I doing in BADM 350?"</li>
+                        </ul>
+
+                        <h4>Submission Status</h4>
+                        <ul>
+                            <li>"Have I submitted all my assignments?"</li>
+                            <li>"What haven't I turned in yet?"</li>
+                            <li>"Show me my submission status for CSCI 101"</li>
+                        </ul>
+
+                        <h4>Peer Reviews</h4>
+                        <ul>
+                            <li>"What peer reviews do I need to complete?"</li>
+                            <li>"Show me my pending peer reviews"</li>
+                        </ul>
+
+                        <h4>Course Content</h4>
+                        <ul>
+                            <li>"Show me the syllabus for BADM 350"</li>
+                            <li>"What are the recent announcements?"</li>
+                            <li>"What are the active discussions in HIST 202?"</li>
+                        </ul>
+                    </section>
+
+                    <section id="available-tools">
+                        <h2>Available Student Tools</h2>
+
+                        <h3>Personal Organization</h3>
+                        <ul class="tool-list">
+                            <li><code>get_my_upcoming_assignments</code> - View assignments due soon</li>
+                            <li><code>get_my_todo_items</code> - Your Canvas TODO list</li>
+                            <li><code>get_my_submission_status</code> - Check what you've submitted</li>
+                        </ul>
+
+                        <h3>Academic Performance</h3>
+                        <ul class="tool-list">
+                            <li><code>get_my_course_grades</code> - Current grades across all courses</li>
+                        </ul>
+
+                        <h3>Peer Review Management</h3>
+                        <ul class="tool-list">
+                            <li><code>get_my_peer_reviews_todo</code> - Peer reviews you need to complete</li>
+                        </ul>
+
+                        <h3>Course Content (Shared Tools)</h3>
+                        <ul class="tool-list">
+                            <li><code>list_courses</code> - See all your enrolled courses</li>
+                            <li><code>get_course_details</code> - View syllabus and course info</li>
+                            <li><code>list_pages</code> - Access course pages</li>
+                            <li><code>get_page_content</code> - Read page content</li>
+                            <li><code>list_announcements</code> - See course announcements</li>
+                            <li><code>list_discussion_topics</code> - View discussion forums</li>
+                        </ul>
+                    </section>
+
+                    <section id="privacy">
+                        <h2>Privacy & Security</h2>
+
+                        <h3>Your Data Stays Private</h3>
+                        <ul>
+                            <li><strong>Local only:</strong> Everything runs on your computer</li>
+                            <li><strong>Your data only:</strong> Tools access only YOUR Canvas data (not other students')</li>
+                            <li><strong>No external servers:</strong> No data sent anywhere except Canvas (via official API)</li>
+                            <li><strong>Canvas API security:</strong> Uses the same security as Canvas mobile app</li>
+                        </ul>
+
+                        <h3>Best Practices</h3>
+                        <ul>
+                            <li><strong>Keep your API token secret</strong> - Don't share it or commit it to version control</li>
+                            <li><strong>Use a strong token purpose</strong> - Name it clearly so you can revoke it later if needed</li>
+                            <li><strong>Revoke if compromised</strong> - If you accidentally share your token, revoke it in Canvas settings</li>
+                        </ul>
+                    </section>
+
+                    <section id="workflows">
+                        <h2>Example Workflows</h2>
+
+                        <div class="workflow-box">
+                            <h4>🌅 Morning Check-In</h4>
+                            <p style="margin-bottom: 16px; color: var(--color-text-secondary);">Ask: "Good morning! What do I need to focus on today?"</p>
+                            <div class="workflow-step">
+                                <span class="step-num">1</span>
+                                <span class="step-content">Check your upcoming assignments (next 24-48 hours)</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">2</span>
+                                <span class="step-content">Show any incomplete peer reviews</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">3</span>
+                                <span class="step-content">List recent announcements</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">4</span>
+                                <span class="step-content">Highlight your TODO items</span>
+                            </div>
+                        </div>
+
+                        <div class="workflow-box">
+                            <h4>📅 Weekly Planning</h4>
+                            <p style="margin-bottom: 16px; color: var(--color-text-secondary);">Ask: "Help me plan my week"</p>
+                            <div class="workflow-step">
+                                <span class="step-num">1</span>
+                                <span class="step-content">Show all assignments due in the next 7 days</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">2</span>
+                                <span class="step-content">Identify which courses need attention</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">3</span>
+                                <span class="step-content">Check peer review deadlines</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">4</span>
+                                <span class="step-content">Summarize your current grade status</span>
+                            </div>
+                        </div>
+
+                        <div class="workflow-box">
+                            <h4>📝 Before a Big Assignment</h4>
+                            <p style="margin-bottom: 16px; color: var(--color-text-secondary);">Ask: "I have a paper due Friday in ENGL 101. What do I need to know?"</p>
+                            <div class="workflow-step">
+                                <span class="step-num">1</span>
+                                <span class="step-content">Find the assignment details</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">2</span>
+                                <span class="step-content">Check if you've submitted</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">3</span>
+                                <span class="step-content">Show the rubric (if available)</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">4</span>
+                                <span class="step-content">Review peer review requirements (if applicable)</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="troubleshooting">
+                        <h2>Troubleshooting</h2>
+
+                        <h3>"Connection failed" or "Authentication error"</h3>
+                        <ul>
+                            <li>Check your Canvas API token is correct in <code>.env</code></li>
+                            <li>Verify your Canvas URL is correct (should match your browser's Canvas URL)</li>
+                            <li>Make sure your token hasn't expired</li>
+                        </ul>
+
+                        <h3>"No tools appearing in Claude"</h3>
+                        <ul>
+                            <li>Restart Claude Desktop completely (Quit → Reopen)</li>
+                            <li>Check <code>canvas-mcp-server --test</code> runs successfully</li>
+                            <li>Verify your <code>claude_desktop_config.json</code> is correct</li>
+                        </ul>
+
+                        <h3>"No assignments/courses showing up"</h3>
+                        <ul>
+                            <li>Make sure you're enrolled in courses for the current term</li>
+                            <li>Check if assignments have due dates set</li>
+                            <li>Verify your Canvas account has the appropriate permissions</li>
+                        </ul>
+
+                        <h3>Need More Help?</h3>
+                        <p><a href="https://github.com/vishalsachdev/canvas-mcp/issues">Open an issue on GitHub</a> for additional support.</p>
+                    </section>
+
+                    <div style="text-align: center; margin-top: 48px; padding: 32px; background: var(--color-bg-card); border-radius: var(--radius-lg);">
+                        <h3 style="margin-bottom: 16px;">Ready to Get Started?</h3>
+                        <p style="color: var(--color-text-secondary); margin-bottom: 24px;">Follow the installation guide above and start using Canvas MCP today!</p>
+                        <a href="index.html#install" class="btn btn-primary">Quick Start Guide</a>
+                    </div>
+                </main>
+            </div>
+        </div>
+
+        <footer>
+            <div class="container">
+                <div class="footer-content">
+                    <div class="footer-left">
+                        <a href="index.html" class="logo">
+                            <div class="logo-icon">📚</div>
+                            Canvas MCP
+                        </a>
+                        <div class="footer-links">
+                            <a href="https://github.com/vishalsachdev/canvas-mcp">GitHub</a>
+                            <a href="student-guide.html">Student Guide</a>
+                            <a href="educator-guide.html">Educator Guide</a>
+                            <a href="https://github.com/vishalsachdev/canvas-mcp/blob/main/LICENSE">MIT License</a>
+                        </div>
+                    </div>
+                    <div class="footer-right">
+                        Created by <a href="https://github.com/vishalsachdev">Vishal Sachdev</a>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // Smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        // Active nav highlighting
+        const sections = document.querySelectorAll('section[id]');
+        const navLinks = document.querySelectorAll('.doc-nav a');
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                if (scrollY >= sectionTop - 150) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === '#' + current) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
