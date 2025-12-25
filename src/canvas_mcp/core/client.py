@@ -75,10 +75,12 @@ def _get_http_client() -> httpx.AsyncClient:
     global http_client
     if http_client is None:
         from .config import get_config
+        from .. import __version__
         config = get_config()
         http_client = httpx.AsyncClient(
             headers={
-                'Authorization': f'Bearer {config.api_token}'
+                'Authorization': f'Bearer {config.api_token}',
+                'User-Agent': f'canvas-mcp/{__version__} (https://github.com/vishalsachdev/canvas-mcp)'
             },
             timeout=config.api_timeout
         )

@@ -1,0 +1,164 @@
+name: Tool Addition Request
+description: Request a new MCP tool for Canvas LMS integration
+title: "[Tool]: "
+labels: ["enhancement", "new-tool"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Request a new MCP tool for Canvas LMS operations. This template helps ensure all necessary details are provided.
+
+  - type: input
+    id: tool-name
+    attributes:
+      label: Proposed Tool Name
+      description: What should this tool be called? Follow naming pattern `{action}_{entity}[_{specifier}]`
+      placeholder: "e.g., list_rubrics, get_grade_history, create_quiz"
+    validations:
+      required: true
+
+  - type: textarea
+    id: purpose
+    attributes:
+      label: Tool Purpose
+      description: What does this tool do? Provide a clear, concise description
+      placeholder: "This tool retrieves... / This tool allows users to..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: user-type
+    attributes:
+      label: Target User Type
+      description: Who would use this tool?
+      options:
+        - Students
+        - Educators/Instructors
+        - Administrators
+        - Developers
+        - Shared (Students & Educators)
+        - All Users
+    validations:
+      required: true
+
+  - type: textarea
+    id: canvas-api
+    attributes:
+      label: Canvas API Endpoint(s)
+      description: Which Canvas API endpoint(s) would this tool use?
+      placeholder: |
+        GET /api/v1/courses/:course_id/rubrics
+        Documentation: https://canvas.instructure.com/doc/api/rubrics.html
+    validations:
+      required: true
+
+  - type: textarea
+    id: parameters
+    attributes:
+      label: Tool Parameters
+      description: What parameters should this tool accept?
+      placeholder: |
+        - course_id (required): Course identifier
+        - rubric_id (optional): Specific rubric ID
+        - include_archived (optional): Include archived rubrics
+    validations:
+      required: true
+
+  - type: textarea
+    id: return-value
+    attributes:
+      label: Expected Return Value
+      description: What should this tool return?
+      placeholder: |
+        JSON object containing:
+        - rubric_id
+        - title
+        - criteria (array)
+        - points_possible
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-cases
+    attributes:
+      label: Use Cases
+      description: Provide specific examples of when/how this tool would be used
+      placeholder: |
+        1. "Show me the rubric for Assignment 3"
+        2. "List all rubrics in BADM 350"
+        3. "Get grading criteria for peer review assignment"
+    validations:
+      required: true
+
+  - type: textarea
+    id: example-prompt
+    attributes:
+      label: Example User Prompt
+      description: How would a user invoke this tool in natural language?
+      placeholder: '"Show me the rubric for the final project in CS 101"'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: complexity
+    attributes:
+      label: Implementation Complexity
+      description: How complex do you think this tool would be to implement?
+      options:
+        - Simple (single API call, basic parameters)
+        - Moderate (multiple API calls, some data processing)
+        - Complex (extensive logic, multiple endpoints, analytics)
+        - Unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: related-tools
+    attributes:
+      label: Related Existing Tools
+      description: Are there similar tools already in Canvas MCP?
+      placeholder: |
+        Similar to:
+        - list_assignments (same pattern, different entity)
+        - get_assignment_details (related workflow)
+
+  - type: checkboxes
+    id: requirements
+    attributes:
+      label: Additional Requirements
+      description: Check all that apply
+      options:
+        - label: This tool requires pagination support
+        - label: This tool modifies data (POST/PUT/DELETE)
+        - label: This tool requires special permissions
+        - label: This tool should support bulk operations
+        - label: This tool handles sensitive student data (needs anonymization)
+
+  - type: textarea
+    id: permissions
+    attributes:
+      label: Canvas Permissions Required
+      description: What Canvas permissions are needed to use this tool?
+      placeholder: |
+        - Read access to course rubrics
+        - No special permissions (available to all enrolled users)
+        - Requires instructor/TA role
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other details, edge cases, or considerations
+      placeholder: Screenshots, Canvas documentation links, etc.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I have verified this Canvas API endpoint exists in Canvas documentation
+          required: true
+        - label: I have searched for existing tools with similar functionality
+          required: true
+        - label: This tool aligns with Canvas MCP's architecture and patterns
+          required: false

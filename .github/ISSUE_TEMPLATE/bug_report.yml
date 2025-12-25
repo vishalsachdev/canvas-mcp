@@ -1,0 +1,117 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the information below to help us investigate.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Tell us what went wrong
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Configure Canvas MCP with...
+        2. Run command...
+        3. See error...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen
+      placeholder: I expected...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened
+      placeholder: Instead, I got...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Canvas MCP Version
+      description: What version of Canvas MCP are you using? (run `canvas-mcp-server --version` or check pyproject.toml)
+      placeholder: "1.0.4"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      description: Where are you running Canvas MCP?
+      options:
+        - Claude Desktop (macOS)
+        - Claude Desktop (Windows)
+        - Claude Desktop (Linux)
+        - Custom MCP Client
+        - Direct Python execution
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: canvas-version
+    attributes:
+      label: Canvas LMS Version
+      description: What version of Canvas are you connecting to? (if known)
+      placeholder: "Canvas Cloud / Self-hosted version"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error Messages / Logs
+      description: Any error messages or relevant log output
+      placeholder: Paste error messages here
+      render: shell
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration (redacted)
+      description: Your Canvas MCP configuration (remove tokens and URLs)
+      placeholder: |
+        ENABLE_DATA_ANONYMIZATION=true
+        LOG_API_REQUESTS=false
+        ...
+      render: shell
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context about the problem
+      placeholder: Screenshots, related issues, etc.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I have searched existing issues to avoid duplicates
+          required: true
+        - label: I have removed sensitive information (API tokens, URLs) from logs
+          required: true
+        - label: I am using the latest version of Canvas MCP
+          required: false
