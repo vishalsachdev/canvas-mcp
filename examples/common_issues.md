@@ -46,7 +46,7 @@ uv pip install -e .
 3. Delete the old token if present
 4. Create a new access token
 5. Update your `.env` file with the new token
-6. Restart Claude Desktop
+6. Restart your MCP client
 
 ### "Canvas API URL is invalid"
 
@@ -105,7 +105,15 @@ Most institutions will enable this for legitimate educational purposes.
 
 **Solution**:
 
-1. **Check Claude Desktop config** (`~/Library/Application Support/Claude/claude_desktop_config.json` on Mac):
+1. **Check your MCP client's configuration file**:
+   
+   **Claude Desktop** (macOS): `~/Library/Application Support/Claude/claude_desktop_config.json`
+   **Claude Desktop** (Windows): `%APPDATA%\Claude\claude_desktop_config.json`
+   **Cursor** (macOS/Linux): `~/.cursor/mcp_config.json`
+   **Windsurf** (macOS): `~/Library/Application Support/Windsurf/mcp_config.json`
+   **Zed**: Settings → Open Settings (`settings.json`)
+   
+   Ensure it contains:
    ```json
    {
      "mcpServers": {
@@ -115,13 +123,28 @@ Most institutions will enable this for legitimate educational purposes.
      }
    }
    ```
+   
+   Or for Zed:
+   ```json
+   {
+     "context_servers": {
+       "canvas-api": {
+         "command": {
+           "path": "/absolute/path/to/canvas-mcp-server",
+           "args": []
+         }
+       }
+     }
+   }
+   ```
 
-2. **Restart Claude Desktop completely**:
-   - Quit Claude Desktop (not just close the window)
+2. **Restart your MCP client completely**:
+   - Quit the application (not just close the window)
    - Reopen it
 
 3. **Check for errors**:
-   - Look in Claude Desktop's developer console
+   - For Claude Desktop: Look in the developer console
+   - For other clients: Check client logs or developer console
    - Or run manually: `canvas-mcp-server` and check for errors
 
 ### "Data seems outdated"
@@ -136,7 +159,7 @@ CACHE_TTL=300  # 5 minutes (default)
 ```
 
 To see fresh data immediately:
-- Restart the MCP server (restart Claude Desktop)
+- Restart the MCP server (restart your MCP client)
 - Or wait for cache to expire (default: 5 minutes)
 
 ## Data Issues
@@ -156,7 +179,7 @@ This is for FERPA compliance. Student data is anonymized before reaching Claude.
 ENABLE_DATA_ANONYMIZATION=false
 ```
 
-Then restart Claude Desktop.
+Then restart your MCP client.
 
 ### "Missing some courses or assignments"
 
@@ -193,14 +216,14 @@ Use the bulk grading code API to grade all submissions for Assignment 5
 
 This is **99.7% more efficient** for large datasets!
 
-### "Claude seems to get confused with lots of data"
+### "AI assistant seems to get confused with lots of data"
 
 **Problem**: Too much data in context.
 
 **Solution**:
 - Be specific about what you want
 - Use filters (course names, assignment IDs, date ranges)
-- For large operations, use code execution to keep data out of Claude's context
+- For large operations, use code execution to keep data out of your AI assistant's context
 
 Example:
 ```
@@ -213,9 +236,9 @@ Show me all students and all their submissions
 
 ## Integration Issues
 
-### "Works in terminal but not in Claude Desktop"
+### "Works in terminal but not in MCP client"
 
-**Problem**: `canvas-mcp-server` works manually but not through Claude.
+**Problem**: `canvas-mcp-server` works manually but not through your MCP client.
 
 **Solution**:
 
@@ -225,6 +248,8 @@ Show me all students and all their submissions
    ```
 
 2. **Use full path in config** if needed:
+   
+   For Claude Desktop, Cursor, Windsurf, Continue:
    ```json
    {
      "mcpServers": {
@@ -234,8 +259,22 @@ Show me all students and all their submissions
      }
    }
    ```
+   
+   For Zed:
+   ```json
+   {
+     "context_servers": {
+       "canvas-api": {
+         "command": {
+           "path": "/full/path/to/canvas-mcp-server",
+           "args": []
+         }
+       }
+     }
+   }
+   ```
 
-3. **Check environment variables**: Claude Desktop might not have access to your `.env`
+3. **Check environment variables**: Your MCP client might not have access to your `.env`
    - Make sure `.env` is in the canvas-mcp directory
    - Or set `CANVAS_API_TOKEN` and `CANVAS_API_URL` as system environment variables
 
