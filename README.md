@@ -739,7 +739,7 @@ If you encounter issues:
 1. **Server Won't Start** - Verify your [Configuration](#configuration) setup: `.env` file, virtual environment path, and dependencies
 2. **Authentication Errors** - Check your Canvas API token validity and permissions
 3. **Connection Issues** - Verify Canvas API URL correctness and network access
-4. **Debugging** - Check Claude Desktop console logs or run server manually for error output
+4. **Debugging** - Check your MCP client's console logs (e.g., Claude Desktop's developer console) or run server manually for error output
 
 ## Security & Privacy Features
 
