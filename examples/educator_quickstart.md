@@ -10,7 +10,7 @@ This guide shows the most common tasks educators use Canvas MCP for.
    ```
    ENABLE_DATA_ANONYMIZATION=true
    ```
-4. Restart Claude Desktop
+4. Restart your MCP client (e.g., Claude Desktop, Cursor, Zed, etc.)
 
 ## Common Tasks
 
@@ -20,7 +20,7 @@ This guide shows the most common tasks educators use Canvas MCP for.
 Which students haven't submitted Assignment 5 in CS 101?
 ```
 
-Claude will show you who's missing submissions and help you follow up.
+Your AI assistant will show you who's missing submissions and help you follow up.
 
 ### Grade Assignments with Rubrics
 
@@ -28,7 +28,7 @@ Claude will show you who's missing submissions and help you follow up.
 I need to grade Assignment 3 in BADM 350 using the rubric
 ```
 
-Claude can:
+Your AI assistant can:
 - Show you the rubric criteria
 - Help you grade submissions
 - Apply consistent grading across students
@@ -39,7 +39,7 @@ Claude can:
 Send a reminder to students who haven't submitted the midterm project
 ```
 
-Claude will:
+Your AI assistant will:
 - Identify students with missing submissions
 - Draft a message
 - Send it through Canvas
@@ -151,10 +151,10 @@ Use the bulk grading code API to grade all submissions for Assignment 6
 
 **"Bulk operations are slow"**
 - Use the code execution API for large batches
-- Mention "use bulk grading" in your request to Claude
+- Mention "use bulk grading" in your request to your AI assistant
 
 **"Anonymization isn't working"**
 - Verify `ENABLE_DATA_ANONYMIZATION=true` in your `.env`
-- Restart Claude Desktop after changing settings
+- Restart your MCP client after changing settings
 
 Need help? Check [EDUCATOR_GUIDE.md](../docs/EDUCATOR_GUIDE.md) or [open an issue](https://github.com/vishalsachdev/canvas-mcp/issues).

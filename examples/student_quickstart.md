@@ -6,18 +6,18 @@ This guide shows common tasks students can accomplish with Canvas MCP.
 
 1. Install Canvas MCP following the [README](../README.md#installation)
 2. Make sure your `.env` file has your Canvas API token
-3. Restart Claude Desktop
+3. Restart your MCP client (e.g., Claude Desktop, Cursor, Zed, etc.)
 
 ## Common Tasks
 
 ### Check What's Due This Week
 
-Just ask Claude:
+Just ask your AI assistant:
 ```
 What assignments do I have due this week?
 ```
 
-Claude will:
+Your AI assistant will:
 - List all upcoming assignments across all your courses
 - Show due dates and times
 - Indicate which ones you've already submitted
@@ -28,7 +28,7 @@ Claude will:
 Show me my current grades in all my courses
 ```
 
-Claude will provide:
+Your AI assistant will provide:
 - Current grade in each course
 - Assignment-by-assignment breakdown
 - What's missing or needs attention
@@ -47,7 +47,7 @@ Perfect before deadlines! Shows everything you still need to complete.
 What peer reviews do I need to complete?
 ```
 
-Claude will:
+Your AI assistant will:
 - List all pending peer review assignments
 - Show deadlines
 - Tell you how many reviews you need to do for each

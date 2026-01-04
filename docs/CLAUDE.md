@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Start server**: `canvas-mcp-server` (or `./start_canvas_server.sh` for legacy setup)
 - **Test server**: `canvas-mcp-server --test`
 - **View config**: `canvas-mcp-server --config`
-- **Claude Desktop config**: Update `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **MCP client config**: Update your MCP client's configuration file (e.g., `~/Library/Application Support/Claude/claude_desktop_config.json` for Claude Desktop)
 
 ## Repository Structure
 ```
