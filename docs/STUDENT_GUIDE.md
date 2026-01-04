@@ -1,6 +1,6 @@
 # Canvas MCP for Students
 
-Welcome! This guide will help you set up Canvas MCP to use Claude as your personal Canvas assistant.
+Welcome! This guide will help you set up Canvas MCP to use AI assistants as your personal Canvas helper.
 
 ## What Can Canvas MCP Do for You?
 
@@ -15,7 +15,13 @@ Think of this as having an AI study buddy that knows everything about your Canva
 ## Prerequisites
 
 - **Python 3.10+** installed on your computer
-- **Claude Desktop** - Download from [claude.ai](https://claude.ai/download)
+- **MCP Client** - Any MCP-compatible client:
+  - [Claude Desktop](https://claude.ai/download) (Recommended for beginners)
+  - [Cursor](https://cursor.sh) (AI code editor)
+  - [Zed](https://zed.dev) (Fast code editor)
+  - [Windsurf](https://codeium.com/windsurf) (AI-powered IDE)
+  - [Continue](https://continue.dev) (Open-source AI assistant)
+  - [Other MCP clients](https://modelcontextprotocol.io/clients)
 - **Canvas Account** at your university/institution
 
 ## Installation
@@ -74,23 +80,124 @@ ENABLE_DATA_ANONYMIZATION=false
 
 **Important**: Replace `https://canvas.youruniversity.edu/api/v1` with your actual Canvas URL (including the `/api/v1` suffix).
 
-### 5. Configure Claude Desktop
+### 5. Configure Your MCP Client
 
-Add Canvas MCP to Claude Desktop's configuration file:
+Choose your MCP client and follow the appropriate configuration:
 
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+<details open>
+<summary><strong>Claude Desktop</strong> (Recommended for beginners)</summary>
 
+**Configuration file location:**
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+**Add this configuration:**
 ```json
 {
   "mcpServers": {
     "canvas-api": {
-      "command": "/Users/vishal/code/canvas-mcp/.venv/bin/canvas-mcp-server"
+      "command": "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
     }
   }
 }
 ```
 
-> Tip: Use the absolute path to the virtualenv binary so Claude doesn't accidentally pick up a pyenv shim or other PATH entry that lacks the package.
+**macOS path example**: `/Users/yourname/canvas-mcp/.venv/bin/canvas-mcp-server`  
+**Windows path example**: `C:\Users\yourname\canvas-mcp\.venv\Scripts\canvas-mcp-server.exe`
+
+> Tip: Use the absolute path to the virtualenv binary so your client doesn't accidentally pick up a pyenv shim or other PATH entry.
+
+</details>
+
+<details>
+<summary><strong>Cursor</strong></summary>
+
+**Configuration file location:**
+- **macOS/Linux**: `~/.cursor/mcp_config.json`
+- **Windows**: `%USERPROFILE%\.cursor\mcp_config.json`
+
+**Configuration:**
+```json
+{
+  "mcpServers": {
+    "canvas-api": {
+      "command": "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Zed</strong></summary>
+
+Add to Zed's `settings.json` (Settings menu → Open Settings):
+
+```json
+{
+  "context_servers": {
+    "canvas-api": {
+      "command": {
+        "path": "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server",
+        "args": []
+      }
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Windsurf IDE</strong></summary>
+
+**Configuration file location:**
+- **macOS**: `~/Library/Application Support/Windsurf/mcp_config.json`
+- **Windows**: `%APPDATA%\Windsurf\mcp_config.json`
+
+**Configuration:**
+```json
+{
+  "mcpServers": {
+    "canvas-api": {
+      "command": "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Continue</strong></summary>
+
+Add to Continue's `config.json` (Continue settings):
+
+```json
+{
+  "mcpServers": {
+    "canvas-api": {
+      "command": "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Other MCP Clients</strong></summary>
+
+For other MCP-compatible clients:
+
+1. Locate your client's MCP configuration file
+2. Add a server entry with the command path to `canvas-mcp-server`
+3. Restart your client
+
+Consult your client's documentation for specific configuration format.
+
+</details>
 
 ### 6. Test Your Setup
 
@@ -101,15 +208,19 @@ canvas-mcp-server --test
 
 You should see: ✓ API connection successful!
 
-### 7. Restart Claude Desktop
+### 7. Restart Your MCP Client
 
-Close and reopen Claude Desktop. You should see the 🔨 hammer icon when you start a conversation.
+Close and reopen your MCP client to load the Canvas MCP server.
+
+**Verification:**
+- **Claude Desktop**: Look for the 🔨 hammer icon when you start a conversation
+- **Other clients**: Check your client's documentation for how MCP tools are indicated
 
 ## How to Use Canvas MCP
 
 ### Quick Start Prompts
 
-Try these with Claude:
+Try these prompts with your AI assistant:
 
 **Assignment Tracking:**
 - "What assignments do I have due this week?"
@@ -141,12 +252,14 @@ Try these with Claude:
 
 ### Understanding Tool Calls
 
-When you ask Claude a question, you'll see it use various "tools" (indicated by the 🔨 icon). These tools fetch data from Canvas. For example:
+When you ask your AI assistant a question, it will use various "tools" to fetch data from Canvas. For example:
 
 - `get_my_upcoming_assignments` - Fetches your deadlines
 - `get_my_course_grades` - Gets your current grades
 - `list_discussion_topics` - Shows discussion forums
 - `get_page_content` - Retrieves course pages
+
+> **Note**: Different MCP clients may display tool usage differently. Claude Desktop shows a 🔨 icon when using tools.
 
 ## Available Student Tools
 
@@ -189,10 +302,12 @@ When you ask Claude a question, you'll see it use various "tools" (indicated by 
 - Verify your Canvas URL is correct (should match your browser's Canvas URL)
 - Make sure your token hasn't expired (some institutions have expiration policies)
 
-### "No tools appearing in Claude"
-- Restart Claude Desktop completely (Quit → Reopen)
+### "No tools appearing in your MCP client"
+- Restart your MCP client completely (Quit → Reopen)
 - Check `canvas-mcp-server --test` runs successfully
-- Verify your `claude_desktop_config.json` is correct
+- Verify your MCP client's configuration file is correct
+- For Claude Desktop: Check `claude_desktop_config.json`
+- For other clients: Consult your client's MCP configuration documentation
 
 ### "No assignments/courses showing up"
 - Make sure you're enrolled in courses for the current term
@@ -210,7 +325,7 @@ When you ask Claude a question, you'll see it use various "tools" (indicated by 
 ```
 You: "Good morning! What do I need to focus on today?"
 
-Claude will:
+Your AI assistant will:
 1. Check your upcoming assignments (next 24-48 hours)
 2. Show any incomplete peer reviews
 3. List recent announcements
@@ -221,7 +336,7 @@ Claude will:
 ```
 You: "Help me plan my week"
 
-Claude will:
+Your AI assistant will:
 1. Show all assignments due in the next 7 days
 2. Identify which courses need attention
 3. Check peer review deadlines
@@ -232,7 +347,7 @@ Claude will:
 ```
 You: "I have a paper due Friday in ENGL 101. What do I need to know?"
 
-Claude will:
+Your AI assistant will:
 1. Find the assignment details
 2. Check if you've submitted
 3. Show the rubric (if available)
@@ -242,12 +357,12 @@ Claude will:
 ## Tips for Best Results
 
 1. **Be specific about courses**: Use course codes (e.g., "BADM 350") when you can
-2. **Ask follow-up questions**: Claude remembers context within a conversation
+2. **Ask follow-up questions**: Your AI assistant remembers context within a conversation
 3. **Request summaries**: "Summarize my workload for next week"
 4. **Combine requests**: "Show me my grades and what's due this week"
 
 ## What's Next?
 
-Now that you're set up, explore what Canvas MCP can do! Try different prompts and see how Claude can help streamline your academic workflow.
+Now that you're set up, explore what Canvas MCP can do! Try different prompts and see how your AI assistant can help streamline your academic workflow.
 
 Happy studying! 📚

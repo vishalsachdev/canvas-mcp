@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-This repository contains a Model Context Protocol (MCP) server implementation for interacting with the Canvas Learning Management System API. The server is designed to work with Claude Desktop and other MCP-compatible clients.
+This repository contains a Model Context Protocol (MCP) server implementation for interacting with the Canvas Learning Management System API. The server is designed to work with any MCP-compatible client, including Claude Desktop, Cursor, Zed, Windsurf, and Continue.
 
 > **Note**: Recently refactored to a modular architecture for better maintainability. The legacy monolithic implementation has been archived.
 
@@ -83,7 +83,7 @@ Canvas MCP provides **40+ tools** for interacting with Canvas LMS. Tools are org
 
 ## Overview
 
-The Canvas MCP Server bridges the gap between Claude Desktop and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data.
+The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data through any MCP-compatible client.
 
 ## 🎉 Latest Release: v1.0.5
 
@@ -123,14 +123,14 @@ Enhance your teaching with:
 
 ## 🎯 Claude Code Skills
 
-Pre-built workflows that combine multiple tools into one-command actions. Skills work with [Claude Code](https://claude.ai/code) (CLI).
+Pre-built workflows that combine multiple tools into one-command actions. These skills work with [Claude Code](https://claude.ai/code) (CLI) and [Claude Desktop](https://claude.ai/download).
 
 | Skill | For | What It Does |
 |-------|-----|--------------|
 | `/canvas-morning-check` | Educators | Course health check: submission rates, struggling students, grade distribution, upcoming deadlines |
 | `/canvas-week-plan` | Students | Weekly planner: all due dates, submission status, grades, peer reviews across courses |
 
-**Example usage:**
+**Example usage in Claude:**
 ```
 You: /canvas-morning-check CS 101
 Claude: [Generates comprehensive course status report]
@@ -140,6 +140,8 @@ Claude: [Shows prioritized weekly assignment plan]
 ```
 
 Skills are located in `.claude/skills/` and can be customized for your workflow.
+
+> **Note**: These skills are currently designed for Claude Desktop and Claude Code. Other MCP clients may support similar custom workflows through their own mechanisms.
 
 **Want a custom skill?** [Submit a request](https://github.com/vishalsachdev/canvas-mcp/issues/new?labels=skill-request&title=[Skill%20Request]) describing your repetitive workflow!
 
@@ -168,7 +170,7 @@ All student data is anonymized **before** it reaches AI systems. See [Educator G
 
 - **Python 3.10+** - Required for modern features and type hints
 - **Canvas API Access** - API token and institution URL
-- **MCP Client** - Claude Desktop (recommended) or other MCP-compatible client
+- **MCP Client** - Any MCP-compatible client (Claude Desktop, Cursor, Zed, Windsurf, Continue, etc.)
 
 ### Canvas API Compatibility
 
@@ -213,7 +215,7 @@ Canvas MCP works with any application that supports the Model Context Protocol. 
 
 See the [official MCP clients list](https://modelcontextprotocol.io/clients) for more options.
 
-> **Note**: While Canvas MCP is designed to work with any MCP client, setup instructions in this guide focus on Claude Desktop. Configuration for other clients may vary.
+> **Note**: Canvas MCP is designed to work with any MCP-compatible client. The installation guide provides configuration examples for popular clients including Claude Desktop, Cursor, Zed, Windsurf, and Continue.
 
 ## Installation
 
@@ -242,21 +244,125 @@ Get your Canvas API token from: **Canvas → Account → Settings → New Access
 
 > **Note for Students**: Some educational institutions restrict API token creation for students. If you see an error like "There is a limit to the number of access tokens you can create" or cannot find the token creation option, contact your institution's Canvas administrator or IT support department to request API access or assistance in creating a token.
 
-### 3. Claude Desktop Setup
+### 3. MCP Client Configuration
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+Canvas MCP works with any MCP-compatible client. Below are configuration examples for popular clients:
 
+<details open>
+<summary><strong>Claude Desktop</strong> (Most Popular)</summary>
+
+**Configuration file location:**
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+**Configuration:**
 ```json
 {
   "mcpServers": {
     "canvas-api": {
-      "command": "/Users/vishal/code/canvas-mcp/.venv/bin/canvas-mcp-server"
+      "command": "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
     }
   }
 }
 ```
 
-> Tip: Pointing Claude at the absolute path to your virtualenv binary avoids issues with shell-specific PATH entries (e.g., pyenv shims) that can cause `ModuleNotFoundError: No module named 'canvas_mcp'` when Claude launches the server.
+**Note**: Use the absolute path to your virtualenv binary to avoid issues with shell-specific PATH entries (e.g., pyenv shims).
+
+</details>
+
+<details>
+<summary><strong>Cursor</strong></summary>
+
+**Configuration file location:**
+- **macOS/Linux**: `~/.cursor/mcp_config.json`
+- **Windows**: `%USERPROFILE%\.cursor\mcp_config.json`
+
+**Configuration:**
+```json
+{
+  "mcpServers": {
+    "canvas-api": {
+      "command": "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Zed</strong></summary>
+
+**Configuration:** Add to Zed's `settings.json` (accessible via Settings menu)
+
+```json
+{
+  "context_servers": {
+    "canvas-api": {
+      "command": {
+        "path": "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server",
+        "args": []
+      }
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Windsurf IDE</strong></summary>
+
+**Configuration file location:**
+- **macOS**: `~/Library/Application Support/Windsurf/mcp_config.json`
+- **Windows**: `%APPDATA%\Windsurf\mcp_config.json`
+
+**Configuration:**
+```json
+{
+  "mcpServers": {
+    "canvas-api": {
+      "command": "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Continue</strong></summary>
+
+**Configuration:** Add to Continue's `config.json` (accessible via Continue settings)
+
+```json
+{
+  "mcpServers": {
+    "canvas-api": {
+      "command": "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Other MCP Clients</strong></summary>
+
+For other MCP-compatible clients, the general pattern is:
+
+1. Locate your client's MCP configuration file
+2. Add a server entry with:
+   - **Server name**: `canvas-api` (or any name you prefer)
+   - **Command**: Full path to `canvas-mcp-server` binary
+   - **Optional args**: Additional arguments if needed
+
+Consult your client's MCP documentation for specific configuration format and file locations.
+
+</details>
+
+> **Windows users**: Replace forward slashes with backslashes in paths (e.g., `C:\Users\YourName\canvas-mcp\.venv\Scripts\canvas-mcp-server.exe`)
 
 ## Verification
 

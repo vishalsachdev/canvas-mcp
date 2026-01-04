@@ -17,7 +17,13 @@ Canvas MCP provides AI-powered assistance for common teaching workflows:
 ## Prerequisites
 
 - **Python 3.10+** installed on your computer
-- **Claude Desktop** - Download from [claude.ai](https://claude.ai/download)
+- **MCP Client** - Any MCP-compatible client:
+  - [Claude Desktop](https://claude.ai/download) (Recommended for beginners)
+  - [Cursor](https://cursor.sh) (AI code editor)
+  - [Zed](https://zed.dev) (Fast code editor)
+  - [Windsurf](https://codeium.com/windsurf) (AI-powered IDE)
+  - [Continue](https://continue.dev) (Open-source AI assistant)
+  - [Other MCP clients](https://modelcontextprotocol.io/clients)
 - **Canvas Account** with instructor/TA permissions
 
 ## Installation
@@ -45,7 +51,7 @@ uv pip install -e .
 2. Go to **Account** → **Settings**
 3. Scroll down to **Approved Integrations**
 4. Click **+ New Access Token**
-5. Give it a purpose (e.g., "Claude AI Teaching Assistant")
+5. Give it a purpose (e.g., "AI Teaching Assistant")
 6. Click **Generate Token**
 7. **Copy the token immediately** - you won't see it again!
 
@@ -83,23 +89,124 @@ INSTITUTION_NAME=Your University Name
 - **Set `ENABLE_DATA_ANONYMIZATION=true`** for FERPA-compliant student data handling
 - The anonymization system converts student names to anonymous IDs (e.g., "Student_abc123") before sending data to AI
 
-### 5. Configure Claude Desktop
+### 5. Configure Your MCP Client
 
-Add Canvas MCP to Claude Desktop's configuration file:
+Choose your MCP client and follow the appropriate configuration:
 
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+<details open>
+<summary><strong>Claude Desktop</strong> (Recommended for beginners)</summary>
 
+**Configuration file location:**
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+**Add this configuration:**
 ```json
 {
   "mcpServers": {
     "canvas-api": {
-      "command": "/Users/vishal/code/canvas-mcp/.venv/bin/canvas-mcp-server"
+      "command": "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
     }
   }
 }
 ```
 
-> Tip: Point Claude at the absolute path to your virtualenv binary to avoid pyenv shim/path issues that can cause `ModuleNotFoundError` when Claude launches the server.
+**macOS path example**: `/Users/yourname/canvas-mcp/.venv/bin/canvas-mcp-server`  
+**Windows path example**: `C:\Users\yourname\canvas-mcp\.venv\Scripts\canvas-mcp-server.exe`
+
+> Tip: Point your client at the absolute path to your virtualenv binary to avoid pyenv shim/path issues.
+
+</details>
+
+<details>
+<summary><strong>Cursor</strong></summary>
+
+**Configuration file location:**
+- **macOS/Linux**: `~/.cursor/mcp_config.json`
+- **Windows**: `%USERPROFILE%\.cursor\mcp_config.json`
+
+**Configuration:**
+```json
+{
+  "mcpServers": {
+    "canvas-api": {
+      "command": "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Zed</strong></summary>
+
+Add to Zed's `settings.json` (Settings menu → Open Settings):
+
+```json
+{
+  "context_servers": {
+    "canvas-api": {
+      "command": {
+        "path": "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server",
+        "args": []
+      }
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Windsurf IDE</strong></summary>
+
+**Configuration file location:**
+- **macOS**: `~/Library/Application Support/Windsurf/mcp_config.json`
+- **Windows**: `%APPDATA%\Windsurf\mcp_config.json`
+
+**Configuration:**
+```json
+{
+  "mcpServers": {
+    "canvas-api": {
+      "command": "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Continue</strong></summary>
+
+Add to Continue's `config.json` (Continue settings):
+
+```json
+{
+  "mcpServers": {
+    "canvas-api": {
+      "command": "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Other MCP Clients</strong></summary>
+
+For other MCP-compatible clients:
+
+1. Locate your client's MCP configuration file
+2. Add a server entry with the command path to `canvas-mcp-server`
+3. Restart your client
+
+Consult your client's documentation for specific configuration format.
+
+</details>
 
 ### 6. Test Your Setup
 
@@ -113,9 +220,13 @@ canvas-mcp-server --config
 
 You should see: ✓ API connection successful!
 
-### 7. Restart Claude Desktop
+### 7. Restart Your MCP Client
 
-Close and reopen Claude Desktop. You should see the 🔨 hammer icon when you start a conversation.
+Close and reopen your MCP client to load the Canvas MCP server.
+
+**Verification:**
+- **Claude Desktop**: Look for the 🔨 hammer icon when you start a conversation
+- **Other clients**: Check your client's documentation for how MCP tools are indicated
 
 ## FERPA Compliance & Privacy
 
@@ -146,7 +257,7 @@ This CSV file maps anonymous IDs back to real names - **keep it secure and never
 - **Secure your token** - Never share or commit your Canvas API token
 - **Protect mapping files** - Keep `local_maps/` folder secure (it's in `.gitignore`)
 - **Local processing only** - All data stays on your machine; nothing sent to external servers
-- **Review before sharing** - If sharing Claude conversations, ensure student data is anonymous
+- **Review before sharing** - If sharing AI assistant conversations, ensure student data is anonymous
 
 ## How to Use Canvas MCP
 
@@ -185,7 +296,7 @@ This CSV file maps anonymous IDs back to real names - **keep it secure and never
 
 ### Understanding Tool Calls
 
-When you ask Claude a question, it uses various "tools" (🔨 icon) to fetch data from Canvas. For educators, common tools include:
+When you ask your AI assistant a question, it uses various "tools" to fetch data from Canvas. For educators, common tools include:
 
 - `get_assignment_analytics` - Submission statistics and performance
 - `list_submissions` - Student submission status
@@ -193,6 +304,8 @@ When you ask Claude a question, it uses various "tools" (🔨 icon) to fetch dat
 - `send_peer_review_reminders` - Automated student messaging
 - `list_discussion_topics` - Discussion management
 - `create_rubric` - Rubric creation
+
+> **Note**: Different MCP clients may display tool usage differently. Claude Desktop shows a 🔨 icon when using tools.
 
 ## Available Educator Tools
 
@@ -244,7 +357,7 @@ When you ask Claude a question, it uses various "tools" (🔨 icon) to fetch dat
 ```
 You: "Give me a status update on my courses"
 
-Claude will:
+Your AI assistant will:
 1. List your active courses
 2. Check recent assignment submissions
 3. Identify missing work
@@ -255,7 +368,7 @@ Claude will:
 ```
 You: "Assignment 3 was due Friday in BADM 350. Who hasn't submitted?"
 
-Claude will:
+Your AI assistant will:
 1. Get submission statistics
 2. List non-submitters (anonymized if enabled)
 3. Suggest sending reminders
@@ -265,7 +378,7 @@ Claude will:
 ```
 You: "Check peer review completion for Assignment 2 in BADM 350"
 
-Claude will:
+Your AI assistant will:
 1. Analyze completion rates
 2. Identify incomplete reviews
 3. Assess review quality
@@ -276,7 +389,7 @@ Claude will:
 ```
 You: "Show me the rubric for Assignment 4 and recent submissions"
 
-Claude will:
+Your AI assistant will:
 1. Display rubric criteria
 2. Show submission list
 3. Help you grade efficiently
@@ -307,7 +420,7 @@ This will:
 ```
 You: "Analyze student performance trends in BADM 350"
 
-Claude can:
+Your AI assistant can:
 - Identify struggling students
 - Track assignment completion patterns
 - Suggest interventions
@@ -318,7 +431,7 @@ Claude can:
 ```
 You: "Message all students who haven't submitted Assignment 3"
 
-Claude will:
+Your AI assistant will:
 - Identify non-submitters
 - Draft appropriate message
 - Send bulk communication
