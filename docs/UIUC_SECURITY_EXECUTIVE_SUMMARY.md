@@ -232,6 +232,31 @@ Automated security scanning including:
 3. Annual third-party security audit
 4. Continuous dependency updates
 
+## Hardened Release Plan: Baseline, Public, and Enterprise Tracks
+
+Create a single codebase with three rigor levels, drive differences through configuration overlays, and gate releases with tier-appropriate controls and tests. See `docs/release/HARDENED_RELEASE_EXECUTION_PLAN.md` for the actionable work items and `docs/release/TIER_COMPATIBILITY_MATRIX.md` for the tier-to-control mapping.
+
+### Track definitions and defaults
+- **Baseline (current `main`)**: Target for contributors and early adopters. Enable strict code-execution sandboxing, localhost MCP binding, anonymization toggle, and redacted logging by default. CI must run lint + unit tests; security scans are advisory.
+- **Public/individual instructor package**: Opinionated config focused on personal workstations. Enforce sandboxing with no outbound network, token storage via OS keyring/envelope encryption, default log redaction/rotation, and optional “local-only” firewall guidance. Require the smoke security bundle (dependency scan, sandbox smoke, token validation) to pass before publishing.
+- **Enterprise package**: Hardened overlay for multi-user and FERPA-bound deployments. Enforce MCP client authentication (API key or mTLS), centralized secret management, outbound network allowlist with audit trails, comprehensive access/audit logging with retention, and SIEM/syslog shipping hooks. Release gating requires the full security test suite, SAST/DAST scans, and checklist sign-off.
+
+### Release packaging and drift control
+1) **Single trunk, overlay-driven**: Keep `main` as the source of truth; represent tier differences via configuration bundles (env templates/values files) and policy docs. Avoid code forks. Overlay files live in `config/overlays/`.
+2) **Artifacts per tier**: Publish two artifacts per tag: `public` (baseline + public overlay) and `enterprise` (baseline + enterprise overlay). Document the default profile baked into each artifact.
+3) **Compatibility matrix**: Maintain a living matrix mapping requirements/tests to each tier (must/optional). Update alongside releases to prevent silent drift (see `docs/release/TIER_COMPATIBILITY_MATRIX.md`).
+
+### Operational runbook per tier
+- **Baseline**: Weekly dependency scan; manual review of sandbox bypass reports; rotate API tokens quarterly.
+- **Public**: Monthly smoke security bundle; verify keyring/encryption on install; provide auto-generated “quick hardening” checklist covering sandbox on, localhost bind, redacted logs, and offline token storage.
+- **Enterprise**: CI-enforced SAST + dependency + full security suite on every PR; quarterly incident-response exercise; biannual pen-test; enforce log retention/rotation per policy and automated token expiration monitoring.
+
+### Rollout steps to reach the plan
+1. **Refactor configs into overlays** (baseline/public/enterprise) with defaults checked into version control.
+2. **Codify gating** in CI: smoke bundle for public artifacts; full suite + SAST/DAST for enterprise.
+3. **Document operator actions**: publish short, role-specific runbooks (workstation quick-start for public; SIEM/IdP integration for enterprise).
+4. **Monitor for regression**: add a “tier drift” checklist to release notes; include hash/policy versions for overlays in artifacts.
+
 ## Risk Assessment
 
 ### Critical Risks
