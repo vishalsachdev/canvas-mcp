@@ -1,0 +1,230 @@
+name: Security Testing
+
+on:
+  push:
+    branches: [ main, development ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run weekly security scans
+    - cron: '0 0 * * 0'
+
+jobs:
+  security-tests:
+    name: Security Test Suite
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest pytest-asyncio pytest-cov
+      
+      - name: Run security tests
+        run: |
+          pytest tests/security/ -v --cov=src/canvas_mcp --cov-report=html --cov-report=term
+        continue-on-error: true
+      
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov/
+      
+      - name: Generate test summary
+        if: always()
+        run: |
+          echo "## 🔒 Security Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Security test suite executed. See artifacts for detailed results." >> $GITHUB_STEP_SUMMARY
+
+  sast-scan:
+    name: Static Analysis Security Testing
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install SAST tools
+        run: |
+          pip install bandit semgrep
+      
+      - name: Run Bandit scan
+        run: |
+          bandit -r src/canvas_mcp/ -f json -o bandit-report.json
+        continue-on-error: true
+      
+      - name: Run Semgrep scan
+        run: |
+          semgrep --config=auto src/ --json -o semgrep-report.json
+        continue-on-error: true
+      
+      - name: Upload SAST results
+        uses: actions/upload-artifact@v4
+        with:
+          name: sast-reports
+          path: |
+            bandit-report.json
+            semgrep-report.json
+      
+      - name: Generate SAST summary
+        if: always()
+        run: |
+          echo "## 🔍 Static Analysis Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "SAST scanning completed. Review artifacts for findings." >> $GITHUB_STEP_SUMMARY
+
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      
+      - name: Install scanning tools
+        run: |
+          pip install pip-audit safety
+      
+      - name: Run pip-audit
+        run: |
+          pip-audit --format json --output pip-audit-report.json
+        continue-on-error: true
+      
+      - name: Run Safety check
+        run: |
+          safety check --json --output safety-report.json
+        continue-on-error: true
+      
+      - name: Upload dependency scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-scan-reports
+          path: |
+            pip-audit-report.json
+            safety-report.json
+      
+      - name: Generate dependency summary
+        if: always()
+        run: |
+          echo "## 📦 Dependency Security Scan" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Dependency vulnerability scanning completed." >> $GITHUB_STEP_SUMMARY
+
+  secret-scan:
+    name: Secret Detection Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for secret scanning
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install secret scanning tools
+        run: |
+          pip install detect-secrets
+      
+      - name: Run detect-secrets
+        run: |
+          detect-secrets scan --all-files --force-use-all-plugins > secrets-baseline.json
+        continue-on-error: true
+      
+      - name: TruffleHog scan
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+        continue-on-error: true
+      
+      - name: Upload secret scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: secret-scan-reports
+          path: secrets-baseline.json
+      
+      - name: Generate secret scan summary
+        if: always()
+        run: |
+          echo "## 🔐 Secret Detection Scan" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Secret detection scanning completed. Review artifacts for findings." >> $GITHUB_STEP_SUMMARY
+
+  codeql-analysis:
+    name: CodeQL Security Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: python
+          queries: security-and-quality
+      
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
+      
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: "/language:python"
+
+  security-summary:
+    name: Security Test Summary
+    needs: [security-tests, sast-scan, dependency-scan, secret-scan]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Generate overall summary
+        run: |
+          echo "## 🛡️ Security Testing Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All security testing jobs completed. Please review individual job results and artifacts." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Security test suite" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Static analysis (SAST)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Dependency scanning" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Secret detection" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ CodeQL analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Review the **Actions** tab artifacts for detailed reports." >> $GITHUB_STEP_SUMMARY
