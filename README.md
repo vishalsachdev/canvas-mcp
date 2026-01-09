@@ -591,22 +591,88 @@ The `execute_typescript` tool provides powerful capabilities but requires clear 
 - **Default (no sandbox)**: Code runs with your local user permissions and full network access.
 - **Sandbox (`ENABLE_TS_SANDBOX=true`)**: Applies optional limits (timeout, memory, CPU seconds) plus a Node-level outbound allowlist guard. If Docker/Podman is available and `TS_SANDBOX_MODE=auto`, code runs inside a container for stronger isolation (default image: `node:20-alpine` via `TS_SANDBOX_CONTAINER_IMAGE`).
 
+**Sandbox Configuration:**
+
+Enable sandboxing in your `.env` file:
+
+```bash
+# Enable sandbox with resource limits
+ENABLE_TS_SANDBOX=true
+
+# Sandbox mode: auto (container if available, else local), local, or container
+TS_SANDBOX_MODE=auto
+
+# Block outbound network access (except allowlist)
+TS_SANDBOX_BLOCK_OUTBOUND_NETWORK=true
+
+# Allowlist specific hosts (comma or space separated)
+# Canvas API host is automatically added when block_outbound is enabled
+TS_SANDBOX_ALLOWLIST_HOSTS=api.example.com,cdn.example.org
+
+# Resource limits (0 = no limit)
+TS_SANDBOX_CPU_LIMIT=30              # CPU seconds (best-effort locally, ulimit in container)
+TS_SANDBOX_MEMORY_LIMIT_MB=512       # Memory limit in MB
+TS_SANDBOX_TIMEOUT_SEC=120           # Maximum execution time in seconds
+
+# Container image for sandbox mode (when Docker/Podman available)
+TS_SANDBOX_CONTAINER_IMAGE=node:20-alpine
+```
+
+**How Sandbox Works:**
+
+1. **Container Mode (strongest isolation)**:
+   - Requires Docker or Podman installed and running
+   - Code executes in isolated container with volume mount
+   - Enforces memory limits via `--memory` flag
+   - Enforces CPU limits via `--ulimit cpu` flag
+   - Network allowlist enforced via Node.js hooks inside container
+   - File system limited to container environment
+
+2. **Local Mode (best-effort)**:
+   - Falls back when container runtime unavailable
+   - Memory limits via Node.js `--max-old-space-size` flag
+   - CPU limits via `resource.setrlimit()` on supported platforms
+   - Network allowlist enforced via Node.js module hooks
+   - Runs with current user permissions
+
+3. **Network Allowlist**:
+   - Blocks outbound connections to non-allowlisted hosts
+   - Automatically includes Canvas API host
+   - Works by hooking Node.js `net`, `tls`, `http`, and `https` modules
+   - External binaries spawned by code are not blocked
+
 **Best Practices:**
 - **Trusted Environment Required**: Only use code execution in environments you control
 - **Review Generated Code**: Always review TypeScript code before execution, especially for bulk operations
+- **Enable Sandbox**: Use `ENABLE_TS_SANDBOX=true` for production deployments
+- **Container Runtime**: Install Docker/Podman for strongest isolation
 - **Resource Monitoring**: Monitor system resources when processing large datasets
-- **Timeout Configuration**: Adjust timeout values based on expected operation duration
+- **Network Allowlist**: Use `TS_SANDBOX_BLOCK_OUTBOUND_NETWORK=true` to restrict network access
 
 **What Code Execution Has Access To:**
 - Canvas API credentials from your `.env` file
 - All TypeScript modules in `src/canvas_mcp/code_api/`
 - Standard Node.js modules and npm packages
 - File system access under the current user or container permissions
+- Network access to allowlisted hosts (when sandbox enabled with network blocking)
 
 **Limitations:**
 - Network allowlist is enforced inside Node; external binaries spawned by user code are not blocked
 - Container mode is optional; when unavailable, the server falls back to local execution with warnings
 - File system isolation is only enforced when running inside a container
+- CPU and memory limits are best-effort in local mode; container mode provides stronger enforcement
+
+**Sandbox Execution Output:**
+
+When sandbox is enabled, execution results include sandbox information:
+
+```
+=== Sandbox ===
+Mode: container
+Network allowlist: api.example.com, your-canvas-instance.instructure.com
+Memory limit: 512 MB
+CPU limit: 30 sec
+```
 
 For technical implementation details, see `src/canvas_mcp/tools/code_execution.py`.
 

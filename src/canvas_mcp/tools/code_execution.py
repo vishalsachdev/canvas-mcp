@@ -221,10 +221,13 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
         Returns:
             Combined stdout and stderr from the execution, or error message if failed.
 
-        Security (best-effort unless container sandboxing is available):
-            - Code runs in a temporary file that is deleted after execution
-            - Optional network allowlist guard for outbound requests
-            - Optional resource limits (timeout, memory, CPU seconds)
+        Security:
+            - Sandbox mode (ENABLE_TS_SANDBOX=true): Optional resource limits and network allowlist
+            - Container mode: Runs in Docker/Podman for strongest isolation (auto-detected)
+            - Local mode: Best-effort limits when container runtime unavailable
+            - Network allowlist: Blocks outbound connections except to allowed hosts
+            - Resource limits: Configurable timeout, memory (MB), CPU seconds
+            - See README.md "Code Execution Security" for full configuration details
         """
         config = get_config()
         warnings: list[str] = []
