@@ -585,33 +585,30 @@ src/canvas_mcp/code_api/
 
 ### Code Execution Security
 
-The `execute_typescript` tool provides powerful capabilities but requires proper security considerations:
+The `execute_typescript` tool provides powerful capabilities but requires clear boundaries. It always runs locally; sandboxing is optional and best-effort unless a container runtime is available.
 
-**Security Features:**
-- **Temporary File Isolation**: Code executes in temporary files that are deleted after completion
-- **Environment Isolation**: Inherits only Canvas API credentials from server environment
-- **Timeout Protection**: Configurable timeout prevents runaway processes (default: 120 seconds)
-- **Local Execution**: All code runs on your local machine with no external transmission
+**Security Modes:**
+- **Default (no sandbox)**: Code runs with your local user permissions and full network access.
+- **Sandbox (`ENABLE_TS_SANDBOX=true`)**: Applies optional limits (timeout, memory, CPU seconds) plus a Node-level outbound allowlist guard. If Docker/Podman is available and `TS_SANDBOX_MODE=auto`, code runs inside a container for stronger isolation (default image: `node:20-alpine` via `TS_SANDBOX_CONTAINER_IMAGE`).
 
 **Best Practices:**
 - **Trusted Environment Required**: Only use code execution in environments you control
 - **Review Generated Code**: Always review TypeScript code before execution, especially for bulk operations
 - **Resource Monitoring**: Monitor system resources when processing large datasets
 - **Timeout Configuration**: Adjust timeout values based on expected operation duration
-- **Production Use**: Consider implementing additional resource limits (memory, CPU) in production environments
 
 **What Code Execution Has Access To:**
 - Canvas API credentials from your `.env` file
 - All TypeScript modules in `src/canvas_mcp/code_api/`
 - Standard Node.js modules and npm packages
-- File system access within the execution context
+- File system access under the current user or container permissions
 
 **Limitations:**
-- Cannot access files outside the repository directory
-- Cannot make network requests beyond Canvas API (unless explicitly coded)
-- Subject to Node.js and system resource constraints
+- Network allowlist is enforced inside Node; external binaries spawned by user code are not blocked
+- Container mode is optional; when unavailable, the server falls back to local execution with warnings
+- File system isolation is only enforced when running inside a container
 
-For technical implementation details, see `src/canvas_mcp/tools/code_execution.py:67-70`.
+For technical implementation details, see `src/canvas_mcp/tools/code_execution.py`.
 
 ## Usage with MCP Clients
 

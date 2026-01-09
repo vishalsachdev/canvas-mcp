@@ -11,9 +11,9 @@ This document operationalizes the baseline/public/enterprise tiering in `UIUC_SE
 
 ### 1) Configuration overlays
 Create tier-specific env overlays tracked in git and referenced by release automation.
-- `config/overlays/baseline.env` — defaults for contributors/early adopters (strict sandbox on, localhost bind, anonymization toggle, redacted logging enabled).
-- `config/overlays/public.env` — workstation-focused defaults (sandbox with no outbound egress, keyring/envelope token storage, log redaction + rotation hints, optional localhost-only firewall note in banner).
-- `config/overlays/enterprise.env` — hardened defaults (MCP client auth token/mTLS placeholders, centralized secrets hooks, outbound allowlist, audit/access logging destinations with retention periods).
+- `config/overlays/baseline.env` — defaults for contributors/early adopters (best-effort sandbox on with container fallback, localhost bind placeholder for future HTTP transport, anonymization toggle, redacted logging flag).
+- `config/overlays/public.env` — workstation-focused defaults (best-effort sandbox with outbound allowlist guard, keyring/envelope token storage placeholders, log redaction + rotation hints, optional localhost-only firewall note in banner).
+- `config/overlays/enterprise.env` — hardened defaults (MCP client auth token/mTLS placeholders, centralized secrets hooks, outbound allowlist guard, audit/access logging placeholders with retention periods).
 - Add `config/overlays/README.md` describing how to compose overlays with the base `.env` and what controls are enforced per tier.
 
 ### 2) Release gating
