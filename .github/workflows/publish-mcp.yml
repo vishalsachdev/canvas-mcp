@@ -48,7 +48,9 @@ jobs:
 
       - name: Install MCP Publisher
         run: |
-          VERSION="1.2.3"
+          # Get latest release version dynamically
+          VERSION=$(curl -s https://api.github.com/repos/modelcontextprotocol/registry/releases/latest | jq -r '.tag_name' | sed 's/^v//')
+          echo "Installing mcp-publisher version: $VERSION"
           OS=$(uname -s | tr '[:upper:]' '[:lower:]')
           ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
           curl -L "https://github.com/modelcontextprotocol/registry/releases/download/v${VERSION}/mcp-publisher_${VERSION}_${OS}_${ARCH}.tar.gz" | tar xz
