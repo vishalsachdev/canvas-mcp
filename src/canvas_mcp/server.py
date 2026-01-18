@@ -24,6 +24,7 @@ from .tools import (
     register_discovery_tools,
     register_discussion_tools,
     register_messaging_tools,
+    register_module_tools,
     register_other_tools,
     register_peer_review_comment_tools,
     register_peer_review_tools,
@@ -47,6 +48,7 @@ def register_all_tools(mcp: FastMCP) -> None:
     register_course_tools(mcp)
     register_assignment_tools(mcp)
     register_discussion_tools(mcp)
+    register_module_tools(mcp)
     register_other_tools(mcp)
     register_rubric_tools(mcp)
     register_peer_review_tools(mcp)
@@ -124,6 +126,33 @@ def main() -> None:
         print(f"  Debug Mode: {config.debug}", file=sys.stderr)
         print(f"  API Timeout: {config.api_timeout}s", file=sys.stderr)
         print(f"  Cache TTL: {config.cache_ttl}s", file=sys.stderr)
+        sandbox_mode = config.ts_sandbox_mode
+        if sandbox_mode not in {"auto", "local", "container"}:
+            sandbox_mode = "auto"
+        print(f"  Sandbox Enabled: {config.enable_ts_sandbox}", file=sys.stderr)
+        if config.enable_ts_sandbox:
+            print(f"  Sandbox Mode: {sandbox_mode}", file=sys.stderr)
+            if config.ts_sandbox_timeout_sec > 0:
+                print(
+                    f"  Sandbox Timeout: {config.ts_sandbox_timeout_sec}s",
+                    file=sys.stderr
+                )
+            if config.ts_sandbox_memory_limit_mb > 0:
+                print(
+                    f"  Sandbox Memory: {config.ts_sandbox_memory_limit_mb}MB",
+                    file=sys.stderr
+                )
+            if config.ts_sandbox_cpu_limit > 0:
+                print(
+                    f"  Sandbox CPU Limit: {config.ts_sandbox_cpu_limit}s",
+                    file=sys.stderr
+                )
+            if config.ts_sandbox_block_outbound_network:
+                allowlist = config.ts_sandbox_allowlist_hosts or "canvas API only"
+                print(
+                    f"  Sandbox Network Allowlist: {allowlist}",
+                    file=sys.stderr
+                )
         if config.institution_name:
             print(f"  Institution: {config.institution_name}", file=sys.stderr)
         sys.exit(0)

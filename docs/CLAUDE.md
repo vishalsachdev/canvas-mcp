@@ -184,3 +184,42 @@ This repository has multiple documentation files for different audiences. To pre
 ## Psychology
 
 Do not be afraid to question what I say. Do not always respond with "You're right!" Question the assertions I make and decide whether they are true. If they are probably true, don't question them. If they are probably false, question them. If you are unsure, question them. Always think critically about what I say and decide for yourself whether it is true or false
+
+---
+
+## Current Focus
+- [x] Add tests for module operations
+
+## Roadmap
+- [x] Research Canvas Modules API capabilities and limitations
+- [x] Design module creation tool interface (MCP tool parameters)
+- [x] Implement `create_module` tool
+- [x] Implement `add_module_item` tool for adding content to modules
+- [x] Add module reordering/management tools (`update_module`, `update_module_item`, `delete_module`, `delete_module_item`)
+- [x] Write documentation and examples
+- [x] Add tests for module operations
+
+## Backlog
+- [ ] Module templates (pre-configured module structures)
+- [ ] Bulk module creation from JSON/YAML specs
+- [ ] Module duplication across courses
+
+## Session Log
+### 2026-01-18
+- Completed: Added roadmap sections to CLAUDE.md
+- Completed: Created `feature/module-creation-tool` branch
+- Completed: Researched Canvas Modules API (list, create, update, delete for modules and items)
+- Completed: Implemented 8 module tools in `src/canvas_mcp/tools/modules.py`:
+  - `list_modules` - List all modules with optional item summary
+  - `create_module` - Create modules with prerequisites, unlock dates, sequential progress
+  - `update_module` - Modify module settings
+  - `delete_module` - Remove modules (preserves content)
+  - `add_module_item` - Add items (File, Page, Assignment, Quiz, etc.) with completion requirements
+  - `update_module_item` - Update items, move between modules
+  - `delete_module_item` - Remove items from modules (preserves content)
+- Completed: Registered tools in server.py and __init__.py
+- Completed: Updated tools/README.md and AGENTS.md documentation
+- Completed: Server tests pass
+- Completed: Added 36 unit tests in `tests/tools/test_modules.py`
+- Fixed: `Optional[T]` type hints for proper `@validate_params` decorator handling
+- Next: Feature complete - consider module templates or bulk creation from backlog

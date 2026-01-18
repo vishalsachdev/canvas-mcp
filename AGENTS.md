@@ -58,6 +58,13 @@ Content access tools available to all authenticated users.
 | `get_course_details` | Course info and syllabus |
 | `list_pages` | Course pages |
 | `get_page_content` | Read page content |
+| `list_modules` | List course modules |
+| `create_module` | Create a new module |
+| `update_module` | Update module settings |
+| `delete_module` | Delete a module |
+| `add_module_item` | Add content to a module |
+| `update_module_item` | Update module item settings |
+| `delete_module_item` | Remove item from module |
 | `list_announcements` | Course announcements |
 | `list_discussion_topics` | Discussion forums |
 | `list_discussion_entries` | Posts in a discussion |
