@@ -58,6 +58,8 @@ Content access tools available to all authenticated users.
 | `get_course_details` | Course info and syllabus |
 | `list_pages` | Course pages |
 | `get_page_content` | Read page content |
+| `update_page_settings` | Publish/unpublish, set front page, editing roles |
+| `bulk_update_pages` | Update multiple pages at once |
 | `list_modules` | List course modules |
 | `create_module` | Create a new module |
 | `update_module` | Update module settings |

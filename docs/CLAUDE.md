@@ -93,8 +93,52 @@ canvas-mcp/
 - **Course identifiers**: Use `Union[str, int]` and `get_course_id()` for flexibility
 - **Date handling**: Use `format_date()` for all date outputs
 - **Error responses**: Return JSON strings with "error" key for failures
-- **Form data**: Use `use_form_data=True` for Canvas messaging endpoints
+- **Form data**: Use `use_form_data=True` for Canvas POST/PUT endpoints
 - **Privacy**: Student IDs preserved, names anonymized in `_should_anonymize_endpoint()`
+- **Optional params**: Use `Optional[T]` type hints for parameters that can be `None`
+
+## Test-Driven Development (TDD) - ENFORCED
+
+**All new MCP tools MUST have tests before the feature is considered complete.**
+
+### TDD Workflow
+1. **Write tests first** (or alongside) for new tools
+2. **Minimum 3 tests per tool**: success path, error handling, edge case
+3. **Run tests** before committing: `pytest tests/tools/`
+4. **No merging** without passing tests
+
+### Test Structure
+```
+tests/
+├── tools/           # Unit tests for MCP tools
+│   ├── test_modules.py    # Reference implementation
+│   ├── test_pages.py      # Page tools tests
+│   └── ...
+└── security/        # Security-focused tests
+```
+
+### Test Patterns (from test_modules.py)
+```python
+@pytest.fixture
+def mock_canvas_request():
+    with patch('src.canvas_mcp.tools.modules.make_canvas_request') as mock:
+        yield mock
+
+@pytest.mark.asyncio
+async def test_tool_success(mock_canvas_request, mock_course_id):
+    mock_canvas_request.return_value = {"id": 123, "name": "Test"}
+    result = await tool_function(course_identifier="test", ...)
+    assert "success" in result.lower() or "123" in result
+```
+
+### What to Test
+- ✅ Successful API responses
+- ✅ API error handling (404, 401, 500)
+- ✅ Parameter validation (missing required params, invalid types)
+- ✅ Edge cases (empty lists, None values, special characters)
+- ✅ Canvas API quirks (form data requirements, pagination)
+
+See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comprehensive test coverage plan.
 
 ## Discussion Forum Interaction Workflow
 - **Browse discussions**: `list_discussion_topics(course_id)` - Find available discussion forums
@@ -188,38 +232,32 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 ---
 
 ## Current Focus
-- [x] Add tests for module operations
+- [x] Release v1.0.6 with module and page tools
 
 ## Roadmap
-- [x] Research Canvas Modules API capabilities and limitations
-- [x] Design module creation tool interface (MCP tool parameters)
-- [x] Implement `create_module` tool
-- [x] Implement `add_module_item` tool for adding content to modules
-- [x] Add module reordering/management tools (`update_module`, `update_module_item`, `delete_module`, `delete_module_item`)
-- [x] Write documentation and examples
-- [x] Add tests for module operations
+- [x] Module management tools (7 tools, 36 tests)
+- [x] Page settings tools (2 tools, 15 tests)
+- [x] TDD enforcement in development workflow
+- [x] Release v1.0.6
 
 ## Backlog
 - [ ] Module templates (pre-configured module structures)
 - [ ] Bulk module creation from JSON/YAML specs
 - [ ] Module duplication across courses
+- [ ] Page templates
+- [ ] Bulk page creation from markdown files
+- [ ] Page content versioning/history tools
 
 ## Session Log
 ### 2026-01-18
-- Completed: Added roadmap sections to CLAUDE.md
-- Completed: Created `feature/module-creation-tool` branch
-- Completed: Researched Canvas Modules API (list, create, update, delete for modules and items)
-- Completed: Implemented 8 module tools in `src/canvas_mcp/tools/modules.py`:
-  - `list_modules` - List all modules with optional item summary
-  - `create_module` - Create modules with prerequisites, unlock dates, sequential progress
-  - `update_module` - Modify module settings
-  - `delete_module` - Remove modules (preserves content)
-  - `add_module_item` - Add items (File, Page, Assignment, Quiz, etc.) with completion requirements
-  - `update_module_item` - Update items, move between modules
-  - `delete_module_item` - Remove items from modules (preserves content)
-- Completed: Registered tools in server.py and __init__.py
-- Completed: Updated tools/README.md and AGENTS.md documentation
-- Completed: Server tests pass
-- Completed: Added 36 unit tests in `tests/tools/test_modules.py`
-- Fixed: `Optional[T]` type hints for proper `@validate_params` decorator handling
-- Next: Feature complete - consider module templates or bulk creation from backlog
+- Completed: Module tools feature branch (`feature/module-creation-tool`)
+  - 7 MCP tools for Canvas module management
+  - 36 unit tests
+  - Full documentation in tools/README.md and AGENTS.md
+- Completed: Page settings tools (`feature/page-settings-tools`)
+  - `update_page_settings` - publish/unpublish, front page, editing roles
+  - `bulk_update_pages` - batch operations on multiple pages
+  - 15 unit tests (TDD approach)
+  - Added TDD enforcement section to CLAUDE.md
+  - Created GitHub issue #56 for comprehensive test coverage
+- Released: v1.0.6 with 9 new tools
