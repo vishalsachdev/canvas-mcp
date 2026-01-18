@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -14,6 +15,23 @@ from mcp.server.fastmcp import FastMCP
 from ..core.config import get_config
 from ..core.logging import log_warning
 from ..core.validation import validate_params
+
+
+def _validate_container_image(image: str) -> bool:
+    """Validate container image name format to prevent command injection.
+
+    Args:
+        image: Container image name (e.g., "node:20-alpine", "registry.io/org/image:tag")
+
+    Returns:
+        True if the image name is valid, False otherwise
+    """
+    if not image:
+        return False
+    # Allow alphanumeric, dots, hyphens, underscores, slashes, and colons
+    # Must have at least one colon for tag
+    pattern = r'^[a-zA-Z0-9._/-]+:[a-zA-Z0-9._-]+$'
+    return bool(re.match(pattern, image))
 
 
 def _normalize_host(value: str) -> str:
@@ -138,7 +156,12 @@ https.request = function (...args) {{
     guard_file.write(guard_contents)
     guard_file.flush()
     guard_file.close()
-    return Path(guard_file.name)
+    guard_path = Path(guard_file.name)
+
+    # Set restrictive permissions (owner read/write only) for security
+    os.chmod(guard_path, 0o600)
+
+    return guard_path
 
 
 def _detect_container_runtime() -> str | None:
@@ -262,19 +285,30 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                 log_warning("Sandbox allowlist is empty; outbound requests may fail.")
 
             if sandbox_mode_setting in {"auto", "container"}:
-                container_runtime = _detect_container_runtime()
-                if container_runtime and await _runtime_available(container_runtime):
-                    sandbox_mode = "container"
-                elif sandbox_mode_setting == "container":
+                # Validate container image format before attempting to use it
+                if not _validate_container_image(config.ts_sandbox_container_image):
                     message = (
-                        "Container sandbox requested but no runtime is available; "
-                        "falling back to local best-effort sandbox."
+                        f"Invalid container image format: '{config.ts_sandbox_container_image}'. "
+                        "Expected format: 'name:tag' (e.g., 'node:20-alpine'). "
+                        "Falling back to local sandbox."
                     )
                     warnings.append(message)
                     log_warning(message)
                     sandbox_mode = "local"
                 else:
-                    sandbox_mode = "local"
+                    container_runtime = _detect_container_runtime()
+                    if container_runtime and await _runtime_available(container_runtime):
+                        sandbox_mode = "container"
+                    elif sandbox_mode_setting == "container":
+                        message = (
+                            "Container sandbox requested but no runtime is available; "
+                            "falling back to local best-effort sandbox."
+                        )
+                        warnings.append(message)
+                        log_warning(message)
+                        sandbox_mode = "local"
+                    else:
+                        sandbox_mode = "local"
             else:
                 sandbox_mode = "local"
 
