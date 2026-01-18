@@ -160,6 +160,9 @@ class TestListModules:
         call_args = mock_canvas_api['fetch_all_paginated_results'].call_args
         assert "search_term" in call_args[0][1]
 
+        # Verify the filtered result contains the expected module
+        assert "Week 1: Introduction" in result
+
 
 class TestCreateModule:
     """Tests for create_module tool."""
