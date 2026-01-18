@@ -17,7 +17,7 @@ This repository contains a Model Context Protocol (MCP) server implementation fo
   See docs/CLAUDE.md "Documentation Maintenance" for full guidelines.
 -->
 
-Canvas MCP provides **40+ tools** for interacting with Canvas LMS. Tools are organized by user type:
+Canvas MCP provides **47+ tools** for interacting with Canvas LMS. Tools are organized by user type:
 
 <details>
 <summary><strong>Student Tools</strong> (click to expand)</summary>
@@ -53,6 +53,15 @@ Canvas MCP provides **40+ tools** for interacting with Canvas LMS. Tools are org
 |------|---------|
 | `list_courses` | All enrolled courses |
 | `get_course_details` | Course info + syllabus |
+| `list_pages` | Course pages |
+| `get_page_content` | Read page content |
+| `list_modules` | List course modules with items |
+| `create_module` | Create new module with prerequisites |
+| `update_module` | Update module settings |
+| `delete_module` | Delete module (preserves content) |
+| `add_module_item` | Add items to modules |
+| `update_module_item` | Update module items |
+| `delete_module_item` | Remove items from modules |
 | `list_discussion_topics` | Discussion forums |
 | `list_discussion_entries` | Posts in a discussion |
 | `post_discussion_entry` | Add a post |
@@ -394,18 +403,19 @@ The Canvas MCP Server provides a comprehensive set of tools for interacting with
 **Shared Tools** (Both Students & Educators)
 1. **Course Tools** - List and manage courses, get detailed information, generate summaries with syllabus content
 2. **Discussion & Announcement Tools** - Manage discussions, announcements, and replies
-3. **Page & Content Tools** - Access pages, modules, and course content
+3. **Page & Content Tools** - Access pages and course content
+4. **Module Tools** - Create, update, and organize course modules with items, prerequisites, and completion requirements
 
 **Educator Tools**
-4. **Assignment Tools** - Handle assignments, submissions, and peer reviews with analytics
-5. **Rubric Tools** - Full CRUD operations for rubrics with validation, association management, and grading (including `bulk_grade_submissions` for efficient batch grading)
-6. **User & Enrollment Tools** - Manage enrollments, users, and groups
-7. **Analytics Tools** - View student analytics, assignment statistics, and progress tracking
-8. **Messaging Tools** - Send messages and announcements to students
+5. **Assignment Tools** - Handle assignments, submissions, and peer reviews with analytics
+6. **Rubric Tools** - Full CRUD operations for rubrics with validation, association management, and grading (including `bulk_grade_submissions` for efficient batch grading)
+7. **User & Enrollment Tools** - Manage enrollments, users, and groups
+8. **Analytics Tools** - View student analytics, assignment statistics, and progress tracking
+9. **Messaging Tools** - Send messages and announcements to students
 
 **Developer Tools**
-9. **Discovery Tools** - Search and explore available code execution API operations with `search_canvas_tools` and `list_code_api_modules`
-10. **Code Execution Tools** - Execute TypeScript code with `execute_typescript` for token-efficient bulk operations (99.7% token savings!)
+10. **Discovery Tools** - Search and explore available code execution API operations with `search_canvas_tools` and `list_code_api_modules`
+11. **Code Execution Tools** - Execute TypeScript code with `execute_typescript` for token-efficient bulk operations (99.7% token savings!)
 
 📖 [View Full Tool Documentation](tools/README.md) for detailed information about all available tools.
 
@@ -628,6 +638,8 @@ This MCP server works seamlessly with any MCP-compatible client:
 - *"Which students haven't submitted the latest assignment?"*
 - *"Create an announcement about tomorrow's exam"*
 - *"Show me peer review completion analytics"*
+- *"Create a new module called 'Week 5: Midterm Review'"*
+- *"Add Assignment 3 to the Week 3 module"*
 
 ### Quick Start Examples
 
@@ -660,11 +672,12 @@ canvas-mcp/
 │       │   ├── courses.py     # Course management
 │       │   ├── assignments.py # Assignment tools
 │       │   ├── discussions.py # Discussion tools
+│       │   ├── modules.py     # Module management (NEW!)
 │       │   ├── rubrics.py     # Rubric tools
 │       │   ├── student_tools.py # Student-specific tools
 │       │   ├── messaging.py   # Communication tools
 │       │   ├── discovery.py   # Code API tool discovery
-│       │   ├── code_execution.py # TypeScript code execution (NEW!)
+│       │   ├── code_execution.py # TypeScript code execution
 │       │   └── ...            # Other tool modules
 │       ├── code_api/          # Code execution API (NEW!)
 │       │   ├── client.ts      # MCP client bridge
