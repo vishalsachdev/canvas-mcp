@@ -52,7 +52,8 @@ student_anonymization_mapping.txt
 show_student_mappings.py
 _**
 .aider*
-test_*.py
+# Ignore test files in root, but allow them in tests/ directory
+/test_*.py
 
 # Local de-anonymization maps (contains PII)
 local_maps/
