@@ -93,8 +93,52 @@ canvas-mcp/
 - **Course identifiers**: Use `Union[str, int]` and `get_course_id()` for flexibility
 - **Date handling**: Use `format_date()` for all date outputs
 - **Error responses**: Return JSON strings with "error" key for failures
-- **Form data**: Use `use_form_data=True` for Canvas messaging endpoints
+- **Form data**: Use `use_form_data=True` for Canvas POST/PUT endpoints
 - **Privacy**: Student IDs preserved, names anonymized in `_should_anonymize_endpoint()`
+- **Optional params**: Use `Optional[T]` type hints for parameters that can be `None`
+
+## Test-Driven Development (TDD) - ENFORCED
+
+**All new MCP tools MUST have tests before the feature is considered complete.**
+
+### TDD Workflow
+1. **Write tests first** (or alongside) for new tools
+2. **Minimum 3 tests per tool**: success path, error handling, edge case
+3. **Run tests** before committing: `pytest tests/tools/`
+4. **No merging** without passing tests
+
+### Test Structure
+```
+tests/
+├── tools/           # Unit tests for MCP tools
+│   ├── test_modules.py    # Reference implementation
+│   ├── test_pages.py      # Page tools tests
+│   └── ...
+└── security/        # Security-focused tests
+```
+
+### Test Patterns (from test_modules.py)
+```python
+@pytest.fixture
+def mock_canvas_request():
+    with patch('src.canvas_mcp.tools.modules.make_canvas_request') as mock:
+        yield mock
+
+@pytest.mark.asyncio
+async def test_tool_success(mock_canvas_request, mock_course_id):
+    mock_canvas_request.return_value = {"id": 123, "name": "Test"}
+    result = await tool_function(course_identifier="test", ...)
+    assert "success" in result.lower() or "123" in result
+```
+
+### What to Test
+- ✅ Successful API responses
+- ✅ API error handling (404, 401, 500)
+- ✅ Parameter validation (missing required params, invalid types)
+- ✅ Edge cases (empty lists, None values, special characters)
+- ✅ Canvas API quirks (form data requirements, pagination)
+
+See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comprehensive test coverage plan.
 
 ## Discussion Forum Interaction Workflow
 - **Browse discussions**: `list_discussion_topics(course_id)` - Find available discussion forums
@@ -184,3 +228,34 @@ This repository has multiple documentation files for different audiences. To pre
 ## Psychology
 
 Do not be afraid to question what I say. Do not always respond with "You're right!" Question the assertions I make and decide whether they are true. If they are probably true, don't question them. If they are probably false, question them. If you are unsure, question them. Always think critically about what I say and decide for yourself whether it is true or false
+
+---
+
+## Current Focus
+- [x] Add page settings management tools
+
+## Roadmap
+- [x] Research Canvas Pages API for settings endpoints
+- [x] Write tests for page settings tools (TDD) - 15 tests
+- [x] Implement `update_page_settings` tool
+- [x] Implement `bulk_update_pages` for batch operations
+- [x] Write documentation and examples
+
+## Backlog
+- [ ] Page templates
+- [ ] Bulk page creation from markdown files
+- [ ] Page content versioning/history tools
+
+## Session Log
+### 2026-01-18
+- Completed: Module tools feature branch (`feature/module-creation-tool`)
+  - 7 MCP tools for Canvas module management
+  - 36 unit tests
+  - Full documentation in tools/README.md and AGENTS.md
+- Completed: Page settings tools (`feature/page-settings-tools`)
+  - `update_page_settings` - publish/unpublish, front page, editing roles
+  - `bulk_update_pages` - batch operations on multiple pages
+  - 15 unit tests (TDD approach)
+  - Added TDD enforcement section to CLAUDE.md
+  - Created GitHub issue #56 for comprehensive test coverage
+- Next: Test tools on live Canvas course, then commit and PR

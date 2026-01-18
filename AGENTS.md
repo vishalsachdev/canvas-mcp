@@ -58,6 +58,8 @@ Content access tools available to all authenticated users.
 | `get_course_details` | Course info and syllabus |
 | `list_pages` | Course pages |
 | `get_page_content` | Read page content |
+| `update_page_settings` | Publish/unpublish, set front page, editing roles |
+| `bulk_update_pages` | Update multiple pages at once |
 | `list_announcements` | Course announcements |
 | `list_discussion_topics` | Discussion forums |
 | `list_discussion_entries` | Posts in a discussion |

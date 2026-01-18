@@ -523,6 +523,48 @@ Get detailed page metadata.
 
 ---
 
+#### `update_page_settings`
+Update page settings without changing content (publish/unpublish, front page, editing roles).
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `page_url_or_id`: Page URL slug or ID
+- `published` (optional): True to publish, False to unpublish
+- `front_page` (optional): True to set as course front page
+- `editing_roles` (optional): Who can edit - teachers, students, members, or public
+- `notify_of_update` (optional): True to notify users of the update
+
+**Example:**
+```
+"Unpublish the Week 10 page in BADM 350"
+"Set the syllabus page as the front page"
+"Allow students to edit the collaborative notes page"
+```
+
+**Note:** The front page cannot be unpublished. To unpublish it, first set another page as the front page.
+
+---
+
+#### `bulk_update_pages`
+Update settings for multiple pages at once.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `page_urls`: Comma-separated list of page URL slugs
+- `published` (optional): True to publish all, False to unpublish all
+- `editing_roles` (optional): Who can edit
+- `notify_of_update` (optional): True to notify users
+
+**Example:**
+```
+"Unpublish all the draft pages: draft-1, draft-2, draft-3"
+"Publish pages week-1, week-2, week-3 in my course"
+```
+
+**Note:** front_page is not supported in bulk updates (only one page can be front page).
+
+---
+
 ### Announcements
 
 #### `list_announcements`
