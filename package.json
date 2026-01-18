@@ -1,6 +1,6 @@
 {
   "name": "canvas-mcp-code-api",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "TypeScript code execution API for Canvas MCP",
   "type": "module",
   "scripts": {

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "name": "canvas-mcp",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "MCP server for Canvas Learning Management System API",
   "categories": [
     {
