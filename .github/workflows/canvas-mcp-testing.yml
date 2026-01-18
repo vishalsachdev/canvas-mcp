@@ -1,16 +1,17 @@
-name: Canvas MCP Enhancement Testing
+name: Canvas MCP Testing
 
 on:
   push:
     branches: [ main, development ]
     paths: 
-      - 'src/canvas_mcp/tools/discussions.py'
+      - 'src/canvas_mcp/**'
       - 'tests/**'
   pull_request:
     branches: [ main ]
 
 jobs:
-  test-enhancements:
+  test-suite:
+    name: MCP Tools Test Suite
     runs-on: ubuntu-latest
     
     steps:
@@ -24,60 +25,42 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -e .
-        pip install pytest pytest-asyncio
+        pip install -e ".[dev]"
+        pip install pytest pytest-asyncio pytest-cov coverage
     
-    - name: Run Enhancement Tests
+    - name: Run Tool Tests
       run: |
-        if [ -f "tests/test_discussion_enhancements.py" ]; then
-          python tests/test_discussion_enhancements.py
-        else
-          echo "No test file found, creating basic test report"
-          echo "# Test Results" > test_report.md
-          echo "" >> test_report.md
-          echo "✅ **Basic Validation Completed**" >> test_report.md
-          echo "- Code syntax validation: PASSED" >> test_report.md
-          echo "- Module imports: PASSED" >> test_report.md
-          echo "- No test file present for detailed testing" >> test_report.md
-        fi
+        pytest tests/tools/ -v --tb=short
     
-    - name: Generate Test Report
+    - name: Run Security Tests
+      run: |
+        pytest tests/security/ -v --tb=short
+      continue-on-error: true
+    
+    - name: Generate Coverage Report
+      run: |
+        coverage run -m pytest tests/
+        coverage report --include="src/canvas_mcp/tools/*"
+        coverage html --include="src/canvas_mcp/tools/*"
+    
+    - name: Upload Coverage Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: htmlcov/
+    
+    - name: Generate Test Summary
+      if: always()
       run: |
         echo "## 🧪 Canvas MCP Test Results" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        if [ -f "test_report.md" ]; then
-          cat test_report.md >> $GITHUB_STEP_SUMMARY
-        else
-          echo "No test report generated" >> $GITHUB_STEP_SUMMARY
-        fi
-    
-    - name: Upload Test Results
-      if: hashFiles('test_report.md') != ''
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-results
-        path: test_report.md
-    
-    - name: Performance Regression Check
-      run: |
-        if [ -f "scripts/performance_check.py" ]; then
-          python scripts/performance_check.py
-        else
-          echo "No performance check script found, skipping"
-        fi
-    
-    - name: Comment on PR (if applicable)
-      if: github.event_name == 'pull_request' && hashFiles('test_report.md') != ''
-      continue-on-error: true
-      uses: actions/github-script@v6
-      with:
-        script: |
-          const fs = require('fs');
-          const testReport = fs.readFileSync('test_report.md', 'utf8');
-          
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: `## 🧪 Automated Test Results\n\n${testReport}`
-          });
+        
+        # Count tests
+        TOOL_TESTS=$(find tests/tools -name "test_*.py" | wc -l)
+        SECURITY_TESTS=$(find tests/security -name "test_*.py" | wc -l)
+        
+        echo "### Test Coverage" >> $GITHUB_STEP_SUMMARY
+        echo "- Tool test files: ${TOOL_TESTS}" >> $GITHUB_STEP_SUMMARY
+        echo "- Security test files: ${SECURITY_TESTS}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "See artifacts for detailed coverage report." >> $GITHUB_STEP_SUMMARY
