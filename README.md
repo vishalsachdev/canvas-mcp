@@ -17,7 +17,7 @@ This repository contains a Model Context Protocol (MCP) server implementation fo
   See docs/CLAUDE.md "Documentation Maintenance" for full guidelines.
 -->
 
-Canvas MCP provides **40+ tools** for interacting with Canvas LMS. Tools are organized by user type:
+Canvas MCP provides **50+ tools** for interacting with Canvas LMS. Tools are organized by user type:
 
 <details>
 <summary><strong>Student Tools</strong> (click to expand)</summary>
@@ -53,6 +53,17 @@ Canvas MCP provides **40+ tools** for interacting with Canvas LMS. Tools are org
 |------|---------|
 | `list_courses` | All enrolled courses |
 | `get_course_details` | Course info + syllabus |
+| `list_pages` | Course pages |
+| `get_page_content` | Read page content |
+| `update_page_settings` | Publish/unpublish, set front page, editing roles |
+| `bulk_update_pages` | Update multiple pages at once |
+| `list_modules` | List course modules |
+| `create_module` | Create a new module |
+| `update_module` | Update module settings |
+| `delete_module` | Delete a module |
+| `add_module_item` | Add content to a module |
+| `update_module_item` | Update module item settings |
+| `delete_module_item` | Remove item from module |
 | `list_discussion_topics` | Discussion forums |
 | `list_discussion_entries` | Posts in a discussion |
 | `post_discussion_entry` | Add a post |
@@ -85,16 +96,24 @@ Canvas MCP provides **40+ tools** for interacting with Canvas LMS. Tools are org
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data through any MCP-compatible client.
 
-## 🎉 Latest Release: v1.0.5
+## 🎉 Latest Release: v1.0.6
 
-**Released:** December 25, 2025 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.0.5)**
+**Released:** January 18, 2026 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.0.6)**
 
-### What's New in v1.0.5
+### What's New in v1.0.6
+- **📦 Module Management Tools** - Complete module CRUD operations (7 new tools)
+  - `create_module`, `update_module`, `delete_module` - Full module lifecycle
+  - `add_module_item`, `update_module_item`, `delete_module_item` - Manage module content
+  - Prerequisites, unlock dates, sequential progress support
+- **📄 Page Settings Tools** - Control page publishing and access (2 new tools)
+  - `update_page_settings` - Publish/unpublish, set front page, editing roles
+  - `bulk_update_pages` - Batch operations on multiple pages
+- **🧪 Test-Driven Development** - 51 new unit tests (36 for modules, 15 for pages)
+- **📚 Enhanced Documentation** - TDD enforcement and comprehensive tool docs
+
+### Previous Release (v1.0.5)
 - **🎯 Claude Code Skills** - One-command workflows for common tasks
-  - `/canvas-morning-check` - Educator course health check
-  - `/canvas-week-plan` - Student weekly assignment planner
-- **🌐 GitHub Pages Website** - Beautiful documentation site at [vishalsachdev.github.io/canvas-mcp](https://vishalsachdev.github.io/canvas-mcp/)
-- **📖 HTML Documentation** - Full guides for students, educators, and developers
+- **🌐 GitHub Pages Website** - Documentation site at [vishalsachdev.github.io/canvas-mcp](https://vishalsachdev.github.io/canvas-mcp/)
 
 ### Previous Release (v1.0.4)
 - **🚀 Code Execution Environment** - Execute custom TypeScript code for token-efficient bulk operations (99.7% token savings)
