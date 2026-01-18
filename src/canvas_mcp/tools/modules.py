@@ -133,16 +133,20 @@ def register_module_tools(mcp: FastMCP):
         if require_sequential_progress:
             module_params["module[require_sequential_progress]"] = "true"
 
+        # Handle prerequisite module IDs - need list of tuples for httpx form data
+        prereq_tuples = []
         if prerequisite_module_ids:
             # Parse comma-separated IDs
             prereq_ids = [id.strip() for id in prerequisite_module_ids.split(",")]
-            for prereq_id in prereq_ids:
-                module_params["module[prerequisite_module_ids][]"] = prereq_id
+            prereq_tuples = [("module[prerequisite_module_ids][]", prereq_id) for prereq_id in prereq_ids]
+
+        # Convert module_params dict to list of tuples and append prereq tuples
+        form_data = list(module_params.items()) + prereq_tuples
 
         response = await make_canvas_request(
             "post",
             f"/courses/{course_id}/modules",
-            data=module_params,
+            data=form_data,
             use_form_data=True
         )
 
@@ -216,24 +220,28 @@ def register_module_tools(mcp: FastMCP):
         if require_sequential_progress is not None:
             module_params["module[require_sequential_progress]"] = str(require_sequential_progress).lower()
 
+        # Handle prerequisite module IDs - need list of tuples for httpx form data
+        prereq_tuples = []
         if prerequisite_module_ids is not None:
             if prerequisite_module_ids == "":
                 module_params["module[prerequisite_module_ids][]"] = ""
             else:
                 prereq_ids = [id.strip() for id in prerequisite_module_ids.split(",")]
-                for prereq_id in prereq_ids:
-                    module_params["module[prerequisite_module_ids][]"] = prereq_id
+                prereq_tuples = [("module[prerequisite_module_ids][]", prereq_id) for prereq_id in prereq_ids]
 
         if published is not None:
             module_params["module[published]"] = str(published).lower()
 
-        if not module_params:
+        if not module_params and not prereq_tuples:
             return "No changes specified. Please provide at least one field to update."
+
+        # Convert module_params dict to list of tuples and append prereq tuples
+        form_data = list(module_params.items()) + prereq_tuples
 
         response = await make_canvas_request(
             "put",
             f"/courses/{course_id}/modules/{module_id}",
-            data=module_params,
+            data=form_data,
             use_form_data=True
         )
 
@@ -561,7 +569,7 @@ def register_module_tools(mcp: FastMCP):
         result += f"  Position: {item_position}\n"
         result += f"  Published: {'Yes' if item_published else 'No'}\n"
 
-        if move_to_module_id and response.get("module_id") == int(move_to_module_id):
+        if move_to_module_id and str(response.get("module_id")) == str(move_to_module_id):
             result += f"  ✓ Moved to module {move_to_module_id}\n"
 
         return result
