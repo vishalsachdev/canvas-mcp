@@ -50,9 +50,10 @@ gradebook.json
 # Student data and utility scripts
 student_anonymization_mapping.txt
 show_student_mappings.py
-_**
+/_**
 .aider*
-test_*.py
+/test_*.py
+!tests/
 
 # Local de-anonymization maps (contains PII)
 local_maps/

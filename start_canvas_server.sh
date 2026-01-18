@@ -26,9 +26,15 @@ fi
 cd $SCRIPT_DIR
 echo "Changed directory to: $(pwd)" >&2
 
-# Run the server using the installed CLI command
-echo "Starting server with canvas-mcp-server command..." >&2
-canvas-mcp-server
+# Run the server using the repo-local venv if present (preferred)
+VENV_SERVER="$SCRIPT_DIR/.venv/bin/canvas-mcp-server"
+if [ -x "$VENV_SERVER" ]; then
+    echo "Starting server with $VENV_SERVER ..." >&2
+    "$VENV_SERVER"
+else
+    echo "Starting server with canvas-mcp-server from PATH..." >&2
+    canvas-mcp-server
+fi
 
 # Exit message
 echo "Server stopped" >&2

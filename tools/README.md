@@ -523,6 +523,151 @@ Get detailed page metadata.
 
 ---
 
+### Modules
+
+Modules are Canvas's primary content organization system, allowing you to structure course content into ordered units with prerequisites and completion requirements.
+
+#### `list_modules`
+List all modules in a course.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `include_items` (optional): Include item summary for each module (default: false)
+- `search_term` (optional): Filter modules by name
+
+**Example:**
+```
+"Show me all modules in BADM 350"
+"List modules with their items"
+```
+
+---
+
+#### `create_module`
+Create a new module in a course.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `name`: Module name (required)
+- `position` (optional): Position in module list (1-indexed)
+- `unlock_at` (optional): Date/time when module unlocks (ISO 8601)
+- `require_sequential_progress` (optional): Students must complete items in order
+- `prerequisite_module_ids` (optional): Comma-separated IDs of prerequisite modules
+- `published` (optional): Whether module is published (default: true)
+
+**Example:**
+```
+"Create a module called 'Week 1: Introduction' in BADM 350"
+"Add a new module 'Final Project' at position 10"
+```
+
+---
+
+#### `update_module`
+Update an existing module's settings.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `module_id`: Module ID to update
+- `name` (optional): New name
+- `position` (optional): New position
+- `unlock_at` (optional): New unlock date, or empty string to remove
+- `require_sequential_progress` (optional): Sequential progress requirement
+- `prerequisite_module_ids` (optional): New prerequisites, or empty to clear
+- `published` (optional): Published status
+
+**Example:**
+```
+"Rename module 12345 to 'Unit 2: Advanced Topics'"
+"Unpublish module 67890"
+```
+
+---
+
+#### `delete_module`
+Delete a module from a course.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `module_id`: Module ID to delete
+
+**Note:** This removes the module organization only. The actual content (pages, assignments, etc.) is NOT deleted.
+
+**Example:**
+```
+"Delete module 12345 from BADM 350"
+```
+
+---
+
+#### `add_module_item`
+Add an item to a module.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `module_id`: Module ID to add item to
+- `item_type`: One of: File, Page, Discussion, Assignment, Quiz, SubHeader, ExternalUrl, ExternalTool
+- `content_id` (optional): Canvas ID of content (required for File, Discussion, Assignment, Quiz, ExternalTool)
+- `title` (optional): Title for the item (required for SubHeader, ExternalUrl)
+- `position` (optional): Position within the module
+- `indent` (optional): Indentation level (0-4)
+- `page_url` (optional): Page URL slug (required for Page type)
+- `external_url` (optional): URL (required for ExternalUrl type)
+- `new_tab` (optional): Open external links in new tab
+- `completion_requirement_type` (optional): must_view, must_submit, must_contribute, min_score, must_mark_done
+- `completion_requirement_min_score` (optional): Minimum score (for min_score type)
+
+**Example:**
+```
+"Add assignment 123 to module 456"
+"Add a subheader 'Required Readings' to module 789"
+"Add the syllabus page to the first module"
+```
+
+---
+
+#### `update_module_item`
+Update an existing module item.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `module_id`: Module ID containing the item
+- `item_id`: Item ID to update
+- `title` (optional): New title
+- `position` (optional): New position
+- `indent` (optional): New indent level (0-4)
+- `external_url` (optional): New URL (ExternalUrl items)
+- `new_tab` (optional): Open in new tab
+- `completion_requirement_type` (optional): New completion type, or empty to remove
+- `completion_requirement_min_score` (optional): New min score
+- `published` (optional): Published status
+- `move_to_module_id` (optional): Move item to different module
+
+**Example:**
+```
+"Move item 111 to module 222"
+"Set completion requirement to 'must_view' for item 333"
+```
+
+---
+
+#### `delete_module_item`
+Remove an item from a module.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `module_id`: Module ID containing the item
+- `item_id`: Item ID to remove
+
+**Note:** This only removes the item from the module. The actual content is NOT deleted.
+
+**Example:**
+```
+"Remove item 12345 from module 67890"
+```
+
+---
+
 ### Announcements
 
 #### `list_announcements`

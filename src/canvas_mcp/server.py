@@ -24,6 +24,7 @@ from .tools import (
     register_discovery_tools,
     register_discussion_tools,
     register_messaging_tools,
+    register_module_tools,
     register_other_tools,
     register_peer_review_comment_tools,
     register_peer_review_tools,
@@ -47,6 +48,7 @@ def register_all_tools(mcp: FastMCP) -> None:
     register_course_tools(mcp)
     register_assignment_tools(mcp)
     register_discussion_tools(mcp)
+    register_module_tools(mcp)
     register_other_tools(mcp)
     register_rubric_tools(mcp)
     register_peer_review_tools(mcp)
