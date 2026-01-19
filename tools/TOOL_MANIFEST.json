@@ -193,6 +193,103 @@
       ]
     },
     {
+      "name": "create_assignment",
+      "category": "educator",
+      "description": "Create a new assignment in a course with configurable due dates, submission types, and peer reviews",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "Assignment name/title"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "description": "HTML content for the assignment body"
+        },
+        {
+          "name": "submission_types",
+          "type": "string",
+          "required": false,
+          "description": "Comma-separated: online_text_entry, online_url, online_upload, discussion_topic, none, on_paper, external_tool"
+        },
+        {
+          "name": "due_at",
+          "type": "string",
+          "required": false,
+          "description": "Due date in ISO 8601 format"
+        },
+        {
+          "name": "points_possible",
+          "type": "number",
+          "required": false,
+          "description": "Maximum points for the assignment"
+        },
+        {
+          "name": "grading_type",
+          "type": "string",
+          "required": false,
+          "description": "One of: points, letter_grade, pass_fail, percent, not_graded"
+        },
+        {
+          "name": "published",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Whether to publish immediately (default: false for safety)"
+        },
+        {
+          "name": "peer_reviews",
+          "type": "boolean",
+          "required": false,
+          "description": "Enable peer reviews"
+        },
+        {
+          "name": "unlock_at",
+          "type": "string",
+          "required": false,
+          "description": "When assignment becomes available (ISO 8601 format)"
+        },
+        {
+          "name": "lock_at",
+          "type": "string",
+          "required": false,
+          "description": "When assignment locks (ISO 8601 format)"
+        },
+        {
+          "name": "assignment_group_id",
+          "type": "string | integer",
+          "required": false,
+          "description": "ID of assignment group to place this in"
+        },
+        {
+          "name": "automatic_peer_reviews",
+          "type": "boolean",
+          "required": false,
+          "description": "Automatically assign peer reviews when enabled"
+        },
+        {
+          "name": "allowed_extensions",
+          "type": "string",
+          "required": false,
+          "description": "Comma-separated file extensions for online_upload (e.g., 'pdf,docx,txt')"
+        }
+      ],
+      "returns": "Created assignment details including ID and URL",
+      "examples": [
+        "Create an assignment called 'Week 1 Discussion' worth 10 points, due Jan 26",
+        "Add a new essay assignment with online_text_entry submission"
+      ]
+    },
+    {
       "name": "get_student_analytics",
       "category": "educator",
       "description": "Multi-dimensional student performance analysis",
