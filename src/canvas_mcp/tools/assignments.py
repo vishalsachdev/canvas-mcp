@@ -8,7 +8,7 @@ from mcp.server.fastmcp import FastMCP
 from ..core.anonymization import anonymize_response_data
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
-from ..core.dates import format_date
+from ..core.dates import format_date, parse_date
 from ..core.logging import log_error
 from ..core.validation import validate_params
 
@@ -696,14 +696,24 @@ def register_assignment_tools(mcp: FastMCP):
         if submission_types_list:
             assignment_data["submission_types"] = submission_types_list
 
+        # Validate and parse date fields
         if due_at:
-            assignment_data["due_at"] = due_at
+            parsed_due = parse_date(due_at)
+            if not parsed_due:
+                return f"Invalid date format for due_at: '{due_at}'. Use ISO 8601 format (e.g., '2026-01-26T23:59:00Z')."
+            assignment_data["due_at"] = parsed_due.isoformat()
 
         if unlock_at:
-            assignment_data["unlock_at"] = unlock_at
+            parsed_unlock = parse_date(unlock_at)
+            if not parsed_unlock:
+                return f"Invalid date format for unlock_at: '{unlock_at}'. Use ISO 8601 format (e.g., '2026-01-26T00:00:00Z')."
+            assignment_data["unlock_at"] = parsed_unlock.isoformat()
 
         if lock_at:
-            assignment_data["lock_at"] = lock_at
+            parsed_lock = parse_date(lock_at)
+            if not parsed_lock:
+                return f"Invalid date format for lock_at: '{lock_at}'. Use ISO 8601 format (e.g., '2026-02-01T23:59:00Z')."
+            assignment_data["lock_at"] = parsed_lock.isoformat()
 
         if points_possible is not None:
             assignment_data["points_possible"] = points_possible

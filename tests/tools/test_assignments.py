@@ -132,7 +132,8 @@ class TestCreateAssignment:
         assert assignment_data['name'] == "Full Assignment"
         assert assignment_data['description'] == "<p>Test description</p>"
         assert assignment_data['submission_types'] == ["online_text_entry", "online_upload"]
-        assert assignment_data['due_at'] == "2026-01-26T23:59:00Z"
+        # parse_date converts to isoformat which uses +00:00 instead of Z
+        assert assignment_data['due_at'] in ["2026-01-26T23:59:00Z", "2026-01-26T23:59:00+00:00"]
         assert assignment_data['points_possible'] == 100
         assert assignment_data['grading_type'] == "points"
         assert assignment_data['published'] is True
@@ -207,6 +208,64 @@ class TestCreateAssignment:
         call_args = mock_canvas_api['make_canvas_request'].call_args
         assignment_data = call_args[1]['data']['assignment']
         assert assignment_data['submission_types'] == ["online_text_entry", "online_url", "online_upload"]
+
+    @pytest.mark.asyncio
+    async def test_create_assignment_valid_date_parsing(self, mock_canvas_api):
+        """Test that valid dates are parsed and formatted correctly."""
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "id": 12348,
+            "name": "Dated Assignment",
+            "published": False,
+            "due_at": "2026-01-26T23:59:00Z"
+        }
+
+        create_assignment = get_tool_function('create_assignment')
+        result = await create_assignment(
+            "badm_350_120251",
+            "Dated Assignment",
+            due_at="2026-01-26T23:59:00Z",
+            unlock_at="2026-01-20T00:00:00Z",
+            lock_at="2026-02-01T23:59:00Z"
+        )
+
+        # Verify dates were parsed and sent to API
+        call_args = mock_canvas_api['make_canvas_request'].call_args
+        assignment_data = call_args[1]['data']['assignment']
+        assert "due_at" in assignment_data
+        assert "unlock_at" in assignment_data
+        assert "lock_at" in assignment_data
+        assert "successfully" in result
+
+    @pytest.mark.asyncio
+    async def test_create_assignment_invalid_date_format(self, mock_canvas_api):
+        """Test validation of invalid date formats."""
+        create_assignment = get_tool_function('create_assignment')
+        result = await create_assignment(
+            "badm_350_120251",
+            "Test Assignment",
+            due_at="not-a-valid-date"
+        )
+
+        assert "Invalid date format" in result
+        assert "due_at" in result
+        assert "not-a-valid-date" in result
+        # Should not have called the API
+        mock_canvas_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_create_assignment_invalid_unlock_at_format(self, mock_canvas_api):
+        """Test validation of invalid unlock_at date format."""
+        create_assignment = get_tool_function('create_assignment')
+        result = await create_assignment(
+            "badm_350_120251",
+            "Test Assignment",
+            unlock_at="yesterday"
+        )
+
+        assert "Invalid date format" in result
+        assert "unlock_at" in result
+        # Should not have called the API
+        mock_canvas_api['make_canvas_request'].assert_not_called()
 
 
 class TestAssignmentTools:
