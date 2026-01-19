@@ -41,6 +41,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `get_assignment_details` | Full assignment info including description |
 | `list_submissions` | Student submissions for grading |
 | `get_assignment_analytics` | Performance statistics |
+| `create_assignment` | Create new assignment with due date, submission types, peer reviews |
 | `get_student_analytics` | Individual student performance |
 | `create_rubric` | Create grading rubrics |
 | `grade_submission_with_rubric` | Grade single submission |

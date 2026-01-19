@@ -625,3 +625,143 @@ def register_assignment_tools(mcp: FastMCP):
                 output += f"  ...and {len(missing_students) - 10} more\n"
 
         return output
+
+    @mcp.tool()
+    @validate_params
+    async def create_assignment(
+        course_identifier: str | int,
+        name: str,
+        description: str | None = None,
+        submission_types: str | None = None,
+        due_at: str | None = None,
+        unlock_at: str | None = None,
+        lock_at: str | None = None,
+        points_possible: float | None = None,
+        grading_type: str | None = None,
+        published: bool = False,
+        assignment_group_id: str | int | None = None,
+        peer_reviews: bool = False,
+        automatic_peer_reviews: bool = False,
+        allowed_extensions: str | None = None
+    ) -> str:
+        """Create a new assignment in a course.
+
+        Args:
+            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            name: The name/title of the assignment (required)
+            description: HTML content for the assignment description
+            submission_types: Comma-separated list of allowed submission types:
+                online_text_entry, online_url, online_upload, discussion_topic,
+                none, on_paper, external_tool
+            due_at: Due date in ISO 8601 format (e.g., "2026-01-26T23:59:00Z")
+            unlock_at: Date when assignment becomes available (ISO 8601)
+            lock_at: Date when assignment locks (ISO 8601)
+            points_possible: Maximum points for the assignment
+            grading_type: One of: points, letter_grade, pass_fail, percent, not_graded
+            published: Whether to publish immediately (default: False for safety)
+            assignment_group_id: ID of the assignment group to place this in
+            peer_reviews: Whether to enable peer reviews
+            automatic_peer_reviews: Whether to automatically assign peer reviews
+            allowed_extensions: Comma-separated list of file extensions for online_upload
+                (e.g., "pdf,docx,txt")
+        """
+        course_id = await get_course_id(course_identifier)
+
+        # Validate grading_type if provided
+        valid_grading_types = ["points", "letter_grade", "pass_fail", "percent", "not_graded"]
+        if grading_type and grading_type not in valid_grading_types:
+            return f"Invalid grading_type '{grading_type}'. Must be one of: {', '.join(valid_grading_types)}"
+
+        # Validate submission_types if provided
+        valid_submission_types = [
+            "online_text_entry", "online_url", "online_upload",
+            "discussion_topic", "none", "on_paper", "external_tool"
+        ]
+        submission_types_list = []
+        if submission_types:
+            submission_types_list = [s.strip() for s in submission_types.split(",")]
+            for st in submission_types_list:
+                if st not in valid_submission_types:
+                    return f"Invalid submission_type '{st}'. Must be one of: {', '.join(valid_submission_types)}"
+
+        # Build assignment data
+        assignment_data = {
+            "name": name,
+            "published": published
+        }
+
+        if description:
+            assignment_data["description"] = description
+
+        if submission_types_list:
+            assignment_data["submission_types"] = submission_types_list
+
+        if due_at:
+            assignment_data["due_at"] = due_at
+
+        if unlock_at:
+            assignment_data["unlock_at"] = unlock_at
+
+        if lock_at:
+            assignment_data["lock_at"] = lock_at
+
+        if points_possible is not None:
+            assignment_data["points_possible"] = points_possible
+
+        if grading_type:
+            assignment_data["grading_type"] = grading_type
+
+        if assignment_group_id:
+            assignment_data["assignment_group_id"] = assignment_group_id
+
+        if peer_reviews:
+            assignment_data["peer_reviews"] = peer_reviews
+
+        if automatic_peer_reviews:
+            assignment_data["automatic_peer_reviews"] = automatic_peer_reviews
+
+        if allowed_extensions:
+            extensions_list = [ext.strip() for ext in allowed_extensions.split(",")]
+            assignment_data["allowed_extensions"] = extensions_list
+
+        # Make the API request
+        response = await make_canvas_request(
+            "post",
+            f"/courses/{course_id}/assignments",
+            data={"assignment": assignment_data}
+        )
+
+        if "error" in response:
+            return f"Error creating assignment: {response['error']}"
+
+        # Format success response
+        assignment_id = response.get("id")
+        assignment_name = response.get("name", name)
+        assignment_points = response.get("points_possible")
+        assignment_published = response.get("published", False)
+        assignment_due = response.get("due_at")
+        assignment_types = response.get("submission_types", [])
+        html_url = response.get("html_url", "")
+
+        course_display = await get_course_code(course_id) or course_identifier
+
+        result = "✅ Assignment created successfully!\n\n"
+        result += f"**{assignment_name}**\n"
+        result += f"  Course: {course_display}\n"
+        result += f"  Assignment ID: {assignment_id}\n"
+
+        if assignment_points is not None:
+            result += f"  Points: {assignment_points}\n"
+
+        if assignment_due:
+            result += f"  Due: {format_date(assignment_due)}\n"
+
+        result += f"  Published: {'Yes' if assignment_published else 'No'}\n"
+
+        if assignment_types:
+            result += f"  Submission Types: {', '.join(assignment_types)}\n"
+
+        if html_url:
+            result += f"  URL: {html_url}\n"
+
+        return result

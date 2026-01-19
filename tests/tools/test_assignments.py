@@ -1,9 +1,213 @@
 """
 Tests for assignment-related MCP tools.
+
+Includes tests for:
+- list_assignments
+- get_assignment_details
+- list_submissions
+- get_assignment_analytics
+- create_assignment
 """
 
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
+
+
+@pytest.fixture
+def mock_canvas_api():
+    """Fixture to mock Canvas API calls for assignment tools."""
+    with patch('canvas_mcp.tools.assignments.get_course_id') as mock_get_id, \
+         patch('canvas_mcp.tools.assignments.get_course_code') as mock_get_code, \
+         patch('canvas_mcp.tools.assignments.fetch_all_paginated_results') as mock_fetch, \
+         patch('canvas_mcp.tools.assignments.make_canvas_request') as mock_request:
+
+        mock_get_id.return_value = "60366"
+        mock_get_code.return_value = "badm_350_120251"
+
+        yield {
+            'get_course_id': mock_get_id,
+            'get_course_code': mock_get_code,
+            'fetch_all_paginated_results': mock_fetch,
+            'make_canvas_request': mock_request
+        }
+
+
+def get_tool_function(tool_name: str):
+    """Get a tool function by name from the registered tools."""
+    from mcp.server.fastmcp import FastMCP
+    from canvas_mcp.tools.assignments import register_assignment_tools
+
+    # Create a mock MCP server and register tools
+    mcp = FastMCP("test")
+
+    # Store captured functions
+    captured_functions = {}
+
+    # Override the tool decorator to capture the function
+    original_tool = mcp.tool
+
+    def capturing_tool(*args, **kwargs):
+        decorator = original_tool(*args, **kwargs)
+        def wrapper(fn):
+            captured_functions[fn.__name__] = fn
+            return decorator(fn)
+        return wrapper
+
+    mcp.tool = capturing_tool
+    register_assignment_tools(mcp)
+
+    return captured_functions.get(tool_name)
+
+
+class TestCreateAssignment:
+    """Tests for create_assignment tool."""
+
+    @pytest.mark.asyncio
+    async def test_create_assignment_basic(self, mock_canvas_api):
+        """Test basic assignment creation with minimal parameters."""
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "name": "Test Assignment",
+            "published": False,
+            "submission_types": ["none"],
+            "html_url": "https://canvas.example.com/courses/60366/assignments/12345"
+        }
+
+        create_assignment = get_tool_function('create_assignment')
+        assert create_assignment is not None
+
+        result = await create_assignment("badm_350_120251", "Test Assignment")
+
+        # Verify API was called correctly
+        mock_canvas_api['get_course_id'].assert_called_once_with("badm_350_120251")
+        mock_canvas_api['make_canvas_request'].assert_called_once()
+
+        # Verify the call was a POST with correct data
+        call_args = mock_canvas_api['make_canvas_request'].call_args
+        assert call_args[0][0] == "post"
+        assert "/courses/60366/assignments" in call_args[0][1]
+        assert call_args[1]['data']['assignment']['name'] == "Test Assignment"
+        assert call_args[1]['data']['assignment']['published'] is False
+
+        # Verify output
+        assert "successfully" in result
+        assert "Test Assignment" in result
+        assert "12345" in result
+        assert "Published: No" in result
+
+    @pytest.mark.asyncio
+    async def test_create_assignment_with_all_options(self, mock_canvas_api):
+        """Test assignment creation with all parameters populated."""
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "id": 12346,
+            "name": "Full Assignment",
+            "description": "<p>Test description</p>",
+            "published": True,
+            "points_possible": 100,
+            "due_at": "2026-01-26T23:59:00Z",
+            "submission_types": ["online_text_entry", "online_upload"],
+            "grading_type": "points",
+            "peer_reviews": True,
+            "html_url": "https://canvas.example.com/courses/60366/assignments/12346"
+        }
+
+        create_assignment = get_tool_function('create_assignment')
+        result = await create_assignment(
+            "badm_350_120251",
+            "Full Assignment",
+            description="<p>Test description</p>",
+            submission_types="online_text_entry,online_upload",
+            due_at="2026-01-26T23:59:00Z",
+            points_possible=100,
+            grading_type="points",
+            published=True,
+            peer_reviews=True,
+            allowed_extensions="pdf,docx"
+        )
+
+        # Verify API call data
+        call_args = mock_canvas_api['make_canvas_request'].call_args
+        assignment_data = call_args[1]['data']['assignment']
+
+        assert assignment_data['name'] == "Full Assignment"
+        assert assignment_data['description'] == "<p>Test description</p>"
+        assert assignment_data['submission_types'] == ["online_text_entry", "online_upload"]
+        assert assignment_data['due_at'] == "2026-01-26T23:59:00Z"
+        assert assignment_data['points_possible'] == 100
+        assert assignment_data['grading_type'] == "points"
+        assert assignment_data['published'] is True
+        assert assignment_data['peer_reviews'] is True
+        assert assignment_data['allowed_extensions'] == ["pdf", "docx"]
+
+        # Verify output
+        assert "successfully" in result
+        assert "Full Assignment" in result
+        assert "Points: 100" in result
+        assert "Published: Yes" in result
+
+    @pytest.mark.asyncio
+    async def test_create_assignment_error_handling(self, mock_canvas_api):
+        """Test error handling when API fails."""
+        mock_canvas_api['make_canvas_request'].return_value = {"error": "Unauthorized"}
+
+        create_assignment = get_tool_function('create_assignment')
+        result = await create_assignment("badm_350_120251", "Test Assignment")
+
+        assert "Error" in result
+        assert "Unauthorized" in result
+
+    @pytest.mark.asyncio
+    async def test_create_assignment_invalid_grading_type(self, mock_canvas_api):
+        """Test validation of invalid grading_type."""
+        create_assignment = get_tool_function('create_assignment')
+        result = await create_assignment(
+            "badm_350_120251",
+            "Test Assignment",
+            grading_type="invalid_type"
+        )
+
+        assert "Invalid grading_type" in result
+        assert "invalid_type" in result
+        # Should not have called the API
+        mock_canvas_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_create_assignment_invalid_submission_type(self, mock_canvas_api):
+        """Test validation of invalid submission_types."""
+        create_assignment = get_tool_function('create_assignment')
+        result = await create_assignment(
+            "badm_350_120251",
+            "Test Assignment",
+            submission_types="online_text_entry,invalid_type"
+        )
+
+        assert "Invalid submission_type" in result
+        assert "invalid_type" in result
+        # Should not have called the API
+        mock_canvas_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_create_assignment_submission_types_parsing(self, mock_canvas_api):
+        """Test that comma-separated submission_types are correctly parsed."""
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "id": 12347,
+            "name": "Multi-Type Assignment",
+            "published": False,
+            "submission_types": ["online_text_entry", "online_url", "online_upload"]
+        }
+
+        create_assignment = get_tool_function('create_assignment')
+        result = await create_assignment(
+            "badm_350_120251",
+            "Multi-Type Assignment",
+            submission_types="online_text_entry, online_url, online_upload"  # Note spaces
+        )
+
+        # Verify submission_types were parsed correctly (with whitespace stripped)
+        call_args = mock_canvas_api['make_canvas_request'].call_args
+        assignment_data = call_args[1]['data']['assignment']
+        assert assignment_data['submission_types'] == ["online_text_entry", "online_url", "online_upload"]
+
 
 class TestAssignmentTools:
     """Test assignment tool functions."""

@@ -165,6 +165,37 @@ Get comprehensive performance analytics for an assignment.
 
 ---
 
+#### `create_assignment`
+Create a new assignment in a course.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `name`: Assignment name/title (required)
+- `description`: HTML content for the assignment body
+- `submission_types`: Comma-separated list of allowed types:
+  - `online_text_entry`, `online_url`, `online_upload`
+  - `discussion_topic`, `none`, `on_paper`, `external_tool`
+- `due_at`: Due date in ISO 8601 format (e.g., "2026-01-26T23:59:00Z")
+- `unlock_at`: When assignment becomes available (ISO 8601)
+- `lock_at`: When assignment locks (ISO 8601)
+- `points_possible`: Maximum points
+- `grading_type`: One of `points`, `letter_grade`, `pass_fail`, `percent`, `not_graded`
+- `published`: Whether to publish immediately (default: `false` for safety)
+- `assignment_group_id`: ID of assignment group to place in
+- `peer_reviews`: Enable peer reviews (boolean)
+- `automatic_peer_reviews`: Auto-assign peer reviews (boolean)
+- `allowed_extensions`: Comma-separated file extensions for uploads (e.g., "pdf,docx,txt")
+
+**Example:**
+```
+"Create an assignment called 'Week 1 Discussion' worth 10 points, due Jan 26, with online_text_entry submission"
+"Add a new essay assignment with PDF and DOCX uploads allowed"
+```
+
+**Note:** Assignments are created unpublished by default for safety. Set `published=true` to publish immediately.
+
+---
+
 ### Grading & Rubrics
 
 #### `create_rubric`
