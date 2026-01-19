@@ -3,6 +3,7 @@
 import asyncio
 import sys
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
 
@@ -139,12 +140,31 @@ async def make_canvas_request(
                 response = await client.get(url, params=params)
             elif method.lower() == "post":
                 if use_form_data:
-                    response = await client.post(url, data=data)
+                    # Handle list of tuples separately to work around httpx async bug
+                    # with duplicate keys (e.g., module[prerequisite_module_ids][])
+                    if isinstance(data, list):
+                        encoded = urlencode(data)
+                        response = await client.post(
+                            url,
+                            content=encoded,
+                            headers={"Content-Type": "application/x-www-form-urlencoded"}
+                        )
+                    else:
+                        response = await client.post(url, data=data)
                 else:
                     response = await client.post(url, json=data)
             elif method.lower() == "put":
                 if use_form_data:
-                    response = await client.put(url, data=data)
+                    # Handle list of tuples separately to work around httpx async bug
+                    if isinstance(data, list):
+                        encoded = urlencode(data)
+                        response = await client.put(
+                            url,
+                            content=encoded,
+                            headers={"Content-Type": "application/x-www-form-urlencoded"}
+                        )
+                    else:
+                        response = await client.put(url, data=data)
                 else:
                     response = await client.put(url, json=data)
             elif method.lower() == "delete":
