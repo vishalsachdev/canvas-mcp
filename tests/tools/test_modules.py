@@ -61,10 +61,10 @@ MOCK_MODULES = [
 @pytest.fixture
 def mock_canvas_api():
     """Fixture to mock Canvas API calls."""
-    with patch('src.canvas_mcp.tools.modules.get_course_id') as mock_get_id, \
-         patch('src.canvas_mcp.tools.modules.get_course_code') as mock_get_code, \
-         patch('src.canvas_mcp.tools.modules.fetch_all_paginated_results') as mock_fetch, \
-         patch('src.canvas_mcp.tools.modules.make_canvas_request') as mock_request:
+    with patch('canvas_mcp.tools.modules.get_course_id') as mock_get_id, \
+         patch('canvas_mcp.tools.modules.get_course_code') as mock_get_code, \
+         patch('canvas_mcp.tools.modules.fetch_all_paginated_results') as mock_fetch, \
+         patch('canvas_mcp.tools.modules.make_canvas_request') as mock_request:
 
         mock_get_id.return_value = "60366"
         mock_get_code.return_value = "badm_350_120251"
@@ -80,7 +80,7 @@ def mock_canvas_api():
 def get_tool_function(tool_name: str):
     """Get a tool function by name from the registered tools."""
     from mcp.server.fastmcp import FastMCP
-    from src.canvas_mcp.tools.modules import register_module_tools
+    from canvas_mcp.tools.modules import register_module_tools
 
     # Create a mock MCP server and register tools
     mcp = FastMCP("test")

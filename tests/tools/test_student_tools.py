@@ -17,10 +17,10 @@ class TestStudentTools:
             {"id": 2, "name": "Assignment 2", "due_at": "2024-02-25"}
         ]
         
-        with patch('src.canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
+        with patch('canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_assignments
             
-            from src.canvas_mcp.core.client import fetch_all_paginated_results
+            from canvas_mcp.core.client import fetch_all_paginated_results
             
             result = await fetch_all_paginated_results("/users/self/upcoming_events", {})
             
@@ -34,10 +34,10 @@ class TestStudentTools:
             {"course_id": 102, "grades": {"current_score": 92.0}}
         ]
         
-        with patch('src.canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
+        with patch('canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_enrollments
             
-            from src.canvas_mcp.core.client import fetch_all_paginated_results
+            from canvas_mcp.core.client import fetch_all_paginated_results
             
             result = await fetch_all_paginated_results("/users/self/enrollments", {})
             
@@ -52,10 +52,10 @@ class TestStudentTools:
             {"assignment": {"id": 2, "name": "Submit essay"}}
         ]
         
-        with patch('src.canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
+        with patch('canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_todos
             
-            from src.canvas_mcp.core.client import fetch_all_paginated_results
+            from canvas_mcp.core.client import fetch_all_paginated_results
             
             result = await fetch_all_paginated_results("/users/self/todo", {})
             
@@ -69,10 +69,10 @@ class TestStudentTools:
             {"assignment_id": 2, "workflow_state": "graded"}
         ]
         
-        with patch('src.canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
+        with patch('canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_submissions
             
-            from src.canvas_mcp.core.client import fetch_all_paginated_results
+            from canvas_mcp.core.client import fetch_all_paginated_results
             
             result = await fetch_all_paginated_results("/courses/12345/students/submissions", {})
             
@@ -86,10 +86,10 @@ class TestStudentTools:
             {"assessor_id": "self", "asset_id": 102, "workflow_state": "assigned"}
         ]
         
-        with patch('src.canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
+        with patch('canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
             mock_request.return_value = mock_peer_reviews
             
-            from src.canvas_mcp.core.client import make_canvas_request
+            from canvas_mcp.core.client import make_canvas_request
             
             result = await make_canvas_request("get", "/courses/12345/assignments/1/peer_reviews")
             

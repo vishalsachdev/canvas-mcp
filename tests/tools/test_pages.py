@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, patch, MagicMock
 def get_tool_function(tool_name: str):
     """Get a tool function by name from the registered tools."""
     from mcp.server.fastmcp import FastMCP
-    from src.canvas_mcp.tools.pages import register_page_tools
+    from canvas_mcp.tools.pages import register_page_tools
 
     mcp = FastMCP("test")
     captured_functions = {}
@@ -34,7 +34,7 @@ def get_tool_function(tool_name: str):
 @pytest.fixture
 def mock_course_id():
     """Mock get_course_id to return a fixed course ID."""
-    with patch('src.canvas_mcp.tools.pages.get_course_id') as mock:
+    with patch('canvas_mcp.tools.pages.get_course_id') as mock:
         mock.return_value = 67619
         yield mock
 
@@ -42,7 +42,7 @@ def mock_course_id():
 @pytest.fixture
 def mock_course_code():
     """Mock get_course_code to return a readable course code."""
-    with patch('src.canvas_mcp.tools.pages.get_course_code') as mock:
+    with patch('canvas_mcp.tools.pages.get_course_code') as mock:
         mock.return_value = "TEST-101"
         yield mock
 
@@ -50,7 +50,7 @@ def mock_course_code():
 @pytest.fixture
 def mock_canvas_request():
     """Mock make_canvas_request for API calls."""
-    with patch('src.canvas_mcp.tools.pages.make_canvas_request') as mock:
+    with patch('canvas_mcp.tools.pages.make_canvas_request') as mock:
         yield mock
 
 

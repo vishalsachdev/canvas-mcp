@@ -6,7 +6,7 @@ import pytest
 import json
 from unittest.mock import AsyncMock, patch
 
-from src.canvas_mcp.tools.rubrics import validate_rubric_criteria, preprocess_criteria_string
+from canvas_mcp.tools.rubrics import validate_rubric_criteria, preprocess_criteria_string
 
 
 class TestRubricValidation:
@@ -89,10 +89,10 @@ class TestRubricTools:
             {"id": 2, "title": "Rubric 2", "points_possible": 50}
         ]
         
-        with patch('src.canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
+        with patch('canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_rubrics
             
-            from src.canvas_mcp.core.client import fetch_all_paginated_results
+            from canvas_mcp.core.client import fetch_all_paginated_results
             
             result = await fetch_all_paginated_results("/courses/12345/rubrics", {})
             
@@ -110,10 +110,10 @@ class TestRubricTools:
             ]
         }
         
-        with patch('src.canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
+        with patch('canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
             mock_request.return_value = mock_rubric
             
-            from src.canvas_mcp.core.client import make_canvas_request
+            from canvas_mcp.core.client import make_canvas_request
             
             result = await make_canvas_request("get", "/courses/12345/rubrics/123")
             

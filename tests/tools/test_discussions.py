@@ -17,10 +17,10 @@ class TestDiscussionTools:
             {"id": 2, "title": "Topic 2", "posted_at": "2024-01-20"}
         ]
         
-        with patch('src.canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
+        with patch('canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_topics
             
-            from src.canvas_mcp.core.client import fetch_all_paginated_results
+            from canvas_mcp.core.client import fetch_all_paginated_results
             
             result = await fetch_all_paginated_results("/courses/12345/discussion_topics", {})
             
@@ -35,10 +35,10 @@ class TestDiscussionTools:
             {"id": 102, "message": "I agree", "user_id": 1002}
         ]
         
-        with patch('src.canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
+        with patch('canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_entries
             
-            from src.canvas_mcp.core.client import fetch_all_paginated_results
+            from canvas_mcp.core.client import fetch_all_paginated_results
             
             result = await fetch_all_paginated_results("/courses/12345/discussion_topics/1/entries", {})
             
@@ -52,10 +52,10 @@ class TestDiscussionTools:
             "message": "This is my reply"
         }
         
-        with patch('src.canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
+        with patch('canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
             mock_request.return_value = {"id": 103, "message": "This is my reply"}
             
-            from src.canvas_mcp.core.client import make_canvas_request
+            from canvas_mcp.core.client import make_canvas_request
             
             result = await make_canvas_request("post", "/courses/12345/discussion_topics/1/entries", data=new_entry)
             
@@ -68,10 +68,10 @@ class TestDiscussionTools:
             "message": "Reply to your post"
         }
         
-        with patch('src.canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
+        with patch('canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
             mock_request.return_value = {"id": 104, "message": "Reply to your post"}
             
-            from src.canvas_mcp.core.client import make_canvas_request
+            from canvas_mcp.core.client import make_canvas_request
             
             result = await make_canvas_request("post", "/courses/12345/discussion_topics/1/entries/101/replies", data=reply)
             
@@ -80,10 +80,10 @@ class TestDiscussionTools:
     @pytest.mark.asyncio
     async def test_empty_discussion_topics(self):
         """Test handling empty discussion topics list."""
-        with patch('src.canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
+        with patch('canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = []
             
-            from src.canvas_mcp.core.client import fetch_all_paginated_results
+            from canvas_mcp.core.client import fetch_all_paginated_results
             
             result = await fetch_all_paginated_results("/courses/12345/discussion_topics", {})
             

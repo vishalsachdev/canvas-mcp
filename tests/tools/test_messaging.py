@@ -18,10 +18,10 @@ class TestMessagingTools:
             "body": "This is a test message"
         }
         
-        with patch('src.canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
+        with patch('canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
             mock_request.return_value = {"id": 201, "subject": "Test Message"}
             
-            from src.canvas_mcp.core.client import make_canvas_request
+            from canvas_mcp.core.client import make_canvas_request
             
             result = await make_canvas_request("post", "/conversations", data=message_data)
             
@@ -49,10 +49,10 @@ class TestMessagingTools:
     @pytest.mark.asyncio
     async def test_conversation_error_handling(self):
         """Test error handling in conversation sending."""
-        with patch('src.canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
+        with patch('canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
             mock_request.return_value = {"error": "Invalid recipients"}
             
-            from src.canvas_mcp.core.client import make_canvas_request
+            from canvas_mcp.core.client import make_canvas_request
             
             result = await make_canvas_request("post", "/conversations", data={})
             
@@ -70,10 +70,10 @@ class TestAnnouncementTools:
             {"id": 302, "title": "Reminder", "message": "Don't forget"}
         ]
         
-        with patch('src.canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
+        with patch('canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_announcements
             
-            from src.canvas_mcp.core.client import fetch_all_paginated_results
+            from canvas_mcp.core.client import fetch_all_paginated_results
             
             result = await fetch_all_paginated_results("/courses/12345/discussion_topics", {"only_announcements": True})
             
@@ -88,10 +88,10 @@ class TestAnnouncementTools:
             "message": "This is important"
         }
         
-        with patch('src.canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
+        with patch('canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
             mock_request.return_value = {"id": 303, "title": "New Announcement"}
             
-            from src.canvas_mcp.core.client import make_canvas_request
+            from canvas_mcp.core.client import make_canvas_request
             
             result = await make_canvas_request("post", "/courses/12345/discussion_topics", data=announcement_data)
             
@@ -100,10 +100,10 @@ class TestAnnouncementTools:
     @pytest.mark.asyncio
     async def test_delete_announcement(self):
         """Test deleting an announcement."""
-        with patch('src.canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
+        with patch('canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
             mock_request.return_value = {"id": 303, "deleted": True}
             
-            from src.canvas_mcp.core.client import make_canvas_request
+            from canvas_mcp.core.client import make_canvas_request
             
             result = await make_canvas_request("delete", "/courses/12345/discussion_topics/303")
             

@@ -16,10 +16,10 @@ class TestAssignmentTools:
             {"id": 2, "name": "Assignment 2", "due_at": "2024-03-01", "points_possible": 50}
         ]
         
-        with patch('src.canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
+        with patch('canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_assignments
             
-            from src.canvas_mcp.core.client import fetch_all_paginated_results
+            from canvas_mcp.core.client import fetch_all_paginated_results
             
             result = await fetch_all_paginated_results("/courses/12345/assignments", {})
             
@@ -36,10 +36,10 @@ class TestAssignmentTools:
             "points_possible": 100
         }
         
-        with patch('src.canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
+        with patch('canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
             mock_request.return_value = mock_assignment
             
-            from src.canvas_mcp.core.client import make_canvas_request
+            from canvas_mcp.core.client import make_canvas_request
             
             result = await make_canvas_request("get", "/courses/12345/assignments/67890")
             
@@ -54,10 +54,10 @@ class TestAssignmentTools:
             {"user_id": 1002, "score": 92, "submitted_at": "2024-02-14"}
         ]
         
-        with patch('src.canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
+        with patch('canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_submissions
             
-            from src.canvas_mcp.core.client import fetch_all_paginated_results
+            from canvas_mcp.core.client import fetch_all_paginated_results
             
             result = await fetch_all_paginated_results("/courses/12345/assignments/67890/submissions", {})
             
@@ -80,10 +80,10 @@ class TestAssignmentTools:
     @pytest.mark.asyncio
     async def test_empty_submissions(self):
         """Test handling empty submissions list."""
-        with patch('src.canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
+        with patch('canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = []
             
-            from src.canvas_mcp.core.client import fetch_all_paginated_results
+            from canvas_mcp.core.client import fetch_all_paginated_results
             
             result = await fetch_all_paginated_results("/courses/12345/assignments/67890/submissions", {})
             
@@ -92,10 +92,10 @@ class TestAssignmentTools:
     @pytest.mark.asyncio
     async def test_assignment_error_handling(self):
         """Test error handling in assignment operations."""
-        with patch('src.canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
+        with patch('canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
             mock_request.return_value = {"error": "Assignment not found"}
             
-            from src.canvas_mcp.core.client import make_canvas_request
+            from canvas_mcp.core.client import make_canvas_request
             
             result = await make_canvas_request("get", "/courses/12345/assignments/99999")
             

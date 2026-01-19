@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 @pytest.fixture
 def mock_canvas_request():
     """Mock Canvas API request function."""
-    with patch('src.canvas_mcp.core.client.make_canvas_request') as mock:
+    with patch('canvas_mcp.core.client.make_canvas_request') as mock:
         mock.return_value = AsyncMock()
         yield mock
 
@@ -15,7 +15,7 @@ def mock_canvas_request():
 @pytest.fixture
 def mock_fetch_paginated():
     """Mock paginated fetch function."""
-    with patch('src.canvas_mcp.core.client.fetch_all_paginated_results') as mock:
+    with patch('canvas_mcp.core.client.fetch_all_paginated_results') as mock:
         mock.return_value = AsyncMock()
         yield mock
 
@@ -23,7 +23,7 @@ def mock_fetch_paginated():
 @pytest.fixture
 def mock_course_id_resolver():
     """Mock course ID resolver."""
-    with patch('src.canvas_mcp.core.cache.get_course_id') as mock:
+    with patch('canvas_mcp.core.cache.get_course_id') as mock:
         # Default to returning the input as-is (assuming it's already an ID)
         async def resolve_id(identifier):
             return str(identifier) if isinstance(identifier, int) else identifier
@@ -34,7 +34,7 @@ def mock_course_id_resolver():
 @pytest.fixture
 def mock_course_code_resolver():
     """Mock course code resolver."""
-    with patch('src.canvas_mcp.core.cache.get_course_code') as mock:
+    with patch('canvas_mcp.core.cache.get_course_code') as mock:
         async def resolve_code(course_id):
             return f"course_{course_id}"
         mock.side_effect = resolve_code

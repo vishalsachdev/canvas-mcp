@@ -5,7 +5,7 @@ Tests for course-related MCP tools.
 import pytest
 from unittest.mock import AsyncMock, patch
 
-from src.canvas_mcp.tools.courses import strip_html_tags
+from canvas_mcp.tools.courses import strip_html_tags
 
 
 class TestStripHtmlTags:
@@ -51,10 +51,10 @@ class TestCourseToolsIntegration:
             {"id": 12346, "name": "Data Structures", "course_code": "CS201_2024"}
         ]
         
-        with patch('src.canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
+        with patch('canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_courses
-            
-            from src.canvas_mcp.core.client import fetch_all_paginated_results
+
+            from canvas_mcp.core.client import fetch_all_paginated_results
             
             courses = await fetch_all_paginated_results("/courses", {})
             
@@ -64,10 +64,10 @@ class TestCourseToolsIntegration:
     @pytest.mark.asyncio
     async def test_error_handling_in_fetch(self):
         """Test error handling in course fetching."""
-        with patch('src.canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
+        with patch('canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = {"error": "API Error"}
-            
-            from src.canvas_mcp.core.client import fetch_all_paginated_results
+
+            from canvas_mcp.core.client import fetch_all_paginated_results
             
             result = await fetch_all_paginated_results("/courses", {})
             

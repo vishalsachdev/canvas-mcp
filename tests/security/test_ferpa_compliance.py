@@ -15,8 +15,8 @@ import pytest
 import os
 import json
 from unittest.mock import Mock, patch, MagicMock
-from src.canvas_mcp.core.anonymization import anonymize_response_data
-from src.canvas_mcp.core.config import Config
+from canvas_mcp.core.anonymization import anonymize_response_data
+from canvas_mcp.core.config import Config
 
 
 class TestPIIAnonymization:
@@ -48,16 +48,17 @@ class TestPIIAnonymization:
         sample_data = {
             "user": {
                 "name": "Jane Smith",
+                "id": 54321,  # ID is required for anonymization
                 "email": "jane.smith@university.edu"
             }
         }
-        
+
         with patch.dict(os.environ, {"ENABLE_DATA_ANONYMIZATION": "true"}):
             result = anonymize_response_data(sample_data, "test_endpoint")
-            
-            # Verify email is anonymized
+
+            # Verify email is anonymized (format: student_xxxx@example.edu)
             assert result["user"]["email"] != "jane.smith@university.edu"
-            assert "@" not in result["user"]["email"] or "anonymized" in result["user"]["email"].lower()
+            assert "@example.edu" in result["user"]["email"]
     
     def test_anonymization_consistency(self):
         """TC-1.1.1: Verify same student gets same anonymous ID across calls."""

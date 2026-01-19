@@ -17,10 +17,10 @@ class TestPeerReviewTools:
             {"assessor_id": 1002, "asset_id": 102, "workflow_state": "completed"}
         ]
         
-        with patch('src.canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
+        with patch('canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
             mock_request.return_value = mock_peer_reviews
             
-            from src.canvas_mcp.core.client import make_canvas_request
+            from canvas_mcp.core.client import make_canvas_request
             
             result = await make_canvas_request("get", "/courses/12345/assignments/1/peer_reviews")
             
@@ -35,10 +35,10 @@ class TestPeerReviewTools:
             {"id": 202, "comment": "Needs improvement", "author_id": 1002}
         ]
         
-        with patch('src.canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
+        with patch('canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_comments
             
-            from src.canvas_mcp.core.client import fetch_all_paginated_results
+            from canvas_mcp.core.client import fetch_all_paginated_results
             
             result = await fetch_all_paginated_results("/courses/12345/assignments/1/submissions/101/comments", {})
             
@@ -52,10 +52,10 @@ class TestPeerReviewTools:
             "user_id": 1001
         }
         
-        with patch('src.canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
+        with patch('canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
             mock_request.return_value = {"assessor_id": 1001, "workflow_state": "assigned"}
             
-            from src.canvas_mcp.core.client import make_canvas_request
+            from canvas_mcp.core.client import make_canvas_request
             
             result = await make_canvas_request("post", "/courses/12345/assignments/1/submissions/101/peer_reviews", data=peer_review_data)
             
@@ -79,10 +79,10 @@ class TestPeerReviewTools:
     @pytest.mark.asyncio
     async def test_empty_peer_reviews(self):
         """Test handling empty peer reviews list."""
-        with patch('src.canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
+        with patch('canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
             mock_request.return_value = []
             
-            from src.canvas_mcp.core.client import make_canvas_request
+            from canvas_mcp.core.client import make_canvas_request
             
             result = await make_canvas_request("get", "/courses/12345/assignments/1/peer_reviews")
             
