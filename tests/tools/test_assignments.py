@@ -267,6 +267,23 @@ class TestCreateAssignment:
         # Should not have called the API
         mock_canvas_api['make_canvas_request'].assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_create_assignment_automatic_peer_reviews_without_peer_reviews(self, mock_canvas_api):
+        """Test validation that automatic_peer_reviews requires peer_reviews=True."""
+        create_assignment = get_tool_function('create_assignment')
+        result = await create_assignment(
+            "badm_350_120251",
+            "Test Assignment",
+            automatic_peer_reviews=True,
+            peer_reviews=False  # This combination is invalid
+        )
+
+        assert "Invalid configuration" in result
+        assert "automatic_peer_reviews" in result
+        assert "peer_reviews" in result
+        # Should not have called the API
+        mock_canvas_api['make_canvas_request'].assert_not_called()
+
 
 class TestAssignmentTools:
     """Test assignment tool functions."""

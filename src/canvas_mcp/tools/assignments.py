@@ -724,6 +724,10 @@ def register_assignment_tools(mcp: FastMCP):
         if assignment_group_id:
             assignment_data["assignment_group_id"] = assignment_group_id
 
+        # Validate peer review settings
+        if automatic_peer_reviews and not peer_reviews:
+            return "Invalid configuration: automatic_peer_reviews requires peer_reviews=True. Set peer_reviews=True to enable automatic peer review assignment."
+
         if peer_reviews:
             assignment_data["peer_reviews"] = peer_reviews
 
