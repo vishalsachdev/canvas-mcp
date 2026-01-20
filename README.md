@@ -17,7 +17,7 @@ This repository contains a Model Context Protocol (MCP) server implementation fo
   See docs/CLAUDE.md "Documentation Maintenance" for full guidelines.
 -->
 
-Canvas MCP provides **50+ tools** for interacting with Canvas LMS. Tools are organized by user type:
+Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are organized by user type:
 
 <details>
 <summary><strong>Student Tools</strong> (click to expand)</summary>
@@ -44,6 +44,16 @@ Canvas MCP provides **50+ tools** for interacting with Canvas LMS. Tools are org
 | `get_assignment_analytics` | Performance stats | "Show analytics for Quiz 2" |
 | `send_conversation` | Message students | "Message students who haven't submitted" |
 | `create_announcement` | Post announcements | "Announce the exam date change" |
+| **Module Management** | | |
+| `create_module` | Create course module | "Create a module for Week 5" |
+| `update_module` | Update module settings | "Rename the midterm module" |
+| `add_module_item` | Add content to module | "Add the syllabus page to Week 1" |
+| `delete_module` | Remove a module | "Delete the empty test module" |
+| **Page & Content** | | |
+| `create_page` | Create course page | "Create a page for office hours" |
+| `edit_page_content` | Update page content | "Update the syllabus page" |
+| `update_page_settings` | Publish/unpublish pages | "Publish all Week 3 pages" |
+| `bulk_update_pages` | Batch page operations | "Unpublish all draft pages" |
 
 </details>
 
@@ -56,18 +66,12 @@ Canvas MCP provides **50+ tools** for interacting with Canvas LMS. Tools are org
 | `get_course_details` | Course info + syllabus |
 | `list_pages` | Course pages |
 | `get_page_content` | Read page content |
-| `update_page_settings` | Publish/unpublish, set front page, editing roles |
-| `bulk_update_pages` | Update multiple pages at once |
 | `list_modules` | List course modules |
-| `create_module` | Create a new module |
-| `update_module` | Update module settings |
-| `delete_module` | Delete a module |
-| `add_module_item` | Add content to a module |
-| `update_module_item` | Update module item settings |
-| `delete_module_item` | Remove item from module |
+| `list_module_items` | Items within a module |
 | `list_discussion_topics` | Discussion forums |
 | `list_discussion_entries` | Posts in a discussion |
-| `post_discussion_entry` | Add a post |
+| `post_discussion_entry` | Add a discussion post |
+| `reply_to_discussion_entry` | Reply to a post |
 
 </details>
 
@@ -109,7 +113,7 @@ The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning 
 - **📄 Page Settings Tools** - Control page publishing and access (2 new tools)
   - `update_page_settings` - Publish/unpublish, set front page, editing roles
   - `bulk_update_pages` - Batch operations on multiple pages
-- **🧪 Test-Driven Development** - 51 new unit tests (36 for modules, 15 for pages)
+- **🧪 Comprehensive Test Suite** - 167 unit tests covering all major functionality
 - **📚 Enhanced Documentation** - TDD enforcement and comprehensive tool docs
 
 ### Previous Release (v1.0.5)
