@@ -224,11 +224,18 @@ async def make_canvas_request(
     return {"error": "Max retries exceeded"}
 
 
-async def fetch_all_paginated_results(endpoint: str, params: dict[str, Any] | None = None) -> Any:
+async def fetch_all_paginated_results(
+    endpoint: str, params: dict[str, Any] | None = None, *, skip_anonymization: bool = False
+) -> Any:
     """Fetch all results from a paginated Canvas API endpoint.
 
     Handles pagination automatically and applies anonymization once to the complete dataset
     to ensure consistent anonymization across all pages.
+
+    Args:
+        endpoint: The Canvas API endpoint to fetch from
+        params: Query parameters for the request
+        skip_anonymization: If True, skip anonymization entirely (for internal tools like anonymization map)
     """
     if params is None:
         params = {}
@@ -260,15 +267,16 @@ async def fetch_all_paginated_results(endpoint: str, params: dict[str, Any] | No
 
         page += 1
 
-    # Apply anonymization to the complete result set if needed
-    from .config import get_config
-    config = get_config()
+    # Apply anonymization to the complete result set if needed (unless explicitly skipped)
+    if not skip_anonymization:
+        from .config import get_config
+        config = get_config()
 
-    if config.enable_data_anonymization and _should_anonymize_endpoint(endpoint):
-        data_type = _determine_data_type(endpoint)
-        all_results = anonymize_response_data(all_results, data_type)
+        if config.enable_data_anonymization and _should_anonymize_endpoint(endpoint):
+            data_type = _determine_data_type(endpoint)
+            all_results = anonymize_response_data(all_results, data_type)
 
-        if config.anonymization_debug:
-            print(f"🔒 Applied {data_type} anonymization to paginated results from {endpoint}", file=sys.stderr)
+            if config.anonymization_debug:
+                print(f"🔒 Applied {data_type} anonymization to paginated results from {endpoint}", file=sys.stderr)
 
     return all_results

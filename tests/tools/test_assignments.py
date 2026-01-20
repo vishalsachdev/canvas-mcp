@@ -285,6 +285,315 @@ class TestCreateAssignment:
         mock_canvas_api['make_canvas_request'].assert_not_called()
 
 
+class TestUpdateAssignment:
+    """Tests for update_assignment tool."""
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_basic(self, mock_canvas_api):
+        """Test basic assignment update with name change."""
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "name": "Updated Assignment Name",
+            "published": True,
+        }
+
+        update_assignment = get_tool_function('update_assignment')
+        assert update_assignment is not None
+
+        result = await update_assignment(
+            "badm_350_120251",
+            12345,
+            name="Updated Assignment Name"
+        )
+
+        # Verify API was called correctly
+        mock_canvas_api['get_course_id'].assert_called_once_with("badm_350_120251")
+        mock_canvas_api['make_canvas_request'].assert_called_once()
+
+        # Verify the call was a PUT with correct data
+        call_args = mock_canvas_api['make_canvas_request'].call_args
+        assert call_args[0][0] == "put"
+        assert "/courses/60366/assignments/12345" in call_args[0][1]
+        assert call_args[1]['data']['assignment']['name'] == "Updated Assignment Name"
+
+        # Verify output
+        assert "Successfully updated" in result
+        assert "Updated Assignment Name" in result
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_multiple_fields(self, mock_canvas_api):
+        """Test updating multiple fields at once."""
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "name": "Updated Assignment",
+            "points_possible": 150,
+            "description": "<p>New description</p>",
+            "published": True,
+        }
+
+        update_assignment = get_tool_function('update_assignment')
+        result = await update_assignment(
+            "badm_350_120251",
+            12345,
+            name="Updated Assignment",
+            points_possible=150,
+            description="<p>New description</p>",
+            published=True
+        )
+
+        call_args = mock_canvas_api['make_canvas_request'].call_args
+        assignment_data = call_args[1]['data']['assignment']
+
+        assert assignment_data['name'] == "Updated Assignment"
+        assert assignment_data['points_possible'] == 150
+        assert assignment_data['description'] == "<p>New description</p>"
+        assert assignment_data['published'] is True
+        assert "Successfully updated" in result
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_with_due_date(self, mock_canvas_api):
+        """Test updating assignment with a due date using various formats."""
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "name": "Test Assignment",
+            "due_at": "2025-12-10T23:59:00Z",
+        }
+
+        update_assignment = get_tool_function('update_assignment')
+        result = await update_assignment(
+            "badm_350_120251",
+            12345,
+            due_at="Dec 10, 2025"
+        )
+
+        call_args = mock_canvas_api['make_canvas_request'].call_args
+        assignment_data = call_args[1]['data']['assignment']
+
+        # Should be converted to ISO 8601 with end of day time
+        assert assignment_data['due_at'] == "2025-12-10T23:59:00Z"
+        assert "Successfully updated" in result
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_with_iso_date(self, mock_canvas_api):
+        """Test updating with ISO format date."""
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "name": "Test Assignment",
+            "due_at": "2025-12-10T14:30:00Z",
+        }
+
+        update_assignment = get_tool_function('update_assignment')
+        result = await update_assignment(
+            "badm_350_120251",
+            12345,
+            due_at="2025-12-10T14:30:00"
+        )
+
+        call_args = mock_canvas_api['make_canvas_request'].call_args
+        assignment_data = call_args[1]['data']['assignment']
+
+        # Time was specified so should be preserved
+        assert assignment_data['due_at'] == "2025-12-10T14:30:00Z"
+        assert "Successfully updated" in result
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_with_lock_unlock_dates(self, mock_canvas_api):
+        """Test updating lock_at and unlock_at dates."""
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "name": "Test Assignment",
+            "unlock_at": "2025-12-01T00:00:00Z",
+            "lock_at": "2025-12-15T23:59:00Z",
+        }
+
+        update_assignment = get_tool_function('update_assignment')
+        result = await update_assignment(
+            "badm_350_120251",
+            12345,
+            unlock_at="Dec 1, 2025",
+            lock_at="Dec 15, 2025"
+        )
+
+        call_args = mock_canvas_api['make_canvas_request'].call_args
+        assignment_data = call_args[1]['data']['assignment']
+
+        # unlock_at uses end_of_day=False so defaults to beginning of day
+        assert "unlock_at" in assignment_data
+        # lock_at uses end_of_day=True so defaults to 23:59:00
+        assert assignment_data['lock_at'] == "2025-12-15T23:59:00Z"
+        assert "Successfully updated" in result
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_no_update_data(self, mock_canvas_api):
+        """Test error when no update data is provided."""
+        update_assignment = get_tool_function('update_assignment')
+        result = await update_assignment(
+            "badm_350_120251",
+            12345
+            # No update fields provided
+        )
+
+        assert "Error" in result
+        assert "No update data provided" in result
+        # Should not have called the API
+        mock_canvas_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_invalid_due_date(self, mock_canvas_api):
+        """Test error handling for invalid due date format."""
+        update_assignment = get_tool_function('update_assignment')
+        result = await update_assignment(
+            "badm_350_120251",
+            12345,
+            due_at="not-a-valid-date"
+        )
+
+        assert "Error parsing due date" in result
+        # Should not have called the API
+        mock_canvas_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_invalid_lock_date(self, mock_canvas_api):
+        """Test error handling for invalid lock_at date format."""
+        update_assignment = get_tool_function('update_assignment')
+        result = await update_assignment(
+            "badm_350_120251",
+            12345,
+            lock_at="invalid"
+        )
+
+        assert "Error parsing lock date" in result
+        mock_canvas_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_invalid_unlock_date(self, mock_canvas_api):
+        """Test error handling for invalid unlock_at date format."""
+        update_assignment = get_tool_function('update_assignment')
+        result = await update_assignment(
+            "badm_350_120251",
+            12345,
+            unlock_at="yesterday-ish"
+        )
+
+        assert "Error parsing unlock date" in result
+        mock_canvas_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_api_error(self, mock_canvas_api):
+        """Test handling of API errors."""
+        mock_canvas_api['make_canvas_request'].return_value = {"error": "Assignment not found"}
+
+        update_assignment = get_tool_function('update_assignment')
+        result = await update_assignment(
+            "badm_350_120251",
+            99999,
+            name="New Name"
+        )
+
+        assert "Error updating assignment" in result
+        assert "Assignment not found" in result
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_response_formatting(self, mock_canvas_api):
+        """Test that the response includes updated fields."""
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "name": "Test Assignment",
+            "points_possible": 100,
+            "due_at": "2025-12-10T23:59:00Z",
+        }
+
+        update_assignment = get_tool_function('update_assignment')
+        result = await update_assignment(
+            "badm_350_120251",
+            12345,
+            points_possible=100,
+            due_at="2025-12-10"
+        )
+
+        # Check response lists updated fields
+        assert "Updated fields:" in result
+        assert "points_possible" in result
+        assert "due_at" in result
+        assert "100" in result
+
+
+class TestParseDateToIso8601:
+    """Tests for parse_to_iso8601 function."""
+
+    def test_timezone_aware_date_conversion(self):
+        """Test that timezone-aware dates are properly converted to UTC."""
+        from canvas_mcp.core.dates import parse_to_iso8601
+
+        # Input: 10:00 AM EST (UTC-5)
+        result = parse_to_iso8601("2025-12-10T10:00:00-05:00")
+
+        # Expected: 15:00 UTC (10:00 + 5 hours)
+        assert result == "2025-12-10T15:00:00Z"
+
+    def test_timezone_aware_positive_offset(self):
+        """Test timezone with positive offset."""
+        from canvas_mcp.core.dates import parse_to_iso8601
+
+        # Input: 10:00 AM UTC+3
+        result = parse_to_iso8601("2025-12-10T10:00:00+03:00")
+
+        # Expected: 07:00 UTC (10:00 - 3 hours)
+        assert result == "2025-12-10T07:00:00Z"
+
+    def test_naive_datetime_assumed_utc(self):
+        """Test that naive datetimes are assumed to be UTC."""
+        from canvas_mcp.core.dates import parse_to_iso8601
+
+        result = parse_to_iso8601("2025-12-10T14:30:00")
+        assert result == "2025-12-10T14:30:00Z"
+
+    def test_end_of_day_conversion(self):
+        """Test end_of_day parameter converts midnight to 23:59."""
+        from canvas_mcp.core.dates import parse_to_iso8601
+
+        result = parse_to_iso8601("2025-12-10", end_of_day=True)
+        assert result == "2025-12-10T23:59:00Z"
+
+    def test_end_of_day_disabled(self):
+        """Test that end_of_day=False preserves midnight."""
+        from canvas_mcp.core.dates import parse_to_iso8601
+
+        result = parse_to_iso8601("2025-12-10", end_of_day=False)
+        assert result == "2025-12-10T00:00:00Z"
+
+    def test_us_date_format(self):
+        """Test US date format (MM/DD/YYYY) parsing."""
+        from canvas_mcp.core.dates import parse_to_iso8601
+
+        # 12/10 should be December 10, not October 12
+        result = parse_to_iso8601("12/10/2025")
+        assert result.startswith("2025-12-10")
+
+    def test_invalid_date_raises_error(self):
+        """Test that invalid dates raise ValueError."""
+        from canvas_mcp.core.dates import parse_to_iso8601
+
+        with pytest.raises(ValueError) as exc_info:
+            parse_to_iso8601("not-a-date")
+        assert "Could not parse date" in str(exc_info.value)
+
+    def test_human_friendly_formats(self):
+        """Test various human-friendly date formats."""
+        from canvas_mcp.core.dates import parse_to_iso8601
+
+        # All should parse to December 10, 2025
+        formats = [
+            "Dec 10, 2025",
+            "December 10, 2025",
+            "2025-12-10",
+        ]
+
+        for date_str in formats:
+            result = parse_to_iso8601(date_str)
+            assert result.startswith("2025-12-10"), f"Failed for format: {date_str}"
+
+
 class TestAssignmentTools:
     """Test assignment tool functions."""
     
