@@ -596,8 +596,9 @@ def register_other_tools(mcp: FastMCP):
             "per_page": 100
         }
 
+        # Skip anonymization to get real names for the mapping file
         students = await fetch_all_paginated_results(
-            f"/courses/{course_id}/users", params
+            f"/courses/{course_id}/users", params, skip_anonymization=True
         )
 
         if isinstance(students, dict) and "error" in students:

@@ -14,6 +14,8 @@ with the following conventions:
 import datetime
 import sys
 
+from dateutil import parser as date_parser
+
 
 def parse_date(date_str: str | None) -> datetime.datetime | None:
     """Parse a date string into a datetime object.
@@ -97,3 +99,42 @@ def truncate_text(text: str, max_length: int = 100) -> str:
         return text
 
     return text[:max_length - 3] + "..."
+
+
+def parse_to_iso8601(date_string: str, end_of_day: bool = True) -> str:
+    """Convert human-friendly date to Canvas-compatible ISO 8601 format.
+
+    Uses dateutil.parser for flexible parsing of various date formats.
+
+    Supported formats include:
+    - "12/10/2025" (US format)
+    - "Dec 10, 2025"
+    - "December 10, 2025"
+    - "2025-12-10" (ISO format)
+    - "2025-12-10T14:30:00" (with time)
+    - And many more via dateutil
+
+    Args:
+        date_string: The date string to parse
+        end_of_day: If True and no time specified, defaults to 23:59:00 (11:59 PM)
+
+    Returns:
+        ISO 8601 formatted string (e.g., "2025-12-10T23:59:00Z")
+
+    Raises:
+        ValueError: If the date string cannot be parsed
+    """
+    try:
+        parsed = date_parser.parse(date_string)
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Could not parse date: {date_string}") from e
+
+    # If no time was specified (defaults to midnight), use end of day
+    if end_of_day and parsed.hour == 0 and parsed.minute == 0 and parsed.second == 0:
+        parsed = parsed.replace(hour=23, minute=59, second=0)
+
+    # Ensure UTC timezone
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+
+    return parsed.strftime("%Y-%m-%dT%H:%M:%SZ")

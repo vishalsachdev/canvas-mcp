@@ -1203,7 +1203,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                    Format: {
                      "user_id": {
                        "rubric_assessment": {...},  # Optional: rubric-based grading
-                       "grade": <number>,           # Optional: simple grade
+                       "grade": <number|string>,    # Optional: points, "85%", "A-", "pass", "fail", etc.
+                       "excused": true,             # Optional: mark as excused (no grade impact)
                        "comment": "<string>"        # Optional: feedback comment
                      }
                    }
@@ -1238,6 +1239,16 @@ def register_rubric_tools(mcp: FastMCP) -> None:
               "grades": {
                 "9824": {"grade": 100, "comment": "Perfect!"},
                 "9825": {"grade": 85, "comment": "Very good"}
+              }
+            }
+
+        Example Usage - Excused:
+            {
+              "course_identifier": "60366",
+              "assignment_id": "1440586",
+              "grades": {
+                "9824": {"excused": true},
+                "9825": {"grade": "incomplete", "comment": "Did not submit"}
               }
             }
         """
@@ -1289,7 +1300,13 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             try:
                 if dry_run:
                     # In dry run mode, just validate the data
-                    if "rubric_assessment" in grade_info:
+                    if grade_info.get("excused"):
+                        return {
+                            "status": "success",
+                            "user_id": user_id,
+                            "message": "DRY RUN: Would mark as excused"
+                        }
+                    elif "rubric_assessment" in grade_info:
                         total_points = sum(
                             criterion.get("points", 0)
                             for criterion in grade_info["rubric_assessment"].values()
@@ -1303,26 +1320,31 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                         return {
                             "status": "success",
                             "user_id": user_id,
-                            "message": f"DRY RUN: Would grade with {grade_info['grade']} points"
+                            "message": f"DRY RUN: Would grade with {grade_info['grade']}"
                         }
                     else:
                         return {
                             "status": "failed",
                             "user_id": user_id,
-                            "error": "No rubric_assessment or grade provided"
+                            "error": "No rubric_assessment, grade, or excused provided"
                         }
 
                 # Build form data based on grading type
                 form_data = {}
 
-                if "rubric_assessment" in grade_info and grade_info["rubric_assessment"]:
+                # Handle excused status
+                if grade_info.get("excused"):
+                    form_data["submission[excused]"] = "true"
+                    if "comment" in grade_info:
+                        form_data["comment[text_comment]"] = grade_info["comment"]
+                elif "rubric_assessment" in grade_info and grade_info["rubric_assessment"]:
                     # Rubric-based grading
                     form_data = build_rubric_assessment_form_data(
                         grade_info["rubric_assessment"],
                         grade_info.get("comment")
                     )
                 elif "grade" in grade_info:
-                    # Simple grading
+                    # Simple grading (supports points, percentage, letter grade, pass/fail)
                     form_data["submission[posted_grade]"] = str(grade_info["grade"])
                     if "comment" in grade_info:
                         form_data["comment[text_comment]"] = grade_info["comment"]
@@ -1330,7 +1352,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                     return {
                         "status": "failed",
                         "user_id": user_id,
-                        "error": "Must provide either rubric_assessment or grade"
+                        "error": "Must provide rubric_assessment, grade, or excused"
                     }
 
                 # Submit the grade
@@ -1348,6 +1370,13 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                         "error": response["error"]
                     }
 
+                # Build success response
+                if response.get("excused"):
+                    return {
+                        "status": "success",
+                        "user_id": user_id,
+                        "message": "Marked as excused"
+                    }
                 return {
                     "status": "success",
                     "user_id": user_id,

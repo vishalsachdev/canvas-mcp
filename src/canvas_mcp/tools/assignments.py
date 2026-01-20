@@ -8,7 +8,7 @@ from mcp.server.fastmcp import FastMCP
 from ..core.anonymization import anonymize_response_data
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
-from ..core.dates import format_date, parse_date
+from ..core.dates import format_date, parse_date, parse_to_iso8601
 from ..core.logging import log_error
 from ..core.validation import validate_params
 
@@ -88,6 +88,95 @@ def register_assignment_tools(mcp: FastMCP):
         # Try to get the course code for display
         course_display = await get_course_code(course_id) or course_identifier
         return f"Assignment Details for ID {assignment_id} in course {course_display}:\n\n" + "\n".join(details)
+
+    @mcp.tool()
+    @validate_params
+    async def update_assignment(
+        course_identifier: str | int,
+        assignment_id: str | int,
+        due_at: str | None = None,
+        name: str | None = None,
+        description: str | None = None,
+        points_possible: float | None = None,
+        published: bool | None = None,
+        lock_at: str | None = None,
+        unlock_at: str | None = None
+    ) -> str:
+        """Update an assignment's properties.
+
+        Args:
+            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            assignment_id: The Canvas assignment ID
+            due_at: Due date (e.g., '12/10/2025', 'Dec 10, 2025', '2025-12-10')
+            name: Assignment name
+            description: Assignment description (HTML)
+            points_possible: Point value for the assignment
+            published: Whether the assignment is published
+            lock_at: Date to lock submissions (same format as due_at)
+            unlock_at: Date to unlock the assignment (same format as due_at)
+        """
+        course_id = await get_course_id(course_identifier)
+        assignment_id_str = str(assignment_id)
+
+        # Build update data - only include fields that are provided
+        assignment_data: dict = {}
+
+        if due_at is not None:
+            try:
+                assignment_data["due_at"] = parse_to_iso8601(due_at)
+            except ValueError as e:
+                return f"Error parsing due date: {e}"
+
+        if name is not None:
+            assignment_data["name"] = name
+
+        if description is not None:
+            assignment_data["description"] = description
+
+        if points_possible is not None:
+            assignment_data["points_possible"] = points_possible
+
+        if published is not None:
+            assignment_data["published"] = published
+
+        if lock_at is not None:
+            try:
+                assignment_data["lock_at"] = parse_to_iso8601(lock_at)
+            except ValueError as e:
+                return f"Error parsing lock date: {e}"
+
+        if unlock_at is not None:
+            try:
+                assignment_data["unlock_at"] = parse_to_iso8601(unlock_at, end_of_day=False)
+            except ValueError as e:
+                return f"Error parsing unlock date: {e}"
+
+        # Validate that at least one field is being updated
+        if not assignment_data:
+            return "Error: No update data provided. Please specify at least one field to update."
+
+        # Make the API request
+        response = await make_canvas_request(
+            "put",
+            f"/courses/{course_id}/assignments/{assignment_id_str}",
+            data={"assignment": assignment_data}
+        )
+
+        if "error" in response:
+            return f"Error updating assignment: {response['error']}"
+
+        # Build confirmation message
+        course_display = await get_course_code(course_id) or course_identifier
+        updated_fields = list(assignment_data.keys())
+        assignment_name = response.get("name", f"ID {assignment_id}")
+
+        confirmation = f"Successfully updated assignment '{assignment_name}' in course {course_display}.\n\n"
+        confirmation += "Updated fields:\n"
+        for field in updated_fields:
+            value = assignment_data[field]
+            confirmation += f"  - {field}: {value}\n"
+
+        return confirmation
 
     @mcp.tool()
     async def assign_peer_review(course_identifier: str, assignment_id: str, reviewer_id: str, reviewee_id: str) -> str:
