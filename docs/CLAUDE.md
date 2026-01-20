@@ -249,6 +249,16 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 - [ ] Page content versioning/history tools
 
 ## Session Log
+### 2026-01-20
+- Updated README documentation:
+  - Corrected tool count from 50+ to 80+ (actual: 84 tools)
+  - Updated test count from 51 to 167 tests
+  - Reorganized tool sections by Canvas permissions
+  - Moved module/page management tools to Educator Tools
+  - Kept only read-only tools in Shared Tools section
+  - Added example prompts for new educator tools
+- Pushed: `85c9fef` docs: Update README with accurate tool count
+
 ### 2026-01-18
 - Completed: Module tools feature branch (`feature/module-creation-tool`)
   - 7 MCP tools for Canvas module management
