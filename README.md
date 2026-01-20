@@ -792,7 +792,7 @@ Publishing is automated via GitHub Actions:
 
 1. **Prepare a release**:
    ```bash
-   # Update version in pyproject.toml
+   # Update version in pyproject.toml and src/canvas_mcp/__init__.py
    # Update CHANGELOG if applicable
    git commit -am "chore: bump version to X.Y.Z"
    git push
@@ -804,11 +804,22 @@ Publishing is automated via GitHub Actions:
    git push origin vX.Y.Z
    ```
 
-3. **Automated workflow**:
-   - Runs tests
-   - Builds Python package
-   - Publishes to PyPI
-   - Publishes to MCP Registry using GitHub OIDC
+3. **Automated workflows** (triggered by tag push):
+   - **Publish workflow** (`publish-mcp.yml`):
+     - Runs tests
+     - Builds Python package
+     - Publishes to PyPI
+     - Publishes to MCP Registry using GitHub OIDC
+   - **Release workflow** (`create-release.yml`):
+     - Creates GitHub release with changelog
+     - Updates README.md with latest release info
+     - Commits README changes back to main branch
+
+4. **Testing the release workflow** (optional):
+   - The release workflow can be manually triggered from the Actions tab
+   - Go to Actions → "Create Release and Update README" → Run workflow
+   - Enter a test tag name (e.g., `v1.0.7-test`)
+   - This allows testing without creating an actual release tag
 
 ### Prerequisites for Publishing
 
