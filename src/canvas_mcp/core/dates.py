@@ -107,19 +107,34 @@ def parse_to_iso8601(date_string: str, end_of_day: bool = True) -> str:
     Uses dateutil.parser for flexible parsing of various date formats.
 
     Supported formats include:
-    - "12/10/2025" (US format)
+    - "12/10/2025" (US format: MM/DD/YYYY)
     - "Dec 10, 2025"
     - "December 10, 2025"
     - "2025-12-10" (ISO format)
     - "2025-12-10T14:30:00" (with time)
+    - "2025-12-10T10:00:00-05:00" (with timezone offset)
     - And many more via dateutil
+
+    Note on date format: Ambiguous dates like "12/10/2025" are parsed using US format
+    (MM/DD/YYYY), where 12/10 is December 10th, not October 12th. This follows the
+    dateutil default behavior.
+
+    Note on midnight handling: When end_of_day=True, dates parsed as midnight (00:00:00)
+    are converted to 23:59:00. This means if you explicitly specify midnight
+    (e.g., "2025-12-10T00:00:00"), it will be converted to 23:59:00. To preserve
+    an explicit midnight time, set end_of_day=False.
+
+    Note on timezone handling: Timezone-aware datetimes are converted to UTC. For example,
+    "2025-12-10T10:00:00-05:00" (10 AM EST) becomes "2025-12-10T15:00:00Z" (3 PM UTC).
+    Naive datetimes (without timezone info) are assumed to already be in UTC.
 
     Args:
         date_string: The date string to parse
-        end_of_day: If True and no time specified, defaults to 23:59:00 (11:59 PM)
+        end_of_day: If True and no time specified, defaults to 23:59:00 (11:59 PM).
+            Note: This also converts explicit midnight times to 23:59:00.
 
     Returns:
-        ISO 8601 formatted string (e.g., "2025-12-10T23:59:00Z")
+        ISO 8601 formatted string in UTC (e.g., "2025-12-10T23:59:00Z")
 
     Raises:
         ValueError: If the date string cannot be parsed
@@ -135,6 +150,10 @@ def parse_to_iso8601(date_string: str, end_of_day: bool = True) -> str:
 
     # Ensure UTC timezone
     if parsed.tzinfo is None:
+        # Naive datetime: assume it's already in UTC
         parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+    else:
+        # Timezone-aware datetime: convert to UTC
+        parsed = parsed.astimezone(datetime.timezone.utc)
 
     return parsed.strftime("%Y-%m-%dT%H:%M:%SZ")
