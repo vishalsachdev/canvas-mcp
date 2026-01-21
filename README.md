@@ -93,7 +93,7 @@ Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are org
 
 **Course identifiers:** Canvas ID (`12345`), course code (`badm_350_120251_246794`), or SIS ID
 
-**Cannot do:** Create/delete courses, modify course settings, access other users' data
+**Cannot do:** Create/delete courses, modify course settings, access other users' data, create/update rubrics (use Canvas UI)
 
 **Rate limits:** ~700 requests/10 min. Use `max_concurrent=5` for bulk operations.
 
@@ -424,7 +424,7 @@ The Canvas MCP Server provides a comprehensive set of tools for interacting with
 
 **Educator Tools**
 4. **Assignment Tools** - Handle assignments, submissions, and peer reviews with analytics
-5. **Rubric Tools** - Full CRUD operations for rubrics with validation, association management, and grading (including `bulk_grade_submissions` for efficient batch grading)
+5. **Rubric Tools** - List rubrics, associate with assignments, and grade submissions (including `bulk_grade_submissions` for efficient batch grading). Note: Create/update rubrics via Canvas web UI due to API limitations.
 6. **User & Enrollment Tools** - Manage enrollments, users, and groups
 7. **Analytics Tools** - View student analytics, assignment statistics, and progress tracking
 8. **Messaging Tools** - Send messages and announcements to students

@@ -43,7 +43,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `get_assignment_analytics` | Performance statistics |
 | `create_assignment` | Create new assignment with due date, submission types, peer reviews |
 | `get_student_analytics` | Individual student performance |
-| `create_rubric` | Create grading rubrics |
+| `create_rubric` | ⚠️ DISABLED - Canvas API returns 500 errors |
 | `grade_submission_with_rubric` | Grade single submission |
 | `bulk_grade_submissions` | Grade multiple submissions efficiently |
 | `send_conversation` | Message students |
@@ -162,7 +162,7 @@ Is it a simple query?
 - Read courses, assignments, grades, discussions, pages
 - Submit grades with or without rubrics
 - Send Canvas messages and announcements
-- Create and manage rubrics
+- Use existing rubrics for grading (create/update rubrics via Canvas UI)
 - Analyze peer review completion
 - Execute TypeScript for bulk operations
 - Access student data (with FERPA-compliant anonymization option)
@@ -174,6 +174,18 @@ Is it a simple query?
 - Bypass Canvas API rate limits
 - Access other students' data (for student users)
 - Modify Canvas system configuration
+
+### Known Canvas API Limitations
+Some Canvas API endpoints have bugs or limitations that prevent certain operations:
+
+| Tool | Issue | Workaround |
+|------|-------|------------|
+| `create_rubric` | Canvas API returns 500 error | Create rubrics via Canvas web UI |
+| `update_rubric` | Partial updates wipe all criteria (full replacement, not PATCH) | Edit rubrics via Canvas web UI |
+
+**Working rubric tools:** `list_all_rubrics`, `get_rubric_details`, `associate_rubric_with_assignment`, `grade_with_rubric`, `bulk_grade_submissions`, `delete_rubric`
+
+**Rubric workaround:** Create/edit rubrics in Canvas UI, then use `associate_rubric_with_assignment` to link them to assignments. Use "Find a Rubric" feature in Canvas to copy rubrics between courses.
 
 ### Data Access Rules
 | User Type | Can Access |
