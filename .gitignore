@@ -25,6 +25,7 @@ build/
 
 # Environment variables
 .env
+.envrc
 
 # IDE specific files
 .vscode/
