@@ -249,6 +249,15 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 - [ ] Page content versioning/history tools
 
 ## Session Log
+### 2026-01-21
+- Fixed broken rubric API tools:
+  - Disabled `create_rubric` (Canvas API returns 500 error - known bug)
+  - Disabled `update_rubric` (API does full replacement, causes data loss)
+  - Both tools now return informative error messages with workarounds
+  - Added "Known Canvas API Limitations" section to AGENTS.md
+  - Updated README.md and tools/README.md with limitations
+- Pushed: `c01dc7d` fix: Disable broken rubric API tools (create_rubric, update_rubric)
+
 ### 2026-01-20
 - Updated README documentation:
   - Corrected tool count from 50+ to 80+ (actual: 84 tools)
