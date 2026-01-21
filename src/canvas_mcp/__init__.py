@@ -6,7 +6,7 @@ educators with AI-powered tools for course management, assignment handling,
 discussion facilitation, and student analytics.
 """
 
-__version__ = "1.0.6"
+__version__ = "1.0.7"
 __author__ = "Vishal Sachdev"
 __email__ = "vishal@example.com"
 __description__ = "A Model Context Protocol server for Canvas LMS integration"
