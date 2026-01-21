@@ -66,6 +66,10 @@ class Config:
         self.institution_name = os.getenv("INSTITUTION_NAME", "")
         self.timezone = os.getenv("TIMEZONE", "UTC")
 
+        # Response formatting configuration
+        # COMPACT = token-efficient (default), STANDARD = human-readable, VERBOSE = debug
+        self.verbosity = os.getenv("CANVAS_MCP_VERBOSITY", "compact").lower()
+
     @property
     def api_base_url(self) -> str:
         """Legacy compatibility for API_BASE_URL."""

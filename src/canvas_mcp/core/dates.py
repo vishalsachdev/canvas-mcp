@@ -9,12 +9,24 @@ with the following conventions:
 - UTC timezone is used for all internal date handling
 - Dates without timezone information are assumed to be in UTC
 - The format_date() function handles conversion of various formats to this standard
+
+Smart Date Formatting
+--------------------
+For token efficiency, this module also provides smart date formatting modes:
+- "standard": Full ISO 8601 format (2026-01-21T23:59:00Z)
+- "compact": Short month-day format (Jan 21)
+- "relative": Relative to current time (in 3 days, yesterday)
 """
 
 import datetime
 import sys
+from typing import Literal
 
 from dateutil import parser as date_parser
+
+
+# Type alias for date format modes
+DateFormatMode = Literal["standard", "compact", "relative"]
 
 
 def parse_date(date_str: str | None) -> datetime.datetime | None:
@@ -99,6 +111,104 @@ def truncate_text(text: str, max_length: int = 100) -> str:
         return text
 
     return text[:max_length - 3] + "..."
+
+
+def format_date_smart(
+    date_str: str | None,
+    mode: DateFormatMode = "standard"
+) -> str:
+    """Format a date string with configurable verbosity for token efficiency.
+
+    Args:
+        date_str: The date string to format
+        mode: Formatting mode:
+            - "standard": Full ISO 8601 (2026-01-21T23:59:00Z)
+            - "compact": Short format (Jan 21) - ~60% token savings
+            - "relative": Relative time (in 3 days, yesterday)
+
+    Returns:
+        Formatted date string based on mode, or '-' for compact/N/A for standard if None
+    """
+    if not date_str:
+        return "-" if mode == "compact" else "N/A"
+
+    dt = parse_date(date_str)
+    if not dt:
+        return date_str  # Return original if parsing fails
+
+    if mode == "standard":
+        # Full ISO 8601 format
+        if dt.tzinfo == datetime.timezone.utc:
+            return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+        else:
+            return dt.strftime('%Y-%m-%dT%H:%M:%S%z')
+
+    elif mode == "compact":
+        # Short month-day format (most token efficient)
+        # Include year only if not current year
+        now = datetime.datetime.now(datetime.timezone.utc)
+        if dt.year != now.year:
+            return dt.strftime('%b %d %Y')
+        return dt.strftime('%b %d')
+
+    elif mode == "relative":
+        # Relative time format
+        now = datetime.datetime.now(datetime.timezone.utc)
+        delta = dt - now
+
+        # Convert to total days
+        days = delta.days
+
+        if days == 0:
+            # Same day
+            hours = delta.seconds // 3600
+            if hours == 0:
+                minutes = delta.seconds // 60
+                if minutes <= 0:
+                    return "now"
+                return f"in {minutes}m"
+            if delta.total_seconds() > 0:
+                return f"in {hours}h"
+            return f"{abs(hours)}h ago"
+        elif days == 1:
+            return "tomorrow"
+        elif days == -1:
+            return "yesterday"
+        elif 0 < days <= 7:
+            return f"in {days} days"
+        elif -7 <= days < 0:
+            return f"{abs(days)} days ago"
+        else:
+            # Fall back to compact for dates more than a week away
+            if dt.year != now.year:
+                return dt.strftime('%b %d %Y')
+            return dt.strftime('%b %d')
+
+    return date_str  # Fallback
+
+
+def format_datetime_compact(date_str: str | None) -> str:
+    """Format a datetime with time in compact mode.
+
+    Includes time for submissions/events where time matters.
+
+    Args:
+        date_str: The date string to format
+
+    Returns:
+        Compact datetime string (e.g., "Jan 21 14:30") or '-' if None
+    """
+    if not date_str:
+        return "-"
+
+    dt = parse_date(date_str)
+    if not dt:
+        return date_str
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    if dt.year != now.year:
+        return dt.strftime('%b %d %Y %H:%M')
+    return dt.strftime('%b %d %H:%M')
 
 
 def parse_to_iso8601(date_string: str, end_of_day: bool = True) -> str:

@@ -6,7 +6,13 @@ from mcp.server.fastmcp import FastMCP
 from ..core.anonymization import anonymize_response_data
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
-from ..core.dates import format_date
+from ..core.dates import format_date, format_date_smart
+from ..core.response_formatter import (
+    Verbosity,
+    format_header,
+    format_response,
+    get_verbosity,
+)
 from ..core.validation import validate_params
 
 
@@ -21,7 +27,8 @@ def register_other_tools(mcp: FastMCP):
                         sort: str | None = "title",
                         order: str | None = "asc",
                         search_term: str | None = None,
-                        published: bool | None = None) -> str:
+                        published: bool | None = None,
+                        verbosity: str | None = None) -> str:
         """List pages for a specific course.
 
         Args:
@@ -30,7 +37,17 @@ def register_other_tools(mcp: FastMCP):
             order: Sort order ('asc' or 'desc')
             search_term: Search for pages containing this term in title or body
             published: Filter by published status (True, False, or None for all)
+            verbosity: Output format - "compact" (default), "standard", or "verbose"
         """
+        # Determine verbosity level
+        if verbosity:
+            try:
+                v = Verbosity(verbosity.lower())
+            except ValueError:
+                v = get_verbosity()
+        else:
+            v = get_verbosity()
+
         course_id = await get_course_id(course_identifier)
 
         params = {"per_page": 100}
@@ -52,22 +69,40 @@ def register_other_tools(mcp: FastMCP):
         if not pages:
             return f"No pages found for course {course_identifier}."
 
-        pages_info = []
-        for page in pages:
-            url = page.get("url", "No URL")
-            title = page.get("title", "Untitled page")
-            published_status = "Published" if page.get("published", False) else "Unpublished"
-            is_front_page = page.get("front_page", False)
-            updated_at = format_date(page.get("updated_at"))
-
-            front_page_indicator = " (Front Page)" if is_front_page else ""
-
-            pages_info.append(
-                f"URL: {url}\nTitle: {title}{front_page_indicator}\nStatus: {published_status}\nUpdated: {updated_at}\n"
-            )
-
         course_display = await get_course_code(course_id) or course_identifier
-        return f"Pages for Course {course_display}:\n\n" + "\n".join(pages_info)
+
+        if v == Verbosity.COMPACT:
+            # Token-efficient format: pipe-delimited
+            header = format_header("pages", course_display, v)
+            items = []
+            for page in pages:
+                url = page.get("url", "-")
+                title = page.get("title", "Untitled")
+                pub = "Y" if page.get("published", False) else "N"
+                front = "F" if page.get("front_page", False) else ""
+                updated = format_date_smart(page.get("updated_at"), "compact")
+                items.append(f"{url}|{title}|{pub}{front}|{updated}")
+
+            body = "\n".join(items)
+            return format_response(header, body, v)
+
+        else:
+            # Standard/verbose format
+            pages_info = []
+            for page in pages:
+                url = page.get("url", "No URL")
+                title = page.get("title", "Untitled page")
+                published_status = "Published" if page.get("published", False) else "Unpublished"
+                is_front_page = page.get("front_page", False)
+                updated_at = format_date(page.get("updated_at"))
+
+                front_page_indicator = " (Front Page)" if is_front_page else ""
+
+                pages_info.append(
+                    f"URL: {url}\nTitle: {title}{front_page_indicator}\nStatus: {published_status}\nUpdated: {updated_at}\n"
+                )
+
+            return f"Pages for Course {course_display}:\n\n" + "\n".join(pages_info)
 
     @mcp.tool()
     @validate_params
@@ -455,12 +490,25 @@ def register_other_tools(mcp: FastMCP):
     # ===== USER TOOLS =====
 
     @mcp.tool()
-    async def list_users(course_identifier: str) -> str:
+    async def list_users(
+        course_identifier: str,
+        verbosity: str | None = None
+    ) -> str:
         """List users enrolled in a specific course.
 
         Args:
             course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            verbosity: Output format - "compact" (default), "standard", or "verbose"
         """
+        # Determine verbosity level
+        if verbosity:
+            try:
+                v = Verbosity(verbosity.lower())
+            except ValueError:
+                v = get_verbosity()
+        else:
+            v = get_verbosity()
+
         course_id = await get_course_id(course_identifier)
 
         params = {
@@ -483,23 +531,41 @@ def register_other_tools(mcp: FastMCP):
             print(f"Warning: Failed to anonymize user data: {str(e)}")
             # Continue with original data for functionality
 
-        users_info = []
-        for user in users:
-            user_id = user.get("id")
-            name = user.get("name", "Unknown")
-            email = user.get("email", "No email")
-
-            # Get enrollment info
-            enrollments = user.get("enrollments", [])
-            roles = [enrollment.get("role", "Student") for enrollment in enrollments]
-            role_list = ", ".join(set(roles)) if roles else "Student"
-
-            users_info.append(
-                f"ID: {user_id}\nName: {name}\nEmail: {email}\nRoles: {role_list}\n"
-            )
-
         course_display = await get_course_code(course_id) or course_identifier
-        return f"Users in Course {course_display}:\n\n" + "\n".join(users_info)
+
+        if v == Verbosity.COMPACT:
+            # Token-efficient format: pipe-delimited
+            header = format_header("users", course_display, v)
+            items = []
+            for user in users:
+                user_id = user.get("id")
+                name = user.get("name", "Unknown")
+                enrollments = user.get("enrollments", [])
+                roles = [e.get("role", "S")[0] for e in enrollments]  # First letter of role
+                role_str = "".join(set(roles)) if roles else "S"
+                items.append(f"{user_id}|{name}|{role_str}")
+
+            body = "\n".join(items)
+            return format_response(header, body, v)
+
+        else:
+            # Standard/verbose format
+            users_info = []
+            for user in users:
+                user_id = user.get("id")
+                name = user.get("name", "Unknown")
+                email = user.get("email", "No email")
+
+                # Get enrollment info
+                enrollments = user.get("enrollments", [])
+                roles = [enrollment.get("role", "Student") for enrollment in enrollments]
+                role_list = ", ".join(set(roles)) if roles else "Student"
+
+                users_info.append(
+                    f"ID: {user_id}\nName: {name}\nEmail: {email}\nRoles: {role_list}\n"
+                )
+
+            return f"Users in Course {course_display}:\n\n" + "\n".join(users_info)
 
     # ===== ANALYTICS TOOLS =====
 
