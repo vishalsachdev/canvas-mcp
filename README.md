@@ -54,6 +54,8 @@ Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are org
 | `edit_page_content` | Update page content | "Update the syllabus page" |
 | `update_page_settings` | Publish/unpublish pages | "Publish all Week 3 pages" |
 | `bulk_update_pages` | Batch page operations | "Unpublish all draft pages" |
+| **File Management** | | |
+| `upload_course_file` | Upload local file to Canvas | "Upload syllabus.pdf to the course" |
 
 </details>
 
