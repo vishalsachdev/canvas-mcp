@@ -5,6 +5,7 @@
 
 # Python virtual environment
 venv/
+venv-*/
 fresh_venv/
 .venv/
 
@@ -63,3 +64,16 @@ docs/hybrid_builder_launch.md
 # Archive directory - old structure and development files
 archive/
 node_modules/
+
+# AI assistant local configs
+.agent/
+.claude/audio/
+.claude/commands/
+.claude/config/
+.claude/hooks/
+.claude/personalities/
+.claude/settings.json
+.claude/tts-*.txt
+.claude/github-star-reminder.txt
+.claude/.agentvibes-*
+.gemini/
