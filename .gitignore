@@ -73,7 +73,11 @@ node_modules/
 .claude/hooks/
 .claude/personalities/
 .claude/settings.json
+.claude/settings.local.json
 .claude/tts-*.txt
 .claude/github-star-reminder.txt
 .claude/.agentvibes-*
+.claude/piper-voices-dir.txt
+.claude/skills/
 .gemini/
+.mcp.json
