@@ -264,6 +264,20 @@ Get your Canvas API token from: **Canvas → Account → Settings → New Access
 
 > **Note for Students**: Some educational institutions restrict API token creation for students. If you see an error like "There is a limit to the number of access tokens you can create" or cannot find the token creation option, contact your institution's Canvas administrator or IT support department to request API access or assistance in creating a token.
 
+#### Optional: User Type Configuration
+
+Reduce token overhead by filtering tools based on your role:
+
+```bash
+# In your .env file
+CANVAS_MCP_USER_TYPE=educator  # Removes student/developer tools (saves ~2K tokens)
+```
+
+| User Type | Tools Available | Use Case |
+|-----------|-----------------|----------|
+| `all` (default) | All 86 tools | Development, testing |
+| `educator` | 78 tools | Teachers/instructors |
+
 ### 3. MCP Client Configuration
 
 Canvas MCP works with any MCP-compatible client. Below are configuration examples for popular clients:

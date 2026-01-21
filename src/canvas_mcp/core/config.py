@@ -70,6 +70,10 @@ class Config:
         # COMPACT = token-efficient (default), STANDARD = human-readable, VERBOSE = debug
         self.verbosity = os.getenv("CANVAS_MCP_VERBOSITY", "compact").lower()
 
+        # User type configuration for tool filtering
+        # Values: "all" (default), "educator", "student" (future)
+        self.user_type = os.getenv("CANVAS_MCP_USER_TYPE", "all").lower()
+
     @property
     def api_base_url(self) -> str:
         """Legacy compatibility for API_BASE_URL."""
@@ -133,6 +137,13 @@ def validate_config() -> bool:
         print(
             "Warning: TS_SANDBOX_MODE should be one of auto, local, container; "
             f"defaulting to 'auto' (got '{config.ts_sandbox_mode}')",
+            file=sys.stderr
+        )
+
+    if config.user_type not in {"all", "educator", "student"}:
+        print(
+            f"Warning: CANVAS_MCP_USER_TYPE should be one of all, educator, student; "
+            f"defaulting to 'all' (got '{config.user_type}')",
             file=sys.stderr
         )
 

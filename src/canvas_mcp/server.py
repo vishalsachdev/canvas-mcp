@@ -43,9 +43,12 @@ def create_server() -> FastMCP:
 
 def register_all_tools(mcp: FastMCP) -> None:
     """Register all MCP tools, resources, and prompts."""
-    log_info("Registering Canvas MCP tools...")
+    config = get_config()
+    user_type = config.user_type
 
-    # Register tools by category
+    log_info(f"Registering Canvas MCP tools (user_type={user_type})...")
+
+    # Always register shared and educator tools
     register_course_tools(mcp)
     register_assignment_tools(mcp)
     register_discussion_tools(mcp)
@@ -56,10 +59,22 @@ def register_all_tools(mcp: FastMCP) -> None:
     register_peer_review_tools(mcp)
     register_peer_review_comment_tools(mcp)
     register_messaging_tools(mcp)
-    register_student_tools(mcp)
     register_accessibility_tools(mcp)
-    register_discovery_tools(mcp)
-    register_code_execution_tools(mcp)
+
+    # Conditionally register student tools
+    if user_type in ("all", "student"):
+        register_student_tools(mcp)
+        log_info("  Registered: student tools (5 tools)")
+    else:
+        log_info("  Skipped: student tools (user_type=educator)")
+
+    # Conditionally register developer tools
+    if user_type == "all":
+        register_discovery_tools(mcp)
+        register_code_execution_tools(mcp)
+        log_info("  Registered: developer tools (3 tools)")
+    else:
+        log_info("  Skipped: developer tools (user_type!=all)")
 
     # Register resources and prompts
     register_resources_and_prompts(mcp)
@@ -128,6 +143,7 @@ def main() -> None:
         print(f"  Debug Mode: {config.debug}", file=sys.stderr)
         print(f"  API Timeout: {config.api_timeout}s", file=sys.stderr)
         print(f"  Cache TTL: {config.cache_ttl}s", file=sys.stderr)
+        print(f"  User Type: {config.user_type}", file=sys.stderr)
         sandbox_mode = config.ts_sandbox_mode
         if sandbox_mode not in {"auto", "local", "container"}:
             sandbox_mode = "auto"
