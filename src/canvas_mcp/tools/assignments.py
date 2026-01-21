@@ -8,8 +8,15 @@ from mcp.server.fastmcp import FastMCP
 from ..core.anonymization import anonymize_response_data
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
-from ..core.dates import format_date, parse_date, parse_to_iso8601
+from ..core.dates import format_date, format_date_smart, format_datetime_compact, parse_date, parse_to_iso8601
 from ..core.logging import log_error
+from ..core.response_formatter import (
+    Verbosity,
+    format_header,
+    format_response,
+    format_stats,
+    get_verbosity,
+)
 from ..core.validation import validate_params
 
 
@@ -18,13 +25,26 @@ def register_assignment_tools(mcp: FastMCP):
 
     @mcp.tool()
     @validate_params
-    async def list_assignments(course_identifier: str | int) -> str:
+    async def list_assignments(
+        course_identifier: str | int,
+        verbosity: str | None = None
+    ) -> str:
         """List assignments for a specific course.
 
         Args:
             course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            verbosity: Output format - "compact" (default, token-efficient), "standard" (readable), or "verbose" (detailed)
         """
         course_id = await get_course_id(course_identifier)
+
+        # Determine verbosity level
+        if verbosity:
+            try:
+                v = Verbosity(verbosity.lower())
+            except ValueError:
+                v = get_verbosity()
+        else:
+            v = get_verbosity()
 
         params = {
             "per_page": 100,
@@ -39,20 +59,37 @@ def register_assignment_tools(mcp: FastMCP):
         if not all_assignments:
             return f"No assignments found for course {course_identifier}."
 
-        assignments_info = []
-        for assignment in all_assignments:
-            assignment_id = assignment.get("id")
-            name = assignment.get("name", "Unnamed assignment")
-            due_at = assignment.get("due_at", "No due date")
-            points = assignment.get("points_possible", 0)
-
-            assignments_info.append(
-                f"ID: {assignment_id}\nName: {name}\nDue: {due_at}\nPoints: {points}\n"
-            )
-
         # Try to get the course code for display
         course_display = await get_course_code(course_id) or course_identifier
-        return f"Assignments for Course {course_display}:\n\n" + "\n".join(assignments_info)
+
+        if v == Verbosity.COMPACT:
+            # Token-efficient format: pipe-delimited, abbreviated
+            header = format_header("asgn", course_display, v)
+            items = []
+            for assignment in all_assignments:
+                assignment_id = assignment.get("id")
+                name = assignment.get("name", "Unnamed")
+                due_at = format_date_smart(assignment.get("due_at"), "compact")
+                points = assignment.get("points_possible", 0)
+                items.append(f"{assignment_id}|{name}|{due_at}|{points}")
+
+            body = "\n".join(items)
+            return format_response(header, body, v)
+
+        else:
+            # Standard/verbose format with labels
+            assignments_info = []
+            for assignment in all_assignments:
+                assignment_id = assignment.get("id")
+                name = assignment.get("name", "Unnamed assignment")
+                due_at = format_date(assignment.get("due_at")) if assignment.get("due_at") else "No due date"
+                points = assignment.get("points_possible", 0)
+
+                assignments_info.append(
+                    f"ID: {assignment_id}\nName: {name}\nDue: {due_at}\nPoints: {points}\n"
+                )
+
+            return f"Assignments for Course {course_display}:\n\n" + "\n".join(assignments_info)
 
     @mcp.tool()
     @validate_params
@@ -381,14 +418,28 @@ def register_assignment_tools(mcp: FastMCP):
 
     @mcp.tool()
     @validate_params
-    async def list_submissions(course_identifier: str | int, assignment_id: str | int) -> str:
+    async def list_submissions(
+        course_identifier: str | int,
+        assignment_id: str | int,
+        verbosity: str | None = None
+    ) -> str:
         """List submissions for a specific assignment.
 
         Args:
             course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
             assignment_id: The Canvas assignment ID
+            verbosity: Output format - "compact" (default, token-efficient), "standard" (readable), or "verbose" (detailed)
         """
         course_id = await get_course_id(course_identifier)
+
+        # Determine verbosity level
+        if verbosity:
+            try:
+                v = Verbosity(verbosity.lower())
+            except ValueError:
+                v = get_verbosity()
+        else:
+            v = get_verbosity()
 
         # Ensure assignment_id is a string
         assignment_id_str = str(assignment_id)
@@ -419,29 +470,53 @@ def register_assignment_tools(mcp: FastMCP):
             )
             # Continue with original data for functionality
 
-        submissions_info = []
-        for submission in submissions:
-            user_id = submission.get("user_id")
-            submitted_at = submission.get("submitted_at", "Not submitted")
-            score = submission.get("score", "Not graded")
-            grade = submission.get("grade", "Not graded")
-
-            submissions_info.append(
-                f"User ID: {user_id}\nSubmitted: {submitted_at}\nScore: {score}\nGrade: {grade}\n"
-            )
-
         # Try to get the course code for display
         course_display = await get_course_code(course_id) or course_identifier
-        return f"Submissions for Assignment {assignment_id} in course {course_display}:\n\n" + "\n".join(submissions_info)
+
+        if v == Verbosity.COMPACT:
+            # Token-efficient format: pipe-delimited
+            header = format_header("sub", f"{assignment_id}|{course_display}", v)
+            items = []
+            for submission in submissions:
+                user_id = submission.get("user_id")
+                submitted_at = format_datetime_compact(submission.get("submitted_at"))
+                score = submission.get("score")
+                score_str = f"{score:.1f}" if score is not None else "-"
+                items.append(f"{user_id}|{submitted_at}|{score_str}")
+
+            body = "\n".join(items)
+            return format_response(header, body, v)
+
+        else:
+            # Standard/verbose format with labels
+            submissions_info = []
+            for submission in submissions:
+                user_id = submission.get("user_id")
+                submitted_at = submission.get("submitted_at", "Not submitted")
+                score = submission.get("score", "Not graded")
+                grade = submission.get("grade", "Not graded")
+
+                submissions_info.append(
+                    f"User ID: {user_id}\nSubmitted: {submitted_at}\nScore: {score}\nGrade: {grade}\n"
+                )
+
+            return f"Submissions for Assignment {assignment_id} in course {course_display}:\n\n" + "\n".join(submissions_info)
 
     @mcp.tool()
     @validate_params
-    async def get_assignment_analytics(course_identifier: str | int, assignment_id: str | int) -> str:
+    async def get_assignment_analytics(
+        course_identifier: str | int,
+        assignment_id: str | int,
+        summary_only: bool = False,
+        verbosity: str | None = None
+    ) -> str:
         """Get detailed analytics about student performance on a specific assignment.
 
         Args:
             course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
             assignment_id: The Canvas assignment ID
+            summary_only: If True, returns only summary stats (~90% token savings)
+            verbosity: Output format - "compact" (default), "standard", or "verbose"
         """
         course_id = await get_course_id(course_identifier)
 
@@ -651,8 +726,38 @@ def register_assignment_tools(mcp: FastMCP):
         else:
             avg_percentage = 0
 
-        # Format the output
+        # Determine verbosity level
+        if verbosity:
+            try:
+                v = Verbosity(verbosity.lower())
+            except ValueError:
+                v = get_verbosity()
+        else:
+            v = get_verbosity()
+
+        # Calculate key statistics
         course_display = await get_course_code(course_id) or course_identifier
+        total_students = submission_stats["total_students"]
+        submitted = submission_stats["submitted_count"]
+        graded = submission_stats["graded_count"]
+        missing = submission_stats["missing_count"] + (total_students - len(submissions))
+        late = submission_stats["late_count"]
+
+        # Summary-only mode: return minimal stats (~90% token savings)
+        if summary_only or v == Verbosity.COMPACT:
+            header = format_header("analytics", f"{assignment_name}|{course_display}", Verbosity.COMPACT)
+            stats_line = format_stats({
+                "submitted": submitted,
+                "missing": missing,
+                "average": avg_score if scores else 0,
+                "median": median_score if scores else 0,
+                "late": late,
+            }, Verbosity.COMPACT)
+            counts_line = f"<70%:{len(low_scoring_students)}|>90%:{len(high_scoring_students)}"
+            body = f"{stats_line}\n{counts_line}"
+            return format_response(header, body, Verbosity.COMPACT)
+
+        # Full output format
         output = f"Assignment Analytics for '{assignment_name}' in Course {course_display}\n\n"
 
         # Assignment details
@@ -667,11 +772,6 @@ def register_assignment_tools(mcp: FastMCP):
 
         # Submission statistics
         output += "Submission Statistics:\n"
-        total_students = submission_stats["total_students"]
-        submitted = submission_stats["submitted_count"]
-        graded = submission_stats["graded_count"]
-        missing = submission_stats["missing_count"] + (total_students - len(submissions))
-        late = submission_stats["late_count"]
 
         # Calculate percentages
         submitted_pct = (submitted / total_students * 100) if total_students > 0 else 0

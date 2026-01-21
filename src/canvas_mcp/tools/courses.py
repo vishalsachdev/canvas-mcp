@@ -12,6 +12,12 @@ from ..core.cache import (
 )
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date
+from ..core.response_formatter import (
+    Verbosity,
+    format_header,
+    format_response,
+    get_verbosity,
+)
 from ..core.validation import validate_params
 
 
@@ -41,8 +47,26 @@ def register_course_tools(mcp: FastMCP):
     """Register all course-related MCP tools."""
 
     @mcp.tool()
-    async def list_courses(include_concluded: bool = False, include_all: bool = False) -> str:
-        """List courses for the authenticated user."""
+    async def list_courses(
+        include_concluded: bool = False,
+        include_all: bool = False,
+        verbosity: str | None = None
+    ) -> str:
+        """List courses for the authenticated user.
+
+        Args:
+            include_concluded: Include concluded courses
+            include_all: Include all course types (not just teacher enrollments)
+            verbosity: Output format - "compact" (default), "standard", or "verbose"
+        """
+        # Determine verbosity level
+        if verbosity:
+            try:
+                v = Verbosity(verbosity.lower())
+            except ValueError:
+                v = get_verbosity()
+        else:
+            v = get_verbosity()
 
         params = {
             "include[]": ["term", "teachers", "total_students"],
@@ -74,16 +98,31 @@ def register_course_tools(mcp: FastMCP):
                 course_code_to_id_cache[course_code] = course_id
                 id_to_course_code_cache[course_id] = course_code
 
-        courses_info = []
-        for course in courses:
-            course_id = course.get("id")
-            name = course.get("name", "Unnamed course")
-            code = course.get("course_code", "No code")
+        if v == Verbosity.COMPACT:
+            # Token-efficient format: pipe-delimited
+            header = format_header("courses", None, v)
+            items = []
+            for course in courses:
+                course_id = course.get("id")
+                name = course.get("name", "Unnamed")
+                code = course.get("course_code", "-")
+                items.append(f"{code}|{name}|{course_id}")
 
-            # Emphasize code in the output
-            courses_info.append(f"Code: {code}\nName: {name}\nID: {course_id}\n")
+            body = "\n".join(items)
+            return format_response(header, body, v)
 
-        return "Courses:\n\n" + "\n".join(courses_info)
+        else:
+            # Standard/verbose format
+            courses_info = []
+            for course in courses:
+                course_id = course.get("id")
+                name = course.get("name", "Unnamed course")
+                code = course.get("course_code", "No code")
+
+                # Emphasize code in the output
+                courses_info.append(f"Code: {code}\nName: {name}\nID: {course_id}\n")
+
+            return "Courses:\n\n" + "\n".join(courses_info)
 
     @mcp.tool()
     @validate_params
