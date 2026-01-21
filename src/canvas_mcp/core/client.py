@@ -224,6 +224,108 @@ async def make_canvas_request(
     return {"error": "Max retries exceeded"}
 
 
+async def upload_file_to_storage(
+    upload_url: str,
+    upload_params: dict[str, Any],
+    file_path: str,
+    filename: str,
+    content_type: str
+) -> dict[str, Any]:
+    """Upload a file to Canvas storage URL (step 2 of 3-step upload process).
+
+    This function handles the multipart file upload to S3/Instructure storage.
+    It's called after requesting an upload URL from the Canvas API.
+
+    Args:
+        upload_url: The pre-signed upload URL from Canvas API
+        upload_params: Additional parameters required by the storage (from Canvas API)
+        file_path: Local filesystem path to the file
+        filename: Name to use for the uploaded file
+        content_type: MIME type of the file
+
+    Returns:
+        Response from the storage service, typically containing file confirmation
+        or redirect location
+
+    Note:
+        This posts to external storage (S3/Instructure), not the Canvas API.
+        The response handling differs from regular Canvas API calls.
+    """
+    from .config import get_config
+
+    config = get_config()
+
+    # Create a separate client for external uploads (no auth header needed)
+    async with httpx.AsyncClient(timeout=config.api_timeout) as client:
+        try:
+            # Read the file content
+            with open(file_path, 'rb') as f:
+                file_content = f.read()
+
+            # Build multipart form data
+            # upload_params contains required fields like 'key', 'Policy', 'Signature', etc.
+            files = {
+                'file': (filename, file_content, content_type)
+            }
+
+            # Log for debugging
+            if config.log_api_requests:
+                print(f"Uploading file to storage: {upload_url}", file=sys.stderr)
+                print(f"  Filename: {filename}", file=sys.stderr)
+                print(f"  Content-Type: {content_type}", file=sys.stderr)
+                print(f"  Size: {len(file_content)} bytes", file=sys.stderr)
+
+            # Make the upload request
+            # Note: follow_redirects=False because Canvas may return a 3xx with file info
+            response = await client.post(
+                upload_url,
+                data=upload_params,
+                files=files,
+                follow_redirects=False
+            )
+
+            # Canvas storage upload can return:
+            # - 200/201 with JSON body containing file info
+            # - 301/302/303 redirect to Canvas API with file info
+            if response.status_code in (200, 201):
+                # Direct success response
+                try:
+                    return response.json()
+                except ValueError:
+                    # Some storage backends return empty success
+                    return {"success": True, "status_code": response.status_code}
+
+            elif response.status_code in (301, 302, 303):
+                # Redirect - follow it to get file info from Canvas
+                redirect_url = response.headers.get('Location')
+                if redirect_url:
+                    # Follow the redirect to get file info
+                    # This goes back to Canvas API, needs auth
+                    canvas_client = _get_http_client()
+                    confirm_response = await canvas_client.get(redirect_url)
+                    confirm_response.raise_for_status()
+                    return confirm_response.json()
+                else:
+                    return {"error": "Redirect without Location header"}
+
+            else:
+                # Unexpected status
+                error_text = response.text
+                return {
+                    "error": f"Storage upload failed with status {response.status_code}",
+                    "details": error_text
+                }
+
+        except FileNotFoundError:
+            return {"error": f"File not found: {file_path}"}
+        except PermissionError:
+            return {"error": f"Permission denied reading file: {file_path}"}
+        except httpx.TimeoutException:
+            return {"error": "Upload timed out"}
+        except Exception as e:
+            return {"error": f"Upload failed: {str(e)}"}
+
+
 async def fetch_all_paginated_results(endpoint: str, params: dict[str, Any] | None = None) -> Any:
     """Fetch all results from a paginated Canvas API endpoint.
 
