@@ -186,7 +186,7 @@ This repository has multiple documentation files for different audiences. To pre
 | `tools/TOOL_MANIFEST.json` | Programmatic access | Machine-readable tool catalog | Tools added/changed |
 | `README.md` | Everyone (entry point) | Installation, overview, links to other docs | Major releases only |
 | `examples/*.md` | Human users | Workflow tutorials, not tool reference | New workflows added |
-| `docs/CLAUDE.md` | Developers | Codebase architecture, NOT tool usage | Architecture changes |
+| `CLAUDE.md` | Developers | Codebase architecture, NOT tool usage | Architecture changes |
 
 ### Rules to Prevent Redundancy
 
@@ -233,12 +233,14 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 
 ## Current Focus
 - [x] Release v1.0.6 with module and page tools
+- [x] Add `update_assignment` tool (completes CRUD for assignments)
 
 ## Roadmap
 - [x] Module management tools (7 tools, 36 tests)
 - [x] Page settings tools (2 tools, 15 tests)
 - [x] TDD enforcement in development workflow
 - [x] Release v1.0.6
+- [x] `update_assignment` tool (9 tests)
 
 ## Backlog
 - [ ] Module templates (pre-configured module structures)
@@ -249,6 +251,15 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 - [ ] Page content versioning/history tools
 
 ## Session Log
+### 2026-01-25
+- Added `update_assignment` tool:
+  - PUT /api/v1/courses/:course_id/assignments/:id
+  - Parameters: course_identifier, assignment_id, name, description, submission_types, due_at, unlock_at, lock_at, points_possible, grading_type, published, assignment_group_id, peer_reviews, automatic_peer_reviews, allowed_extensions
+  - All update fields optional (only changed fields sent to API)
+  - 9 unit tests following TDD pattern
+  - Updated TODO.md (moved to Completed)
+- Tool follows existing patterns from `create_assignment`
+
 ### 2026-01-21
 - Fixed broken rubric API tools:
   - Disabled `create_rubric` (Canvas API returns 500 error - known bug)

@@ -14,7 +14,7 @@ This repository contains a Model Context Protocol (MCP) server implementation fo
   INLINE AGENT GUIDE: Intentionally duplicates AGENTS.md content.
   WHY: Agents often can't fetch raw.githubusercontent.com or GitHub blob pages.
   MAINTENANCE: When updating tools, also update AGENTS.md (source of truth).
-  See docs/CLAUDE.md "Documentation Maintenance" for full guidelines.
+  See CLAUDE.md "Documentation Maintenance" for full guidelines.
 -->
 
 Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are organized by user type:
@@ -708,7 +708,7 @@ canvas-mcp/
 - **[Tool Documentation](https://github.com/vishalsachdev/canvas-mcp/blob/main/tools/README.md)** - Complete reference for all available tools
 - **[Pages Implementation Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/PAGES_IMPLEMENTATION.md)** - Comprehensive Pages feature guide
 - **[Course Documentation Template](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/course_documentation_prompt_template.md)** - Hybrid approach for efficient course documentation
-- **[Development Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/CLAUDE.md)** - Architecture details and development reference
+- **[Development Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/CLAUDE.md)** - Architecture details and development reference
 ## Technical Details
 
 ### Modern Architecture (2025)
@@ -753,7 +753,7 @@ Modern Python packages (see `pyproject.toml`):
 - **Type Checking**: `mypy` support for type safety
 - **Code Quality**: `ruff` and `black` for formatting and linting
 
-For contributors, see the [Development Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/CLAUDE.md) for detailed architecture and development reference.
+For contributors, see the [Development Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/CLAUDE.md) for detailed architecture and development reference.
 
 ## Troubleshooting
 

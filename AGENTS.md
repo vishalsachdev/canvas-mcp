@@ -271,4 +271,4 @@ No anonymization needed - students only access their own data via Canvas "self" 
 - **Code API Guide:** `/src/canvas_mcp/code_api/README.md`
 - **Student Guide:** `/docs/STUDENT_GUIDE.md`
 - **Educator Guide:** `/docs/EDUCATOR_GUIDE.md`
-- **Development Guide:** `/docs/CLAUDE.md`
+- **Development Guide:** `/CLAUDE.md`

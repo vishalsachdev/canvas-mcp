@@ -779,3 +779,165 @@ def register_assignment_tools(mcp: FastMCP):
             result += f"  URL: {html_url}\n"
 
         return result
+
+    @mcp.tool()
+    @validate_params
+    async def update_assignment(
+        course_identifier: str | int,
+        assignment_id: str | int,
+        name: str | None = None,
+        description: str | None = None,
+        submission_types: str | None = None,
+        due_at: str | None = None,
+        unlock_at: str | None = None,
+        lock_at: str | None = None,
+        points_possible: float | None = None,
+        grading_type: str | None = None,
+        published: bool | None = None,
+        assignment_group_id: str | int | None = None,
+        peer_reviews: bool | None = None,
+        automatic_peer_reviews: bool | None = None,
+        allowed_extensions: str | None = None
+    ) -> str:
+        """Update an existing assignment in a course.
+
+        Args:
+            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            assignment_id: The ID of the assignment to update
+            name: New name/title for the assignment
+            description: New HTML content for the assignment description
+            submission_types: Comma-separated list of allowed submission types:
+                online_text_entry, online_url, online_upload, discussion_topic,
+                none, on_paper, external_tool
+            due_at: New due date in ISO 8601 format (e.g., "2026-01-26T23:59:00Z")
+            unlock_at: New date when assignment becomes available (ISO 8601)
+            lock_at: New date when assignment locks (ISO 8601)
+            points_possible: New maximum points for the assignment
+            grading_type: One of: points, letter_grade, pass_fail, percent, not_graded
+            published: Whether the assignment should be published
+            assignment_group_id: ID of the assignment group to move this to
+            peer_reviews: Whether to enable peer reviews
+            automatic_peer_reviews: Whether to automatically assign peer reviews
+            allowed_extensions: Comma-separated list of file extensions for online_upload
+                (e.g., "pdf,docx,txt")
+        """
+        course_id = await get_course_id(course_identifier)
+
+        # Build assignment data - only include fields that are provided
+        assignment_data = {}
+
+        if name is not None:
+            assignment_data["name"] = name
+
+        if description is not None:
+            assignment_data["description"] = description
+
+        # Validate and process submission_types if provided
+        if submission_types is not None:
+            valid_submission_types = [
+                "online_text_entry", "online_url", "online_upload",
+                "discussion_topic", "none", "on_paper", "external_tool"
+            ]
+            submission_types_list = [s.strip() for s in submission_types.split(",")]
+            for st in submission_types_list:
+                if st not in valid_submission_types:
+                    return f"Invalid submission_type '{st}'. Must be one of: {', '.join(valid_submission_types)}"
+            assignment_data["submission_types"] = submission_types_list
+
+        # Validate and parse date fields
+        if due_at is not None:
+            parsed_due = parse_date(due_at)
+            if not parsed_due:
+                return f"Invalid date format for due_at: '{due_at}'. Use ISO 8601 format (e.g., '2026-01-26T23:59:00Z')."
+            assignment_data["due_at"] = parsed_due.isoformat()
+
+        if unlock_at is not None:
+            parsed_unlock = parse_date(unlock_at)
+            if not parsed_unlock:
+                return f"Invalid date format for unlock_at: '{unlock_at}'. Use ISO 8601 format (e.g., '2026-01-26T00:00:00Z')."
+            assignment_data["unlock_at"] = parsed_unlock.isoformat()
+
+        if lock_at is not None:
+            parsed_lock = parse_date(lock_at)
+            if not parsed_lock:
+                return f"Invalid date format for lock_at: '{lock_at}'. Use ISO 8601 format (e.g., '2026-02-01T23:59:00Z')."
+            assignment_data["lock_at"] = parsed_lock.isoformat()
+
+        if points_possible is not None:
+            assignment_data["points_possible"] = points_possible
+
+        # Validate grading_type if provided
+        if grading_type is not None:
+            valid_grading_types = ["points", "letter_grade", "pass_fail", "percent", "not_graded"]
+            if grading_type not in valid_grading_types:
+                return f"Invalid grading_type '{grading_type}'. Must be one of: {', '.join(valid_grading_types)}"
+            assignment_data["grading_type"] = grading_type
+
+        if published is not None:
+            assignment_data["published"] = published
+
+        if assignment_group_id is not None:
+            assignment_data["assignment_group_id"] = assignment_group_id
+
+        # Validate peer review settings
+        if automatic_peer_reviews is True and peer_reviews is False:
+            return "Invalid configuration: automatic_peer_reviews requires peer_reviews=True. Set peer_reviews=True to enable automatic peer review assignment."
+
+        if peer_reviews is not None:
+            assignment_data["peer_reviews"] = peer_reviews
+
+        if automatic_peer_reviews is not None:
+            assignment_data["automatic_peer_reviews"] = automatic_peer_reviews
+
+        if allowed_extensions is not None:
+            extensions_list = [ext.strip() for ext in allowed_extensions.split(",")]
+            assignment_data["allowed_extensions"] = extensions_list
+
+        # Check if there's anything to update
+        if not assignment_data:
+            return "No fields provided to update. Specify at least one field to modify (e.g., name, description, due_at, points_possible)."
+
+        # Make the API request
+        response = await make_canvas_request(
+            "put",
+            f"/courses/{course_id}/assignments/{assignment_id}",
+            data={"assignment": assignment_data}
+        )
+
+        if "error" in response:
+            return f"Error updating assignment: {response['error']}"
+
+        # Format success response
+        updated_name = response.get("name", "")
+        updated_points = response.get("points_possible")
+        updated_published = response.get("published", False)
+        updated_due = response.get("due_at")
+        updated_types = response.get("submission_types", [])
+        html_url = response.get("html_url", "")
+
+        course_display = await get_course_code(course_id) or course_identifier
+
+        result = "✅ Assignment updated successfully!\n\n"
+        result += f"**{updated_name}**\n"
+        result += f"  Course: {course_display}\n"
+        result += f"  Assignment ID: {assignment_id}\n"
+
+        # Show what was updated
+        updated_fields = list(assignment_data.keys())
+        result += f"  Updated fields: {', '.join(updated_fields)}\n"
+
+        if updated_points is not None:
+            result += f"  Points: {updated_points}\n"
+
+        if updated_due:
+            result += f"  Due: {format_date(updated_due)}\n"
+
+        result += f"  Published: {'Yes' if updated_published else 'No'}\n"
+
+        if updated_types:
+            result += f"  Submission Types: {', '.join(updated_types)}\n"
+
+        if html_url:
+            result += f"  URL: {html_url}\n"
+
+        return result

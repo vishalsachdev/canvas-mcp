@@ -7,6 +7,7 @@ Includes tests for:
 - list_submissions
 - get_assignment_analytics
 - create_assignment
+- update_assignment
 """
 
 import pytest
@@ -283,6 +284,185 @@ class TestCreateAssignment:
         assert "peer_reviews" in result
         # Should not have called the API
         mock_canvas_api['make_canvas_request'].assert_not_called()
+
+
+class TestUpdateAssignment:
+    """Tests for update_assignment tool."""
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_basic(self, mock_canvas_api):
+        """Test basic assignment update with name change."""
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "name": "Updated Assignment Name",
+            "published": False,
+            "submission_types": ["none"],
+            "html_url": "https://canvas.example.com/courses/60366/assignments/12345"
+        }
+
+        update_assignment = get_tool_function('update_assignment')
+        assert update_assignment is not None
+
+        result = await update_assignment("badm_350_120251", 12345, name="Updated Assignment Name")
+
+        # Verify API was called correctly
+        mock_canvas_api['get_course_id'].assert_called_once_with("badm_350_120251")
+        mock_canvas_api['make_canvas_request'].assert_called_once()
+
+        # Verify the call was a PUT with correct data
+        call_args = mock_canvas_api['make_canvas_request'].call_args
+        assert call_args[0][0] == "put"
+        assert "/courses/60366/assignments/12345" in call_args[0][1]
+        assert call_args[1]['data']['assignment']['name'] == "Updated Assignment Name"
+
+        # Verify output
+        assert "successfully" in result
+        assert "Updated Assignment Name" in result
+        assert "Updated fields: name" in result
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_multiple_fields(self, mock_canvas_api):
+        """Test updating multiple fields at once."""
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "name": "Updated Name",
+            "description": "<p>New description</p>",
+            "published": True,
+            "points_possible": 150,
+            "due_at": "2026-02-15T23:59:00Z",
+            "submission_types": ["online_text_entry", "online_upload"],
+            "html_url": "https://canvas.example.com/courses/60366/assignments/12345"
+        }
+
+        update_assignment = get_tool_function('update_assignment')
+        result = await update_assignment(
+            "badm_350_120251",
+            12345,
+            name="Updated Name",
+            description="<p>New description</p>",
+            points_possible=150,
+            due_at="2026-02-15T23:59:00Z",
+            published=True
+        )
+
+        # Verify API call data
+        call_args = mock_canvas_api['make_canvas_request'].call_args
+        assignment_data = call_args[1]['data']['assignment']
+
+        assert assignment_data['name'] == "Updated Name"
+        assert assignment_data['description'] == "<p>New description</p>"
+        assert assignment_data['points_possible'] == 150
+        assert assignment_data['published'] is True
+
+        # Verify output includes updated fields
+        assert "successfully" in result
+        assert "Updated fields:" in result
+        assert "name" in result
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_no_fields(self, mock_canvas_api):
+        """Test that error is returned when no fields are provided."""
+        update_assignment = get_tool_function('update_assignment')
+        result = await update_assignment("badm_350_120251", 12345)
+
+        assert "No fields provided to update" in result
+        # Should not have called the API
+        mock_canvas_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_error_handling(self, mock_canvas_api):
+        """Test error handling when API fails."""
+        mock_canvas_api['make_canvas_request'].return_value = {"error": "Assignment not found"}
+
+        update_assignment = get_tool_function('update_assignment')
+        result = await update_assignment("badm_350_120251", 99999, name="New Name")
+
+        assert "Error" in result
+        assert "Assignment not found" in result
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_invalid_grading_type(self, mock_canvas_api):
+        """Test validation of invalid grading_type."""
+        update_assignment = get_tool_function('update_assignment')
+        result = await update_assignment(
+            "badm_350_120251",
+            12345,
+            grading_type="invalid_type"
+        )
+
+        assert "Invalid grading_type" in result
+        assert "invalid_type" in result
+        # Should not have called the API
+        mock_canvas_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_invalid_submission_type(self, mock_canvas_api):
+        """Test validation of invalid submission_types."""
+        update_assignment = get_tool_function('update_assignment')
+        result = await update_assignment(
+            "badm_350_120251",
+            12345,
+            submission_types="online_text_entry,invalid_type"
+        )
+
+        assert "Invalid submission_type" in result
+        assert "invalid_type" in result
+        # Should not have called the API
+        mock_canvas_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_invalid_date_format(self, mock_canvas_api):
+        """Test validation of invalid date formats."""
+        update_assignment = get_tool_function('update_assignment')
+        result = await update_assignment(
+            "badm_350_120251",
+            12345,
+            due_at="not-a-valid-date"
+        )
+
+        assert "Invalid date format" in result
+        assert "due_at" in result
+        assert "not-a-valid-date" in result
+        # Should not have called the API
+        mock_canvas_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_automatic_peer_reviews_without_peer_reviews(self, mock_canvas_api):
+        """Test validation that automatic_peer_reviews requires peer_reviews=True."""
+        update_assignment = get_tool_function('update_assignment')
+        result = await update_assignment(
+            "badm_350_120251",
+            12345,
+            automatic_peer_reviews=True,
+            peer_reviews=False  # This combination is invalid
+        )
+
+        assert "Invalid configuration" in result
+        assert "automatic_peer_reviews" in result
+        assert "peer_reviews" in result
+        # Should not have called the API
+        mock_canvas_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_assignment_publish_only(self, mock_canvas_api):
+        """Test updating only the published status."""
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "name": "Test Assignment",
+            "published": True,
+            "html_url": "https://canvas.example.com/courses/60366/assignments/12345"
+        }
+
+        update_assignment = get_tool_function('update_assignment')
+        result = await update_assignment("badm_350_120251", 12345, published=True)
+
+        # Verify only published was sent
+        call_args = mock_canvas_api['make_canvas_request'].call_args
+        assignment_data = call_args[1]['data']['assignment']
+        assert assignment_data == {"published": True}
+
+        assert "successfully" in result
+        assert "Published: Yes" in result
 
 
 class TestAssignmentTools:
