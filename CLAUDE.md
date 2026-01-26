@@ -86,6 +86,24 @@ canvas-mcp/
 - `MessageTemplates`: Flexible template system for various communication types
 - Privacy-aware: Works with anonymization while preserving functional user IDs
 
+## Git Workflow - ASK FIRST
+
+**Before starting any new feature or significant change, ASK:**
+> "Should I create a feature branch for this, or work directly on main?"
+
+| Change Type | Default Branch | Notes |
+|-------------|----------------|-------|
+| New tool/feature | `feature/tool-name` | PR with CI checks |
+| Bug fix | `fix/issue-description` | PR recommended |
+| Documentation only | `main` okay | Direct push acceptable |
+| Quick fix (typo, etc.) | `main` okay | Direct push acceptable |
+
+**Branch naming:** `feature/`, `fix/`, `docs/`, `refactor/`
+
+This repo has branch protection on `main` (PR + status checks required), but admin can bypass. Always ask the user which workflow they prefer for the current task.
+
+---
+
 ## Coding Standards
 - **Type hints**: Mandatory for all functions, use Union/Optional appropriately
 - **MCP tools**: Use `@mcp.tool()` decorator with `@validate_params`
