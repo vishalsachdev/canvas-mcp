@@ -39,6 +39,7 @@ Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are org
 |------|---------|----------------|
 | `list_assignments` | All assignments in course | "Show assignments in BADM 350" |
 | `create_assignment` | Create new assignment | "Create an assignment due Jan 26 with online text submission" |
+| `update_assignment` | Update existing assignment | "Change the due date for Assignment 3 to Feb 15" |
 | `list_submissions` | Student submissions | "Who submitted Assignment 3?" |
 | `bulk_grade_submissions` | Grade multiple at once | "Grade these 10 students" |
 | `get_assignment_analytics` | Performance stats | "Show analytics for Quiz 2" |

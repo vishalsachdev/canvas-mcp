@@ -42,6 +42,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `list_submissions` | Student submissions for grading |
 | `get_assignment_analytics` | Performance statistics |
 | `create_assignment` | Create new assignment with due date, submission types, peer reviews |
+| `update_assignment` | Update existing assignment (name, due date, points, published, etc.) |
 | `get_student_analytics` | Individual student performance |
 | `create_rubric` | ⚠️ DISABLED - Canvas API returns 500 errors |
 | `grade_submission_with_rubric` | Grade single submission |

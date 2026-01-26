@@ -196,6 +196,37 @@ Create a new assignment in a course.
 
 ---
 
+#### `update_assignment`
+Update an existing assignment in a course.
+
+**Parameters:**
+- `course_identifier`: Course code or ID (required)
+- `assignment_id`: ID of the assignment to update (required)
+- `name`: New assignment name/title
+- `description`: New HTML content for the assignment body
+- `submission_types`: Comma-separated list of allowed types
+- `due_at`: New due date in ISO 8601 format
+- `unlock_at`: New availability date (ISO 8601)
+- `lock_at`: New lock date (ISO 8601)
+- `points_possible`: New maximum points
+- `grading_type`: One of `points`, `letter_grade`, `pass_fail`, `percent`, `not_graded`
+- `published`: Whether the assignment should be published
+- `assignment_group_id`: ID of assignment group to move to
+- `peer_reviews`: Enable/disable peer reviews
+- `automatic_peer_reviews`: Enable/disable auto-assign peer reviews
+- `allowed_extensions`: Comma-separated file extensions for uploads
+
+**Example:**
+```
+"Change the due date for Assignment 3 to Feb 15 at midnight"
+"Update Quiz 1 to be worth 50 points instead of 25"
+"Publish Assignment 4"
+```
+
+**Note:** Only fields you specify will be updated. Omitted fields remain unchanged.
+
+---
+
 ### Grading & Rubrics
 
 > **Note:** Due to Canvas API limitations, `create_rubric` and `update_rubric` are currently disabled.
