@@ -62,3 +62,8 @@ docs/hybrid_builder_launch.md
 # Archive directory - old structure and development files
 archive/
 node_modules/
+
+# Smithery build artifacts
+.smithery/
+smithery-wrapper/node_modules/
+smithery-wrapper/.smithery/

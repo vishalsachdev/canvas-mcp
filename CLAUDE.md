@@ -276,8 +276,26 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 - [ ] Page templates
 - [ ] Bulk page creation from markdown files
 - [ ] Page content versioning/history tools
+- [ ] Smithery publishing (blocked - see 2026-02-01 session log)
 
 ## Session Log
+### 2026-02-01
+- **Smithery Publishing Attempt** (blocked):
+  - Goal: Publish canvas-mcp to Smithery marketplace for additional distribution
+  - **Findings**:
+    - Smithery has 3 publishing options: URL (HTTP), Hosted, Local (stdio)
+    - **URL option**: Requires Streamable HTTP transport (canvas-mcp uses stdio)
+    - **Hosted option**: "Private Early Access" - not publicly available
+    - **Local option**: CLI expects server entry to exist first; can't create new servers via CLI
+    - Web UI only exposes URL option; no way to create Hosted/Local servers
+  - **What we built**: TypeScript wrapper at `smithery-wrapper/` with 10 core tools
+    - Native TS Canvas MCP using `@modelcontextprotocol/sdk`
+    - Builds successfully with `smithery build`
+    - Ready for future deployment if Smithery opens up access
+  - **Decision**: Skip Smithery for now; focus on MCP Registry + PyPI (already published)
+  - **Path forward**: Contact support@smithery.ai for Hosted access, OR self-host with HTTP transport
+  - Files created: `smithery-wrapper/{package.json,tsconfig.json,src/index.ts}`
+
 ### 2026-01-25
 - Added `update_assignment` tool:
   - PUT /api/v1/courses/:course_id/assignments/:id
