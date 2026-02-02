@@ -1,0 +1,12 @@
+# Canvas MCP - https://canvas-mcp.illinihunt.org
+# AI-powered Canvas LMS integration
+
+User-agent: *
+Allow: /
+
+# Sitemap for search engines
+Sitemap: https://canvas-mcp.illinihunt.org/sitemap.xml
+
+# LLM-friendly content summary (emerging standard)
+# See: https://llmstxt.org/
+# Location: https://canvas-mcp.illinihunt.org/llms.txt
