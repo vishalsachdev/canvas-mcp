@@ -267,8 +267,9 @@ class TestStudentToolsDatetimeComparison:
             
             result = await get_my_upcoming_assignments(days=7)
             
-            # Should handle None due_at gracefully - no assignments within date range
-            assert "No assignments due" in result
+            # Should handle None due_at gracefully - assignment with no due date is filtered out
+            # The function returns a message saying no assignments are due
+            assert "No assignments due in the next 7 days" in result
 
 
 if __name__ == "__main__":
