@@ -104,11 +104,17 @@ Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are org
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data through any MCP-compatible client.
 
-## 🎉 Latest Release: v1.0.6
+## 🎉 Latest Release: v1.0.7
 
-**Released:** January 18, 2026 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.0.6)**
+**Released:** February 1, 2026 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.0.7)**
 
-### What's New in v1.0.6
+### What's New in v1.0.7
+- **✏️ Assignment Update Tool** - Complete assignment CRUD with `update_assignment`
+  - Modify due dates, points, submission types, and more
+  - All update fields optional (only changed fields sent to API)
+  - 9 unit tests following TDD pattern
+
+### Previous Release (v1.0.6)
 - **📦 Module Management Tools** - Complete module CRUD operations (7 new tools)
   - `create_module`, `update_module`, `delete_module` - Full module lifecycle
   - `add_module_item`, `update_module_item`, `delete_module_item` - Manage module content

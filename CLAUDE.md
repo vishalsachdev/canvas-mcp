@@ -104,6 +104,15 @@ This repo has branch protection on `main` (PR + status checks required), but adm
 
 ---
 
+## Release Checklist
+
+When bumping the version in `pyproject.toml`, also update:
+- [ ] `README.md` - Update "Latest Release" section with new version, date, and changelog
+- [ ] `docs/index.html` - Update version badge, tool count, and meta descriptions (GitHub Pages site)
+- [ ] Create git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
+
+---
+
 ## Coding Standards
 - **Type hints**: Mandatory for all functions, use Union/Optional appropriately
 - **MCP tools**: Use `@mcp.tool()` decorator with `@validate_params`
