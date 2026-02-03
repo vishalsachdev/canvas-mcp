@@ -46,7 +46,7 @@ gh workflow run create-release.yml -f tag_name=v1.0.7-test
 
 **Prerequisites**:
 - PyPI trusted publisher configured
-- Package version in `pyproject.toml` and `src/canvas_mcp/__init__.py` must match tag
+- Package version in `pyproject.toml` and `src/canvas_mcp/__init__.py` must match the pushed tag; while the workflow doesn't explicitly validate this, a mismatch will cause confusion as the published package version won't match the git tag
 
 ## Code Quality Workflows
 

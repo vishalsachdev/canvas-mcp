@@ -53,8 +53,8 @@ jobs:
         run: |
           TAG_NAME="${{ steps.version.outputs.tag_name }}"
           
-          # Get commits since last tag (excluding the current tag)
-          LAST_TAG=$(git describe --tags --abbrev=0 --exclude="$TAG_NAME" 2>/dev/null || echo "")
+          # Get commits since last tag (more reliable method)
+          LAST_TAG=$(git tag --sort=-v:refname | grep -v "^$TAG_NAME$" | head -n1)
           if [ -z "$LAST_TAG" ]; then
             COMMITS=$(git log --pretty=format:"- %s" --no-merges)
           else
@@ -116,10 +116,6 @@ jobs:
           with open('README.md', 'r') as f:
               content = f.read()
           
-          # Pattern to match the entire "Latest Release" section
-          # Match from "## 🎉 Latest Release:" to the next "### Previous Release" or "##" section
-          pattern = r'(## 🎉 Latest Release:.*?)(\n### Previous Release|\n## )'
-          
           # Create the new release section (using textwrap.dedent for clean formatting)
           new_section = textwrap.dedent(f'''\
           ## 🎉 Latest Release: {tag_name}
@@ -131,16 +127,53 @@ jobs:
           
           ''')
           
-          # Replace the section
-          if re.search(pattern, content, re.DOTALL):
-              # Keep the rest of the matched content (next section marker)
-              new_content = re.sub(pattern, new_section + r'\2', content, count=1, flags=re.DOTALL)
-              print(f"Successfully updated README.md with release {tag_name}")
-          else:
-              # Fallback: if pattern doesn't match, fail gracefully
-              print("ERROR: Could not find expected release section pattern in README", file=sys.stderr)
-              print("Looking for pattern: '## 🎉 Latest Release:' followed by '### Previous Release' or '## '", file=sys.stderr)
-              sys.exit(1)
+          # Try multiple patterns for maximum flexibility
+          patterns = [
+              # Primary pattern: Match until "### Previous Release" or next "##" section
+              r'(## 🎉 Latest Release:.*?)(\n### Previous Release|\n## )',
+              # Fallback pattern 1: Match until any "###" section
+              r'(## 🎉 Latest Release:.*?)(\n### )',
+              # Fallback pattern 2: Match until next "##" heading (greedy)
+              r'(## 🎉 Latest Release:.*?)(\n## )',
+          ]
+          
+          new_content = None
+          for pattern in patterns:
+              if re.search(pattern, content, re.DOTALL):
+                  # Keep the rest of the matched content (next section marker)
+                  new_content = re.sub(pattern, new_section + r'\2', content, count=1, flags=re.DOTALL)
+                  print(f"Successfully updated README.md with release {tag_name} using pattern match")
+                  break
+          
+          if new_content is None:
+              # Last resort: try to find and replace just the heading line and rebuild
+              if '## 🎉 Latest Release:' in content:
+                  # Find the line and replace everything up to the next ## or ### section
+                  lines = content.split('\n')
+                  start_idx = None
+                  end_idx = None
+                  
+                  for i, line in enumerate(lines):
+                      if '## 🎉 Latest Release:' in line:
+                          start_idx = i
+                      elif start_idx is not None and (line.startswith('## ') or line.startswith('### ')):
+                          end_idx = i
+                          break
+                  
+                  if start_idx is not None:
+                      if end_idx is not None:
+                          # Replace the section
+                          lines = lines[:start_idx] + new_section.rstrip('\n').split('\n') + lines[end_idx:]
+                      else:
+                          # Append if no end marker found
+                          lines = lines[:start_idx] + new_section.rstrip('\n').split('\n') + lines[start_idx+1:]
+                      
+                      new_content = '\n'.join(lines)
+                      print(f"Successfully updated README.md with release {tag_name} using line-based replacement")
+              
+              if new_content is None:
+                  print("ERROR: Could not find 'Latest Release' section in README", file=sys.stderr)
+                  sys.exit(1)
           
           with open('README.md', 'w') as f:
               f.write(new_content)
@@ -158,7 +191,16 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "docs: update README with release ${{ steps.version.outputs.tag_name }} [skip ci]"
-            git push origin HEAD:main || {
+            
+            # Fetch and checkout main to avoid force-pushing
+            git fetch origin main
+            git checkout -B main origin/main
+            
+            # Cherry-pick the README update commit
+            git cherry-pick HEAD@{1}
+            
+            # Push to main
+            git push origin main || {
               echo "Failed to push to main, trying to create PR instead"
               
               # Create a new branch for the update
