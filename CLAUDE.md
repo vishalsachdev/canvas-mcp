@@ -270,6 +270,7 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 - [x] `update_assignment` tool (9 tests)
 
 ## Backlog
+- [ ] **GitHub traffic stats setup**: Create PAT with `repo` scope, add as `GHRS_GITHUB_API_TOKEN` secret, then test workflow (see `.github/workflows/collect-traffic-stats.yml`)
 - [ ] Module templates (pre-configured module structures)
 - [ ] Bulk module creation from JSON/YAML specs
 - [ ] Module duplication across courses

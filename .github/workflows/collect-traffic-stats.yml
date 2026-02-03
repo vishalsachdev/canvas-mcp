@@ -1,0 +1,19 @@
+name: Collect Traffic Stats
+
+on:
+  schedule:
+    # Run daily at 11 PM UTC (recommended by action author)
+    # Offset from other workflows that run at midnight
+    - cron: '0 23 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  collect-stats:
+    name: GitHub Repo Stats
+    runs-on: ubuntu-latest
+    steps:
+      - name: Collect traffic stats
+        uses: jgehrcke/github-repo-stats@v1.4.2
+        with:
+          repository: vishalsachdev/canvas-mcp
+          ghtoken: ${{ secrets.GHRS_GITHUB_API_TOKEN }}
