@@ -14,7 +14,7 @@ This repository contains a Model Context Protocol (MCP) server implementation fo
   INLINE AGENT GUIDE: Intentionally duplicates AGENTS.md content.
   WHY: Agents often can't fetch raw.githubusercontent.com or GitHub blob pages.
   MAINTENANCE: When updating tools, also update AGENTS.md (source of truth).
-  See docs/CLAUDE.md "Documentation Maintenance" for full guidelines.
+  See CLAUDE.md "Documentation Maintenance" for full guidelines.
 -->
 
 Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are organized by user type:
@@ -39,6 +39,7 @@ Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are org
 |------|---------|----------------|
 | `list_assignments` | All assignments in course | "Show assignments in BADM 350" |
 | `create_assignment` | Create new assignment | "Create an assignment due Jan 26 with online text submission" |
+| `update_assignment` | Update existing assignment | "Change the due date for Assignment 3 to Feb 15" |
 | `list_submissions` | Student submissions | "Who submitted Assignment 3?" |
 | `bulk_grade_submissions` | Grade multiple at once | "Grade these 10 students" |
 | `get_assignment_analytics` | Performance stats | "Show analytics for Quiz 2" |
@@ -93,7 +94,7 @@ Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are org
 
 **Course identifiers:** Canvas ID (`12345`), course code (`badm_350_120251_246794`), or SIS ID
 
-**Cannot do:** Create/delete courses, modify course settings, access other users' data
+**Cannot do:** Create/delete courses, modify course settings, access other users' data, create/update rubrics (use Canvas UI)
 
 **Rate limits:** ~700 requests/10 min. Use `max_concurrent=5` for bulk operations.
 
@@ -103,11 +104,17 @@ Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are org
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data through any MCP-compatible client.
 
-## 🎉 Latest Release: v1.0.6
+## 🎉 Latest Release: v1.0.7
 
-**Released:** January 18, 2026 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.0.6)**
+**Released:** February 1, 2026 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.0.7)**
 
-### What's New in v1.0.6
+### What's New in v1.0.7
+- **✏️ Assignment Update Tool** - Complete assignment CRUD with `update_assignment`
+  - Modify due dates, points, submission types, and more
+  - All update fields optional (only changed fields sent to API)
+  - 9 unit tests following TDD pattern
+
+### Previous Release (v1.0.6)
 - **📦 Module Management Tools** - Complete module CRUD operations (7 new tools)
   - `create_module`, `update_module`, `delete_module` - Full module lifecycle
   - `add_module_item`, `update_module_item`, `delete_module_item` - Manage module content
@@ -424,7 +431,7 @@ The Canvas MCP Server provides a comprehensive set of tools for interacting with
 
 **Educator Tools**
 4. **Assignment Tools** - Handle assignments, submissions, and peer reviews with analytics
-5. **Rubric Tools** - Full CRUD operations for rubrics with validation, association management, and grading (including `bulk_grade_submissions` for efficient batch grading)
+5. **Rubric Tools** - List rubrics, associate with assignments, and grade submissions (including `bulk_grade_submissions` for efficient batch grading). Note: Create/update rubrics via Canvas web UI due to API limitations.
 6. **User & Enrollment Tools** - Manage enrollments, users, and groups
 7. **Analytics Tools** - View student analytics, assignment statistics, and progress tracking
 8. **Messaging Tools** - Send messages and announcements to students
@@ -708,7 +715,7 @@ canvas-mcp/
 - **[Tool Documentation](https://github.com/vishalsachdev/canvas-mcp/blob/main/tools/README.md)** - Complete reference for all available tools
 - **[Pages Implementation Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/PAGES_IMPLEMENTATION.md)** - Comprehensive Pages feature guide
 - **[Course Documentation Template](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/course_documentation_prompt_template.md)** - Hybrid approach for efficient course documentation
-- **[Development Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/CLAUDE.md)** - Architecture details and development reference
+- **[Development Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/CLAUDE.md)** - Architecture details and development reference
 ## Technical Details
 
 ### Modern Architecture (2025)
@@ -753,7 +760,7 @@ Modern Python packages (see `pyproject.toml`):
 - **Type Checking**: `mypy` support for type safety
 - **Code Quality**: `ruff` and `black` for formatting and linting
 
-For contributors, see the [Development Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/CLAUDE.md) for detailed architecture and development reference.
+For contributors, see the [Development Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/CLAUDE.md) for detailed architecture and development reference.
 
 ## Troubleshooting
 

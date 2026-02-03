@@ -891,6 +891,15 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                           purpose: str = "grading") -> str:
         """Create a new rubric in the specified course.
 
+        ⚠️ DISABLED: This tool is currently disabled due to a known Canvas API limitation.
+        The Canvas rubric creation API consistently returns 500 Internal Server Error.
+        See: https://community.canvaslms.com/t5/Canvas-Question-Forum/Uploading-rubric-from-CSV-sheet/m-p/602222
+
+        WORKAROUND: Create rubrics via the Canvas web UI:
+        1. Go to Course → Assignments → Create/Edit Assignment
+        2. Click "+ Rubric" at the bottom
+        3. Use "Find a Rubric" to copy rubrics between courses
+
         Args:
             course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
             title: The title of the rubric
@@ -900,24 +909,30 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             association_type: Type of association (Assignment, Course, Account) (default: Assignment)
             use_for_grading: Whether to use rubric for grade calculation (default: False)
             purpose: Purpose of the rubric association (grading, bookmark) (default: grading)
-
-        Example criteria format (as JSON string or dict):
-        {
-            "1": {
-                "description": "Quality of Work",
-                "points": 25,
-                "long_description": "Detailed description of quality expectations",
-                "ratings": {
-                    "1": {"description": "Excellent", "points": 25, "long_description": "Exceeds expectations"},
-                    "2": {"description": "Good", "points": 20, "long_description": "Meets expectations"},
-                    "3": {"description": "Satisfactory", "points": 15, "long_description": "Approaches expectations"},
-                    "4": {"description": "Needs Improvement", "points": 10, "long_description": "Below expectations"}
-                }
-            }
-        }
-
-        Note: Ratings can be provided as objects (as above) or arrays - both formats are supported.
         """
+        # DISABLED: Canvas API returns 500 Internal Server Error for rubric creation
+        # This is a known Canvas API limitation that has existed for years.
+        # See: https://community.canvaslms.com/t5/Canvas-Question-Forum/Uploading-rubric-from-CSV-sheet/m-p/602222
+        return """⚠️ TOOL DISABLED: create_rubric is currently unavailable.
+
+The Canvas rubric creation API has a known bug that returns "500 Internal Server Error"
+for all rubric creation requests. This is a Canvas API limitation, not an issue with this tool.
+
+WORKAROUND - Create rubrics via the Canvas web UI:
+1. Go to Course → Assignments → Create/Edit an Assignment
+2. Scroll down and click "+ Rubric"
+3. Build your rubric using the web interface
+4. To copy rubrics between courses: Click "Find a Rubric" to search other courses
+
+WORKING ALTERNATIVES:
+- Use `list_all_rubrics` to see existing rubrics in a course
+- Use `associate_rubric_with_assignment` to link existing rubrics to assignments
+- Use `grade_with_rubric` or `bulk_grade_submissions` to grade using existing rubrics
+
+Reference: https://community.canvaslms.com/t5/Canvas-Question-Forum/Uploading-rubric-from-CSV-sheet/m-p/602222"""
+
+        # Original implementation preserved below for when Canvas fixes their API
+        # -------------------------------------------------------------------------
         course_id = await get_course_id(course_identifier)
 
         # Validate and parse criteria
@@ -998,6 +1013,15 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                           skip_updating_points_possible: bool = False) -> str:
         """Update an existing rubric in the specified course.
 
+        ⚠️ DISABLED: This tool is currently disabled due to destructive Canvas API behavior.
+        The Canvas API does a FULL REPLACEMENT instead of a partial update (PATCH).
+        Updating just the title will DELETE all criteria and reset points to 0.
+
+        WORKAROUND: Edit rubrics via the Canvas web UI:
+        1. Go to Course → Assignments → Edit Assignment with rubric
+        2. Click on the rubric to edit it
+        3. Make changes and save
+
         Args:
             course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
             rubric_id: The ID of the rubric to update
@@ -1006,6 +1030,35 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             free_form_criterion_comments: Optional boolean to allow free-form comments
             skip_updating_points_possible: Skip updating points possible calculation (default: False)
         """
+        # DISABLED: Canvas API does full replacement instead of partial update (PATCH)
+        # This causes data loss - updating just the title will wipe all criteria!
+        # Example: A rubric with 7 criteria and 10 points becomes 0 criteria and 0 points
+        # after updating only the title.
+        return """⚠️ TOOL DISABLED: update_rubric is currently unavailable.
+
+The Canvas rubric update API has destructive behavior - it performs a FULL REPLACEMENT
+instead of a partial update (PATCH). This means:
+
+  ❌ Updating just the title → DELETES all criteria (7 criteria → 0)
+  ❌ Updating just the title → RESETS points to 0 (10 points → 0)
+
+This is a Canvas API design issue where missing fields are interpreted as
+"delete this" rather than "keep unchanged".
+
+WORKAROUND - Edit rubrics via the Canvas web UI:
+1. Go to Course → Assignments → Edit the Assignment with the rubric
+2. Scroll down to the rubric section
+3. Click on the rubric to edit it directly
+4. Make your changes and save
+
+WORKING ALTERNATIVES:
+- Use `list_all_rubrics` to see existing rubrics
+- Use `get_rubric_details` to view rubric criteria
+- Use `associate_rubric_with_assignment` to link rubrics to assignments
+- Use `delete_rubric` if you need to remove a rubric entirely"""
+
+        # Original implementation preserved below for when Canvas fixes their API
+        # -------------------------------------------------------------------------
         course_id = await get_course_id(course_identifier)
         rubric_id_str = str(rubric_id)
 

@@ -86,6 +86,33 @@ canvas-mcp/
 - `MessageTemplates`: Flexible template system for various communication types
 - Privacy-aware: Works with anonymization while preserving functional user IDs
 
+## Git Workflow - ASK FIRST
+
+**Before starting any new feature or significant change, ASK:**
+> "Should I create a feature branch for this, or work directly on main?"
+
+| Change Type | Default Branch | Notes |
+|-------------|----------------|-------|
+| New tool/feature | `feature/tool-name` | PR with CI checks |
+| Bug fix | `fix/issue-description` | PR recommended |
+| Documentation only | `main` okay | Direct push acceptable |
+| Quick fix (typo, etc.) | `main` okay | Direct push acceptable |
+
+**Branch naming:** `feature/`, `fix/`, `docs/`, `refactor/`
+
+This repo has branch protection on `main` (PR + status checks required), but admin can bypass. Always ask the user which workflow they prefer for the current task.
+
+---
+
+## Release Checklist
+
+When bumping the version in `pyproject.toml`, also update:
+- [ ] `README.md` - Update "Latest Release" section with new version, date, and changelog
+- [ ] `docs/index.html` - Update version badge, tool count, and meta descriptions (GitHub Pages site)
+- [ ] Create git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
+
+---
+
 ## Coding Standards
 - **Type hints**: Mandatory for all functions, use Union/Optional appropriately
 - **MCP tools**: Use `@mcp.tool()` decorator with `@validate_params`
@@ -186,7 +213,7 @@ This repository has multiple documentation files for different audiences. To pre
 | `tools/TOOL_MANIFEST.json` | Programmatic access | Machine-readable tool catalog | Tools added/changed |
 | `README.md` | Everyone (entry point) | Installation, overview, links to other docs | Major releases only |
 | `examples/*.md` | Human users | Workflow tutorials, not tool reference | New workflows added |
-| `docs/CLAUDE.md` | Developers | Codebase architecture, NOT tool usage | Architecture changes |
+| `CLAUDE.md` | Developers | Codebase architecture, NOT tool usage | Architecture changes |
 
 ### Rules to Prevent Redundancy
 
@@ -233,12 +260,14 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 
 ## Current Focus
 - [x] Release v1.0.6 with module and page tools
+- [x] Add `update_assignment` tool (completes CRUD for assignments)
 
 ## Roadmap
 - [x] Module management tools (7 tools, 36 tests)
 - [x] Page settings tools (2 tools, 15 tests)
 - [x] TDD enforcement in development workflow
 - [x] Release v1.0.6
+- [x] `update_assignment` tool (9 tests)
 
 ## Backlog
 - [ ] Module templates (pre-configured module structures)
@@ -247,8 +276,44 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 - [ ] Page templates
 - [ ] Bulk page creation from markdown files
 - [ ] Page content versioning/history tools
+- [ ] Smithery publishing (blocked - see 2026-02-01 session log)
 
 ## Session Log
+### 2026-02-01
+- **Smithery Publishing Attempt** (blocked):
+  - Goal: Publish canvas-mcp to Smithery marketplace for additional distribution
+  - **Findings**:
+    - Smithery has 3 publishing options: URL (HTTP), Hosted, Local (stdio)
+    - **URL option**: Requires Streamable HTTP transport (canvas-mcp uses stdio)
+    - **Hosted option**: "Private Early Access" - not publicly available
+    - **Local option**: CLI expects server entry to exist first; can't create new servers via CLI
+    - Web UI only exposes URL option; no way to create Hosted/Local servers
+  - **What we built**: TypeScript wrapper at `smithery-wrapper/` with 10 core tools
+    - Native TS Canvas MCP using `@modelcontextprotocol/sdk`
+    - Builds successfully with `smithery build`
+    - Ready for future deployment if Smithery opens up access
+  - **Decision**: Skip Smithery for now; focus on MCP Registry + PyPI (already published)
+  - **Path forward**: Contact support@smithery.ai for Hosted access, OR self-host with HTTP transport
+  - Files created: `smithery-wrapper/{package.json,tsconfig.json,src/index.ts}`
+
+### 2026-01-25
+- Added `update_assignment` tool:
+  - PUT /api/v1/courses/:course_id/assignments/:id
+  - Parameters: course_identifier, assignment_id, name, description, submission_types, due_at, unlock_at, lock_at, points_possible, grading_type, published, assignment_group_id, peer_reviews, automatic_peer_reviews, allowed_extensions
+  - All update fields optional (only changed fields sent to API)
+  - 9 unit tests following TDD pattern
+  - Updated TODO.md (moved to Completed)
+- Tool follows existing patterns from `create_assignment`
+
+### 2026-01-21
+- Fixed broken rubric API tools:
+  - Disabled `create_rubric` (Canvas API returns 500 error - known bug)
+  - Disabled `update_rubric` (API does full replacement, causes data loss)
+  - Both tools now return informative error messages with workarounds
+  - Added "Known Canvas API Limitations" section to AGENTS.md
+  - Updated README.md and tools/README.md with limitations
+- Pushed: `c01dc7d` fix: Disable broken rubric API tools (create_rubric, update_rubric)
+
 ### 2026-01-20
 - Updated README documentation:
   - Corrected tool count from 50+ to 80+ (actual: 84 tools)

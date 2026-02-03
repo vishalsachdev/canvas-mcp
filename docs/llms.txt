@@ -1,0 +1,50 @@
+# Canvas MCP
+
+> Canvas MCP is an open-source Model Context Protocol (MCP) server that bridges AI assistants with Canvas Learning Management System (LMS). It provides 80+ tools for students, educators, and developers to interact with Canvas using natural language. Works with Claude, ChatGPT, Cursor, Windsurf, Zed, and any MCP-compatible client. FERPA-compliant with privacy-first design.
+
+Canvas MCP enables AI assistants to query courses, assignments, grades, discussions, and more through the Canvas API. It features a code execution API for bulk operations with 99.7% token savings compared to traditional approaches.
+
+## Key Features
+
+- Natural language interface for Canvas LMS
+- 80+ MCP tools for comprehensive Canvas integration
+- FERPA-compliant student data anonymization
+- Code execution API for bulk grading and operations
+- Works with Claude, ChatGPT (via MCP plugins), Cursor, Zed, Windsurf, and other MCP clients
+
+## Documentation
+
+- [Home](https://canvas-mcp.illinihunt.org/): Main project website with features and installation
+- [Student Guide](https://canvas-mcp.illinihunt.org/student-guide.html): How students can use Canvas MCP for tracking assignments, grades, and deadlines
+- [Educator Guide](https://canvas-mcp.illinihunt.org/educator-guide.html): How educators can use Canvas MCP for course management and analytics
+- [Code API / Bulk Grading](https://canvas-mcp.illinihunt.org/bulk-grading.html): Developer documentation for the code execution API
+
+## Source Code
+
+- [GitHub Repository](https://github.com/vishalsachdev/canvas-mcp): Full source code, issues, and contributions
+- [PyPI Package](https://pypi.org/project/canvas-mcp/): Python package installation via pip
+- [MCP Server Registry](https://github.com/modelcontextprotocol/servers): Listed in the official MCP server registry
+
+## Tool Categories
+
+Canvas MCP provides tools in these categories:
+
+- Course Management: list_courses, get_course_details, get_course_content_overview
+- Assignments: list_assignments, get_assignment_details, create_assignment, update_assignment, bulk_grade_submissions
+- Discussions: list_discussion_topics, post_discussion_entry, reply_to_discussion_entry
+- Messaging: send_conversation, send_peer_review_reminders
+- Analytics: get_student_analytics, get_assignment_analytics, get_peer_review_completion_analytics
+- Modules: list_modules, create_module, update_module, delete_module
+- Pages: list_pages, create_page, edit_page_content, get_page_content
+- Rubrics: list_rubrics, get_rubric_details, grade_with_rubric
+
+## Use Cases
+
+- Students: "What assignments are due this week?" "What's my grade in CS 101?"
+- Educators: "Which students haven't submitted the midterm?" "Send reminders to students with incomplete peer reviews"
+- Developers: "Grade all notebook submissions that contain a specific function"
+
+## Optional
+
+- [License](https://github.com/vishalsachdev/canvas-mcp/blob/main/LICENSE): MIT License - free for commercial and personal use
+- [Contributing](https://github.com/vishalsachdev/canvas-mcp/blob/main/CONTRIBUTING.md): How to contribute to the project
