@@ -5,7 +5,7 @@ import inspect
 import json
 import types
 from collections.abc import Callable
-from typing import Any, TypeVar, Union, cast, get_args, get_origin, get_type_hints
+from typing import Any, Literal, TypeVar, Union, cast, get_args, get_origin, get_type_hints
 
 from .logging import log_error
 
@@ -109,6 +109,16 @@ def validate_parameter(param_name: str, value: Any, expected_type: Any) -> Any:
         type_names = ", ".join(str(t) for t in args)
         raise ValueError(f"Parameter '{param_name}' with value '{value}' (type: {type(value).__name__}) "
                         f"could not be converted to any of the expected types: {type_names}")
+
+    # Handle Literal types (e.g. Literal["names", "signatures", "full"])
+    if origin is Literal:
+        allowed = get_args(expected_type)
+        if value in allowed:
+            return value
+        allowed_repr = ", ".join(repr(a) for a in allowed)
+        raise ValueError(
+            f"Parameter '{param_name}' with value {value!r} is not one of the allowed values: {allowed_repr}"
+        )
 
     # Handle basic types with conversion
     if expected_type is str:

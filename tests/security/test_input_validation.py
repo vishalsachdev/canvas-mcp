@@ -10,7 +10,7 @@ Test Coverage:
 """
 
 import pytest
-from typing import Optional
+from typing import Literal, Optional
 from unittest.mock import Mock, patch
 from canvas_mcp.core.validation import validate_parameter
 
@@ -72,6 +72,15 @@ class TestParameterValidation:
         # None for Optional parameter (should be OK)
         result = validate_parameter("optional", None, Optional[str])
         assert result is None
+
+    def test_literal_type(self):
+        """Test Literal type validation (no isinstance with subscripted generic)."""
+        DetailLevel = Literal["names", "signatures", "full"]
+        for v in ("names", "signatures", "full"):
+            result = validate_parameter("detail_level", v, DetailLevel)
+            assert result == v
+        with pytest.raises(ValueError, match="allowed values"):
+            validate_parameter("detail_level", "invalid", DetailLevel)
 
 
 class TestInjectionPrevention:
