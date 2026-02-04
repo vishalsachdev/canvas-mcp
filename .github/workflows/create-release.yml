@@ -1,0 +1,220 @@
+name: Create Release and Update README
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name (e.g., v1.0.7)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: create-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG_NAME="${{ inputs.tag_name }}"
+          else
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+          fi
+          VERSION=${TAG_NAME#v}
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Tag: $TAG_NAME, Version: $VERSION"
+
+      - name: Get current date
+        id: date
+        run: |
+          RELEASE_DATE=$(date -u +"%B %d, %Y")
+          echo "release_date=$RELEASE_DATE" >> $GITHUB_OUTPUT
+          echo "Release date: $RELEASE_DATE"
+
+      - name: Extract release notes from commits
+        id: notes
+        run: |
+          TAG_NAME="${{ steps.version.outputs.tag_name }}"
+          
+          # Get commits since last tag (more reliable method)
+          LAST_TAG=$(git tag --sort=-v:refname | grep -v "^$TAG_NAME$" | head -n1)
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"- %s" --no-merges)
+          else
+            COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --no-merges)
+          fi
+          
+          # Save to file for multi-line content
+          echo "$COMMITS" > release_notes.txt
+          echo "Release notes extracted"
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${{ steps.version.outputs.tag_name }}"
+          RELEASE_DATE="${{ steps.date.outputs.release_date }}"
+          
+          # Create release body
+          echo "## What's New in ${TAG_NAME}" > release_body.md
+          echo "" >> release_body.md
+          echo "### Changes" >> release_body.md
+          cat release_notes.txt >> release_body.md
+          echo "" >> release_body.md
+          echo "---" >> release_body.md
+          echo "" >> release_body.md
+          echo "**Released:** ${RELEASE_DATE}" >> release_body.md
+          echo "" >> release_body.md
+          echo "For installation instructions, see the [README](https://github.com/${{ github.repository }})." >> release_body.md
+          
+          # Create release using GitHub CLI
+          gh release create "$TAG_NAME" \
+            --title "$TAG_NAME" \
+            --notes-file release_body.md \
+            --latest
+
+      - name: Update README with latest release
+        env:
+          TAG_NAME: ${{ steps.version.outputs.tag_name }}
+          RELEASE_DATE: ${{ steps.date.outputs.release_date }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Read current README
+          if [ ! -f README.md ]; then
+            echo "README.md not found"
+            exit 1
+          fi
+          
+          # Use Python to update the README
+          python3 << 'PYTHON_SCRIPT'
+          import re
+          import sys
+          import os
+          import textwrap
+          
+          tag_name = os.environ.get('TAG_NAME', '')
+          release_date = os.environ.get('RELEASE_DATE', '')
+          repo = os.environ.get('REPO', '')
+          
+          with open('README.md', 'r') as f:
+              content = f.read()
+          
+          # Create the new release section (using textwrap.dedent for clean formatting)
+          new_section = textwrap.dedent(f'''\
+          ## 🎉 Latest Release: {tag_name}
+          
+          **Released:** {release_date} | **[View Full Release Notes](https://github.com/{repo}/releases/tag/{tag_name})**
+          
+          ### What's New in {tag_name}
+          - See [full release notes](https://github.com/{repo}/releases/tag/{tag_name}) for details
+          
+          ''')
+          
+          # Try multiple patterns for maximum flexibility
+          patterns = [
+              # Primary pattern: Match until "### Previous Release" or next "##" section
+              r'(## 🎉 Latest Release:.*?)(\n### Previous Release|\n## )',
+              # Fallback pattern 1: Match until any "###" section
+              r'(## 🎉 Latest Release:.*?)(\n### )',
+              # Fallback pattern 2: Match until next "##" heading (greedy)
+              r'(## 🎉 Latest Release:.*?)(\n## )',
+          ]
+          
+          new_content = None
+          for pattern in patterns:
+              if re.search(pattern, content, re.DOTALL):
+                  # Keep the rest of the matched content (next section marker)
+                  new_content = re.sub(pattern, new_section + r'\2', content, count=1, flags=re.DOTALL)
+                  print(f"Successfully updated README.md with release {tag_name} using pattern match")
+                  break
+          
+          if new_content is None:
+              # Last resort: try to find and replace just the heading line and rebuild
+              if '## 🎉 Latest Release:' in content:
+                  # Find the line and replace everything up to the next ## or ### section
+                  lines = content.split('\n')
+                  start_idx = None
+                  end_idx = None
+                  
+                  for i, line in enumerate(lines):
+                      if '## 🎉 Latest Release:' in line:
+                          start_idx = i
+                      elif start_idx is not None and (line.startswith('## ') or line.startswith('### ')):
+                          end_idx = i
+                          break
+                  
+                  if start_idx is not None:
+                      if end_idx is not None:
+                          # Replace the section
+                          lines = lines[:start_idx] + new_section.rstrip('\n').split('\n') + lines[end_idx:]
+                      else:
+                          # Append if no end marker found
+                          lines = lines[:start_idx] + new_section.rstrip('\n').split('\n') + lines[start_idx+1:]
+                      
+                      new_content = '\n'.join(lines)
+                      print(f"Successfully updated README.md with release {tag_name} using line-based replacement")
+              
+              if new_content is None:
+                  print("ERROR: Could not find 'Latest Release' section in README", file=sys.stderr)
+                  sys.exit(1)
+          
+          with open('README.md', 'w') as f:
+              f.write(new_content)
+          PYTHON_SCRIPT
+
+      - name: Commit and push README changes
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          
+          git add README.md
+          
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "docs: update README with release ${{ steps.version.outputs.tag_name }} [skip ci]"
+            
+            # Fetch and checkout main to avoid force-pushing
+            git fetch origin main
+            git checkout -B main origin/main
+            
+            # Cherry-pick the README update commit
+            git cherry-pick HEAD@{1}
+            
+            # Push to main
+            git push origin main || {
+              echo "Failed to push to main, trying to create PR instead"
+              
+              # Create a new branch for the update
+              BRANCH_NAME="auto-update-readme-${{ steps.version.outputs.tag_name }}"
+              git checkout -b "$BRANCH_NAME"
+              git push origin "$BRANCH_NAME"
+              
+              # Create a PR
+              gh pr create \
+                --title "docs: update README with release ${{ steps.version.outputs.tag_name }}" \
+                --body "Automated update of README.md with latest release information." \
+                --base main \
+                --head "$BRANCH_NAME"
+            }
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
