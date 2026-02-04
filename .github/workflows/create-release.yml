@@ -165,8 +165,8 @@ jobs:
                           # Replace the section
                           lines = lines[:start_idx] + new_section.rstrip('\n').split('\n') + lines[end_idx:]
                       else:
-                          # Append if no end marker found
-                          lines = lines[:start_idx] + new_section.rstrip('\n').split('\n') + lines[start_idx+1:]
+                          # Replace through end-of-file if no end marker found
+                          lines = lines[:start_idx] + new_section.rstrip('\n').split('\n')
                       
                       new_content = '\n'.join(lines)
                       print(f"Successfully updated README.md with release {tag_name} using line-based replacement")
@@ -192,20 +192,41 @@ jobs:
           else
             git commit -m "docs: update README with release ${{ steps.version.outputs.tag_name }} [skip ci]"
             
+            # Store the README update commit hash
+            README_COMMIT=$(git rev-parse HEAD)
+            
             # Fetch and checkout main to avoid force-pushing
             git fetch origin main
             git checkout -B main origin/main
             
-            # Cherry-pick the README update commit
-            git cherry-pick HEAD@{1}
+            PR_FALLBACK=0
             
-            # Push to main
-            git push origin main || {
-              echo "Failed to push to main, trying to create PR instead"
-              
+            # Cherry-pick the README update commit
+            if ! git cherry-pick "$README_COMMIT"; then
+              echo "Cherry-pick failed, trying to create PR instead"
+              git cherry-pick --abort || true
+              PR_FALLBACK=1
+            fi
+            
+            if [ "$PR_FALLBACK" -eq 0 ]; then
+              # Push to main
+              if ! git push origin main; then
+                echo "Failed to push to main, trying to create PR instead"
+                PR_FALLBACK=1
+              fi
+            fi
+            
+            if [ "$PR_FALLBACK" -eq 1 ]; then
               # Create a new branch for the update
               BRANCH_NAME="auto-update-readme-${{ steps.version.outputs.tag_name }}"
-              git checkout -b "$BRANCH_NAME"
+              git checkout -b "$BRANCH_NAME" origin/main
+              
+              if ! git cherry-pick "$README_COMMIT"; then
+                echo "Cherry-pick failed on PR branch"
+                git cherry-pick --abort || true
+                exit 1
+              fi
+              
               git push origin "$BRANCH_NAME"
               
               # Create a PR
@@ -214,7 +235,7 @@ jobs:
                 --body "Automated update of README.md with latest release information." \
                 --base main \
                 --head "$BRANCH_NAME"
-            }
+            fi
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
