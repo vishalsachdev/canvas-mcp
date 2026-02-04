@@ -9,7 +9,7 @@ from mcp.server.fastmcp import FastMCP
 from ..core.anonymization import anonymize_response_data
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
-from ..core.dates import format_date, truncate_text
+from ..core.dates import format_date, parse_date, truncate_text
 from ..core.logging import log_error, log_warning
 from ..core.validation import validate_params
 
@@ -813,6 +813,7 @@ def register_discussion_tools(mcp: FastMCP):
     # ===== ANNOUNCEMENT TOOLS =====
 
     @mcp.tool()
+    @validate_params
     async def list_announcements(course_identifier: str) -> str:
         """List announcements for a specific course.
 
@@ -1217,21 +1218,25 @@ def register_discussion_tools(mcp: FastMCP):
 
             # Check date criteria
             if posted_at_str and match:
-                try:
-                    posted_at = datetime.fromisoformat(posted_at_str.replace('Z', '+00:00'))
+                posted_at = parse_date(posted_at_str)
+                if not posted_at:
+                    return f"Error parsing date: {posted_at_str}"
 
-                    if "older_than" in criteria:
-                        older_than = datetime.fromisoformat(criteria["older_than"].replace('Z', '+00:00'))
-                        if posted_at >= older_than:
-                            match = False
+                if "older_than" in criteria:
+                    older_than_value = criteria["older_than"]
+                    older_than = parse_date(older_than_value if isinstance(older_than_value, str) else str(older_than_value))
+                    if not older_than:
+                        return f"Error parsing date: {older_than_value}"
+                    if posted_at >= older_than:
+                        match = False
 
-                    if "newer_than" in criteria and match:
-                        newer_than = datetime.fromisoformat(criteria["newer_than"].replace('Z', '+00:00'))
-                        if posted_at <= newer_than:
-                            match = False
-
-                except ValueError as e:
-                    return f"Error parsing date: {e}"
+                if "newer_than" in criteria and match:
+                    newer_than_value = criteria["newer_than"]
+                    newer_than = parse_date(newer_than_value if isinstance(newer_than_value, str) else str(newer_than_value))
+                    if not newer_than:
+                        return f"Error parsing date: {newer_than_value}"
+                    if posted_at <= newer_than:
+                        match = False
 
             if match:
                 matched.append(announcement)

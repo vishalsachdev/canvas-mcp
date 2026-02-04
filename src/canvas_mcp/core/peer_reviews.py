@@ -9,6 +9,7 @@ import datetime
 from typing import Any
 
 from .client import fetch_all_paginated_results, make_canvas_request
+from .dates import parse_date
 
 
 class PeerReviewAnalyzer:
@@ -161,13 +162,11 @@ class PeerReviewAnalyzer:
                     # Calculate days since assigned
                     days_since_assigned = 0
                     if assignment.get("assigned_date"):
-                        try:
-                            assigned_date = datetime.datetime.fromisoformat(
-                                assignment["assigned_date"].replace("Z", "+00:00")
-                            )
-                            days_since_assigned = (datetime.datetime.now(datetime.timezone.utc) - assigned_date).days
-                        except ValueError:
-                            days_since_assigned = 0
+                        assigned_date = parse_date(assignment["assigned_date"])
+                        if assigned_date:
+                            days_since_assigned = (
+                                datetime.datetime.now(datetime.timezone.utc) - assigned_date
+                            ).days
 
                     reviewer_stats[reviewer_id]["pending_reviews"].append({
                         "reviewee_id": assignment["reviewee_id"],

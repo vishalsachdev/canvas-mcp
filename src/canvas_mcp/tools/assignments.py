@@ -90,6 +90,7 @@ def register_assignment_tools(mcp: FastMCP):
         return f"Assignment Details for ID {assignment_id} in course {course_display}:\n\n" + "\n".join(details)
 
     @mcp.tool()
+    @validate_params
     async def assign_peer_review(course_identifier: str, assignment_id: str, reviewer_id: str, reviewee_id: str) -> str:
         """Manually assign a peer review to a student for a specific assignment.
 
@@ -166,6 +167,7 @@ def register_assignment_tools(mcp: FastMCP):
                f"Submission ID: {submission_id}"
 
     @mcp.tool()
+    @validate_params
     async def list_peer_reviews(course_identifier: str, assignment_id: str) -> str:
         """List all peer review assignments for a specific assignment.
 

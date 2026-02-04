@@ -10,6 +10,8 @@ from typing import Any, Literal
 
 from mcp.server.fastmcp import FastMCP
 
+from ..core.validation import validate_params
+
 DetailLevel = Literal["names", "signatures", "full"]
 
 
@@ -17,6 +19,7 @@ def register_discovery_tools(mcp: FastMCP) -> None:
     """Register tool discovery tools."""
 
     @mcp.tool()
+    @validate_params
     async def search_canvas_tools(
         query: str = "",
         detail_level: DetailLevel = "signatures"

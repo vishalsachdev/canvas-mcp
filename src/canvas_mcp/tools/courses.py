@@ -41,6 +41,7 @@ def register_course_tools(mcp: FastMCP):
     """Register all course-related MCP tools."""
 
     @mcp.tool()
+    @validate_params
     async def list_courses(include_concluded: bool = False, include_all: bool = False) -> str:
         """List courses for the authenticated user."""
 

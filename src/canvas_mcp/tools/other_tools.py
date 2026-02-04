@@ -455,6 +455,7 @@ def register_other_tools(mcp: FastMCP):
     # ===== USER TOOLS =====
 
     @mcp.tool()
+    @validate_params
     async def list_users(course_identifier: str) -> str:
         """List users enrolled in a specific course.
 
@@ -504,6 +505,7 @@ def register_other_tools(mcp: FastMCP):
     # ===== ANALYTICS TOOLS =====
 
     @mcp.tool()
+    @validate_params
     async def get_student_analytics(course_identifier: str,
                                   current_only: bool = True,
                                   include_participation: bool = True,

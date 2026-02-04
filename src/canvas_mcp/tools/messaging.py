@@ -6,12 +6,14 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from ..core.client import make_canvas_request
+from ..core.validation import validate_params
 
 
 def register_messaging_tools(mcp: FastMCP) -> None:
     """Register all Canvas messaging tools."""
 
     @mcp.tool()
+    @validate_params
     async def send_conversation(
         course_identifier: str | int,
         recipient_ids: list[str],
@@ -100,6 +102,7 @@ def register_messaging_tools(mcp: FastMCP) -> None:
             return {"error": f"Failed to send conversation: {str(e)}"}
 
     @mcp.tool()
+    @validate_params
     async def send_peer_review_reminders(
         course_identifier: str | int,
         assignment_id: str | int,
@@ -176,6 +179,7 @@ Please complete your peer reviews as soon as possible to receive full participat
             return {"error": f"Failed to send peer review reminders: {str(e)}"}
 
     @mcp.tool()
+    @validate_params
     async def list_conversations(
         scope: str = "unread",
         filter_ids: list[str] | None = None,
@@ -228,6 +232,7 @@ Please complete your peer reviews as soon as possible to receive full participat
             return {"error": f"Failed to list conversations: {str(e)}"}
 
     @mcp.tool()
+    @validate_params
     async def get_conversation_details(
         conversation_id: str | int,
         auto_mark_read: bool = True,
@@ -294,6 +299,7 @@ Please complete your peer reviews as soon as possible to receive full participat
             return {"error": f"Failed to get unread count: {str(e)}"}
 
     @mcp.tool()
+    @validate_params
     async def mark_conversations_read(conversation_ids: list[str]) -> dict[str, Any]:
         """
         Mark multiple conversations as read.
@@ -330,6 +336,7 @@ Please complete your peer reviews as soon as possible to receive full participat
             return {"error": f"Failed to mark conversations as read: {str(e)}"}
 
     @mcp.tool()
+    @validate_params
     async def send_bulk_messages_from_list(
         course_identifier: str | int,
         recipient_data: list[dict[str, Any]],
@@ -420,6 +427,7 @@ Please complete your peer reviews as soon as possible to receive full participat
             return {"error": f"Failed to send bulk messages: {str(e)}"}
 
     @mcp.tool()
+    @validate_params
     async def send_peer_review_followup_campaign(
         course_identifier: str | int,
         assignment_id: str | int
