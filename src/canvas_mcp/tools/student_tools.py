@@ -19,6 +19,7 @@ def register_student_tools(mcp: FastMCP):
     """Register student-specific MCP tools."""
 
     @mcp.tool()
+    @validate_params
     async def get_my_upcoming_assignments(days: int = 7) -> str:
         """Get your upcoming assignments across all courses.
 
