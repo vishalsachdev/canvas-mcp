@@ -271,6 +271,45 @@ class TestStudentToolsDatetimeComparison:
             # The function returns a message saying no assignments are due
             assert "No assignments due in the next 7 days" in result
 
+    @pytest.mark.asyncio
+    async def test_get_my_upcoming_assignments_with_various_day_values(self):
+        """Test that get_my_upcoming_assignments works with different days values including > 1.
+        
+        This specifically tests the fix for the bug where days > 1 caused:
+        'Error executing tool get_my_upcoming_assignments: argument of type int is not iterable'
+        """
+        test_cases = [1, 7, 14, 30, -1, 0]  # Various day values including > 1
+        
+        future_date = (datetime.now(timezone.utc) + timedelta(days=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        
+        mock_events = [
+            {
+                "type": "assignment",
+                "assignment": {
+                    "id": 1,
+                    "name": "Test Assignment",
+                    "due_at": future_date,
+                    "course_id": 101
+                }
+            }
+        ]
+        
+        for days_value in test_cases:
+            with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch, \
+                 patch('canvas_mcp.tools.student_tools.get_course_code', new_callable=AsyncMock) as mock_course:
+                mock_fetch.return_value = mock_events
+                mock_course.return_value = "TEST-101"
+                
+                get_my_upcoming_assignments = get_student_tool_function('get_my_upcoming_assignments')
+                assert get_my_upcoming_assignments is not None
+                
+                # This should work without throwing "argument of type 'int' is not iterable"
+                result = await get_my_upcoming_assignments(days=days_value)
+                
+                # Should complete without errors
+                assert result is not None
+                assert "error" not in result.lower() or "error fetching" in result.lower()  # Allow API errors but not type errors
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
