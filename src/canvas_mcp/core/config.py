@@ -49,7 +49,7 @@ class Config:
         self.log_api_requests = _bool_env("LOG_API_REQUESTS", False)
 
         # Privacy and security configuration
-        self.enable_data_anonymization = _bool_env("ENABLE_DATA_ANONYMIZATION", True)
+        self.enable_data_anonymization = _bool_env("ENABLE_DATA_ANONYMIZATION", False)
         self.anonymization_debug = _bool_env("ANONYMIZATION_DEBUG", False)
 
         # Code execution sandbox configuration (best-effort by default)

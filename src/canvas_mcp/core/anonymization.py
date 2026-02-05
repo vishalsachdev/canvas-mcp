@@ -224,6 +224,11 @@ def anonymize_response_data(data: Any, data_type: str = "general") -> Any:
     Returns:
         Anonymized data structure
     """
+    # Check if anonymization is enabled
+    from .config import get_config
+    if not get_config().enable_data_anonymization:
+        return data
+
     if isinstance(data, dict):
         if data_type == "users" or 'name' in data and 'email' in data:
             return anonymize_user_data(data)
