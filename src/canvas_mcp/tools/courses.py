@@ -1,6 +1,6 @@
 """Course-related MCP tools for Canvas API."""
 
-import re
+from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
 
@@ -11,30 +11,10 @@ from ..core.cache import (
     id_to_course_code_cache,
 )
 from ..core.client import fetch_all_paginated_results, make_canvas_request
+from ..core.config import get_config
 from ..core.dates import format_date
+from ..core.text_utils import strip_html_tags
 from ..core.validation import validate_params
-
-
-def strip_html_tags(html_content: str) -> str:
-    """Remove HTML tags and clean up text content."""
-    if not html_content:
-        return ""
-
-    # Remove HTML tags
-    clean_text = re.sub(r'<[^>]+>', '', html_content)
-
-    # Replace common HTML entities
-    clean_text = clean_text.replace('&nbsp;', ' ')
-    clean_text = clean_text.replace('&amp;', '&')
-    clean_text = clean_text.replace('&lt;', '<')
-    clean_text = clean_text.replace('&gt;', '>')
-    clean_text = clean_text.replace('&quot;', '"')
-
-    # Clean up whitespace
-    clean_text = re.sub(r'\s+', ' ', clean_text)
-    clean_text = clean_text.strip()
-
-    return clean_text
 
 
 def register_course_tools(mcp: FastMCP):
@@ -42,8 +22,22 @@ def register_course_tools(mcp: FastMCP):
 
     @mcp.tool()
     @validate_params
-    async def list_courses(include_concluded: bool = False, include_all: bool = False) -> str:
-        """List courses for the authenticated user."""
+    async def list_courses(
+        include_concluded: bool = False,
+        include_all: bool = False,
+        term_id: Optional[int] = None
+    ) -> str:
+        """List courses for the authenticated user.
+
+        Args:
+            include_concluded: Include completed/concluded courses
+            include_all: Include courses where you're a student (not just teacher)
+            term_id: Filter to a specific enrollment term. Defaults to DEFAULT_TERM_ID
+                     from config if set. Pass 0 to see all terms.
+        """
+        # Get config for default term
+        config = get_config()
+        effective_term_id = term_id if term_id is not None else (config.default_term_id or None)
 
         params = {
             "include[]": ["term", "teachers", "total_students"],
@@ -58,13 +52,18 @@ def register_course_tools(mcp: FastMCP):
         else:
             params["state[]"] = ["available"]
 
+        # Filter by term if specified
+        if effective_term_id:
+            params["enrollment_term_id"] = effective_term_id
+
         courses = await fetch_all_paginated_results("/courses", params)
 
         if isinstance(courses, dict) and "error" in courses:
             return f"Error fetching courses: {courses['error']}"
 
         if not courses:
-            return "No courses found."
+            term_note = f" for term {effective_term_id}" if effective_term_id else ""
+            return f"No courses found{term_note}."
 
         # Refresh our caches with the course data
         for course in courses:
@@ -75,6 +74,12 @@ def register_course_tools(mcp: FastMCP):
                 course_code_to_id_cache[course_code] = course_id
                 id_to_course_code_cache[course_id] = course_code
 
+        # Build header with term info
+        header = "Courses"
+        if effective_term_id:
+            header += f" (Term ID: {effective_term_id})"
+        header += f" ({len(courses)} found):\n\n"
+
         courses_info = []
         for course in courses:
             course_id = course.get("id")
@@ -84,7 +89,7 @@ def register_course_tools(mcp: FastMCP):
             # Emphasize code in the output
             courses_info.append(f"Code: {code}\nName: {name}\nID: {course_id}\n")
 
-        return "Courses:\n\n" + "\n".join(courses_info)
+        return header + "\n".join(courses_info)
 
     @mcp.tool()
     @validate_params

@@ -1,5 +1,6 @@
 """Tool modules for Canvas MCP server."""
 
+from .accounts import register_account_tools
 from .courses import register_course_tools
 from .assignments import register_assignment_tools
 from .discussions import register_discussion_tools
@@ -15,8 +16,10 @@ from .accessibility import register_accessibility_tools
 from .discovery import register_discovery_tools
 from .code_execution import register_code_execution_tools
 from .pages import register_page_tools
+from .transdisciplinary import register_transdisciplinary_tools
 
 __all__ = [
+    'register_account_tools',
     'register_course_tools',
     'register_assignment_tools',
     'register_discussion_tools',
@@ -31,5 +34,6 @@ __all__ = [
     'register_accessibility_tools',
     'register_discovery_tools',
     'register_code_execution_tools',
-    'register_page_tools'
+    'register_page_tools',
+    'register_transdisciplinary_tools',
 ]

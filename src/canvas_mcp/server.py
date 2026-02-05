@@ -18,6 +18,7 @@ from .core.logging import log_error, log_info
 from .resources import register_resources_and_prompts
 from .tools import (
     register_accessibility_tools,
+    register_account_tools,
     register_assignment_tools,
     register_code_execution_tools,
     register_course_tools,
@@ -32,6 +33,7 @@ from .tools import (
     register_peer_review_tools,
     register_rubric_tools,
     register_student_tools,
+    register_transdisciplinary_tools,
 )
 
 
@@ -47,6 +49,7 @@ def register_all_tools(mcp: FastMCP) -> None:
     log_info("Registering Canvas MCP tools...")
 
     # Register tools by category
+    register_account_tools(mcp)  # Admin/institutional tools
     register_course_tools(mcp)
     register_assignment_tools(mcp)
     register_discussion_tools(mcp)
@@ -62,6 +65,7 @@ def register_all_tools(mcp: FastMCP) -> None:
     register_accessibility_tools(mcp)
     register_discovery_tools(mcp)
     register_code_execution_tools(mcp)
+    register_transdisciplinary_tools(mcp)
 
     # Register resources and prompts
     register_resources_and_prompts(mcp)
