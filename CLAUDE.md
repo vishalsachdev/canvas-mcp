@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **Note**: This guide is for developers working ON the Canvas MCP codebase. If you're an AI agent USING the MCP server, see [AGENTS.md](../AGENTS.md) instead.
+> **Note**: This guide is for developers working ON the Canvas MCP codebase. If you're an AI agent USING the MCP server, see [AGENTS.md](AGENTS.md) instead.
 
 # Canvas MCP Development Guide
 
@@ -16,6 +16,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Start server**: `canvas-mcp-server` (or `./start_canvas_server.sh` for legacy setup)
 - **Test server**: `canvas-mcp-server --test`
 - **View config**: `canvas-mcp-server --config`
+- **Run all tests**: `pytest`
+- **Run single test file**: `pytest tests/tools/test_modules.py`
+- **Run single test**: `pytest tests/tools/test_modules.py::test_create_module_success -v`
+- **Lint**: `ruff check src/`
+- **Format**: `black src/`
+- **Type check**: `mypy src/`
 - **MCP client config**: Update your MCP client's configuration file (e.g., `~/Library/Application Support/Claude/claude_desktop_config.json` for Claude Desktop)
 
 ## Repository Structure
@@ -102,6 +108,26 @@ canvas-mcp/
 
 This repo has branch protection on `main` (PR + status checks required), but admin can bypass. Always ask the user which workflow they prefer for the current task.
 
+### Fork Remote Configuration
+
+This is a fork. The remotes are configured to prevent accidental pushes to the upstream repository:
+
+```
+origin    → jaymesdec/canvas-mcp (fetch & push) - YOUR fork, push here
+upstream  → vishalsachdev/canvas-mcp (fetch only) - Original repo, READ-ONLY
+```
+
+**NEVER push to upstream.** It's configured to block pushes, but be aware:
+- `git push` or `git push origin` → Safe, goes to your fork
+- `git push upstream` → Will fail (blocked)
+- When GitHub shows "Create PR to vishalsachdev?" after pushing → **Ignore it** or click X
+
+**To sync with upstream:**
+```bash
+git fetch upstream
+git merge upstream/main
+```
+
 ---
 
 ## Release Checklist
@@ -131,7 +157,7 @@ When bumping the version in `pyproject.toml`, also update:
 ### TDD Workflow
 1. **Write tests first** (or alongside) for new tools
 2. **Minimum 3 tests per tool**: success path, error handling, edge case
-3. **Run tests** before committing: `pytest tests/tools/`
+3. **Run tests** before committing: `pytest` (all) or `pytest tests/tools/test_<module>.py` (single file)
 4. **No merging** without passing tests
 
 ### Test Structure
@@ -279,60 +305,19 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 - [ ] Smithery publishing (blocked - see 2026-02-01 session log)
 
 ## Session Log
+
+> **Note**: Keep only the most recent 2-3 entries. Archive older entries to `docs/session_history.md` if needed.
+
+### 2026-02-04
+- **De-anonymization feature**: Added FERPA-compliant automatic de-anonymization (`feat/deanonymization` branch)
+  - New config: `CANVAS_DEANONYMIZE_OUTPUT=true/false`
+  - Bidirectional cache stores original names/emails during anonymization
+  - Audit logging via `pii_audit` logger for FERPA compliance
+  - 14 new tests in `tests/core/test_deanonymization.py`
+- **Git remote safety**: Configured `upstream` as read-only to prevent accidental pushes to original repo
+
 ### 2026-02-01
-- **Smithery Publishing Attempt** (blocked):
-  - Goal: Publish canvas-mcp to Smithery marketplace for additional distribution
-  - **Findings**:
-    - Smithery has 3 publishing options: URL (HTTP), Hosted, Local (stdio)
-    - **URL option**: Requires Streamable HTTP transport (canvas-mcp uses stdio)
-    - **Hosted option**: "Private Early Access" - not publicly available
-    - **Local option**: CLI expects server entry to exist first; can't create new servers via CLI
-    - Web UI only exposes URL option; no way to create Hosted/Local servers
-  - **What we built**: TypeScript wrapper at `smithery-wrapper/` with 10 core tools
-    - Native TS Canvas MCP using `@modelcontextprotocol/sdk`
-    - Builds successfully with `smithery build`
-    - Ready for future deployment if Smithery opens up access
-  - **Decision**: Skip Smithery for now; focus on MCP Registry + PyPI (already published)
-  - **Path forward**: Contact support@smithery.ai for Hosted access, OR self-host with HTTP transport
-  - Files created: `smithery-wrapper/{package.json,tsconfig.json,src/index.ts}`
+- **Smithery Publishing** (blocked): Requires HTTP transport or "Hosted" access (private beta). Built TypeScript wrapper at `smithery-wrapper/` for future use. Focus on MCP Registry + PyPI for now.
 
 ### 2026-01-25
-- Added `update_assignment` tool:
-  - PUT /api/v1/courses/:course_id/assignments/:id
-  - Parameters: course_identifier, assignment_id, name, description, submission_types, due_at, unlock_at, lock_at, points_possible, grading_type, published, assignment_group_id, peer_reviews, automatic_peer_reviews, allowed_extensions
-  - All update fields optional (only changed fields sent to API)
-  - 9 unit tests following TDD pattern
-  - Updated TODO.md (moved to Completed)
-- Tool follows existing patterns from `create_assignment`
-
-### 2026-01-21
-- Fixed broken rubric API tools:
-  - Disabled `create_rubric` (Canvas API returns 500 error - known bug)
-  - Disabled `update_rubric` (API does full replacement, causes data loss)
-  - Both tools now return informative error messages with workarounds
-  - Added "Known Canvas API Limitations" section to AGENTS.md
-  - Updated README.md and tools/README.md with limitations
-- Pushed: `c01dc7d` fix: Disable broken rubric API tools (create_rubric, update_rubric)
-
-### 2026-01-20
-- Updated README documentation:
-  - Corrected tool count from 50+ to 80+ (actual: 84 tools)
-  - Updated test count from 51 to 167 tests
-  - Reorganized tool sections by Canvas permissions
-  - Moved module/page management tools to Educator Tools
-  - Kept only read-only tools in Shared Tools section
-  - Added example prompts for new educator tools
-- Pushed: `85c9fef` docs: Update README with accurate tool count
-
-### 2026-01-18
-- Completed: Module tools feature branch (`feature/module-creation-tool`)
-  - 7 MCP tools for Canvas module management
-  - 36 unit tests
-  - Full documentation in tools/README.md and AGENTS.md
-- Completed: Page settings tools (`feature/page-settings-tools`)
-  - `update_page_settings` - publish/unpublish, front page, editing roles
-  - `bulk_update_pages` - batch operations on multiple pages
-  - 15 unit tests (TDD approach)
-  - Added TDD enforcement section to CLAUDE.md
-  - Created GitHub issue #56 for comprehensive test coverage
-- Released: v1.0.6 with 9 new tools
+- Added `update_assignment` tool with 9 tests following TDD pattern
