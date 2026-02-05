@@ -6,11 +6,34 @@ to AI systems, ensuring FERPA compliance and student privacy protection.
 """
 
 import hashlib
+import logging
 import re
-from typing import Any
+import threading
+from datetime import datetime
+from typing import Any, TypedDict
 
-# Global anonymization mapping cache
+logger = logging.getLogger(__name__)
+
+
+class OriginalUserData(TypedDict):
+    """Type for storing original user data for de-anonymization."""
+
+    name: str
+    email: str
+
+
+# Thread-safe lock for cache operations
+_cache_lock = threading.RLock()
+
+# Global anonymization mapping cache (forward: real_id -> anonymous_id)
 _anonymization_cache: dict[str, str] = {}
+
+# Reverse cache for de-anonymization (anonymous_id -> original data)
+_deanonymization_cache: dict[str, OriginalUserData] = {}
+
+# Compiled regex patterns for de-anonymization (performance optimization)
+_ANONYMOUS_NAME_PATTERN = re.compile(r"Student_([a-f0-9]{8})")
+_ANONYMOUS_EMAIL_PATTERN = re.compile(r"student_([a-f0-9]{8})@example\.edu")
 
 
 def generate_anonymous_id(real_id: str | int, prefix: str = "Student") -> str:
@@ -42,6 +65,30 @@ def generate_anonymous_id(real_id: str | int, prefix: str = "Student") -> str:
     return anonymous_id
 
 
+def _store_for_deanonymization(anonymous_id: str, original_data: dict[str, Any]) -> None:
+    """Store original values for later de-anonymization.
+
+    Thread-safe storage of original PII for reverse lookup.
+    Only stores if meaningful data is present.
+
+    Args:
+        anonymous_id: The anonymized identifier (e.g., "Student_a1b2c3d4")
+        original_data: Dictionary containing original user data with 'name' and 'email' keys
+    """
+    # Only store if we have actual data to restore
+    name = original_data.get("name", "")
+    email = original_data.get("email", "")
+
+    if not name and not email:
+        return
+
+    with _cache_lock:
+        _deanonymization_cache[anonymous_id] = {
+            "name": name,
+            "email": email,
+        }
+
+
 def anonymize_user_data(user_data: Any) -> Any:
     """Anonymize a single user record.
 
@@ -59,6 +106,9 @@ def anonymize_user_data(user_data: Any) -> Any:
 
     if user_id:
         anonymous_id = generate_anonymous_id(user_id)
+
+        # Store original data for potential de-anonymization (before replacing)
+        _store_for_deanonymization(anonymous_id, user_data)
 
         # Replace sensitive fields
         anonymized.update({
@@ -295,7 +345,83 @@ def get_anonymization_stats() -> dict[str, Any]:
     }
 
 
+def _log_deanonymization_access(resolved_ids: list[str]) -> None:
+    """Log de-anonymization events for FERPA compliance.
+
+    Args:
+        resolved_ids: List of anonymous IDs that were de-anonymized
+    """
+    audit_logger = logging.getLogger("pii_audit")
+    audit_logger.info(
+        f"DEANONYMIZATION_ACCESS: "
+        f"timestamp={datetime.utcnow().isoformat()}Z, "
+        f"anonymous_ids_resolved={resolved_ids}, "
+        f"count={len(resolved_ids)}"
+    )
+
+
+def deanonymize_text(text: str) -> str:
+    """Replace anonymous student references with real names.
+
+    Thread-safe de-anonymization with FERPA-compliant audit logging.
+    Falls back to original text if de-anonymization is disabled or cache miss.
+
+    Args:
+        text: Text containing anonymous student references
+
+    Returns:
+        Text with anonymous references replaced by real names (if enabled and cached)
+    """
+    from .config import get_config
+
+    config = get_config()
+
+    if not config.enable_deanonymization:
+        return text
+
+    resolved_ids: list[str] = []
+
+    def replace_name(match: re.Match) -> str:
+        hash_part = match.group(1)
+        anonymous_id = f"Student_{hash_part}"
+
+        with _cache_lock:
+            if anonymous_id in _deanonymization_cache:
+                resolved_ids.append(anonymous_id)
+                return _deanonymization_cache[anonymous_id]["name"]
+
+        if config.anonymization_debug:
+            logger.debug(f"De-anonymization cache miss for {anonymous_id}")
+        return match.group(0)  # Return original on cache miss
+
+    def replace_email(match: re.Match) -> str:
+        hash_part = match.group(1)
+        anonymous_id = f"Student_{hash_part}"
+
+        with _cache_lock:
+            if anonymous_id in _deanonymization_cache:
+                return _deanonymization_cache[anonymous_id]["email"]
+        return match.group(0)
+
+    result = _ANONYMOUS_NAME_PATTERN.sub(replace_name, text)
+    result = _ANONYMOUS_EMAIL_PATTERN.sub(replace_email, result)
+
+    # FERPA-compliant audit logging
+    if resolved_ids:
+        _log_deanonymization_access(resolved_ids)
+
+    return result
+
+
 def clear_anonymization_cache() -> None:
-    """Clear the anonymization cache (use when switching courses/contexts)."""
-    global _anonymization_cache
-    _anonymization_cache.clear()
+    """Clear all anonymization caches (use when switching courses/contexts).
+
+    Clears both forward and reverse caches atomically.
+    """
+    global _anonymization_cache, _deanonymization_cache
+
+    with _cache_lock:
+        _anonymization_cache.clear()
+        _deanonymization_cache.clear()
+
+    logger.debug("Anonymization caches cleared")

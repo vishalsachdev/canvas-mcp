@@ -51,6 +51,23 @@ class Config:
         # Privacy and security configuration
         self.enable_data_anonymization = _bool_env("ENABLE_DATA_ANONYMIZATION", False)
         self.anonymization_debug = _bool_env("ANONYMIZATION_DEBUG", False)
+        self.enable_deanonymization = _bool_env("CANVAS_DEANONYMIZE_OUTPUT", False)
+
+        # Validate de-anonymization configuration
+        if self.enable_deanonymization and not self.enable_data_anonymization:
+            print(
+                "WARNING: CANVAS_DEANONYMIZE_OUTPUT requires ENABLE_DATA_ANONYMIZATION=true. "
+                "De-anonymization will be disabled.",
+                file=sys.stderr
+            )
+            self.enable_deanonymization = False
+
+        if self.enable_deanonymization:
+            print(
+                "WARNING: De-anonymization is enabled. PII will be visible in output. "
+                "Ensure this system is only accessible to authorized FERPA-trained personnel.",
+                file=sys.stderr
+            )
 
         # Code execution sandbox configuration (best-effort by default)
         self.enable_ts_sandbox = _bool_env("ENABLE_TS_SANDBOX", False)

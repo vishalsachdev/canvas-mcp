@@ -11,12 +11,28 @@ Test Coverage:
 - TC-1.4: Data Retention
 """
 
+import sys
 import pytest
 import os
 import json
 from unittest.mock import Mock, patch, MagicMock
+
+# Mock the mcp module before it gets imported
+sys.modules["mcp"] = MagicMock()
+sys.modules["mcp.server"] = MagicMock()
+sys.modules["mcp.server.fastmcp"] = MagicMock()
+
 from canvas_mcp.core.anonymization import anonymize_response_data
+from canvas_mcp.core import config as config_module
 from canvas_mcp.core.config import Config
+
+
+@pytest.fixture(autouse=True)
+def reset_config_singleton():
+    """Reset the config singleton before each test so env patches take effect."""
+    config_module._config = None
+    yield
+    config_module._config = None
 
 
 class TestPIIAnonymization:
