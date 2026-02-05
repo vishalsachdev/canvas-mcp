@@ -133,6 +133,9 @@ def _weeks_overlap(range_a: tuple[int, int], range_b: tuple[int, int]) -> tuple[
 DEFAULT_MAX_CONCURRENT = 10
 DEFAULT_REQUEST_DELAY = 0.1  # seconds
 
+# Security: Prevent abuse via parameter manipulation
+MAX_SAMPLE_SIZE = 25
+
 
 class RateLimitedFetcher:
     """Bounded concurrency for Canvas API requests."""
@@ -196,17 +199,23 @@ def _extract_outcomes_from_html(html_content: str) -> list[str]:
 
 async def _find_student_overlap(
     course_id: int,
-    sample_size: int = 3,
+    sample_size: int = 10,
     term_id: int | None = None,
 ) -> dict:
     """Find courses sharing students with the source course.
 
     Samples students from the source course and finds their other enrollments.
+    Returns ALL overlapping courses - filtering happens at orchestration layer.
+
+    Args:
+        course_id: Canvas course ID to find overlap for
+        sample_size: Number of students to sample (default 10, max 25)
+        term_id: Filter to specific term (optional)
 
     Returns dict with:
-        - overlapping_courses: list of courses with shared students
+        - overlapping_courses: list of ALL courses with any shared students
         - sample_size: actual number of students sampled
-        - sampled_student_ids: list of student IDs that were sampled
+        - source_course_size: total enrollment in source course
     """
     # Get enrollments from source course
     enrollments = await fetch_all_paginated_results(
@@ -218,7 +227,7 @@ async def _find_student_overlap(
         return {"error": enrollments["error"]}
 
     if not enrollments:
-        return {"overlapping_courses": [], "sample_size": 0, "sampled_student_ids": []}
+        return {"overlapping_courses": [], "sample_size": 0, "source_course_size": 0}
 
     # Sample students
     sample = random.sample(enrollments, min(sample_size, len(enrollments)))
@@ -270,7 +279,7 @@ async def _find_student_overlap(
     return {
         "overlapping_courses": sorted_courses,
         "sample_size": len(sample),
-        "sampled_student_ids": sampled_student_ids,
+        "source_course_size": len(enrollments),
     }
 
 
@@ -438,22 +447,24 @@ def register_transdisciplinary_tools(mcp: FastMCP):
     @validate_params
     async def discover_opportunities(
         course_identifier: str | int,
-        sample_size: int = 3,
+        sample_size: int = 10,
         term_id: int | None = None,
+        min_overlap: int = 3,
     ) -> str:
         """Gather transdisciplinary discovery data for a course.
 
         Collects student overlap, concurrent modules, and learning outcomes.
-        Returns structured data for analysis - does not rank or filter.
+        Filters courses by minimum student overlap for meaningful collaboration.
 
         Args:
             course_identifier: Course code (e.g., "ENG_100") or Canvas ID
-            sample_size: Number of students to sample for overlap detection (default 3)
+            sample_size: Number of students to sample for overlap detection (default 10, max 25)
             term_id: Filter to specific term (defaults to current term from config)
+            min_overlap: Minimum shared students to include a course (default 3)
 
         Returns:
             Structured data including:
-            - Overlapping courses with shared student counts
+            - Overlapping courses with shared student counts (filtered by min_overlap)
             - Concurrent modules with week ranges
             - Extracted learning outcomes per module
             - Franklin competency definitions for context
@@ -465,6 +476,9 @@ def register_transdisciplinary_tools(mcp: FastMCP):
                 "status": "error",
                 "error": f"Could not resolve course identifier: {course_identifier}"
             })
+
+        # Enforce maximum sample size
+        effective_sample_size = min(sample_size, MAX_SAMPLE_SIZE)
 
         # Get effective term ID
         config = get_config()
@@ -480,7 +494,7 @@ def register_transdisciplinary_tools(mcp: FastMCP):
         }
 
         # Phase 1: Student overlap (REQUIRED)
-        overlap = await _find_student_overlap(course_id, sample_size, effective_term_id)
+        overlap = await _find_student_overlap(course_id, effective_sample_size, effective_term_id)
 
         if "error" in overlap:
             return json.dumps({
@@ -501,8 +515,19 @@ def register_transdisciplinary_tools(mcp: FastMCP):
             student_count=overlap.get("sample_size", 0),
         )
 
-        # Phases 2-3 can run in parallel
-        overlapping_courses = overlap.get("overlapping_courses", [])
+        # Filter at orchestration layer - only include courses meeting min_overlap threshold
+        all_overlapping = overlap.get("overlapping_courses", [])
+        filtered_courses = [
+            course for course in all_overlapping
+            if course["shared_student_count"] >= min_overlap
+        ]
+
+        # Update overlap data with filtered results and metadata
+        overlap["overlapping_courses"] = filtered_courses
+        overlap["min_overlap_applied"] = min_overlap
+
+        # Phases 2-3 can run in parallel - use filtered courses to reduce API calls
+        overlapping_courses = filtered_courses
 
         try:
             async with asyncio.TaskGroup() as tg:

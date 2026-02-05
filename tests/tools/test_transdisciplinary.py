@@ -19,11 +19,10 @@ import pytest
 from unittest.mock import patch, AsyncMock
 
 
-# Sample mock data
+# Sample mock data - 12 students to support sample_size=10 default
 MOCK_ENROLLMENTS = [
-    {"user_id": 1001, "course_id": 100, "type": "StudentEnrollment"},
-    {"user_id": 1002, "course_id": 100, "type": "StudentEnrollment"},
-    {"user_id": 1003, "course_id": 100, "type": "StudentEnrollment"},
+    {"user_id": 1000 + i, "course_id": 100, "type": "StudentEnrollment"}
+    for i in range(1, 13)
 ]
 
 MOCK_USER_ENROLLMENTS = [
@@ -537,3 +536,159 @@ class TestRateLimitedFetcher:
 
         # Verify all completed
         assert len([e for e in execution_order if e.startswith("end")]) == 4
+
+
+# =============================================================================
+# MINIMUM OVERLAP FILTERING TESTS
+# =============================================================================
+
+
+class TestMinOverlapFiltering:
+    """Tests for minimum student overlap filtering."""
+
+    @pytest.mark.asyncio
+    async def test_filters_low_overlap_courses(self, mock_canvas_api):
+        """Courses with overlap below min_overlap are filtered out."""
+        # Setup: Create enrollments and user enrollments where only some users
+        # share courses with sufficient overlap
+        mock_canvas_api['fetch_all_paginated_results'].side_effect = [
+            MOCK_ENROLLMENTS,  # Source course enrollments (12 students)
+            MOCK_MODULES,  # Module fetch for concurrent modules
+        ]
+
+        # Mock user enrollments - only 2 users are in course 999 (below threshold)
+        # 5 users are in course 888 (above threshold)
+        def mock_user_enrollments(method, endpoint, **kwargs):
+            if "users/1001/enrollments" in endpoint:
+                return [{"course_id": 888, "course_name": "High Overlap"},
+                        {"course_id": 999, "course_name": "Low Overlap"}]
+            elif "users/1002/enrollments" in endpoint:
+                return [{"course_id": 888, "course_name": "High Overlap"},
+                        {"course_id": 999, "course_name": "Low Overlap"}]
+            elif "users/1003/enrollments" in endpoint:
+                return [{"course_id": 888, "course_name": "High Overlap"}]
+            elif "users/1004/enrollments" in endpoint:
+                return [{"course_id": 888, "course_name": "High Overlap"}]
+            elif "users/1005/enrollments" in endpoint:
+                return [{"course_id": 888, "course_name": "High Overlap"}]
+            else:
+                return []
+
+        mock_canvas_api['make_canvas_request'].side_effect = mock_user_enrollments
+
+        discover_opportunities = get_tool_function('discover_opportunities')
+        result = await discover_opportunities("TEST_COURSE", min_overlap=3)
+        data = json.loads(result)
+
+        # Course 999 should be filtered out (only 2 shared students < 3 min)
+        # Course 888 should be included (5 shared students >= 3 min)
+        overlapping = data["data"]["student_overlap"]["overlapping_courses"]
+        course_ids = [c["course_id"] for c in overlapping]
+
+        assert 888 in course_ids, "High overlap course should be included"
+        assert 999 not in course_ids, "Low overlap course should be filtered out"
+
+    @pytest.mark.asyncio
+    async def test_min_overlap_applied_in_response(self, mock_canvas_api):
+        """Response includes min_overlap_applied for transparency."""
+        mock_canvas_api['fetch_all_paginated_results'].side_effect = [
+            MOCK_ENROLLMENTS,
+            MOCK_MODULES,
+        ]
+        mock_canvas_api['make_canvas_request'].return_value = []
+
+        discover_opportunities = get_tool_function('discover_opportunities')
+        result = await discover_opportunities("TEST_COURSE", min_overlap=5)
+        data = json.loads(result)
+
+        assert "min_overlap_applied" in data["data"]["student_overlap"]
+        assert data["data"]["student_overlap"]["min_overlap_applied"] == 5
+
+    @pytest.mark.asyncio
+    async def test_default_min_overlap_is_three(self, mock_canvas_api):
+        """Default min_overlap is 3."""
+        mock_canvas_api['fetch_all_paginated_results'].side_effect = [
+            MOCK_ENROLLMENTS,
+            MOCK_MODULES,
+        ]
+        mock_canvas_api['make_canvas_request'].return_value = []
+
+        discover_opportunities = get_tool_function('discover_opportunities')
+        # Call without specifying min_overlap
+        result = await discover_opportunities("TEST_COURSE")
+        data = json.loads(result)
+
+        assert data["data"]["student_overlap"]["min_overlap_applied"] == 3
+
+
+# =============================================================================
+# FERPA COMPLIANCE TESTS
+# =============================================================================
+
+
+class TestFerpaCompliance:
+    """Tests for FERPA compliance - no student IDs in responses."""
+
+    @pytest.mark.asyncio
+    async def test_no_student_ids_in_response(self, mock_canvas_api):
+        """FERPA compliance: student IDs should not be exposed in response."""
+        mock_canvas_api['fetch_all_paginated_results'].side_effect = [
+            MOCK_ENROLLMENTS,
+            MOCK_MODULES,
+        ]
+        mock_canvas_api['make_canvas_request'].return_value = MOCK_USER_ENROLLMENTS
+
+        discover_opportunities = get_tool_function('discover_opportunities')
+        result = await discover_opportunities("TEST_COURSE")
+        data = json.loads(result)
+
+        # Verify no student IDs leaked in student_overlap
+        student_overlap = data["data"]["student_overlap"]
+        assert "sampled_student_ids" not in student_overlap, \
+            "sampled_student_ids should not be in response (FERPA violation)"
+
+    @pytest.mark.asyncio
+    async def test_source_course_size_in_response(self, mock_canvas_api):
+        """Response includes source_course_size for overlap calculations."""
+        mock_canvas_api['fetch_all_paginated_results'].side_effect = [
+            MOCK_ENROLLMENTS,  # 12 students
+            MOCK_MODULES,
+        ]
+        mock_canvas_api['make_canvas_request'].return_value = []
+
+        discover_opportunities = get_tool_function('discover_opportunities')
+        result = await discover_opportunities("TEST_COURSE")
+        data = json.loads(result)
+
+        assert "source_course_size" in data["data"]["student_overlap"]
+        assert data["data"]["student_overlap"]["source_course_size"] == 12
+
+
+# =============================================================================
+# MAX SAMPLE SIZE TESTS
+# =============================================================================
+
+
+class TestMaxSampleSize:
+    """Tests for MAX_SAMPLE_SIZE enforcement."""
+
+    @pytest.mark.asyncio
+    async def test_sample_size_capped_at_max(self, mock_canvas_api):
+        """Sample size is capped at MAX_SAMPLE_SIZE (25)."""
+        from canvas_mcp.tools.transdisciplinary import MAX_SAMPLE_SIZE
+
+        mock_canvas_api['fetch_all_paginated_results'].side_effect = [
+            MOCK_ENROLLMENTS,  # Only 12 students available
+            MOCK_MODULES,
+        ]
+        mock_canvas_api['make_canvas_request'].return_value = []
+
+        discover_opportunities = get_tool_function('discover_opportunities')
+        # Request huge sample size
+        result = await discover_opportunities("TEST_COURSE", sample_size=1000)
+        data = json.loads(result)
+
+        # Sample size should be limited by available students (12)
+        # not by MAX_SAMPLE_SIZE since we only have 12 students
+        assert data["data"]["student_overlap"]["sample_size"] <= MAX_SAMPLE_SIZE
+        assert data["data"]["student_overlap"]["sample_size"] <= 12
