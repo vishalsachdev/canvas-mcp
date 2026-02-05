@@ -6,6 +6,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 # Canvas MCP Development Guide
 
+## About Franklin School
+
+This MCP server is developed for **Franklin School** (Jersey City, NJ), a grades 9-12 high school recognized as one of the "World's Most Innovative Schools" by T4 Education.
+
+**Educational Philosophy:**
+- **"Learning by doing"** - hands-on, project-based curriculum
+- **Student agency** - students have choice in what and how they learn
+- **Transdisciplinary approach** - subjects interconnect (integrated science, thematic humanities)
+
+**Key Programs:**
+- **Skills Curriculum** - dedicated time for developing 9 Transdisciplinary Competencies
+- **Capstone Projects** - Mini (Grade 10) and Major (Grades 11-12)
+- **The Franklin Incubator** - students develop innovative solutions to real problems
+- **Micro-courses** - career exploration in law, finance, engineering, etc.
+- **Academic Care** - mentoring, executive functioning, social-emotional support
+
+**The 9 Transdisciplinary Competencies** (canonical source: `TD Competencies Rubric.pdf`):
+1. Collaboration
+2. Storytelling / Communication
+3. Reflexivity
+4. Empathy / Perspective Taking
+5. Knowledge-Based Reasoning
+6. Futures Thinking
+7. Systems Thinking
+8. Adaptability
+9. Agency
+
+Each competency has subject-specific rubrics (English, Science, Math, Art, Design & Tech, Psychology, History, Economics, PHE, World Language) with A+ through F grading criteria.
+
+**Reference:** https://www.franklinjc.org/academics/curriculum
+
 ## Environment Setup
 - Install uv package manager: `pip install uv`
 - Install dependencies: `uv pip install -e .`

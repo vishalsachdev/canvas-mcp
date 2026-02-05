@@ -19,19 +19,21 @@ Port the **TD Serendipity Generator** from TypeScript to Python as MCP tools. Th
 
 ## Franklin's 9 Transdisciplinary Competencies
 
-All crossover opportunities map to these institutional competencies:
+All crossover opportunities map to these institutional competencies (from the canonical TD Competencies Rubric):
 
 | # | Competency | Description |
 |---|------------|-------------|
-| 1 | **Collaboration** | Works productively with others toward shared goals |
-| 2 | **Communication & Storytelling** | Communicates ideas clearly, creatively, and appropriately |
+| 1 | **Collaboration** | Works productively and respectfully with others to achieve shared goals |
+| 2 | **Storytelling / Communication** | Communicates ideas clearly, creatively, and appropriately for audience and purpose |
 | 3 | **Reflexivity** | Reflects critically on learning, decisions, and assumptions |
-| 4 | **Empathy & Perspective-Taking** | Understands and respects others' perspectives |
-| 5 | **Knowledge-Based Reasoning** | Applies disciplinary and interdisciplinary knowledge |
+| 4 | **Empathy / Perspective Taking** | Demonstrates understanding and respect for others' perspectives and experiences |
+| 5 | **Knowledge-Based Reasoning** | Applies disciplinary and interdisciplinary knowledge to solve problems |
 | 6 | **Futures Thinking** | Envisions and prepares for multiple and preferred futures |
-| 7 | **Systems Thinking** | Identifies interconnections within and across systems |
+| 7 | **Systems Thinking** | Identifies and understands interconnections within and across systems |
 | 8 | **Adaptability** | Responds constructively to change and ambiguity |
-| 9 | **Agency** | Takes initiative and ownership of learning |
+| 9 | **Agency** | Takes initiative and ownership of learning and actions |
+
+> **Source**: Franklin's TD Competencies Rubric defines subject-specific criteria for each competency across English, Science, Math, Art, Design & Tech, Psychology, History, Economics, PHE, and World Language.
 
 ## Existing Implementation (TD Serendipity Generator)
 

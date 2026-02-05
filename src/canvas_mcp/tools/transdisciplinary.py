@@ -48,16 +48,18 @@ def _log_cross_course_access(
 # FRANKLIN'S 9 TRANSDISCIPLINARY COMPETENCIES
 # =============================================================================
 
+# Canonical definitions from Franklin's TD Competencies Rubric (2026)
+# See: /Users/jdec/Downloads/Copy TD Competencies Rubric.pdf
 FRANKLIN_COMPETENCIES: dict[str, str] = {
-    "Collaboration": "Works productively with others toward shared goals",
-    "Communication & Storytelling": "Communicates ideas clearly, creatively, and appropriately",
+    "Collaboration": "Works productively and respectfully with others to achieve shared goals",
+    "Storytelling / Communication": "Communicates ideas clearly, creatively, and appropriately for audience and purpose",
     "Reflexivity": "Reflects critically on learning, decisions, and assumptions",
-    "Empathy & Perspective-Taking": "Understands and respects others' perspectives",
-    "Knowledge-Based Reasoning": "Applies disciplinary and interdisciplinary knowledge",
+    "Empathy / Perspective Taking": "Demonstrates understanding and respect for others' perspectives and experiences",
+    "Knowledge-Based Reasoning": "Applies disciplinary and interdisciplinary knowledge to solve problems",
     "Futures Thinking": "Envisions and prepares for multiple and preferred futures",
-    "Systems Thinking": "Identifies interconnections within and across systems",
+    "Systems Thinking": "Identifies and understands interconnections within and across systems",
     "Adaptability": "Responds constructively to change and ambiguity",
-    "Agency": "Takes initiative and ownership of learning",
+    "Agency": "Takes initiative and ownership of learning and actions",
 }
 
 

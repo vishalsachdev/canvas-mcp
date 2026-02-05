@@ -66,6 +66,10 @@ class Config:
         self.institution_name = os.getenv("INSTITUTION_NAME", "")
         self.timezone = os.getenv("TIMEZONE", "UTC")
 
+        # Institutional settings
+        # Default term ID for filtering courses (0 = no default, show all terms)
+        self.default_term_id = _int_env("DEFAULT_TERM_ID", 0)
+
     @property
     def api_base_url(self) -> str:
         """Legacy compatibility for API_BASE_URL."""

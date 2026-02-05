@@ -312,11 +312,11 @@ class TestListCompetencies:
 
         result = await list_competencies()
 
-        # Verify all 9 competencies are listed
+        # Verify all 9 competencies are listed (canonical names from TD Rubric)
         assert "Collaboration" in result
-        assert "Communication & Storytelling" in result
+        assert "Storytelling / Communication" in result
         assert "Reflexivity" in result
-        assert "Empathy & Perspective-Taking" in result
+        assert "Empathy / Perspective Taking" in result
         assert "Knowledge-Based Reasoning" in result
         assert "Futures Thinking" in result
         assert "Systems Thinking" in result
