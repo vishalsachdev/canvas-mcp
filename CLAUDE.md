@@ -217,6 +217,25 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - **Generate reports**: `generate_peer_review_feedback_report(course_id, assignment_id)` - Create instructor-ready reports
 - **Take action**: Use problematic review lists to provide targeted feedback or follow-up
 
+## Transdisciplinary Discovery Workflow
+Discover cross-course collaboration opportunities based on student overlap, module timing, and learning outcomes.
+
+- **Discover opportunities**: `discover_opportunities(course_id)` - Find student overlap, concurrent modules, and extract learning outcomes
+- **Deep dive on pairs**: `get_crossover_details(course_a, module_a, course_b, module_b)` - Detailed comparison of specific module pairs
+- **Reference competencies**: `list_competencies()` - Franklin's 9 Transdisciplinary Competencies for mapping opportunities
+
+**Key features:**
+- Parses week ranges from module names (e.g., "Week 8-15: Research Methods")
+- Extracts learning outcomes from Canvas pages using pattern matching
+- FERPA audit logging for cross-course student queries
+- Bounded concurrency (max 10 concurrent requests) for Canvas rate limits
+- Returns structured data for agent analysis (agent-native design)
+
+**Example queries:**
+- "Find transdisciplinary opportunities for ENG 100"
+- "What courses share students with ENV 200 and have concurrent modules?"
+- "Show me Franklin's competencies"
+
 ## Canvas API Specifics
 - Base URL from `CANVAS_API_URL` environment variable
 - Authentication via Bearer token in `CANVAS_API_TOKEN`
@@ -287,6 +306,7 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 ## Current Focus
 - [x] Release v1.0.6 with module and page tools
 - [x] Add `update_assignment` tool (completes CRUD for assignments)
+- [x] Transdisciplinary discovery tools (3 tools, 29 tests)
 
 ## Roadmap
 - [x] Module management tools (7 tools, 36 tests)
@@ -294,6 +314,8 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 - [x] TDD enforcement in development workflow
 - [x] Release v1.0.6
 - [x] `update_assignment` tool (9 tests)
+- [x] Transdisciplinary discovery tools (3 tools, 29 tests)
+- [ ] Student risk dashboard tools (institutional analytics)
 
 ## Backlog
 - [ ] Module templates (pre-configured module structures)
@@ -308,6 +330,17 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 
 > **Note**: Keep only the most recent 2-3 entries. Archive older entries to `docs/session_history.md` if needed.
 
+### 2026-02-05
+- **Transdisciplinary discovery tools**: Port of TD Serendipity Generator to Python MCP (`feat/transdisciplinary-discovery` branch)
+  - 3 new tools: `discover_opportunities`, `get_crossover_details`, `list_competencies`
+  - Franklin's 9 Transdisciplinary Competencies mapping
+  - Week range parsing from module names (Week 8-15, Weeks 1+2, etc.)
+  - Learning outcomes extraction from Canvas pages
+  - FERPA audit logging for cross-course queries
+  - Bounded concurrency (asyncio.Semaphore) for rate limits
+  - 29 tests in `tests/tools/test_transdisciplinary.py`
+- **Core refactoring**: Extracted `strip_html_tags` to `core/text_utils.py`
+
 ### 2026-02-04
 - **De-anonymization feature**: Added FERPA-compliant automatic de-anonymization (`feat/deanonymization` branch)
   - New config: `CANVAS_DEANONYMIZE_OUTPUT=true/false`
@@ -318,6 +351,3 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 
 ### 2026-02-01
 - **Smithery Publishing** (blocked): Requires HTTP transport or "Hosted" access (private beta). Built TypeScript wrapper at `smithery-wrapper/` for future use. Focus on MCP Registry + PyPI for now.
-
-### 2026-01-25
-- Added `update_assignment` tool with 9 tests following TDD pattern

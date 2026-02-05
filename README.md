@@ -17,7 +17,7 @@ This repository contains a Model Context Protocol (MCP) server implementation fo
   See CLAUDE.md "Documentation Maintenance" for full guidelines.
 -->
 
-Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are organized by user type:
+Canvas MCP provides **83+ tools** for interacting with Canvas LMS. Tools are organized by user type:
 
 <details>
 <summary><strong>Student Tools</strong> (click to expand)</summary>
@@ -57,6 +57,10 @@ Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are org
 | `bulk_update_pages` | Batch page operations | "Unpublish all draft pages" |
 | **File Management** | | |
 | `upload_course_file` | Upload local file to Canvas | "Upload syllabus.pdf to the course" |
+| **Transdisciplinary Discovery** | | |
+| `discover_opportunities` | Find cross-course collaboration opportunities | "Find transdisciplinary opportunities for ENG 100" |
+| `get_crossover_details` | Deep dive on specific module pairs | "Compare Week 3 modules in ENG 100 and ENV 200" |
+| `list_competencies` | Franklin's 9 Transdisciplinary Competencies | "Show me the competencies" |
 
 </details>
 
