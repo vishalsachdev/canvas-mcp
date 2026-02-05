@@ -291,6 +291,104 @@ def build_rubric_assessment_form_data(
     return form_data
 
 
+def build_rubric_form_data(
+    title: str,
+    criteria: dict[str, Any],
+    free_form_criterion_comments: bool = True,
+    association_id: str | int | None = None,
+    association_type: str = "Course",
+    use_for_grading: bool = False,
+    purpose: str = "grading"
+) -> dict[str, str]:
+    """Convert rubric data to Canvas form-encoded format with bracket notation.
+
+    Canvas API expects rubric data as form-encoded parameters with bracket notation.
+    This is the same pattern used by grade_with_rubric which works successfully.
+
+    Args:
+        title: The rubric title
+        criteria: Dict of criteria in the format:
+            {"1": {"description": "...", "points": 10, "ratings": {...}}}
+        free_form_criterion_comments: Allow free-form comments on criteria
+        association_id: Optional ID to associate rubric with
+        association_type: Type of association (Assignment, Course, Account)
+        use_for_grading: Whether to use rubric for grade calculation
+        purpose: Purpose of the association (grading, bookmark)
+
+    Returns:
+        Flattened dict with Canvas bracket notation keys
+
+    Example:
+        Input: title="My Rubric", criteria={"1": {"description": "Quality", "points": 10}}
+        Output: {
+            "rubric[title]": "My Rubric",
+            "rubric[criteria][0][description]": "Quality",
+            "rubric[criteria][0][points]": "10",
+            ...
+        }
+    """
+    form_data: dict[str, str] = {}
+
+    # Rubric metadata
+    form_data["rubric[title]"] = title
+    form_data["rubric[free_form_criterion_comments]"] = str(free_form_criterion_comments).lower()
+
+    # Process criteria - Canvas uses 0-indexed array notation
+    for criterion_index, (_criterion_key, criterion_data) in enumerate(criteria.items()):
+        criterion_prefix = f"rubric[criteria][{criterion_index}]"
+
+        # Required fields
+        form_data[f"{criterion_prefix}[description]"] = criterion_data.get("description", "")
+        form_data[f"{criterion_prefix}[points]"] = str(criterion_data.get("points", 0))
+
+        # Optional long description
+        if criterion_data.get("long_description"):
+            form_data[f"{criterion_prefix}[long_description]"] = criterion_data["long_description"]
+
+        # Process ratings if present
+        ratings = criterion_data.get("ratings", {})
+        if ratings:
+            # Handle both dict and list formats
+            if isinstance(ratings, dict):
+                # Sort by points descending for consistent ordering
+                rating_items = sorted(
+                    ratings.items(),
+                    key=lambda item: float(item[1].get("points", 0)),
+                    reverse=True
+                )
+            elif isinstance(ratings, list):
+                # Already a list, sort by points
+                rating_items = sorted(
+                    enumerate(ratings),
+                    key=lambda item: float(item[1].get("points", 0)),
+                    reverse=True
+                )
+            else:
+                rating_items = []
+
+            for rating_index, (_, rating_data) in enumerate(rating_items):
+                rating_prefix = f"{criterion_prefix}[ratings][{rating_index}]"
+                form_data[f"{rating_prefix}[description]"] = rating_data.get("description", "")
+                form_data[f"{rating_prefix}[points]"] = str(rating_data.get("points", 0))
+
+                if rating_data.get("long_description"):
+                    form_data[f"{rating_prefix}[long_description]"] = rating_data["long_description"]
+
+    # Association data (required for creation)
+    if association_id is not None:
+        form_data["rubric_association[association_id]"] = str(association_id)
+        form_data["rubric_association[association_type]"] = association_type
+        form_data["rubric_association[use_for_grading]"] = str(use_for_grading).lower()
+        form_data["rubric_association[purpose]"] = purpose
+    else:
+        # When no specific association, associate with the course itself
+        # This is required - Canvas needs an association to create a rubric
+        form_data["rubric_association[association_type]"] = "Course"
+        form_data["rubric_association[purpose]"] = "bookmark"
+
+    return form_data
+
+
 def register_rubric_tools(mcp: FastMCP) -> None:
     """Register all rubric-related MCP tools."""
 
@@ -891,48 +989,46 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                           purpose: str = "grading") -> str:
         """Create a new rubric in the specified course.
 
-        ⚠️ DISABLED: This tool is currently disabled due to a known Canvas API limitation.
-        The Canvas rubric creation API consistently returns 500 Internal Server Error.
-        See: https://community.canvaslms.com/t5/Canvas-Question-Forum/Uploading-rubric-from-CSV-sheet/m-p/602222
-
-        WORKAROUND: Create rubrics via the Canvas web UI:
-        1. Go to Course → Assignments → Create/Edit Assignment
-        2. Click "+ Rubric" at the bottom
-        3. Use "Find a Rubric" to copy rubrics between courses
+        Creates a rubric with the specified criteria and optionally associates it
+        with an assignment for grading. Uses form-data encoding with bracket notation
+        which is required by the Canvas API.
 
         Args:
             course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
             title: The title of the rubric
-            criteria: JSON string or dictionary containing rubric criteria structure
+            criteria: JSON string or dictionary containing rubric criteria structure.
+                      Format: {"1": {"description": "...", "points": 10, "ratings": {...}}}
             free_form_criterion_comments: Allow free-form comments on rubric criteria (default: True)
-            association_id: Optional ID to associate rubric with (assignment, course, etc.)
-            association_type: Type of association (Assignment, Course, Account) (default: Assignment)
+            association_id: Optional ID to associate rubric with (assignment ID, etc.)
+                           If not provided, rubric is bookmarked to the course for later use.
+            association_type: Type of association: "Assignment", "Course", or "Account" (default: Assignment)
             use_for_grading: Whether to use rubric for grade calculation (default: False)
-            purpose: Purpose of the rubric association (grading, bookmark) (default: grading)
+            purpose: Purpose of the rubric association: "grading" or "bookmark" (default: grading)
+
+        Example criteria format:
+            {
+              "1": {
+                "description": "Content Quality",
+                "long_description": "Evaluates the depth and accuracy of content",
+                "points": 10,
+                "ratings": {
+                  "1": {"description": "Excellent", "points": 10},
+                  "2": {"description": "Good", "points": 7},
+                  "3": {"description": "Needs Work", "points": 3},
+                  "4": {"description": "Unsatisfactory", "points": 0}
+                }
+              },
+              "2": {
+                "description": "Organization",
+                "points": 5,
+                "ratings": {
+                  "1": {"description": "Well organized", "points": 5},
+                  "2": {"description": "Adequate", "points": 2},
+                  "3": {"description": "Disorganized", "points": 0}
+                }
+              }
+            }
         """
-        # DISABLED: Canvas API returns 500 Internal Server Error for rubric creation
-        # This is a known Canvas API limitation that has existed for years.
-        # See: https://community.canvaslms.com/t5/Canvas-Question-Forum/Uploading-rubric-from-CSV-sheet/m-p/602222
-        return """⚠️ TOOL DISABLED: create_rubric is currently unavailable.
-
-The Canvas rubric creation API has a known bug that returns "500 Internal Server Error"
-for all rubric creation requests. This is a Canvas API limitation, not an issue with this tool.
-
-WORKAROUND - Create rubrics via the Canvas web UI:
-1. Go to Course → Assignments → Create/Edit an Assignment
-2. Scroll down and click "+ Rubric"
-3. Build your rubric using the web interface
-4. To copy rubrics between courses: Click "Find a Rubric" to search other courses
-
-WORKING ALTERNATIVES:
-- Use `list_all_rubrics` to see existing rubrics in a course
-- Use `associate_rubric_with_assignment` to link existing rubrics to assignments
-- Use `grade_with_rubric` or `bulk_grade_submissions` to grade using existing rubrics
-
-Reference: https://community.canvaslms.com/t5/Canvas-Question-Forum/Uploading-rubric-from-CSV-sheet/m-p/602222"""
-
-        # Original implementation preserved below for when Canvas fixes their API
-        # -------------------------------------------------------------------------
         course_id = await get_course_id(course_identifier)
 
         # Validate and parse criteria
@@ -943,7 +1039,7 @@ Reference: https://community.canvaslms.com/t5/Canvas-Question-Forum/Uploading-ru
             elif isinstance(criteria, dict):
                 # If it's already a dict, validate it directly
                 parsed_criteria = criteria
-                # Still run validation to ensure structure is correct (but don't fail if it errors)
+                # Still run validation to ensure structure is correct
                 try:
                     validate_rubric_criteria(json.dumps(criteria))
                 except ValueError:
@@ -952,46 +1048,41 @@ Reference: https://community.canvaslms.com/t5/Canvas-Question-Forum/Uploading-ru
             else:
                 return "Error: criteria must be a JSON string or dictionary object"
 
+            # Build criteria structure for the form data
             formatted_criteria = build_criteria_structure(parsed_criteria)
         except ValueError as e:
             # If validation fails, provide detailed error and suggest a simpler format
             error_msg = f"Error validating criteria: {str(e)}\n\n"
-            error_msg += "=== DEBUGGING INFORMATION ===\n"
-            error_msg += f"Criteria type: {type(criteria)}\n"
-            if isinstance(criteria, str):
-                error_msg += f"Criteria length: {len(criteria)}\n"
-                error_msg += f"First 200 chars: {repr(criteria[:200])}\n"
-            error_msg += "\n=== SUGGESTED SIMPLE FORMAT ===\n"
-            error_msg += "Try using this simple format:\n"
-            error_msg += '{"1": {"description": "Test Criterion", "points": 5.0, "ratings": [{"description": "Good", "points": 5.0}, {"description": "Poor", "points": 0.0}]}}'
+            error_msg += "=== SUGGESTED FORMAT ===\n"
+            error_msg += "Use this format for criteria:\n"
+            error_msg += '{"1": {"description": "Criterion Name", "points": 10, '
+            error_msg += '"ratings": {"1": {"description": "Excellent", "points": 10}, '
+            error_msg += '"2": {"description": "Good", "points": 5}, '
+            error_msg += '"3": {"description": "Poor", "points": 0}}}}'
             return error_msg
 
-        # Build rubric data
-        rubric_data = {
-            "title": title,
-            "free_form_criterion_comments": free_form_criterion_comments,
-            "criteria": formatted_criteria
-        }
+        # Determine association - if no specific ID, associate with the course as a bookmark
+        effective_association_id = association_id if association_id else course_id
+        effective_association_type = association_type if association_id else "Course"
+        effective_purpose = purpose if association_id else "bookmark"
 
-        # Build request data
-        request_data = {
-            "rubric": rubric_data
-        }
+        # Build form data with bracket notation (required by Canvas API)
+        form_data = build_rubric_form_data(
+            title=title,
+            criteria=formatted_criteria,
+            free_form_criterion_comments=free_form_criterion_comments,
+            association_id=effective_association_id,
+            association_type=effective_association_type,
+            use_for_grading=use_for_grading,
+            purpose=effective_purpose
+        )
 
-        # Add association if provided
-        if association_id:
-            request_data["rubric_association"] = {
-                "association_id": str(association_id),
-                "association_type": association_type,
-                "use_for_grading": use_for_grading,
-                "purpose": purpose
-            }
-
-        # Make the API request
+        # Make the API request with form data encoding
         response = await make_canvas_request(
             "post",
             f"/courses/{course_id}/rubrics",
-            data=request_data
+            data=form_data,
+            use_form_data=True
         )
 
         if "error" in response:
