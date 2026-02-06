@@ -3,6 +3,7 @@
 import sys
 
 from .client import fetch_all_paginated_results, make_canvas_request
+from .config import get_config
 from .validation import validate_params
 
 # Global cache for course codes to IDs
@@ -10,12 +11,26 @@ course_code_to_id_cache: dict[str, str] = {}
 id_to_course_code_cache: dict[str, str] = {}
 
 
-async def refresh_course_cache() -> bool:
-    """Refresh the global course cache."""
+async def refresh_course_cache(include_all_terms: bool = False) -> bool:
+    """Refresh the global course cache.
+
+    Args:
+        include_all_terms: If True, include courses from all enrollment terms.
+                          If False (default), filter by DEFAULT_TERM_ID if set.
+    """
     global course_code_to_id_cache, id_to_course_code_cache
 
-    print("Refreshing course cache...", file=sys.stderr)
-    courses = await fetch_all_paginated_results("/courses", {"per_page": 100})
+    config = get_config()
+    params = {"per_page": 100}
+
+    # Apply term filtering from config unless overridden
+    if not include_all_terms and config.default_term_id:
+        params["enrollment_term_id"] = config.default_term_id
+        print(f"Refreshing course cache (term {config.default_term_id})...", file=sys.stderr)
+    else:
+        print("Refreshing course cache (all terms)...", file=sys.stderr)
+
+    courses = await fetch_all_paginated_results("/courses", params)
 
     if isinstance(courses, dict) and "error" in courses:
         print(f"Error building course cache: {courses.get('error')}", file=sys.stderr)

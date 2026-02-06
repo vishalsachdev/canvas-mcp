@@ -25,7 +25,8 @@ def register_course_tools(mcp: FastMCP):
     async def list_courses(
         include_concluded: bool = False,
         include_all: bool = False,
-        term_id: Optional[int] = None
+        term_id: Optional[int] = None,
+        include_all_terms: bool = False
     ) -> str:
         """List courses for the authenticated user.
 
@@ -33,11 +34,16 @@ def register_course_tools(mcp: FastMCP):
             include_concluded: Include completed/concluded courses
             include_all: Include courses where you're a student (not just teacher)
             term_id: Filter to a specific enrollment term. Defaults to DEFAULT_TERM_ID
-                     from config if set. Pass 0 to see all terms.
+                     from config if set.
+            include_all_terms: If True, include courses from all enrollment terms
+                             (overrides term_id and DEFAULT_TERM_ID).
         """
         # Get config for default term
         config = get_config()
-        effective_term_id = term_id if term_id is not None else (config.default_term_id or None)
+        if include_all_terms:
+            effective_term_id = None
+        else:
+            effective_term_id = term_id if term_id is not None else (config.default_term_id or None)
 
         params = {
             "include[]": ["term", "teachers", "total_students"],
@@ -60,6 +66,22 @@ def register_course_tools(mcp: FastMCP):
 
         if isinstance(courses, dict) and "error" in courses:
             return f"Error fetching courses: {courses['error']}"
+
+        # Post-filter to strictly enforce term limits
+        # The Canvas API "enrollment_term_id" filter is sometimes loose
+        if effective_term_id:
+            # Always include the requested term
+            allowed_terms = {int(effective_term_id)}
+
+            # If falling back to config default (and no explicit term requested),
+            # also include the system Default Term (1) which holds ongoing content
+            if term_id is None:
+                allowed_terms.add(1)
+
+            courses = [
+                c for c in courses
+                if c.get("enrollment_term_id") and int(c.get("enrollment_term_id")) in allowed_terms
+            ]
 
         if not courses:
             term_note = f" for term {effective_term_id}" if effective_term_id else ""

@@ -255,6 +255,12 @@ async def _find_student_overlap(
             user_enrollments = task.result()
             if isinstance(user_enrollments, list):
                 for enrollment in user_enrollments:
+                    # Strict term filtering
+                    if term_id:
+                        enc_term = enrollment.get("course_enrollment_term_id") or enrollment.get("enrollment_term_id")
+                        if enc_term and int(enc_term) != int(term_id):
+                            continue
+
                     cid = enrollment.get("course_id")
                     if cid and cid != course_id:
                         if cid not in other_courses:
@@ -450,6 +456,7 @@ def register_transdisciplinary_tools(mcp: FastMCP):
         sample_size: int = 10,
         term_id: int | None = None,
         min_overlap: int = 3,
+        include_all_terms: bool = False,
     ) -> str:
         """Gather transdisciplinary discovery data for a course.
 
@@ -461,6 +468,8 @@ def register_transdisciplinary_tools(mcp: FastMCP):
             sample_size: Number of students to sample for overlap detection (default 10, max 25)
             term_id: Filter to specific term (defaults to current term from config)
             min_overlap: Minimum shared students to include a course (default 3)
+            include_all_terms: If True, include courses from all enrollment terms
+                             (overrides term_id and DEFAULT_TERM_ID).
 
         Returns:
             Structured data including:
@@ -480,9 +489,12 @@ def register_transdisciplinary_tools(mcp: FastMCP):
         # Enforce maximum sample size
         effective_sample_size = min(sample_size, MAX_SAMPLE_SIZE)
 
-        # Get effective term ID
+        # Get effective term ID (unless include_all_terms is set)
         config = get_config()
-        effective_term_id = term_id if term_id is not None else config.default_term_id
+        if include_all_terms:
+            effective_term_id = None
+        else:
+            effective_term_id = term_id if term_id is not None else config.default_term_id
 
         results = {
             "status": "success",

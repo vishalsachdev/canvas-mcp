@@ -11,6 +11,7 @@ from mcp.server.fastmcp import FastMCP
 
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
+from ..core.config import get_config
 from ..core.dates import format_date, parse_date
 from ..core.validation import validate_params
 
@@ -94,12 +95,17 @@ def register_student_tools(mcp: FastMCP):
 
     @mcp.tool()
     @validate_params
-    async def get_my_submission_status(course_identifier: str | int | None = None) -> str:
+    async def get_my_submission_status(
+        course_identifier: str | int | None = None,
+        include_all_terms: bool = False
+    ) -> str:
         """Get your submission status for assignments.
 
         Args:
             course_identifier: Optional course code or ID to filter by specific course.
                              If not provided, shows all courses.
+            include_all_terms: If True, include courses from all enrollment terms.
+                             If False (default), filter by DEFAULT_TERM_ID if set.
 
         Returns your submission status across assignments, highlighting missing submissions.
         """
@@ -120,13 +126,28 @@ def register_student_tools(mcp: FastMCP):
 
         else:
             # Get all courses and their assignments
-            courses = await fetch_all_paginated_results(
-                "/courses",
-                params={"enrollment_state": "active", "per_page": 100}
-            )
+            config = get_config()
+            params = {"enrollment_state": "active", "per_page": 100}
+
+            # Apply term filtering from config unless overridden
+            if not include_all_terms and config.default_term_id:
+                params["enrollment_term_id"] = config.default_term_id
+
+            courses = await fetch_all_paginated_results("/courses", params)
 
             if isinstance(courses, dict) and "error" in courses:
                 return f"Error fetching courses: {courses['error']}"
+
+            # Post-filter to strictly enforce term limits
+            # Fall back to default term logic if not including all terms
+            if not include_all_terms and config.default_term_id:
+                target_term = config.default_term_id
+                allowed_terms = {int(target_term), 1}  # Always include default term (1)
+                
+                courses = [
+                     c for c in courses
+                     if c.get("enrollment_term_id") and int(c.get("enrollment_term_id")) in allowed_terms
+                ]
 
             output_lines = ["Submission Status (All Courses):\n"]
             all_assignments = []
@@ -204,23 +225,43 @@ def register_student_tools(mcp: FastMCP):
         return "\n".join(output_lines)
 
     @mcp.tool()
-    async def get_my_course_grades() -> str:
+    @validate_params
+    async def get_my_course_grades(include_all_terms: bool = False) -> str:
         """Get your current grades across all enrolled courses.
+
+        Args:
+            include_all_terms: If True, include courses from all enrollment terms.
+                             If False (default), filter by DEFAULT_TERM_ID if set.
 
         Returns your current grade, enrollment status, and recent performance
         for each active course.
         """
-        courses = await fetch_all_paginated_results(
-            "/courses",
-            params={
-                "enrollment_state": "active",
-                "include[]": ["total_scores", "current_grading_period_scores"],
-                "per_page": 100
-            }
-        )
+        config = get_config()
+        params = {
+            "enrollment_state": "active",
+            "include[]": ["total_scores", "current_grading_period_scores"],
+            "per_page": 100
+        }
+
+        # Apply term filtering from config unless overridden
+        if not include_all_terms and config.default_term_id:
+            params["enrollment_term_id"] = config.default_term_id
+
+        courses = await fetch_all_paginated_results("/courses", params)
 
         if isinstance(courses, dict) and "error" in courses:
             return f"Error fetching courses: {courses['error']}"
+
+        # Post-filter to strictly enforce term limits
+        # Fall back to default term logic if not including all terms
+        if not include_all_terms and config.default_term_id:
+            target_term = config.default_term_id
+            allowed_terms = {int(target_term), 1}  # Always include default term (1)
+            
+            courses = [
+                 c for c in courses
+                 if c.get("enrollment_term_id") and int(c.get("enrollment_term_id")) in allowed_terms
+            ]
 
         if not courses:
             return "No active course enrollments found."
@@ -302,11 +343,16 @@ def register_student_tools(mcp: FastMCP):
 
     @mcp.tool()
     @validate_params
-    async def get_my_peer_reviews_todo(course_identifier: str | int | None = None) -> str:
+    async def get_my_peer_reviews_todo(
+        course_identifier: str | int | None = None,
+        include_all_terms: bool = False
+    ) -> str:
         """Get peer reviews you need to complete.
 
         Args:
             course_identifier: Optional course code or ID to filter by specific course
+            include_all_terms: If True, include courses from all enrollment terms.
+                             If False (default), filter by DEFAULT_TERM_ID if set.
 
         Returns list of peer reviews assigned to you that need completion.
         """
@@ -314,12 +360,27 @@ def register_student_tools(mcp: FastMCP):
             course_ids = [await get_course_id(course_identifier)]
         else:
             # Get all active courses
-            courses = await fetch_all_paginated_results(
-                "/courses",
-                params={"enrollment_state": "active", "per_page": 100}
-            )
+            config = get_config()
+            params = {"enrollment_state": "active", "per_page": 100}
+
+            # Apply term filtering from config unless overridden
+            if not include_all_terms and config.default_term_id:
+                params["enrollment_term_id"] = config.default_term_id
+
+            courses = await fetch_all_paginated_results("/courses", params)
             if isinstance(courses, dict) and "error" in courses:
                 return f"Error fetching courses: {courses['error']}"
+
+            # Post-filter to strictly enforce term limits
+            # Fall back to default term logic if not including all terms
+            if not include_all_terms and config.default_term_id:
+                target_term = config.default_term_id
+                allowed_terms = {int(target_term), 1}  # Always include default term (1)
+                
+                courses = [
+                     c for c in courses
+                     if c.get("enrollment_term_id") and int(c.get("enrollment_term_id")) in allowed_terms
+                ]
 
             course_ids = [course.get("id") for course in courses if course.get("id")]
 
