@@ -465,3 +465,62 @@ def register_account_tools(mcp: FastMCP):
             )
 
         return f"Search Results for '{search_term}' ({len(courses)} found):\n\n" + "\n".join(results)
+
+    @mcp.tool()
+    @validate_params
+    async def list_user_enrollments(
+        user_id: int,
+        include_concluded: bool = True,
+    ) -> str:
+        """List all course enrollments for a specific user across all terms.
+
+        Requires admin access. Returns every course the user has been enrolled in,
+        with term info for temporal ordering. Useful for longitudinal analysis.
+
+        Args:
+            user_id: The Canvas user ID
+            include_concluded: Include completed/concluded courses (default: True)
+        """
+        states = ["active"]
+        if include_concluded:
+            states.append("completed")
+
+        params = {
+            "include[]": "term",
+            "state[]": states,
+            "per_page": 100,
+        }
+
+        courses = await fetch_all_paginated_results(
+            f"/users/{user_id}/courses", params
+        )
+
+        if isinstance(courses, dict) and "error" in courses:
+            return f"Error fetching enrollments for user {user_id}: {courses['error']}"
+
+        if not courses:
+            return f"No enrollments found for user {user_id}."
+
+        # Sort by term start date (most recent first)
+        courses.sort(
+            key=lambda c: c.get("term", {}).get("start_at", "") or "",
+            reverse=True,
+        )
+
+        lines = [f"Enrollments for User {user_id} ({len(courses)} courses):\n"]
+        for course in courses:
+            course_id = course.get("id")
+            name = course.get("name", "Unnamed")
+            code = course.get("course_code", "")
+            term = course.get("term", {})
+            term_name = term.get("name", "Unknown Term")
+            state = course.get("workflow_state", "unknown")
+            lines.append(
+                f"ID: {course_id}\n"
+                f"Name: {name}\n"
+                f"Code: {code}\n"
+                f"Term: {term_name}\n"
+                f"State: {state}\n"
+            )
+
+        return "\n".join(lines)
