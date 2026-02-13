@@ -1,6 +1,6 @@
 """Course-related MCP tools for Canvas API."""
 
-from typing import Optional
+from typing import Optional, Union
 
 from mcp.server.fastmcp import FastMCP
 
@@ -12,7 +12,7 @@ from ..core.cache import (
 )
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.config import get_config
-from ..core.dates import format_date
+from ..core.dates import format_date, parse_date
 from ..core.text_utils import strip_html_tags
 from ..core.validation import validate_params
 
@@ -279,3 +279,95 @@ def register_course_tools(mcp: FastMCP):
         result = f"Content Overview for Course {course_display}:" + "\n".join(overview_sections)
 
         return result
+
+    @mcp.tool()
+    @validate_params
+    async def update_course(
+        course_identifier: Union[str, int],
+        name: Optional[str] = None,
+        course_code: Optional[str] = None,
+        syllabus_body: Optional[str] = None,
+        default_view: Optional[str] = None,
+        start_at: Optional[str] = None,
+        end_at: Optional[str] = None,
+        is_public: Optional[bool] = None,
+        license: Optional[str] = None,
+    ) -> str:
+        """Update a course's settings, including syllabus content.
+
+        Args:
+            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            name: New name for the course
+            course_code: New short code for the course
+            syllabus_body: HTML content for the course syllabus page
+            default_view: Default landing page: "feed", "wiki", "modules", "syllabus", "assignments"
+            start_at: Course start date in ISO 8601 format (e.g., "2026-01-26T00:00:00Z")
+            end_at: Course end date in ISO 8601 format
+            is_public: Whether the course is publicly visible
+            license: Course content license (e.g., "cc_by_nc_sa", "public_domain")
+        """
+        course_id = await get_course_id(course_identifier)
+
+        course_params = {}
+
+        if name is not None:
+            course_params["name"] = name
+        if course_code is not None:
+            course_params["course_code"] = course_code
+        if syllabus_body is not None:
+            course_params["syllabus_body"] = syllabus_body
+        if default_view is not None:
+            valid_views = ["feed", "wiki", "modules", "syllabus", "assignments"]
+            if default_view not in valid_views:
+                return f"Error: default_view must be one of: {', '.join(valid_views)}"
+            course_params["default_view"] = default_view
+        if start_at is not None:
+            parsed = parse_date(start_at)
+            if parsed:
+                course_params["start_at"] = parsed.isoformat()
+            else:
+                return f"Error: Could not parse start_at date: {start_at}"
+        if end_at is not None:
+            parsed = parse_date(end_at)
+            if parsed:
+                course_params["end_at"] = parsed.isoformat()
+            else:
+                return f"Error: Could not parse end_at date: {end_at}"
+        if is_public is not None:
+            course_params["is_public"] = is_public
+        if license is not None:
+            course_params["license"] = license
+
+        if not course_params:
+            return "Error: No fields provided to update. Specify at least one field."
+
+        update_data = {"course": course_params}
+
+        response = await make_canvas_request(
+            "put",
+            f"/courses/{course_id}",
+            data=update_data
+        )
+
+        if isinstance(response, dict) and "error" in response:
+            return f"Error updating course: {response['error']}"
+
+        # Build summary of what was updated
+        updated_fields = list(course_params.keys())
+        field_summary = ", ".join(updated_fields)
+
+        # Special handling for syllabus_body — show length instead of content
+        if "syllabus_body" in course_params:
+            syllabus_len = len(course_params["syllabus_body"])
+            field_summary = field_summary.replace(
+                "syllabus_body", f"syllabus_body ({syllabus_len} chars)"
+            )
+
+        course_display = await get_course_code(course_id) or course_identifier
+        course_name = response.get("name", "Unknown")
+
+        return (
+            f"✅ Course updated successfully!\n\n"
+            f"Course: {course_display} — {course_name}\n"
+            f"Updated fields: {field_summary}\n"
+        )
