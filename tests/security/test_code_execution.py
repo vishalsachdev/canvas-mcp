@@ -34,31 +34,39 @@ class TestSandboxSecurity:
         # This would use the execute_typescript tool
         # Expected: Access denied or error
     
-    @pytest.mark.skip(reason="Network restrictions not yet implemented")
     def test_network_access_restriction(self):
-        """TC-3.1.2: Attempt network access to unauthorized hosts."""
-        # Test code that tries to connect to external IP
-        malicious_code = """
-        import https from 'https';
-        https.get('https://evil.com', (res) => {
-            console.log('Connected!');
-        });
-        """
-        
-        # Execute and verify network access blocked
-        # Expected: Connection refused or timeout
-    
-    @pytest.mark.skip(reason="Credential protection needs enhancement")
+        """TC-3.1.2: Verify network guard blocks unauthorized hosts."""
+        from canvas_mcp.tools.code_execution import _write_network_guard
+
+        # Generate the guard and verify it intercepts https.request
+        guard_path = _write_network_guard(["allowed.com"], Path(tempfile.mkdtemp()))
+        try:
+            content = guard_path.read_text()
+            assert "enforce" in content
+            assert "SANDBOX_NETWORK_BLOCKED" in content
+            assert "allowed.com" in content
+        finally:
+            guard_path.unlink()
+
     def test_credential_theft_prevention(self):
-        """TC-3.1.3: Attempt credential theft."""
-        # Test code that tries to access environment variables
-        malicious_code = """
-        const token = process.env.CANVAS_API_TOKEN;
-        console.log('Token:', token);
-        """
-        
-        # Execute and verify credentials not accessible
-        # Expected: Undefined or access denied
+        """TC-3.1.3: Verify env filtering prevents credential leakage."""
+        from canvas_mcp.tools.code_execution import _build_safe_env
+        from canvas_mcp.core.config import Config
+
+        with patch.dict(os.environ, {
+            "CANVAS_API_TOKEN": "secret_token",
+            "CANVAS_API_URL": "https://x.com/api/v1",
+            "AWS_SECRET_ACCESS_KEY": "aws_secret",
+            "DATABASE_PASSWORD": "db_pass",
+            "PATH": "/usr/bin",
+        }):
+            config = Config()
+            env = _build_safe_env(config)
+            # Canvas creds are explicitly added (needed for execution)
+            assert env["CANVAS_API_TOKEN"] == "secret_token"
+            # Other secrets must NOT be present
+            assert "AWS_SECRET_ACCESS_KEY" not in env
+            assert "DATABASE_PASSWORD" not in env
     
     def test_resource_exhaustion_timeout(self):
         """TC-3.1.4: Test timeout protection for infinite loops."""
@@ -73,19 +81,17 @@ class TestSandboxSecurity:
         # Expected: Timeout after configured limit (120s default)
         # Verify process is terminated
     
-    @pytest.mark.skip(reason="Memory limits not yet implemented")
     def test_memory_exhaustion_protection(self):
-        """TC-3.1.4: Test memory limit enforcement."""
-        # Test code that allocates excessive memory
-        memory_bomb_code = """
-        const arr = [];
-        while (true) {
-            arr.push(new Array(1000000).fill('x'));
-        }
-        """
-        
-        # Execute and verify memory limit enforced
-        # Expected: Out of memory error or process killed
+        """TC-3.1.4: Verify memory limit is set in Config defaults."""
+        from canvas_mcp.core.config import Config
+
+        with patch.dict(os.environ, {
+            "CANVAS_API_TOKEN": "test",
+            "CANVAS_API_URL": "https://x.com/api/v1",
+        }):
+            config = Config()
+            # Default memory limit should be 512 MB (non-zero)
+            assert config.ts_sandbox_memory_limit_mb == 512
     
     @pytest.mark.skip(reason="Command execution protection needed")
     def test_shell_execution_blocked(self):
@@ -125,18 +131,64 @@ class TestSandboxSecurity:
 class TestCodeExecutionAudit:
     """Test code execution audit logging."""
     
-    @pytest.mark.skip(reason="Code execution logging not yet implemented")
-    def test_code_execution_logged(self):
+    def test_code_execution_logged(self, capsys):
         """TC-3.2.1: Verify code execution is logged."""
-        # Test that code execution creates audit log entry
-        # Log should contain: timestamp, code hash, user, result
-        pass
-    
-    @pytest.mark.skip(reason="Code execution logging not yet implemented")
-    def test_code_execution_errors_logged(self):
+        import json as _json
+        import tempfile as _tempfile
+        from canvas_mcp.core.audit import (
+            init_audit_logging, log_code_execution, reset_audit_state,
+        )
+        from canvas_mcp.core import config as cfg_mod
+
+        reset_audit_state()
+        with patch.dict(os.environ, {
+            "LOG_ACCESS_EVENTS": "false",
+            "LOG_EXECUTION_EVENTS": "true",
+            "CANVAS_API_TOKEN": "test",
+            "AUDIT_LOG_DIR": _tempfile.mkdtemp(),
+        }):
+            old = cfg_mod._config
+            cfg_mod._config = None
+            try:
+                init_audit_logging()
+                log_code_execution("abcdef12", "local", "success", 1.5)
+                captured = capsys.readouterr()
+                event = _json.loads(captured.err.strip().split("\n")[-1])
+                assert event["event_type"] == "code_execution"
+                assert event["code_hash"] == "abcdef12"
+                assert "timestamp" in event
+            finally:
+                cfg_mod._config = old
+                reset_audit_state()
+
+    def test_code_execution_errors_logged(self, capsys):
         """TC-3.2.2: Verify code execution errors are logged."""
-        # Test that failed executions are logged
-        pass
+        import json as _json
+        import tempfile as _tempfile
+        from canvas_mcp.core.audit import (
+            init_audit_logging, log_code_execution, reset_audit_state,
+        )
+        from canvas_mcp.core import config as cfg_mod
+
+        reset_audit_state()
+        with patch.dict(os.environ, {
+            "LOG_ACCESS_EVENTS": "false",
+            "LOG_EXECUTION_EVENTS": "true",
+            "CANVAS_API_TOKEN": "test",
+            "AUDIT_LOG_DIR": _tempfile.mkdtemp(),
+        }):
+            old = cfg_mod._config
+            cfg_mod._config = None
+            try:
+                init_audit_logging()
+                log_code_execution("deadbeef", "local", "error", 0.5, error="segfault")
+                captured = capsys.readouterr()
+                event = _json.loads(captured.err.strip().split("\n")[-1])
+                assert event["status"] == "error"
+                assert event["error"] == "segfault"
+            finally:
+                cfg_mod._config = old
+                reset_audit_state()
     
     @pytest.mark.skip(reason="Code execution logging not yet implemented")
     def test_sensitive_output_sanitized(self):
@@ -198,12 +250,30 @@ class TestCodeExecutionIsolation:
         # Not in project directory or user home
         pass
     
-    @pytest.mark.skip(reason="Environment isolation needs verification")
     def test_limited_environment_variables(self):
-        """Test that only necessary environment variables are passed."""
-        # Verify minimal environment exposure
-        # Only CANVAS_API_TOKEN and required vars should be available
-        pass
+        """Test that only allowlisted environment variables are passed."""
+        from canvas_mcp.tools.code_execution import _build_safe_env, _SAFE_ENV_KEYS
+        from canvas_mcp.core.config import Config
+
+        with patch.dict(os.environ, {
+            "CANVAS_API_TOKEN": "test",
+            "CANVAS_API_URL": "https://x.com/api/v1",
+            "PATH": "/usr/bin",
+            "HOME": "/home/user",
+            "MY_CUSTOM_VAR": "should_not_appear",
+            "PGPASSWORD": "should_not_appear",
+        }):
+            config = Config()
+            env = _build_safe_env(config)
+
+            # Only safe keys + Canvas credentials should be present
+            for key in env:
+                assert key in _SAFE_ENV_KEYS or key in (
+                    "CANVAS_API_URL", "CANVAS_API_TOKEN"
+                ), f"Unexpected key in env: {key}"
+
+            assert "MY_CUSTOM_VAR" not in env
+            assert "PGPASSWORD" not in env
 
 
 if __name__ == "__main__":

@@ -51,15 +51,21 @@ class Config:
         # Privacy and security configuration
         self.enable_data_anonymization = _bool_env("ENABLE_DATA_ANONYMIZATION", True)
         self.anonymization_debug = _bool_env("ANONYMIZATION_DEBUG", False)
+        self.log_redact_pii = _bool_env("LOG_REDACT_PII", True)
 
-        # Code execution sandbox configuration (best-effort by default)
-        self.enable_ts_sandbox = _bool_env("ENABLE_TS_SANDBOX", False)
+        # Audit logging configuration
+        self.log_access_events = _bool_env("LOG_ACCESS_EVENTS", False)
+        self.log_execution_events = _bool_env("LOG_EXECUTION_EVENTS", False)
+        self.audit_log_dir = os.getenv("AUDIT_LOG_DIR", "")
+
+        # Code execution sandbox configuration (secure defaults)
+        self.enable_ts_sandbox = _bool_env("ENABLE_TS_SANDBOX", True)
         self.ts_sandbox_mode = os.getenv("TS_SANDBOX_MODE", "auto").lower()
-        self.ts_sandbox_block_outbound_network = _bool_env("TS_SANDBOX_BLOCK_OUTBOUND_NETWORK", False)
+        self.ts_sandbox_block_outbound_network = _bool_env("TS_SANDBOX_BLOCK_OUTBOUND_NETWORK", True)
         self.ts_sandbox_allowlist_hosts = os.getenv("TS_SANDBOX_ALLOWLIST_HOSTS", "")
-        self.ts_sandbox_cpu_limit = _int_env("TS_SANDBOX_CPU_LIMIT", 0)
-        self.ts_sandbox_memory_limit_mb = _int_env("TS_SANDBOX_MEMORY_LIMIT_MB", 0)
-        self.ts_sandbox_timeout_sec = _int_env("TS_SANDBOX_TIMEOUT_SEC", 0)
+        self.ts_sandbox_cpu_limit = _int_env("TS_SANDBOX_CPU_LIMIT", 30)
+        self.ts_sandbox_memory_limit_mb = _int_env("TS_SANDBOX_MEMORY_LIMIT_MB", 512)
+        self.ts_sandbox_timeout_sec = _int_env("TS_SANDBOX_TIMEOUT_SEC", 120)
         self.ts_sandbox_container_image = os.getenv("TS_SANDBOX_CONTAINER_IMAGE", "node:20-alpine")
 
         # Optional metadata
@@ -95,14 +101,10 @@ def validate_config() -> bool:
     unimplemented_env_vars = {
         "TOKEN_STORAGE_BACKEND": "token storage backend selection is not enforced yet",
         "TOKEN_ENVELOPE_KEY_SOURCE": "token envelope encryption is not enforced yet",
-        "TOKEN_STARTUP_VALIDATION": "token startup validation is not enforced yet",
         "MCP_CLIENT_AUTH_MODE": "MCP client authentication is not implemented for stdio transport",
         "MCP_CLIENT_API_KEY_REQUIRED": "MCP client authentication is not implemented for stdio transport",
         "MCP_CLIENT_CERT_AUTHORITY": "MCP client authentication is not implemented for stdio transport",
-        "LOG_REDACT_PII": "PII redaction is not enforced yet",
         "LOG_ROTATION_DAYS": "log rotation is not enforced yet",
-        "LOG_ACCESS_EVENTS": "access/audit logging is not implemented yet",
-        "LOG_EXECUTION_EVENTS": "execution event logging is not implemented yet",
         "LOG_RETENTION_DAYS": "log retention is not enforced yet",
         "LOG_DESTINATION": "log destinations are not configurable yet",
         "SIEM_FORWARDING_ENABLED": "SIEM forwarding is not implemented yet",

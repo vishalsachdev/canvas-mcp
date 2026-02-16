@@ -134,7 +134,8 @@ async def make_canvas_request(
             # Log the request for debugging (if enabled)
             if config.log_api_requests:
                 retry_info = f" (retry {attempt}/{MAX_RETRIES})" if attempt > 0 else ""
-                print(f"Making {method.upper()} request to {url}{retry_info}", file=sys.stderr)
+                from .logging import sanitize_url
+                print(f"Making {method.upper()} request to {sanitize_url(url)}{retry_info}", file=sys.stderr)
 
             if method.lower() == "get":
                 response = await client.get(url, params=params)
@@ -185,6 +186,10 @@ async def make_canvas_request(
                 if config.anonymization_debug:
                     print(f"🔒 Applied {data_type} anonymization to {endpoint}", file=sys.stderr)
 
+            # Audit: log successful data access
+            from .audit import log_data_access
+            log_data_access(method, endpoint, "success")
+
             return result
 
         except httpx.HTTPStatusError as e:
@@ -213,11 +218,23 @@ async def make_canvas_request(
                 error_details = e.response.text
                 error_message += f", Text: {error_details}"
 
-            print(f"API error: {error_message}", file=sys.stderr)
+            from .logging import sanitize_url
+            print(f"API error on {sanitize_url(endpoint)}: {e.response.status_code}", file=sys.stderr)
+
+            # Audit: log HTTP error (status code only — response body may contain PII)
+            from .audit import log_data_access
+            log_data_access(method, endpoint, "error", f"HTTP {e.response.status_code}")
+
             return {"error": error_message}
 
         except Exception as e:
-            print(f"Request failed: {str(e)}", file=sys.stderr)
+            from .logging import sanitize_url
+            print(f"Request failed for {sanitize_url(endpoint)}: {type(e).__name__}", file=sys.stderr)
+
+            # Audit: log request exception (type only — message may contain PII)
+            from .audit import log_data_access
+            log_data_access(method, endpoint, "error", type(e).__name__)
+
             return {"error": f"Request failed: {str(e)}"}
 
     # Should never reach here, but just in case

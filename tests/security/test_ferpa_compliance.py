@@ -79,22 +79,54 @@ class TestPIIAnonymization:
         # Implementation depends on error handling structure
         pass
     
-    @pytest.mark.asyncio
-    async def test_no_pii_in_logs(self):
-        """TC-1.1.4: Verify PII not logged."""
-        # This test would verify logging doesn't contain PII
-        # Would require inspecting log output
-        pass
+    def test_no_pii_in_logs(self):
+        """TC-1.1.4: Verify PII is redacted in log context when redaction is enabled."""
+        from canvas_mcp.core.logging import _sanitize_context
+
+        context = {
+            "user_id": 12345,
+            "email": "student@university.edu",
+            "name": "John Doe",
+        }
+        with patch.dict(os.environ, {"LOG_REDACT_PII": "true"}):
+            result = _sanitize_context(context)
+
+        assert result["user_id"] == "[REDACTED]"
+        assert result["email"] == "[REDACTED]"
+        assert result["name"] == "[REDACTED]"
 
 
 class TestAuditLogging:
     """Test audit logging for PII access."""
     
-    @pytest.mark.skip(reason="Audit logging not yet implemented")
-    def test_pii_access_logged(self):
-        """TC-1.2.1: Verify PII access is logged."""
-        # Test that accessing student data creates audit log entry
-        pass
+    def test_pii_access_logged(self, capsys):
+        """TC-1.2.1: Verify data access creates audit log entry when enabled."""
+        import tempfile
+        from canvas_mcp.core.audit import (
+            init_audit_logging, log_data_access, reset_audit_state,
+        )
+        from canvas_mcp.core import config as cfg_mod
+
+        reset_audit_state()
+        with patch.dict(os.environ, {
+            "LOG_ACCESS_EVENTS": "true",
+            "LOG_EXECUTION_EVENTS": "false",
+            "CANVAS_API_TOKEN": "test",
+            "AUDIT_LOG_DIR": tempfile.mkdtemp(),
+        }):
+            old = cfg_mod._config
+            cfg_mod._config = None
+            try:
+                init_audit_logging()
+                log_data_access("GET", "/courses/123/users/456", "success")
+                captured = capsys.readouterr()
+                assert "data_access" in captured.err
+                # Verify endpoint is sanitized (no raw IDs)
+                assert "123" not in captured.err
+                assert "456" not in captured.err
+            finally:
+                cfg_mod._config = old
+                reset_audit_state()
     
     @pytest.mark.skip(reason="Audit logging not yet implemented")
     def test_audit_log_integrity(self):
