@@ -11,7 +11,6 @@ Controlled by:
 
 import json
 import logging
-import os
 import re
 import sys
 from datetime import datetime, timezone

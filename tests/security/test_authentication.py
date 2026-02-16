@@ -13,7 +13,7 @@ import pytest
 import os
 import re
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 
 
 class TestAPITokenSecurity:
