@@ -82,9 +82,11 @@ async def get_course_id(course_identifier: str | int) -> str | None:
     return course_str
 
 
-async def get_course_code(course_id: str) -> str | None:
+async def get_course_code(course_id: str | int) -> str | None:
     """Get course code from ID, with caching."""
     global id_to_course_code_cache, course_code_to_id_cache
+
+    course_id = str(course_id)
 
     # If it's already a code-like string with underscores
     if "_" in course_id:
