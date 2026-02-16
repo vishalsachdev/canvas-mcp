@@ -14,7 +14,7 @@ import sys
 from mcp.server.fastmcp import FastMCP
 
 from .core.config import get_config, validate_config
-from .core.logging import log_error, log_info
+from .core.logging import log_error, log_info, log_warning
 from .resources import register_resources_and_prompts
 from .tools import (
     register_accessibility_tools,
@@ -69,6 +69,25 @@ def register_all_tools(mcp: FastMCP) -> None:
     log_info("All Canvas MCP tools registered successfully!")
 
 
+async def _validate_token() -> tuple[bool, str]:
+    """Validate the Canvas API token by calling /users/self.
+
+    Returns:
+        Tuple of (success, message). On success the message contains the
+        authenticated user name; on failure it describes the error.
+    """
+    from .core.client import make_canvas_request
+
+    try:
+        response = await make_canvas_request("get", "/users/self")
+        if isinstance(response, dict) and "error" in response:
+            return (False, f"Token validation failed: {response['error']}")
+        user_name = response.get("name", "Unknown") if isinstance(response, dict) else "Unknown"
+        return (True, f"Authenticated as: {user_name}")
+    except Exception as e:
+        return (False, f"Token validation error: {type(e).__name__}: {e}")
+
+
 def test_connection() -> bool:
     """Test the Canvas API connection."""
     log_info("Testing Canvas API connection...")
@@ -76,18 +95,14 @@ def test_connection() -> bool:
     try:
         import asyncio
 
-        from .core.client import make_canvas_request
-
         async def test_api() -> bool:
-            # Test with a simple API call
-            response = await make_canvas_request("get", "/users/self")
-            if "error" in response:
-                log_error(f"API test failed: {response['error']}")
-                return False
-            else:
-                user_name = response.get("name", "Unknown")
-                log_info(f"✓ API connection successful! Connected as: {user_name}")
+            ok, message = await _validate_token()
+            if ok:
+                log_info(f"✓ API connection successful! {message}")
                 return True
+            else:
+                log_error(message)
+                return False
 
         return asyncio.run(test_api())
 
@@ -173,6 +188,25 @@ def main() -> None:
     log_info(f"Starting Canvas MCP server with API URL: {config.canvas_api_url}")
     if config.institution_name:
         log_info(f"Institution: {config.institution_name}")
+
+    # Validate token on startup (warn but don't block)
+    try:
+        import asyncio
+
+        ok, message = asyncio.run(_validate_token())
+        if ok:
+            log_info(f"✓ {message}")
+        else:
+            log_warning(
+                f"Token validation failed: {message}. "
+                "Check your CANVAS_API_TOKEN. Server will start anyway."
+            )
+    except Exception:
+        log_warning(
+            "Could not validate token on startup (network may be unavailable). "
+            "Server will start anyway."
+        )
+
     log_info("Use Ctrl+C to stop the server")
 
     # Create and configure server

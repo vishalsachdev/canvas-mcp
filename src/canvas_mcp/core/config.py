@@ -96,7 +96,6 @@ def validate_config() -> bool:
     unimplemented_env_vars = {
         "TOKEN_STORAGE_BACKEND": "token storage backend selection is not enforced yet",
         "TOKEN_ENVELOPE_KEY_SOURCE": "token envelope encryption is not enforced yet",
-        "TOKEN_STARTUP_VALIDATION": "token startup validation is not enforced yet",
         "MCP_CLIENT_AUTH_MODE": "MCP client authentication is not implemented for stdio transport",
         "MCP_CLIENT_API_KEY_REQUIRED": "MCP client authentication is not implemented for stdio transport",
         "MCP_CLIENT_CERT_AUTHORITY": "MCP client authentication is not implemented for stdio transport",

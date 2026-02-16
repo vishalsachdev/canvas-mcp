@@ -13,7 +13,7 @@ import pytest
 import os
 import re
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import AsyncMock, Mock, patch, MagicMock
 
 
 class TestAPITokenSecurity:
@@ -43,11 +43,50 @@ class TestAPITokenSecurity:
             # Verify token not in error message
             assert test_token not in error_message
     
-    @pytest.mark.skip(reason="Token validation not yet implemented on startup")
-    def test_token_validation_on_startup(self):
+    @pytest.mark.asyncio
+    async def test_token_validation_on_startup(self):
         """TC-2.1.3: Verify API token validation on startup."""
-        # Test that invalid token is detected on server startup
-        pass
+        from canvas_mcp.server import _validate_token
+
+        # Mock a successful /users/self response
+        with patch("canvas_mcp.core.client.make_canvas_request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = {"id": 1, "name": "Test User"}
+            ok, msg = await _validate_token()
+            assert ok is True
+            assert "Test User" in msg
+
+    @pytest.mark.asyncio
+    async def test_token_validation_success(self):
+        """Verify _validate_token returns True on successful /users/self."""
+        from canvas_mcp.server import _validate_token
+
+        with patch("canvas_mcp.core.client.make_canvas_request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = {"id": 42, "name": "Dr. Smith"}
+            ok, msg = await _validate_token()
+            assert ok is True
+            assert "Dr. Smith" in msg
+
+    @pytest.mark.asyncio
+    async def test_token_validation_invalid(self):
+        """Verify _validate_token returns False on API error."""
+        from canvas_mcp.server import _validate_token
+
+        with patch("canvas_mcp.core.client.make_canvas_request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = {"error": "Invalid access token."}
+            ok, msg = await _validate_token()
+            assert ok is False
+            assert "Invalid access token" in msg
+
+    @pytest.mark.asyncio
+    async def test_token_validation_network_error(self):
+        """Verify _validate_token handles network exceptions gracefully."""
+        from canvas_mcp.server import _validate_token
+
+        with patch("canvas_mcp.core.client.make_canvas_request", new_callable=AsyncMock) as mock_req:
+            mock_req.side_effect = ConnectionError("Network unreachable")
+            ok, msg = await _validate_token()
+            assert ok is False
+            assert "ConnectionError" in msg
     
     def test_env_file_permissions(self):
         """TC-2.1.4: Verify .env file permissions.
