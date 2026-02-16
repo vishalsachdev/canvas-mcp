@@ -107,6 +107,8 @@ This repo has branch protection on `main` (PR + status checks required), but adm
 ## Release Checklist
 
 When bumping the version in `pyproject.toml`, also update:
+- [ ] `src/canvas_mcp/__init__.py` - Update `__version__`
+- [ ] `server.json` - Update both `version` fields (top-level and packages[0]) for MCP Registry
 - [ ] `README.md` - Update "Latest Release" section with new version, date, and changelog
 - [ ] `docs/index.html` - Update version badge, tool count, and meta descriptions (GitHub Pages site)
 - [ ] Create git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`

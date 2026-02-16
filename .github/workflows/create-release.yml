@@ -91,6 +91,8 @@ jobs:
             --latest
 
       - name: Update README with latest release
+        continue-on-error: true
+        id: readme_update
         env:
           TAG_NAME: ${{ steps.version.outputs.tag_name }}
           RELEASE_DATE: ${{ steps.date.outputs.release_date }}
@@ -180,6 +182,8 @@ jobs:
           PYTHON_SCRIPT
 
       - name: Commit and push README changes
+        if: steps.readme_update.outcome == 'success'
+        continue-on-error: true
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
@@ -239,3 +243,15 @@ jobs:
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** ${{ steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **GitHub Release:** Created" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.readme_update.outcome }}" = "success" ]; then
+            echo "- **README Update:** Attempted (check previous step)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **README Update:** Skipped (non-blocking)" >> $GITHUB_STEP_SUMMARY
+            echo "  - To enable: Settings > Actions > General > Allow GitHub Actions to create PRs" >> $GITHUB_STEP_SUMMARY
+          fi
