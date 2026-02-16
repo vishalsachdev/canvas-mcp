@@ -261,8 +261,8 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 ---
 
 ## Current Focus
-- [x] Release v1.0.6 with module and page tools
-- [x] Add `update_assignment` tool (completes CRUD for assignments)
+- [x] Security hardening (v1.0.8)
+- [x] Release v1.0.8 with working CI/CD pipelines
 
 ## Roadmap
 - [x] Module management tools (7 tools, 36 tests)
@@ -270,6 +270,10 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 - [x] TDD enforcement in development workflow
 - [x] Release v1.0.6
 - [x] `update_assignment` tool (9 tests)
+- [x] Security hardening — PII sanitization, token validation, audit logging, sandbox defaults
+- [x] CodeQL alert remediation (31 alerts → 0)
+- [x] Ruff linting enforcement + pre-commit hook
+- [x] Release v1.0.8 — all CI/CD pipelines passing (PyPI, MCP Registry, GitHub Release)
 
 ## Backlog
 - [ ] Module templates (pre-configured module structures)
@@ -278,9 +282,35 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 - [ ] Page templates
 - [ ] Bulk page creation from markdown files
 - [ ] Page content versioning/history tools
-- [ ] Smithery publishing (blocked - see 2026-02-01 session log)
 
 ## Session Log
+### 2026-02-16
+- **Security Hardening (v1.0.8)**:
+  - Implemented 4 security features via PR #74 (`feature/security-hardening`):
+    - PII sanitization in logs (`LOG_REDACT_PII=true` default)
+    - Token validation on startup (warns but doesn't block)
+    - Structured JSON audit logging (`LOG_ACCESS_EVENTS`, `LOG_EXECUTION_EVENTS`)
+    - Sandbox hardening — secure-by-default (sandbox ON, network blocked, CPU/memory limits)
+  - Codex CLI review caught 3 issues: raw error payloads in audit logs, stderr in code execution audit, missing Docker env vars — all fixed
+  - 235+ tests (up from 167)
+- **CodeQL Alert Remediation**:
+  - Resolved all 31 open alerts: 9 dismissed (archive), 4 false positives, 3 intentional patterns, 15 fixed in source/tests
+  - Codex CLI handled 12 test file cleanups automatically
+- **Ruff Linting Enforcement**:
+  - Fixed 464 lint issues across codebase (443 auto, 21 manual)
+  - Added `.git/hooks/pre-commit` running ruff on staged files
+  - Updated `~/.claude/AGENTS.md` with linting setup template for all Python repos
+- **Release v1.0.8**:
+  - Bumped version across `pyproject.toml`, `__init__.py`, `docs/index.html`, `server.json`
+  - Fixed server.json version (was stuck at 1.0.6 — caused MCP Registry "duplicate version" error)
+  - Added `workflow_dispatch` to `publish-mcp.yml` for manual re-triggers
+  - Made README auto-update non-blocking in `create-release.yml` with summary step
+  - All workflows passing: PyPI, MCP Registry, GitHub Release, GitHub Pages
+  - Added `server.json` and `__init__.py` to release checklist in CLAUDE.md
+- **Cleanup**: Removed `Build AI Product Sense/` and `smithery-wrapper/` from repo
+- **Tooling**: Created `/codex-review` skill for cross-checking changes with OpenAI Codex CLI
+- **Decision**: Smithery publishing dropped from backlog (wrapper removed, marketplace access blocked)
+
 ### 2026-02-01
 - **Smithery Publishing Attempt** (blocked):
   - Goal: Publish canvas-mcp to Smithery marketplace for additional distribution
@@ -294,9 +324,8 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
     - Native TS Canvas MCP using `@modelcontextprotocol/sdk`
     - Builds successfully with `smithery build`
     - Ready for future deployment if Smithery opens up access
-  - **Decision**: Skip Smithery for now; focus on MCP Registry + PyPI (already published)
-  - **Path forward**: Contact support@smithery.ai for Hosted access, OR self-host with HTTP transport
-  - Files created: `smithery-wrapper/{package.json,tsconfig.json,src/index.ts}`
+  - **Decision**: Skip Smithery → focus on MCP Registry + PyPI (already published)
+  - `smithery-wrapper/` removed in 2026-02-16 session (unused prototype)
 
 ### 2026-01-25
 - Added `update_assignment` tool:
