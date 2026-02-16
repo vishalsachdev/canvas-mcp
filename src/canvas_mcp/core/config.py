@@ -58,14 +58,14 @@ class Config:
         self.log_execution_events = _bool_env("LOG_EXECUTION_EVENTS", False)
         self.audit_log_dir = os.getenv("AUDIT_LOG_DIR", "")
 
-        # Code execution sandbox configuration (best-effort by default)
-        self.enable_ts_sandbox = _bool_env("ENABLE_TS_SANDBOX", False)
+        # Code execution sandbox configuration (secure defaults)
+        self.enable_ts_sandbox = _bool_env("ENABLE_TS_SANDBOX", True)
         self.ts_sandbox_mode = os.getenv("TS_SANDBOX_MODE", "auto").lower()
-        self.ts_sandbox_block_outbound_network = _bool_env("TS_SANDBOX_BLOCK_OUTBOUND_NETWORK", False)
+        self.ts_sandbox_block_outbound_network = _bool_env("TS_SANDBOX_BLOCK_OUTBOUND_NETWORK", True)
         self.ts_sandbox_allowlist_hosts = os.getenv("TS_SANDBOX_ALLOWLIST_HOSTS", "")
-        self.ts_sandbox_cpu_limit = _int_env("TS_SANDBOX_CPU_LIMIT", 0)
-        self.ts_sandbox_memory_limit_mb = _int_env("TS_SANDBOX_MEMORY_LIMIT_MB", 0)
-        self.ts_sandbox_timeout_sec = _int_env("TS_SANDBOX_TIMEOUT_SEC", 0)
+        self.ts_sandbox_cpu_limit = _int_env("TS_SANDBOX_CPU_LIMIT", 30)
+        self.ts_sandbox_memory_limit_mb = _int_env("TS_SANDBOX_MEMORY_LIMIT_MB", 512)
+        self.ts_sandbox_timeout_sec = _int_env("TS_SANDBOX_TIMEOUT_SEC", 120)
         self.ts_sandbox_container_image = os.getenv("TS_SANDBOX_CONTAINER_IMAGE", "node:20-alpine")
 
         # Optional metadata

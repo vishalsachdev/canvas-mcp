@@ -18,6 +18,31 @@ from ..core.config import get_config
 from ..core.logging import log_warning
 from ..core.validation import validate_params
 
+# Environment variable allowlist for subprocess execution.
+# Only these keys are passed through from the host environment.
+_SAFE_ENV_KEYS = frozenset({
+    "PATH", "HOME", "USER", "SHELL", "TERM", "LANG", "LC_ALL",
+    "NODE_PATH", "NODE_OPTIONS", "NODE_ENV",
+    "TMPDIR", "TMP", "TEMP",
+})
+
+
+def _build_safe_env(config: Any) -> dict[str, str]:
+    """Build a filtered environment dict for subprocess execution.
+
+    Only passes through keys in _SAFE_ENV_KEYS, plus explicitly adds
+    CANVAS_API_URL and CANVAS_API_TOKEN from config.
+    """
+    env: dict[str, str] = {}
+    for key in _SAFE_ENV_KEYS:
+        val = os.environ.get(key)
+        if val is not None:
+            env[key] = val
+    # Explicitly add Canvas credentials from config
+    env["CANVAS_API_URL"] = config.canvas_api_url
+    env["CANVAS_API_TOKEN"] = config.canvas_api_token
+    return env
+
 
 def _validate_container_image(image: str) -> bool:
     """Validate container image name format to prevent command injection.
@@ -148,6 +173,23 @@ https.request = function (...args) {{
   enforce(host);
   return originalHttpsRequest.apply(this, args);
 }};
+
+// Intercept globalThis.fetch (modern Node.js >=18)
+if (typeof globalThis.fetch === 'function') {{
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = function (input, init) {{
+    let host = '';
+    if (typeof input === 'string') {{
+      try {{ host = new URL(input).hostname; }} catch (_) {{ host = input; }}
+    }} else if (input instanceof URL) {{
+      host = input.hostname;
+    }} else if (input && typeof input === 'object' && input.url) {{
+      try {{ host = new URL(input.url).hostname; }} catch (_) {{ host = ''; }}
+    }}
+    enforce(host);
+    return originalFetch.apply(this, arguments);
+  }};
+}}
 """
     guard_file = tempfile.NamedTemporaryFile(
         mode="w",
@@ -365,10 +407,8 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
             code_hash = hashlib.sha256(code.encode()).hexdigest()[:16]
             exec_start = time.monotonic()
 
-            # Prepare environment variables
-            env = os.environ.copy()
-            env['CANVAS_API_URL'] = config.canvas_api_url
-            env['CANVAS_API_TOKEN'] = config.canvas_api_token
+            # Prepare filtered environment variables (allowlist only)
+            env = _build_safe_env(config)
             if node_options_local:
                 env["NODE_OPTIONS"] = node_options_local
 
