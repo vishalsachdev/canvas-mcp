@@ -11,7 +11,6 @@ Test Coverage:
 
 import pytest
 from typing import Literal, Optional
-from unittest.mock import Mock, patch
 from canvas_mcp.core.validation import validate_parameter
 
 

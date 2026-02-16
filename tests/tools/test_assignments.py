@@ -11,7 +11,7 @@ Includes tests for:
 """
 
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 
 
 @pytest.fixture
@@ -199,7 +199,7 @@ class TestCreateAssignment:
         }
 
         create_assignment = get_tool_function('create_assignment')
-        result = await create_assignment(
+        _result = await create_assignment(
             "badm_350_120251",
             "Multi-Type Assignment",
             submission_types="online_text_entry, online_url, online_upload"  # Note spaces

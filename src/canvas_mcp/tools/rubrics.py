@@ -931,77 +931,9 @@ WORKING ALTERNATIVES:
 
 Reference: https://community.canvaslms.com/t5/Canvas-Question-Forum/Uploading-rubric-from-CSV-sheet/m-p/602222"""
 
-        # Original implementation preserved below for when Canvas fixes their API
-        # -------------------------------------------------------------------------
-        course_id = await get_course_id(course_identifier)
-
-        # Validate and parse criteria
-        try:
-            # Handle both string and dict input
-            if isinstance(criteria, str):
-                parsed_criteria = validate_rubric_criteria(criteria)
-            elif isinstance(criteria, dict):
-                # If it's already a dict, validate it directly
-                parsed_criteria = criteria
-                # Still run validation to ensure structure is correct (but don't fail if it errors)
-                try:
-                    validate_rubric_criteria(json.dumps(criteria))
-                except ValueError:
-                    # If validation fails, continue anyway since we have a dict
-                    pass
-            else:
-                return "Error: criteria must be a JSON string or dictionary object"
-
-            formatted_criteria = build_criteria_structure(parsed_criteria)
-        except ValueError as e:
-            # If validation fails, provide detailed error and suggest a simpler format
-            error_msg = f"Error validating criteria: {str(e)}\n\n"
-            error_msg += "=== DEBUGGING INFORMATION ===\n"
-            error_msg += f"Criteria type: {type(criteria)}\n"
-            if isinstance(criteria, str):
-                error_msg += f"Criteria length: {len(criteria)}\n"
-                error_msg += f"First 200 chars: {repr(criteria[:200])}\n"
-            error_msg += "\n=== SUGGESTED SIMPLE FORMAT ===\n"
-            error_msg += "Try using this simple format:\n"
-            error_msg += '{"1": {"description": "Test Criterion", "points": 5.0, "ratings": [{"description": "Good", "points": 5.0}, {"description": "Poor", "points": 0.0}]}}'
-            return error_msg
-
-        # Build rubric data
-        rubric_data = {
-            "title": title,
-            "free_form_criterion_comments": free_form_criterion_comments,
-            "criteria": formatted_criteria
-        }
-
-        # Build request data
-        request_data = {
-            "rubric": rubric_data
-        }
-
-        # Add association if provided
-        if association_id:
-            request_data["rubric_association"] = {
-                "association_id": str(association_id),
-                "association_type": association_type,
-                "use_for_grading": use_for_grading,
-                "purpose": purpose
-            }
-
-        # Make the API request
-        response = await make_canvas_request(
-            "post",
-            f"/courses/{course_id}/rubrics",
-            data=request_data
-        )
-
-        if "error" in response:
-            return f"Error creating rubric: {response['error']}"
-
-        # Format and return response
-        course_display = await get_course_code(course_id) or course_identifier
-        formatted_response = format_rubric_response(response)
-
-        return f"Rubric created in course {course_display}!\n\n{formatted_response}"
+        # Original implementation removed — was unreachable after early return.
+        # See git history (commit c01dc7d) for the full implementation
+        # to restore when Canvas fixes their rubric creation API.
 
     @mcp.tool()
     @validate_params
@@ -1057,75 +989,9 @@ WORKING ALTERNATIVES:
 - Use `associate_rubric_with_assignment` to link rubrics to assignments
 - Use `delete_rubric` if you need to remove a rubric entirely"""
 
-        # Original implementation preserved below for when Canvas fixes their API
-        # -------------------------------------------------------------------------
-        course_id = await get_course_id(course_identifier)
-        rubric_id_str = str(rubric_id)
-
-        # Build update data
-        rubric_data = {}
-
-        if title is not None:
-            rubric_data["title"] = title
-
-        if free_form_criterion_comments is not None:
-            rubric_data["free_form_criterion_comments"] = free_form_criterion_comments
-
-        if skip_updating_points_possible:
-            rubric_data["skip_updating_points_possible"] = True
-
-        # Handle criteria update
-        if criteria is not None:
-            try:
-                # Handle both string and dict input
-                if isinstance(criteria, str):
-                    parsed_criteria = validate_rubric_criteria(criteria)
-                elif isinstance(criteria, dict):
-                    # If it's already a dict, validate it directly
-                    parsed_criteria = criteria
-                    # Still run validation to ensure structure is correct (but don't fail if it errors)
-                    try:
-                        validate_rubric_criteria(json.dumps(criteria))
-                    except ValueError:
-                        # If validation fails, continue anyway since we have a dict
-                        pass
-                else:
-                    return "Error: criteria must be a JSON string or dictionary object"
-
-                formatted_criteria = build_criteria_structure(parsed_criteria)
-                rubric_data["criteria"] = formatted_criteria
-            except ValueError as e:
-                # If validation fails, provide detailed error and suggest a simpler format
-                error_msg = f"Error validating criteria: {str(e)}\n\n"
-                error_msg += "=== DEBUGGING INFORMATION ===\n"
-                error_msg += f"Criteria type: {type(criteria)}\n"
-                if isinstance(criteria, str):
-                    error_msg += f"Criteria length: {len(criteria)}\n"
-                    error_msg += f"First 200 chars: {repr(criteria[:200])}\n"
-                error_msg += "\n=== SUGGESTED SIMPLE FORMAT ===\n"
-                error_msg += "Try using this simple format:\n"
-                error_msg += '{"1": {"description": "Test Criterion", "points": 5.0, "ratings": [{"description": "Good", "points": 5.0}, {"description": "Poor", "points": 0.0}]}}'
-                return error_msg
-
-        # If no update data provided, return error
-        if not rubric_data:
-            return "Error: No update data provided. Specify at least title, criteria, or free_form_criterion_comments."
-
-        # Make the API request
-        response = await make_canvas_request(
-            "put",
-            f"/courses/{course_id}/rubrics/{rubric_id_str}",
-            data={"rubric": rubric_data}
-        )
-
-        if "error" in response:
-            return f"Error updating rubric: {response['error']}"
-
-        # Format and return response
-        course_display = await get_course_code(course_id) or course_identifier
-        formatted_response = format_rubric_response(response)
-
-        return f"Rubric updated in course {course_display}!\n\n{formatted_response}"
+        # Original implementation removed — was unreachable after early return.
+        # See git history (commit c01dc7d) for the full implementation
+        # to restore when Canvas fixes their rubric update API.
 
     @mcp.tool()
     @validate_params

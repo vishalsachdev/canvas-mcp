@@ -14,7 +14,7 @@ These tests use mocking to avoid requiring real Canvas API access.
 """
 
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import patch
 
 
 # Sample mock data
@@ -154,7 +154,7 @@ class TestListModules:
         mock_canvas_api['fetch_all_paginated_results'].return_value = [MOCK_MODULES[0]]
 
         list_modules = get_tool_function('list_modules')
-        result = await list_modules("60366", search_term="Introduction")
+        _result = await list_modules("60366", search_term="Introduction")
 
         # Verify search_term was passed to API
         call_args = mock_canvas_api['fetch_all_paginated_results'].call_args

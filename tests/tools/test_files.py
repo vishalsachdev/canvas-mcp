@@ -9,7 +9,7 @@ These tests use mocking to avoid requiring real Canvas API access.
 """
 
 import pytest
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch
 
 
 # Sample mock data for Canvas API responses

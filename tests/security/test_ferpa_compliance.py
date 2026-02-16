@@ -13,8 +13,7 @@ Test Coverage:
 
 import pytest
 import os
-import json
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 from canvas_mcp.core.anonymization import anonymize_response_data
 from canvas_mcp.core.config import Config
 

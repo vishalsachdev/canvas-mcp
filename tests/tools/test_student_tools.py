@@ -4,7 +4,7 @@ Tests for student self-service MCP tools.
 
 import pytest
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 
 
 def get_student_tool_function(tool_name: str):

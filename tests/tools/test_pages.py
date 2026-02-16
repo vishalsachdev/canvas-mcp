@@ -3,9 +3,8 @@
 Following TDD - these tests are written before the implementation.
 """
 
-import json
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import patch
 
 
 # Helper to get tool functions by capturing them during registration

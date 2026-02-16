@@ -2,7 +2,6 @@
 
 import json
 import re
-from datetime import datetime
 
 from mcp.server.fastmcp import FastMCP
 
@@ -578,7 +577,6 @@ def register_discussion_tools(mcp: FastMCP):
             created_at = format_date(entry.get("created_at"))
 
             # Clean up message for display
-            import re
             if message:
                 message_preview = re.sub(r'<[^>]+>', '', message)
                 if len(message_preview) > 200:
