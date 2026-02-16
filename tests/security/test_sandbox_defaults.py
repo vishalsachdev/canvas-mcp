@@ -13,9 +13,9 @@ Test Coverage:
 """
 
 import os
+from unittest.mock import patch
 
 import pytest
-from unittest.mock import patch
 
 from canvas_mcp.core.config import Config
 from canvas_mcp.tools.code_execution import (

@@ -5,7 +5,16 @@ import inspect
 import json
 import types
 from collections.abc import Callable
-from typing import Any, Literal, TypeVar, Union, cast, get_args, get_origin, get_type_hints
+from typing import (
+    Any,
+    Literal,
+    TypeVar,
+    Union,
+    cast,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
 from .logging import log_error
 

@@ -12,9 +12,9 @@ Test Coverage:
 """
 
 import os
+from unittest.mock import patch
 
 import pytest
-from unittest.mock import patch
 
 from canvas_mcp.core.logging import _sanitize_context, sanitize_url
 

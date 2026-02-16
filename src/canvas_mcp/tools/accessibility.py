@@ -7,7 +7,7 @@ for common accessibility issues.
 
 import json
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
@@ -22,7 +22,7 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
     @mcp.tool()
     @validate_params
     async def fetch_ufixit_report(
-        course_identifier: Union[str, int],
+        course_identifier: str | int,
         page_title: str = "UFIXIT"
     ) -> str:
         """Fetch UFIXIT accessibility report from Canvas course pages.
@@ -197,7 +197,7 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
     @mcp.tool()
     @validate_params
     async def scan_course_content_accessibility(
-        course_identifier: Union[str, int],
+        course_identifier: str | int,
         content_types: str = "pages,assignments"
     ) -> str:
         """Scan Canvas course content for basic accessibility issues.
@@ -216,7 +216,7 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
         course_id = await get_course_id(course_identifier)
         types = [t.strip() for t in content_types.split(",")]
 
-        all_issues: List[Dict[str, Any]] = []
+        all_issues: list[dict[str, Any]] = []
 
         # Scan pages
         if "pages" in types:
@@ -260,19 +260,19 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
         })
 
 
-def _extract_violations_from_html(html_content: str) -> List[Dict[str, Any]]:
+def _extract_violations_from_html(html_content: str) -> list[dict[str, Any]]:
     """Extract accessibility violations from UFIXIT report HTML.
 
     This parser handles common UFIXIT/UDOIT report formats.
     """
-    violations: List[Dict[str, Any]] = []
+    violations: list[dict[str, Any]] = []
 
     # Try to find violation patterns in the HTML
     # UFIXIT reports often use tables or lists to display violations
 
     # Pattern 1: Look for WCAG criterion mentions
     wcag_pattern = r'WCAG\s+(\d+\.\d+\.\d+)'
-    wcag_matches = re.finditer(wcag_pattern, html_content, re.IGNORECASE)
+    re.finditer(wcag_pattern, html_content, re.IGNORECASE)
 
     # Pattern 2: Look for severity indicators
     severity_pattern = r'(critical|serious|moderate|minor|error|warning)'
@@ -290,7 +290,7 @@ def _extract_violations_from_html(html_content: str) -> List[Dict[str, Any]]:
     # Extract structured violations from HTML
     # This is a simplified parser - real UFIXIT reports may have different formats
     lines = html_content.split('\n')
-    current_violation: Dict[str, Any] = {}
+    current_violation: dict[str, Any] = {}
 
     for line in lines:
         # Check for WCAG criterion
@@ -330,18 +330,18 @@ def _extract_violations_from_html(html_content: str) -> List[Dict[str, Any]]:
 def _check_content_accessibility(
     html_content: str,
     content_type: str,
-    content_id: Optional[int],
-    content_title: Optional[str]
-) -> List[Dict[str, Any]]:
+    content_id: int | None,
+    content_title: str | None
+) -> list[dict[str, Any]]:
     """Check HTML content for basic accessibility issues."""
-    issues: List[Dict[str, Any]] = []
+    issues: list[dict[str, Any]] = []
 
     if not html_content:
         return issues
 
     # Check for images without alt text
     img_pattern = r'<img(?![^>]*alt=)[^>]*>'
-    for match in re.finditer(img_pattern, html_content, re.IGNORECASE):
+    for _match in re.finditer(img_pattern, html_content, re.IGNORECASE):
         issues.append({
             "type": "missing_alt_text",
             "wcag_criterion": "1.1.1",
@@ -357,7 +357,7 @@ def _check_content_accessibility(
 
     # Check for empty headings
     empty_heading_pattern = r'<h[1-6][^>]*>\s*</h[1-6]>'
-    for match in re.finditer(empty_heading_pattern, html_content, re.IGNORECASE):
+    for _match in re.finditer(empty_heading_pattern, html_content, re.IGNORECASE):
         issues.append({
             "type": "empty_heading",
             "wcag_criterion": "2.4.6",
@@ -373,7 +373,7 @@ def _check_content_accessibility(
 
     # Check for tables without headers
     table_without_th = r'<table(?:(?!<th).)*?</table>'
-    for match in re.finditer(table_without_th, html_content, re.IGNORECASE | re.DOTALL):
+    for _match in re.finditer(table_without_th, html_content, re.IGNORECASE | re.DOTALL):
         issues.append({
             "type": "table_without_headers",
             "wcag_criterion": "1.3.1",
@@ -395,7 +395,7 @@ def _check_content_accessibility(
         r'<a[^>]*>more</a>',
     ]
     for pattern in bad_link_patterns:
-        for match in re.finditer(pattern, html_content, re.IGNORECASE):
+        for _match in re.finditer(pattern, html_content, re.IGNORECASE):
             issues.append({
                 "type": "non_descriptive_link",
                 "wcag_criterion": "2.4.4",
@@ -412,9 +412,9 @@ def _check_content_accessibility(
     return issues
 
 
-def _generate_violation_summary(violations: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _generate_violation_summary(violations: list[dict[str, Any]]) -> dict[str, Any]:
     """Generate summary statistics from violations."""
-    summary: Dict[str, Any] = {
+    summary: dict[str, Any] = {
         "total_violations": len(violations),
         "by_severity": {},
         "by_type": {},

@@ -228,6 +228,7 @@ def main() -> None:
     finally:
         # Cleanup HTTP client resources
         import asyncio
+
         from .core.client import cleanup_http_client
 
         asyncio.run(cleanup_http_client())

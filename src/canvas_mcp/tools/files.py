@@ -12,7 +12,6 @@ The Canvas file upload process uses a 3-step protocol:
 This module handles all three steps transparently.
 """
 
-from typing import Optional, Union
 
 from mcp.server.fastmcp import FastMCP
 
@@ -32,10 +31,10 @@ def register_file_tools(mcp: FastMCP):
     @mcp.tool()
     @validate_params
     async def upload_course_file(
-        course_identifier: Union[str, int],
+        course_identifier: str | int,
         file_path: str,
-        folder_path: Optional[str] = None,
-        display_name: Optional[str] = None,
+        folder_path: str | None = None,
+        display_name: str | None = None,
         on_duplicate: str = "rename"
     ) -> str:
         """Upload a file to Canvas course storage.
@@ -163,7 +162,7 @@ def register_file_tools(mcp: FastMCP):
         course_display = await get_course_code(course_id) or course_identifier
         file_size_str = format_file_size(validation.file_size)
 
-        result = f"✅ File uploaded successfully!\n\n"
+        result = "✅ File uploaded successfully!\n\n"
         result += f"**{file_name}**\n"
         result += f"  File ID: {file_id}\n"
         result += f"  Course: {course_display}\n"
@@ -176,7 +175,7 @@ def register_file_tools(mcp: FastMCP):
         if folder_path:
             result += f"  Folder Path: {folder_path}\n"
 
-        result += f"\n**Next steps:**\n"
+        result += "\n**Next steps:**\n"
         result += f"  - Add to module: add_module_item(..., item_type='File', content_id={file_id})\n"
         result += f"  - Attach to message: send_conversation(..., attachment_ids=['{file_id}'])\n"
 

@@ -1339,14 +1339,14 @@ WORKING ALTERNATIVES:
         result_lines.append(f"Failed:  {stats['failed']}")
 
         if failed_results:
-            result_lines.append(f"\nFailed Submissions:")
+            result_lines.append("\nFailed Submissions:")
             for failure in failed_results[:10]:  # Show first 10 failures
                 result_lines.append(f"  User {failure['user_id']}: {failure['error']}")
             if len(failed_results) > 10:
                 result_lines.append(f"  ... and {len(failed_results) - 10} more failures")
 
         if dry_run:
-            result_lines.append(f"\n⚠️  DRY RUN MODE: No grades were actually submitted")
-            result_lines.append(f"Set dry_run=false to apply grades")
+            result_lines.append("\n⚠️  DRY RUN MODE: No grades were actually submitted")
+            result_lines.append("Set dry_run=false to apply grades")
 
         return "\n".join(result_lines)

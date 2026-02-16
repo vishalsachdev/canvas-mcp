@@ -75,8 +75,8 @@ def _get_http_client() -> httpx.AsyncClient:
     """Get or create the HTTP client with current configuration."""
     global http_client
     if http_client is None:
-        from .config import get_config
         from .. import __version__
+        from .config import get_config
         config = get_config()
         http_client = httpx.AsyncClient(
             headers={

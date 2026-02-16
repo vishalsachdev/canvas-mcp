@@ -13,9 +13,9 @@ Tests for the Canvas module management tools:
 These tests use mocking to avoid requiring real Canvas API access.
 """
 
-import pytest
 from unittest.mock import patch
 
+import pytest
 
 # Sample mock data
 MOCK_MODULES = [
@@ -80,6 +80,7 @@ def mock_canvas_api():
 def get_tool_function(tool_name: str):
     """Get a tool function by name from the registered tools."""
     from mcp.server.fastmcp import FastMCP
+
     from canvas_mcp.tools.modules import register_module_tools
 
     # Create a mock MCP server and register tools

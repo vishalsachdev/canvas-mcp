@@ -3,14 +3,16 @@
 Following TDD - these tests are written before the implementation.
 """
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 
 # Helper to get tool functions by capturing them during registration
 def get_tool_function(tool_name: str):
     """Get a tool function by name from the registered tools."""
     from mcp.server.fastmcp import FastMCP
+
     from canvas_mcp.tools.pages import register_page_tools
 
     mcp = FastMCP("test")

@@ -8,9 +8,9 @@ Tests for the Canvas file upload tools:
 These tests use mocking to avoid requiring real Canvas API access.
 """
 
-import pytest
 from unittest.mock import patch
 
+import pytest
 
 # Sample mock data for Canvas API responses
 MOCK_UPLOAD_REQUEST_RESPONSE = {
@@ -69,6 +69,7 @@ def mock_file_validation():
 def get_tool_function(tool_name: str):
     """Get a tool function by name from the registered tools."""
     from mcp.server.fastmcp import FastMCP
+
     from canvas_mcp.tools.files import register_file_tools
 
     # Create a mock MCP server and register tools

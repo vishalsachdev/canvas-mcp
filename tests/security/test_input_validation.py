@@ -9,8 +9,10 @@ Test Coverage:
 - TC-5.2: Injection Testing
 """
 
+from typing import Literal
+
 import pytest
-from typing import Literal, Optional
+
 from canvas_mcp.core.validation import validate_parameter
 
 
@@ -69,7 +71,7 @@ class TestParameterValidation:
             validate_parameter("required", None, str)
 
         # None for Optional parameter (should be OK)
-        result = validate_parameter("optional", None, Optional[str])
+        result = validate_parameter("optional", None, str | None)
         assert result is None
 
     def test_literal_type(self):

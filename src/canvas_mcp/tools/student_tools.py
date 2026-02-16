@@ -5,7 +5,6 @@ to access only the student's own data across their enrolled courses.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
@@ -31,7 +30,7 @@ def register_student_tools(mcp: FastMCP):
         """
         # Calculate the date range (use timezone-aware datetime)
         end_date = datetime.now(timezone.utc) + timedelta(days=days)
-        end_date_str = end_date.strftime("%Y-%m-%d")
+        end_date.strftime("%Y-%m-%d")
 
         # Get upcoming events for the current user
         events = await fetch_all_paginated_results(
@@ -372,7 +371,7 @@ def register_student_tools(mcp: FastMCP):
             course_display = await get_course_code(course_id) if course_id else "Unknown Course"
 
             user_id = review.get("user_id")
-            assessor_id = review.get("assessor_id")
+            review.get("assessor_id")
 
             output_lines.append(
                 f"• {assignment_name}\n"

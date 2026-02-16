@@ -17,19 +17,19 @@ Test Coverage:
 import json
 import os
 import tempfile
-
-import pytest
 from unittest.mock import patch
 
+import pytest
+
 from canvas_mcp.core.audit import (
+    _BACKUP_COUNT,
+    _MAX_BYTES,
+    _audit_logger,
     _sanitize_endpoint,
     init_audit_logging,
     log_code_execution,
     log_data_access,
     reset_audit_state,
-    _audit_logger,
-    _MAX_BYTES,
-    _BACKUP_COUNT,
 )
 
 
@@ -62,7 +62,7 @@ class TestAuditDataAccess:
 
                 captured = capsys.readouterr()
                 # Parse the JSON line from stderr
-                lines = [l for l in captured.err.strip().split("\n") if l.strip()]
+                lines = [line for line in captured.err.strip().split("\n") if line.strip()]
                 assert len(lines) >= 1
                 event = json.loads(lines[-1])
                 assert event["event_type"] == "data_access"
@@ -111,7 +111,7 @@ class TestAuditCodeExecution:
                 log_code_execution("abc123def456", "local", "success", 2.5)
 
                 captured = capsys.readouterr()
-                lines = [l for l in captured.err.strip().split("\n") if l.strip()]
+                lines = [line for line in captured.err.strip().split("\n") if line.strip()]
                 assert len(lines) >= 1
                 event = json.loads(lines[-1])
                 assert event["event_type"] == "code_execution"
@@ -172,7 +172,7 @@ class TestAuditSanitization:
                 log_data_access("POST", "/courses/1/assignments", "success")
 
                 captured = capsys.readouterr()
-                lines = [l for l in captured.err.strip().split("\n") if l.strip()]
+                lines = [line for line in captured.err.strip().split("\n") if line.strip()]
                 event = json.loads(lines[-1])
                 assert "timestamp" in event
                 # ISO 8601 format check
