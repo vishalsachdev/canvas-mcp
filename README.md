@@ -104,11 +104,20 @@ Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are org
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data through any MCP-compatible client.
 
-## 🎉 Latest Release: v1.0.7
+## 🎉 Latest Release: v1.0.8
 
-**Released:** February 1, 2026 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.0.7)**
+**Released:** February 16, 2026 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.0.8)**
 
-### What's New in v1.0.7
+### What's New in v1.0.8
+- **🔒 Security Hardening** - Four layers of runtime security, all enabled by default
+  - PII sanitization in logs (redacts user IDs, emails, names)
+  - Token validation on startup with clear error messaging
+  - Structured audit logging with rotating file output
+  - Secure-by-default code execution sandbox (network blocked, env filtered, resource limits)
+- **🧹 Code Quality** - Enforced ruff linting with pre-commit hook (464 issues resolved)
+- **🧪 Expanded Test Suite** - 235+ tests (32 new security tests)
+
+### Previous Release (v1.0.7)
 - **✏️ Assignment Update Tool** - Complete assignment CRUD with `update_assignment`
   - Modify due dates, points, submission types, and more
   - All update fields optional (only changed fields sent to API)
@@ -122,7 +131,7 @@ The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning 
 - **📄 Page Settings Tools** - Control page publishing and access (2 new tools)
   - `update_page_settings` - Publish/unpublish, set front page, editing roles
   - `bulk_update_pages` - Batch operations on multiple pages
-- **🧪 Comprehensive Test Suite** - 167 unit tests covering all major functionality
+- **🧪 Comprehensive Test Suite** - 235+ unit tests covering all major functionality
 - **📚 Enhanced Documentation** - TDD enforcement and comprehensive tool docs
 
 ### Previous Release (v1.0.5)
@@ -618,27 +627,27 @@ src/canvas_mcp/code_api/
 
 ### Code Execution Security
 
-The `execute_typescript` tool provides powerful capabilities but requires clear boundaries. It always runs locally; sandboxing is optional and best-effort unless a container runtime is available.
+The `execute_typescript` tool runs TypeScript locally with **secure-by-default** sandboxing. No configuration needed — sandbox protections are enabled out of the box.
+
+**Default Security (no configuration required):**
+- **Sandbox enabled** — timeout (120s), memory limit (512 MB), CPU limit (30s)
+- **Network blocked** — outbound connections blocked except Canvas API host; intercepts both `https.request` and `fetch()` API
+- **Environment filtered** — only system vars (`PATH`, `HOME`, etc.) and Canvas credentials passed to subprocess; secrets like `AWS_SECRET_ACCESS_KEY`, `DATABASE_PASSWORD` are stripped
+- **Execution audited** — when `LOG_EXECUTION_EVENTS=true`, structured JSON audit events record code hash, sandbox mode, status, and duration (never raw code or stderr)
 
 **Security Modes:**
-- **Default (no sandbox)**: Code runs with your local user permissions and full network access.
-- **Sandbox (`ENABLE_TS_SANDBOX=true`)**: Applies optional limits (timeout, memory, CPU seconds) plus a Node-level outbound allowlist guard. If Docker/Podman is available and `TS_SANDBOX_MODE=auto`, code runs inside a container for stronger isolation (default image: `node:20-alpine` via `TS_SANDBOX_CONTAINER_IMAGE`).
+- **Local sandbox (default)**: Node.js subprocess with resource limits, network guard, and environment filtering
+- **Container sandbox (`TS_SANDBOX_MODE=container`)**: If Docker/Podman is available, code runs inside `node:20-alpine` for full filesystem isolation
+- **Sandbox disabled (`ENABLE_TS_SANDBOX=false`)**: Code runs with your local user permissions and full network access
 
 **Best Practices:**
 - **Trusted Environment Required**: Only use code execution in environments you control
 - **Review Generated Code**: Always review TypeScript code before execution, especially for bulk operations
-- **Resource Monitoring**: Monitor system resources when processing large datasets
-- **Timeout Configuration**: Adjust timeout values based on expected operation duration
-
-**What Code Execution Has Access To:**
-- Canvas API credentials from your `.env` file
-- All TypeScript modules in `src/canvas_mcp/code_api/`
-- Standard Node.js modules and npm packages
-- File system access under the current user or container permissions
+- **Timeout Configuration**: Adjust `TS_SANDBOX_TIMEOUT_SEC` based on expected operation duration
 
 **Limitations:**
 - Network allowlist is enforced inside Node; external binaries spawned by user code are not blocked
-- Container mode is optional; when unavailable, the server falls back to local execution with warnings
+- Container mode is optional; when unavailable, the server falls back to local sandbox with warnings
 - File system isolation is only enforced when running inside a container
 
 For technical implementation details, see `src/canvas_mcp/tools/code_execution.py`.
@@ -688,6 +697,7 @@ canvas-mcp/
 │       │   ├── config.py      # Configuration management
 │       │   ├── client.py      # HTTP client
 │       │   ├── cache.py       # Caching system
+│       │   ├── audit.py       # Structured audit logging
 │       │   └── validation.py  # Input validation
 │       ├── tools/             # MCP tool implementations
 │       │   ├── courses.py     # Course management
@@ -773,11 +783,25 @@ If you encounter issues:
 
 ## Security & Privacy Features
 
+### Runtime Security (v1.0.8)
+
+Four layers of security hardening, all enabled by default with zero configuration:
+
+| Layer | What It Does | Default |
+|-------|-------------|---------|
+| **PII Sanitization** | Redacts `user_id`, `email`, `name` etc. from log context; truncates IDs to last 4 chars | `LOG_REDACT_PII=true` |
+| **Token Validation** | Validates Canvas API token on startup via `/users/self`; warns but doesn't block if invalid | Always on |
+| **Audit Logging** | Structured JSON audit trail for data access and code execution events; rotating file at `~/.canvas-mcp/audit.jsonl` | Opt-in: `LOG_ACCESS_EVENTS`, `LOG_EXECUTION_EVENTS` |
+| **Sandbox Hardening** | Secure-by-default code execution: sandbox on, network blocked, env filtered, resource limits set | `ENABLE_TS_SANDBOX=true` |
+
+All audit events use sanitized endpoints (`/courses/***/users/***`) and structured metadata only — no raw error payloads or process output that could leak PII.
+
 ### API Security
 - Your Canvas API token grants access to your Canvas account
+- Token validated on startup with clear error messaging for invalid/expired tokens
 - Never commit your `.env` file to version control
-- The server runs locally on your machine - no external data transmission
-- Consider using a token with limited permissions if possible
+- The server runs locally on your machine — no external data transmission
+- Environment variable filtering prevents credential leakage to subprocesses
 
 ### Privacy Controls (Educators Only)
 
@@ -786,7 +810,9 @@ Educators working with student data can enable FERPA-compliant anonymization:
 ```bash
 # In your .env file
 ENABLE_DATA_ANONYMIZATION=true  # Anonymizes student names/emails before AI processing
-ANONYMIZATION_DEBUG=true        # Debug anonymization (optional)
+LOG_REDACT_PII=true             # Redacts PII from log output (default: true)
+LOG_ACCESS_EVENTS=true          # Enable data access audit trail (default: false)
+LOG_EXECUTION_EVENTS=true       # Enable code execution audit trail (default: false)
 ```
 
 Students don't need anonymization since they only access their own data.
