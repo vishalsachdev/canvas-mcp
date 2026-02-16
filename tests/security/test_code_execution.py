@@ -125,18 +125,64 @@ class TestSandboxSecurity:
 class TestCodeExecutionAudit:
     """Test code execution audit logging."""
     
-    @pytest.mark.skip(reason="Code execution logging not yet implemented")
-    def test_code_execution_logged(self):
+    def test_code_execution_logged(self, capsys):
         """TC-3.2.1: Verify code execution is logged."""
-        # Test that code execution creates audit log entry
-        # Log should contain: timestamp, code hash, user, result
-        pass
-    
-    @pytest.mark.skip(reason="Code execution logging not yet implemented")
-    def test_code_execution_errors_logged(self):
+        import json as _json
+        import tempfile as _tempfile
+        from canvas_mcp.core.audit import (
+            init_audit_logging, log_code_execution, reset_audit_state,
+        )
+        from canvas_mcp.core import config as cfg_mod
+
+        reset_audit_state()
+        with patch.dict(os.environ, {
+            "LOG_ACCESS_EVENTS": "false",
+            "LOG_EXECUTION_EVENTS": "true",
+            "CANVAS_API_TOKEN": "test",
+            "AUDIT_LOG_DIR": _tempfile.mkdtemp(),
+        }):
+            old = cfg_mod._config
+            cfg_mod._config = None
+            try:
+                init_audit_logging()
+                log_code_execution("abcdef12", "local", "success", 1.5)
+                captured = capsys.readouterr()
+                event = _json.loads(captured.err.strip().split("\n")[-1])
+                assert event["event_type"] == "code_execution"
+                assert event["code_hash"] == "abcdef12"
+                assert "timestamp" in event
+            finally:
+                cfg_mod._config = old
+                reset_audit_state()
+
+    def test_code_execution_errors_logged(self, capsys):
         """TC-3.2.2: Verify code execution errors are logged."""
-        # Test that failed executions are logged
-        pass
+        import json as _json
+        import tempfile as _tempfile
+        from canvas_mcp.core.audit import (
+            init_audit_logging, log_code_execution, reset_audit_state,
+        )
+        from canvas_mcp.core import config as cfg_mod
+
+        reset_audit_state()
+        with patch.dict(os.environ, {
+            "LOG_ACCESS_EVENTS": "false",
+            "LOG_EXECUTION_EVENTS": "true",
+            "CANVAS_API_TOKEN": "test",
+            "AUDIT_LOG_DIR": _tempfile.mkdtemp(),
+        }):
+            old = cfg_mod._config
+            cfg_mod._config = None
+            try:
+                init_audit_logging()
+                log_code_execution("deadbeef", "local", "error", 0.5, error="segfault")
+                captured = capsys.readouterr()
+                event = _json.loads(captured.err.strip().split("\n")[-1])
+                assert event["status"] == "error"
+                assert event["error"] == "segfault"
+            finally:
+                cfg_mod._config = old
+                reset_audit_state()
     
     @pytest.mark.skip(reason="Code execution logging not yet implemented")
     def test_sensitive_output_sanitized(self):

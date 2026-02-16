@@ -186,6 +186,10 @@ async def make_canvas_request(
                 if config.anonymization_debug:
                     print(f"🔒 Applied {data_type} anonymization to {endpoint}", file=sys.stderr)
 
+            # Audit: log successful data access
+            from .audit import log_data_access
+            log_data_access(method, endpoint, "success")
+
             return result
 
         except httpx.HTTPStatusError as e:
@@ -216,11 +220,21 @@ async def make_canvas_request(
 
             from .logging import sanitize_url
             print(f"API error on {sanitize_url(endpoint)}: {e.response.status_code}", file=sys.stderr)
+
+            # Audit: log HTTP error
+            from .audit import log_data_access
+            log_data_access(method, endpoint, "error", error_message)
+
             return {"error": error_message}
 
         except Exception as e:
             from .logging import sanitize_url
             print(f"Request failed for {sanitize_url(endpoint)}: {type(e).__name__}", file=sys.stderr)
+
+            # Audit: log request exception
+            from .audit import log_data_access
+            log_data_access(method, endpoint, "error", str(e))
+
             return {"error": f"Request failed: {str(e)}"}
 
     # Should never reach here, but just in case

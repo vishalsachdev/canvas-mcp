@@ -1,11 +1,13 @@
 """Code execution tools for running TypeScript in Node.js environment."""
 
 import asyncio
+import hashlib
 import json
 import os
 import re
 import shutil
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -359,6 +361,10 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
             temp_file_path = temp_file.name
 
         try:
+            # Compute code hash for audit logging (never log raw code)
+            code_hash = hashlib.sha256(code.encode()).hexdigest()[:16]
+            exec_start = time.monotonic()
+
             # Prepare environment variables
             env = os.environ.copy()
             env['CANVAS_API_URL'] = config.canvas_api_url
@@ -490,11 +496,28 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     result_lines.append("=== Errors/Warnings ===")
                     result_lines.append(stderr)
 
+                # Audit: log successful/failed execution
+                from ..core.audit import log_code_execution
+                duration = time.monotonic() - exec_start
+                exec_status = "success" if process.returncode == 0 else "error"
+                log_code_execution(
+                    code_hash, sandbox_mode, exec_status, duration,
+                    error=stderr[:200] if process.returncode != 0 and stderr else None,
+                )
+
                 return "\n".join(result_lines) if result_lines else "No output"
 
             except asyncio.TimeoutError:
                 process.kill()
                 await process.wait()
+
+                # Audit: log timeout
+                from ..core.audit import log_code_execution
+                duration = time.monotonic() - exec_start
+                log_code_execution(
+                    code_hash, sandbox_mode, "timeout", duration,
+                )
+
                 return f"❌ Execution timed out after {effective_timeout} seconds"
 
         except FileNotFoundError as e:

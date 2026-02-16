@@ -99,11 +99,34 @@ class TestPIIAnonymization:
 class TestAuditLogging:
     """Test audit logging for PII access."""
     
-    @pytest.mark.skip(reason="Audit logging not yet implemented")
-    def test_pii_access_logged(self):
-        """TC-1.2.1: Verify PII access is logged."""
-        # Test that accessing student data creates audit log entry
-        pass
+    def test_pii_access_logged(self, capsys):
+        """TC-1.2.1: Verify data access creates audit log entry when enabled."""
+        import tempfile
+        from canvas_mcp.core.audit import (
+            init_audit_logging, log_data_access, reset_audit_state,
+        )
+        from canvas_mcp.core import config as cfg_mod
+
+        reset_audit_state()
+        with patch.dict(os.environ, {
+            "LOG_ACCESS_EVENTS": "true",
+            "LOG_EXECUTION_EVENTS": "false",
+            "CANVAS_API_TOKEN": "test",
+            "AUDIT_LOG_DIR": tempfile.mkdtemp(),
+        }):
+            old = cfg_mod._config
+            cfg_mod._config = None
+            try:
+                init_audit_logging()
+                log_data_access("GET", "/courses/123/users/456", "success")
+                captured = capsys.readouterr()
+                assert "data_access" in captured.err
+                # Verify endpoint is sanitized (no raw IDs)
+                assert "123" not in captured.err
+                assert "456" not in captured.err
+            finally:
+                cfg_mod._config = old
+                reset_audit_state()
     
     @pytest.mark.skip(reason="Audit logging not yet implemented")
     def test_audit_log_integrity(self):

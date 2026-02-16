@@ -53,6 +53,11 @@ class Config:
         self.anonymization_debug = _bool_env("ANONYMIZATION_DEBUG", False)
         self.log_redact_pii = _bool_env("LOG_REDACT_PII", True)
 
+        # Audit logging configuration
+        self.log_access_events = _bool_env("LOG_ACCESS_EVENTS", False)
+        self.log_execution_events = _bool_env("LOG_EXECUTION_EVENTS", False)
+        self.audit_log_dir = os.getenv("AUDIT_LOG_DIR", "")
+
         # Code execution sandbox configuration (best-effort by default)
         self.enable_ts_sandbox = _bool_env("ENABLE_TS_SANDBOX", False)
         self.ts_sandbox_mode = os.getenv("TS_SANDBOX_MODE", "auto").lower()
@@ -100,8 +105,6 @@ def validate_config() -> bool:
         "MCP_CLIENT_API_KEY_REQUIRED": "MCP client authentication is not implemented for stdio transport",
         "MCP_CLIENT_CERT_AUTHORITY": "MCP client authentication is not implemented for stdio transport",
         "LOG_ROTATION_DAYS": "log rotation is not enforced yet",
-        "LOG_ACCESS_EVENTS": "access/audit logging is not implemented yet",
-        "LOG_EXECUTION_EVENTS": "execution event logging is not implemented yet",
         "LOG_RETENTION_DAYS": "log retention is not enforced yet",
         "LOG_DESTINATION": "log destinations are not configurable yet",
         "SIEM_FORWARDING_ENABLED": "SIEM forwarding is not implemented yet",

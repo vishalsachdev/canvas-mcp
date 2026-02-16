@@ -184,6 +184,10 @@ def main() -> None:
             print("✗ Connection test failed!", file=sys.stderr)
             sys.exit(1)
 
+    # Initialize audit logging (before any API calls)
+    from .core.audit import init_audit_logging
+    init_audit_logging()
+
     # Normal server startup
     log_info(f"Starting Canvas MCP server with API URL: {config.canvas_api_url}")
     if config.institution_name:
