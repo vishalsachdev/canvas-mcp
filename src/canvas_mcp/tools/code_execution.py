@@ -24,6 +24,9 @@ _SAFE_ENV_KEYS = frozenset({
     "PATH", "HOME", "USER", "SHELL", "TERM", "LANG", "LC_ALL",
     "NODE_PATH", "NODE_OPTIONS", "NODE_ENV",
     "TMPDIR", "TMP", "TEMP",
+    # Container runtime vars needed for Docker/Podman sandbox mode
+    "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH",
+    "CONTAINER_HOST",
 })
 
 
@@ -542,7 +545,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                 exec_status = "success" if process.returncode == 0 else "error"
                 log_code_execution(
                     code_hash, sandbox_mode, exec_status, duration,
-                    error=stderr[:200] if process.returncode != 0 and stderr else None,
+                    error=f"exit code {process.returncode}" if process.returncode != 0 else None,
                 )
 
                 return "\n".join(result_lines) if result_lines else "No output"

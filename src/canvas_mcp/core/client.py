@@ -221,9 +221,9 @@ async def make_canvas_request(
             from .logging import sanitize_url
             print(f"API error on {sanitize_url(endpoint)}: {e.response.status_code}", file=sys.stderr)
 
-            # Audit: log HTTP error
+            # Audit: log HTTP error (status code only — response body may contain PII)
             from .audit import log_data_access
-            log_data_access(method, endpoint, "error", error_message)
+            log_data_access(method, endpoint, "error", f"HTTP {e.response.status_code}")
 
             return {"error": error_message}
 
@@ -231,9 +231,9 @@ async def make_canvas_request(
             from .logging import sanitize_url
             print(f"Request failed for {sanitize_url(endpoint)}: {type(e).__name__}", file=sys.stderr)
 
-            # Audit: log request exception
+            # Audit: log request exception (type only — message may contain PII)
             from .audit import log_data_access
-            log_data_access(method, endpoint, "error", str(e))
+            log_data_access(method, endpoint, "error", type(e).__name__)
 
             return {"error": f"Request failed: {str(e)}"}
 
