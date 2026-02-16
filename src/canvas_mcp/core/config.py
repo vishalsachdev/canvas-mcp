@@ -51,6 +51,7 @@ class Config:
         # Privacy and security configuration
         self.enable_data_anonymization = _bool_env("ENABLE_DATA_ANONYMIZATION", True)
         self.anonymization_debug = _bool_env("ANONYMIZATION_DEBUG", False)
+        self.log_redact_pii = _bool_env("LOG_REDACT_PII", True)
 
         # Code execution sandbox configuration (best-effort by default)
         self.enable_ts_sandbox = _bool_env("ENABLE_TS_SANDBOX", False)
@@ -99,7 +100,6 @@ def validate_config() -> bool:
         "MCP_CLIENT_AUTH_MODE": "MCP client authentication is not implemented for stdio transport",
         "MCP_CLIENT_API_KEY_REQUIRED": "MCP client authentication is not implemented for stdio transport",
         "MCP_CLIENT_CERT_AUTHORITY": "MCP client authentication is not implemented for stdio transport",
-        "LOG_REDACT_PII": "PII redaction is not enforced yet",
         "LOG_ROTATION_DAYS": "log rotation is not enforced yet",
         "LOG_ACCESS_EVENTS": "access/audit logging is not implemented yet",
         "LOG_EXECUTION_EVENTS": "execution event logging is not implemented yet",

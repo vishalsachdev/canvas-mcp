@@ -79,12 +79,21 @@ class TestPIIAnonymization:
         # Implementation depends on error handling structure
         pass
     
-    @pytest.mark.asyncio
-    async def test_no_pii_in_logs(self):
-        """TC-1.1.4: Verify PII not logged."""
-        # This test would verify logging doesn't contain PII
-        # Would require inspecting log output
-        pass
+    def test_no_pii_in_logs(self):
+        """TC-1.1.4: Verify PII is redacted in log context when redaction is enabled."""
+        from canvas_mcp.core.logging import _sanitize_context
+
+        context = {
+            "user_id": 12345,
+            "email": "student@university.edu",
+            "name": "John Doe",
+        }
+        with patch.dict(os.environ, {"LOG_REDACT_PII": "true"}):
+            result = _sanitize_context(context)
+
+        assert result["user_id"] == "[REDACTED]"
+        assert result["email"] == "[REDACTED]"
+        assert result["name"] == "[REDACTED]"
 
 
 class TestAuditLogging:
