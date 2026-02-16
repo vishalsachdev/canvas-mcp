@@ -75,11 +75,16 @@ def register_student_tools(mcp: FastMCP):
             # Get course name
             course_display = await get_course_code(course_id) if course_id else "Unknown Course"
 
-            # Get submission status
-            submission = assignment.get("submission")
-            if submission:
-                submitted = submission.get("submitted_at") is not None
-                status = "✅ Submitted" if submitted else "❌ Not Submitted"
+            assignment_id = assignment.get("id")
+            if course_id and assignment_id:
+                sub = await make_canvas_request(
+                    "get",
+                    f"/courses/{course_id}/assignments/{assignment_id}/submissions/self"
+                )
+                if isinstance(sub, dict) and sub.get("submitted_at"):
+                    status = "✅ Submitted"
+                else:
+                    status = "❌ Not Submitted"
             else:
                 status = "❌ Not Submitted"
 
