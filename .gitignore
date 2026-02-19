@@ -26,6 +26,9 @@ build/
 # Environment variables
 .env
 
+# Google OAuth token (contains credentials)
+google_token.json
+
 # IDE specific files
 .vscode/
 .idea/

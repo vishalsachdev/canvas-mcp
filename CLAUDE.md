@@ -267,6 +267,14 @@ Discover cross-course collaboration opportunities based on student overlap, modu
 - "What courses share students with ENV 200 and have concurrent modules?"
 - "Show me Franklin's competencies"
 
+## Google Docs/Slides Integration
+- **`google_authenticate`** — One-time OAuth consent flow (opens browser, saves refresh token to `~/.canvas-mcp/google_token.json`)
+- **`fetch_google_doc(doc_url_or_id)`** — Fetch text from a Google Doc (tries public export first, falls back to Docs API with OAuth)
+- **`fetch_google_slides(slides_url_or_id)`** — Fetch text + slide thumbnail images from a Google Slides presentation
+- Requires `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env` (Desktop app OAuth credential)
+- Scopes: `documents.readonly`, `presentations.readonly`
+- Token auto-refreshes; re-authenticate if refresh fails
+
 ## Canvas API Specifics
 - Base URL from `CANVAS_API_URL` environment variable
 - Authentication via Bearer token in `CANVAS_API_TOKEN`

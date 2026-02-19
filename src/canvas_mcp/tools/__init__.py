@@ -17,6 +17,7 @@ from .discovery import register_discovery_tools
 from .code_execution import register_code_execution_tools
 from .pages import register_page_tools
 from .transdisciplinary import register_transdisciplinary_tools
+from .google_tools import register_google_tools
 
 __all__ = [
     'register_account_tools',
@@ -36,4 +37,5 @@ __all__ = [
     'register_code_execution_tools',
     'register_page_tools',
     'register_transdisciplinary_tools',
+    'register_google_tools',
 ]

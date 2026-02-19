@@ -32,6 +32,9 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "pydantic>=2.12.0",
     "python-dateutil>=2.8.0",
+    "google-api-python-client>=2.100.0",
+    "google-auth-oauthlib>=1.0.0",
+    "Pillow>=10.0.0",
 ]
 
 [project.optional-dependencies]

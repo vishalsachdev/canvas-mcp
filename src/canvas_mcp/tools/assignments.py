@@ -371,7 +371,11 @@ def register_assignment_tools(mcp: FastMCP):
             submission_type = submission.get("submission_type", "none")
             body = submission.get("body", "")
 
+            url = submission.get("url", "")
+
             entry = f"User ID: {user_id}\nSubmitted: {submitted_at}\nScore: {score}\nGrade: {grade}\nType: {submission_type}\n"
+            if url and submission_type == "online_url":
+                entry += f"URL: {url}\n"
             if body and submission_type == "online_text_entry":
                 entry += f"Body:\n{body}\n"
             submissions_info.append(entry)
