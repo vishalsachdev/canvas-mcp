@@ -474,8 +474,9 @@ def register_account_tools(mcp: FastMCP):
     ) -> str:
         """List all course enrollments for a specific user across all terms.
 
-        Requires admin access. Returns every course the user has been enrolled in,
-        with term info for temporal ordering. Useful for longitudinal analysis.
+        Requires admin access. Uses the enrollments API endpoint which returns
+        every enrollment across the entire account (not limited to the
+        authenticated user's courses). Deduplicates by course ID.
 
         Args:
             user_id: The Canvas user ID
@@ -483,32 +484,61 @@ def register_account_tools(mcp: FastMCP):
         """
         states = ["active"]
         if include_concluded:
-            states.append("completed")
+            states.extend(["completed", "concluded"])
 
         params = {
-            "include[]": "term",
-            "state[]": states,
             "per_page": 100,
         }
 
-        courses = await fetch_all_paginated_results(
-            f"/users/{user_id}/courses", params
+        enrollments = await fetch_all_paginated_results(
+            f"/users/{user_id}/enrollments", params
         )
 
-        if isinstance(courses, dict) and "error" in courses:
-            return f"Error fetching enrollments for user {user_id}: {courses['error']}"
+        if isinstance(enrollments, dict) and "error" in enrollments:
+            return f"Error fetching enrollments for user {user_id}: {enrollments['error']}"
 
-        if not courses:
+        if not enrollments:
             return f"No enrollments found for user {user_id}."
 
+        # Filter to student enrollments in desired states
+        filtered = []
+        for enrollment in enrollments:
+            enrollment_state = enrollment.get("enrollment_state", "")
+            enrollment_type = enrollment.get("type", "")
+            if enrollment_state in states and enrollment_type == "StudentEnrollment":
+                filtered.append(enrollment)
+
+        if not filtered:
+            return f"No student enrollments found for user {user_id}."
+
+        # Deduplicate by course ID — keep the enrollment with the most info
+        courses_seen = {}
+        for enrollment in filtered:
+            course_id = enrollment.get("course_id")
+            if course_id not in courses_seen:
+                courses_seen[course_id] = enrollment
+
+        # Fetch course details with term info for each unique course
+        course_details = []
+        for course_id in courses_seen:
+            params = {"include[]": "term"}
+            course = await make_canvas_request(
+                "get", f"/courses/{course_id}", params
+            )
+            if isinstance(course, dict) and "id" in course:
+                course_details.append(course)
+
+        if not course_details:
+            return f"Found {len(courses_seen)} enrollments but could not fetch course details."
+
         # Sort by term start date (most recent first)
-        courses.sort(
+        course_details.sort(
             key=lambda c: c.get("term", {}).get("start_at", "") or "",
             reverse=True,
         )
 
-        lines = [f"Enrollments for User {user_id} ({len(courses)} courses):\n"]
-        for course in courses:
+        lines = [f"Enrollments for User {user_id} ({len(course_details)} courses):\n"]
+        for course in course_details:
             course_id = course.get("id")
             name = course.get("name", "Unnamed")
             code = course.get("course_code", "")

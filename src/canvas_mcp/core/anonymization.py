@@ -155,14 +155,71 @@ def anonymize_discussion_entry(entry_data: Any) -> Any:
     return anonymized
 
 
-def anonymize_submission_data(submission_data: Any) -> Any:
+def scrub_pii_from_text(text: str, known_names: dict[str, str] | None = None) -> str:
+    """Scan text for PII patterns and replace with redaction markers.
+
+    Removes emails, phone numbers, SSNs. If known_names is provided,
+    replaces student names with their anonymous IDs.
+
+    Args:
+        text: The text content to scrub
+        known_names: Optional mapping of real names (lowercase) to anonymous IDs
+
+    Returns:
+        Text with PII replaced
+    """
+    if not text:
+        return text
+
+    # Remove email addresses
+    scrubbed = re.sub(
+        r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
+        '[EMAIL_REDACTED]',
+        text
+    )
+
+    # Remove phone numbers
+    scrubbed = re.sub(
+        r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b',
+        '[PHONE_REDACTED]',
+        scrubbed
+    )
+
+    # Remove social security numbers
+    scrubbed = re.sub(
+        r'\b\d{3}-\d{2}-\d{4}\b',
+        '[SSN_REDACTED]',
+        scrubbed
+    )
+
+    # Replace known student names with anonymous IDs
+    if known_names:
+        for real_name, anonymous_id in known_names.items():
+            scrubbed = re.sub(
+                re.escape(real_name),
+                anonymous_id,
+                scrubbed,
+                flags=re.IGNORECASE
+            )
+
+    return scrubbed
+
+
+def anonymize_submission_data(
+    submission_data: Any,
+    known_names: dict[str, str] | None = None
+) -> Any:
     """Anonymize submission data.
+
+    Keeps submission body/url content accessible but scrubs PII
+    (emails, phones, SSNs, known student names) from text fields.
 
     Args:
         submission_data: Dictionary containing submission information
+        known_names: Optional mapping of real names (lowercase) to anonymous IDs
 
     Returns:
-        Anonymized submission data
+        Anonymized submission data with PII scrubbed from content
     """
     if not isinstance(submission_data, dict):
         return submission_data
@@ -171,20 +228,19 @@ def anonymize_submission_data(submission_data: Any) -> Any:
     user_id = submission_data.get('user_id')
 
     if user_id:
-        anonymous_id = generate_anonymous_id(user_id)
-
-        # Replace identifying fields
+        # Replace identifying user fields
         if 'user' in anonymized:
             anonymized['user'] = anonymize_user_data(anonymized['user'])
 
-        # Remove submission content that might be identifying
-        identifying_fields = ['body', 'url', 'attachments']
-        for field in identifying_fields:
-            if field in anonymized and anonymized[field]:
-                if isinstance(anonymized[field], str):
-                    anonymized[field] = f"[CONTENT_REDACTED_FOR_{anonymous_id}]"
-                else:
-                    anonymized[field] = "[CONTENT_REDACTED]"
+        # Scrub PII from text content fields instead of blanket redaction
+        text_fields = ['body', 'url']
+        for field in text_fields:
+            if field in anonymized and anonymized[field] and isinstance(anonymized[field], str):
+                anonymized[field] = scrub_pii_from_text(anonymized[field], known_names)
+
+        # Redact attachments (file metadata — can't scrub binary content)
+        if 'attachments' in anonymized and anonymized['attachments']:
+            anonymized['attachments'] = "[ATTACHMENTS_AVAILABLE_BUT_NOT_DISPLAYED]"
 
     return anonymized
 
@@ -214,12 +270,18 @@ def anonymize_assignment_data(assignment_data: Any) -> Any:
     return anonymized
 
 
-def anonymize_response_data(data: Any, data_type: str = "general") -> Any:
+def anonymize_response_data(
+    data: Any,
+    data_type: str = "general",
+    known_names: dict[str, str] | None = None
+) -> Any:
     """Main function to anonymize Canvas API response data.
 
     Args:
         data: The data to anonymize (can be dict, list, or other types)
         data_type: Type of data being anonymized for specific handling
+        known_names: Optional mapping of real names (lowercase) to anonymous IDs
+                     for scrubbing names from submission/discussion content
 
     Returns:
         Anonymized data structure
@@ -235,7 +297,7 @@ def anonymize_response_data(data: Any, data_type: str = "general") -> Any:
         elif data_type == "discussions" or 'message' in data:
             return anonymize_discussion_entry(data)
         elif data_type == "submissions" or 'submitted_at' in data:
-            return anonymize_submission_data(data)
+            return anonymize_submission_data(data, known_names=known_names)
         elif data_type == "assignments" or 'due_at' in data:
             return anonymize_assignment_data(data)
         else:
@@ -248,11 +310,11 @@ def anonymize_response_data(data: Any, data_type: str = "general") -> Any:
                     else:
                         anonymized[key] = "[REDACTED]"
                 else:
-                    anonymized[key] = anonymize_response_data(value, data_type)
+                    anonymized[key] = anonymize_response_data(value, data_type, known_names)
             return anonymized
 
     elif isinstance(data, list):
-        return [anonymize_response_data(item, data_type) for item in data]
+        return [anonymize_response_data(item, data_type, known_names) for item in data]
 
     else:
         # For primitive types, return as-is

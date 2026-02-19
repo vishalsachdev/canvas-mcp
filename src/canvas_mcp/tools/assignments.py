@@ -5,7 +5,7 @@ from statistics import StatisticsError, mean, median, stdev
 
 from mcp.server.fastmcp import FastMCP
 
-from ..core.anonymization import anonymize_response_data
+from ..core.anonymization import anonymize_response_data, generate_anonymous_id
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, parse_date
@@ -320,9 +320,39 @@ def register_assignment_tools(mcp: FastMCP):
         if not submissions:
             return f"No submissions found for assignment {assignment_id}."
 
+        # Build known-names mapping for PII scrubbing in submission content
+        known_names = None
+        try:
+            from ..core.config import get_config
+            if get_config().enable_data_anonymization:
+                students = await fetch_all_paginated_results(
+                    f"/courses/{course_id}/users",
+                    {"enrollment_type[]": "student", "per_page": 100}
+                )
+                if isinstance(students, list):
+                    known_names = {}
+                    for student in students:
+                        student_id = student.get("id")
+                        name = student.get("name", "")
+                        short_name = student.get("short_name", "")
+                        if student_id and name:
+                            anon_id = generate_anonymous_id(student_id)
+                            known_names[name.lower()] = anon_id
+                            if short_name and short_name.lower() != name.lower():
+                                known_names[short_name.lower()] = anon_id
+                            # Also add first name and last name separately
+                            name_parts = name.split()
+                            if len(name_parts) >= 2:
+                                known_names[name_parts[0].lower()] = anon_id
+                                known_names[name_parts[-1].lower()] = anon_id
+        except Exception as e:
+            log_error("Failed to build known-names mapping", exc=e, course_id=course_id)
+
         # Anonymize submission data to protect student privacy
         try:
-            submissions = anonymize_response_data(submissions, data_type="submissions")
+            submissions = anonymize_response_data(
+                submissions, data_type="submissions", known_names=known_names
+            )
         except Exception as e:
             log_error(
                 "Failed to anonymize submission data",
@@ -338,14 +368,65 @@ def register_assignment_tools(mcp: FastMCP):
             submitted_at = submission.get("submitted_at", "Not submitted")
             score = submission.get("score", "Not graded")
             grade = submission.get("grade", "Not graded")
+            submission_type = submission.get("submission_type", "none")
+            body = submission.get("body", "")
 
-            submissions_info.append(
-                f"User ID: {user_id}\nSubmitted: {submitted_at}\nScore: {score}\nGrade: {grade}\n"
-            )
+            entry = f"User ID: {user_id}\nSubmitted: {submitted_at}\nScore: {score}\nGrade: {grade}\nType: {submission_type}\n"
+            if body and submission_type == "online_text_entry":
+                entry += f"Body:\n{body}\n"
+            submissions_info.append(entry)
 
         # Try to get the course code for display
         course_display = await get_course_code(course_id) or course_identifier
         return f"Submissions for Assignment {assignment_id} in course {course_display}:\n\n" + "\n".join(submissions_info)
+
+    @mcp.tool()
+    @validate_params
+    async def grade_submission(
+        course_identifier: str | int,
+        assignment_id: str | int,
+        student_id: str | int,
+        grade: str | int | float,
+        comment: str = ""
+    ) -> str:
+        """Grade a single student submission with an optional comment.
+
+        Args:
+            course_identifier: The Canvas course code or ID
+            assignment_id: The Canvas assignment ID
+            student_id: The Canvas user ID of the student
+            grade: The grade to assign (numeric score)
+            comment: Optional feedback comment for the student
+        """
+        course_id = await get_course_id(course_identifier)
+        assignment_id_str = str(assignment_id)
+        student_id_str = str(student_id)
+
+        # Build the grade submission payload
+        payload = {
+            "submission": {
+                "posted_grade": str(grade)
+            }
+        }
+
+        if comment:
+            payload["comment"] = {
+                "text_comment": comment
+            }
+
+        response = await make_canvas_request(
+            "put",
+            f"/courses/{course_id}/assignments/{assignment_id_str}/submissions/{student_id_str}",
+            json_data=payload
+        )
+
+        if isinstance(response, dict) and "error" in response:
+            return f"Error grading submission for student {student_id}: {response['error']}"
+
+        result = f"Graded student {student_id}: {grade}"
+        if comment:
+            result += f" (with comment)"
+        return result
 
     @mcp.tool()
     @validate_params

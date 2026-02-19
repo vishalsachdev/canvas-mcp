@@ -1096,6 +1096,172 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     @validate_params
+    async def create_account_rubric(account_id: str | int,
+                                    title: str,
+                                    criteria: str | dict[str, Any]) -> str:
+        """Create a new rubric at the account (institution) level via CSV upload.
+
+        Creates a rubric visible on the account rubrics page, shared across all
+        courses. Uses the Canvas CSV rubric import endpoint since the direct
+        POST endpoint only exists at the course level.
+
+        Args:
+            account_id: The Canvas account ID (e.g., 1 for the root account).
+                        Use list_accounts to find available account IDs.
+            title: The title of the rubric
+            criteria: JSON string or dictionary containing rubric criteria structure.
+                      Format: {"1": {"description": "...", "points": 10, "ratings": {...}}}
+                      Each criterion should have ratings sorted from highest to lowest points.
+
+        Example criteria format:
+            {
+              "1": {
+                "description": "Content Quality",
+                "long_description": "Evaluates the depth and accuracy of content",
+                "points": 10,
+                "ratings": {
+                  "1": {"description": "Excellent", "long_description": "...", "points": 10},
+                  "2": {"description": "Good", "long_description": "...", "points": 7},
+                  "3": {"description": "Needs Work", "long_description": "...", "points": 3},
+                  "4": {"description": "Unsatisfactory", "long_description": "...", "points": 0}
+                }
+              }
+            }
+        """
+        import asyncio
+        import csv
+        import io
+
+        account_id_str = str(account_id)
+
+        # Validate and parse criteria
+        try:
+            if isinstance(criteria, str):
+                parsed_criteria = validate_rubric_criteria(criteria)
+            elif isinstance(criteria, dict):
+                parsed_criteria = criteria
+                try:
+                    validate_rubric_criteria(json.dumps(criteria))
+                except ValueError:
+                    pass
+            else:
+                return "Error: criteria must be a JSON string or dictionary object"
+        except ValueError as e:
+            return f"Error validating criteria: {str(e)}"
+
+        # Find the maximum number of ratings across all criteria
+        max_ratings = 0
+        for criterion_data in parsed_criteria.values():
+            ratings = criterion_data.get("ratings", {})
+            count = len(ratings) if isinstance(ratings, (dict, list)) else 0
+            max_ratings = max(max_ratings, count)
+
+        # Build CSV header
+        header = ["Rubric Name", "Criteria Name", "Criteria Description",
+                  "Criteria Enable Range"]
+        for i in range(max_ratings):
+            header.extend(["Rating Name", "Rating Description", "Rating Points"])
+
+        # Build CSV rows
+        csv_buffer = io.StringIO()
+        writer = csv.writer(csv_buffer)
+        writer.writerow(header)
+
+        for _key, criterion_data in parsed_criteria.items():
+            description = criterion_data.get("description", "")
+            long_description = criterion_data.get("long_description", "")
+
+            row = [title, description, long_description, "false"]
+
+            # Get ratings sorted by points descending
+            ratings = criterion_data.get("ratings", {})
+            if isinstance(ratings, dict):
+                rating_list = sorted(
+                    ratings.values(),
+                    key=lambda r: float(r.get("points", 0)),
+                    reverse=True
+                )
+            elif isinstance(ratings, list):
+                rating_list = sorted(
+                    ratings,
+                    key=lambda r: float(r.get("points", 0)),
+                    reverse=True
+                )
+            else:
+                rating_list = []
+
+            for rating in rating_list:
+                name = rating.get("description", "")
+                desc = rating.get("long_description", "")
+                points = rating.get("points", 0)
+                row.extend([name, desc, str(int(float(points)))])
+
+            # Pad with empty columns if fewer ratings than max
+            for _ in range(max_ratings - len(rating_list)):
+                row.extend(["", "", ""])
+
+            writer.writerow(row)
+
+        csv_content = csv_buffer.getvalue()
+
+        # Upload CSV via httpx multipart file upload
+        from ..core.config import get_config
+        from ..core.client import _get_http_client
+
+        config = get_config()
+        client = _get_http_client()
+        url = f"{config.api_base_url.rstrip('/')}/accounts/{account_id_str}/rubrics/upload"
+
+        try:
+            response = await client.post(
+                url,
+                files={"attachment": ("rubric_upload.csv", csv_content.encode(), "text/csv")}
+            )
+            response.raise_for_status()
+            upload_result = response.json()
+        except Exception as e:
+            return f"Error uploading rubric CSV: {str(e)}"
+
+        import_id = upload_result.get("id")
+        if not import_id:
+            return f"Error: Upload response missing import ID.\nResponse: {json.dumps(upload_result, indent=2)}"
+
+        # Poll for completion (up to 30 seconds)
+        status_url = f"{config.api_base_url.rstrip('/')}/accounts/{account_id_str}/rubrics/upload/{import_id}"
+        for _ in range(15):
+            await asyncio.sleep(2)
+            try:
+                status_response = await client.get(status_url)
+                status_response.raise_for_status()
+                status_data = status_response.json()
+            except Exception as e:
+                return f"Error checking import status: {str(e)}"
+
+            state = status_data.get("workflow_state", "")
+            progress = status_data.get("progress", 0)
+            error_count = status_data.get("error_count", 0)
+
+            if state == "succeeded":
+                result = f"Rubric created at account level (Account {account_id_str})!\n\n"
+                result += f"Title: {title}\n"
+                result += f"Import ID: {import_id}\n"
+                result += f"Status: succeeded\n"
+                result += f"Criteria: {len(parsed_criteria)}\n"
+                result += f"Errors: {error_count}\n"
+                if error_count > 0:
+                    result += f"Error details: {json.dumps(status_data.get('error_data', []))}\n"
+                return result
+
+            if state == "failed":
+                error_data = status_data.get("error_data", [])
+                return (f"Rubric import failed.\n"
+                        f"Errors: {error_count}\n"
+                        f"Details: {json.dumps(error_data, indent=2)}")
+
+        return f"Rubric import still processing after 30 seconds.\nImport ID: {import_id}\nProgress: {progress}%\nCheck status later."
+
+    @mcp.tool()
+    @validate_params
     async def update_rubric(course_identifier: str | int,
                           rubric_id: str | int,
                           title: str | None = None,
