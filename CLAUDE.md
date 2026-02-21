@@ -261,8 +261,8 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 ---
 
 ## Current Focus
-- [x] Security hardening (v1.0.8)
-- [x] Release v1.0.8 with working CI/CD pipelines
+- [ ] CI/CD cleanup and maintenance
+- [ ] Backlog triage (module templates, bulk creation, page versioning)
 
 ## Roadmap
 - [x] Module management tools (7 tools, 36 tests)
@@ -284,6 +284,13 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 - [ ] Page content versioning/history tools
 
 ## Session Log
+### 2026-02-20
+- **CI cleanup**: Removed auto-update README step from `create-release.yml` (~160 lines deleted)
+  - The step created orphaned branches (e.g., `auto-update-readme-v1.0.8`) when branch protection blocked direct pushes
+  - README is already updated manually during release prep — automation was redundant
+  - Also removed `pull-requests: write` permission (no longer needed)
+- **Branch cleanup**: Deleted orphaned remote branch `auto-update-readme-v1.0.8`
+
 ### 2026-02-16
 - **Security Hardening (v1.0.8)**:
   - Implemented 4 security features via PR #74 (`feature/security-hardening`):
