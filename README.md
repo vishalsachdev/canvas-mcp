@@ -69,6 +69,10 @@ Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are org
 | `get_course_details` | Course info + syllabus |
 | `list_pages` | Course pages |
 | `get_page_content` | Read page content |
+| `get_page_details` | Full page metadata |
+| `get_front_page` | Course front page |
+| `create_page` | Create course page |
+| `edit_page_content` | Update page content |
 | `list_modules` | List course modules |
 | `list_module_items` | Items within a module |
 | `list_discussion_topics` | Discussion forums |
@@ -115,7 +119,7 @@ The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning 
   - Structured audit logging with rotating file output
   - Secure-by-default code execution sandbox (network blocked, env filtered, resource limits)
 - **🧹 Code Quality** - Enforced ruff linting with pre-commit hook (464 issues resolved)
-- **🧪 Expanded Test Suite** - 235+ tests (32 new security tests)
+- **🧪 Expanded Test Suite** - 253 tests (32 new security tests)
 
 ### Previous Release (v1.0.7)
 - **✏️ Assignment Update Tool** - Complete assignment CRUD with `update_assignment`
@@ -131,7 +135,7 @@ The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning 
 - **📄 Page Settings Tools** - Control page publishing and access (2 new tools)
   - `update_page_settings` - Publish/unpublish, set front page, editing roles
   - `bulk_update_pages` - Batch operations on multiple pages
-- **🧪 Comprehensive Test Suite** - 235+ unit tests covering all major functionality
+- **🧪 Comprehensive Test Suite** - 253 unit tests covering all major functionality
 - **📚 Enhanced Documentation** - TDD enforcement and comprehensive tool docs
 
 ### Previous Release (v1.0.5)

@@ -50,6 +50,10 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `send_conversation` | Message students |
 | `send_peer_review_reminders` | Automated reminder workflow |
 | `create_announcement` | Post course announcements |
+| `list_users` | List users enrolled in a course |
+| `list_groups` | List groups in a course |
+| `create_student_anonymization_map` | Generate anonymized student IDs for privacy |
+| `get_anonymization_status` | Check if data anonymization is enabled |
 
 ### Shared Tools (Students & Educators)
 Content access tools available to all authenticated users.
@@ -60,9 +64,14 @@ Content access tools available to all authenticated users.
 | `get_course_details` | Course info and syllabus |
 | `list_pages` | Course pages |
 | `get_page_content` | Read page content |
+| `get_page_details` | Full page metadata and preview |
+| `get_front_page` | Get course front page content |
+| `create_page` | Create a new course page |
+| `edit_page_content` | Update page content and title |
 | `update_page_settings` | Publish/unpublish, set front page, editing roles |
 | `bulk_update_pages` | Update multiple pages at once |
 | `list_modules` | List course modules |
+| `list_module_items` | List items within a module |
 | `create_module` | Create a new module |
 | `update_module` | Update module settings |
 | `delete_module` | Delete a module |
@@ -74,6 +83,16 @@ Content access tools available to all authenticated users.
 | `list_discussion_entries` | Posts in a discussion |
 | `post_discussion_entry` | Add a discussion post |
 | `reply_to_discussion_entry` | Reply to a post |
+
+### Accessibility Tools
+Tools for checking and improving course content accessibility.
+
+| Tool | Purpose |
+|------|---------|
+| `fetch_ufixit_report` | Fetch UFIXIT accessibility report from course page |
+| `parse_ufixit_violations` | Parse report to extract violations |
+| `format_accessibility_summary` | Format violations into readable summary |
+| `scan_course_content_accessibility` | Comprehensive accessibility audit |
 
 ### Developer Tools
 Advanced tools for bulk operations and custom logic.

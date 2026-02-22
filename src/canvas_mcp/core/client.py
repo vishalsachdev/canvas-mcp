@@ -81,7 +81,8 @@ def _get_http_client() -> httpx.AsyncClient:
         http_client = httpx.AsyncClient(
             headers={
                 'Authorization': f'Bearer {config.api_token}',
-                'User-Agent': f'canvas-mcp/{__version__} (https://github.com/vishalsachdev/canvas-mcp)'
+                'User-Agent': f'canvas-mcp/{__version__} (https://github.com/vishalsachdev/canvas-mcp)',
+                'Accept': 'application/json+canvas-string-ids'
             },
             timeout=config.api_timeout
         )
