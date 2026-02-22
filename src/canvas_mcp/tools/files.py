@@ -180,6 +180,8 @@ def register_file_tools(mcp: FastMCP):
         result += f"  - Attach to message: send_conversation(..., attachment_ids=['{file_id}'])\n"
 
         if file_url:
+            # Note: Canvas API includes 'verifier' query parameter automatically
+            # in authenticated responses for file access after 2026-03-25
             result += f"  - Direct URL: {file_url}\n"
 
         return result
