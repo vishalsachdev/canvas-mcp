@@ -69,6 +69,10 @@ Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are org
 | `get_course_details` | Course info + syllabus |
 | `list_pages` | Course pages |
 | `get_page_content` | Read page content |
+| `get_page_details` | Full page metadata |
+| `get_front_page` | Course front page |
+| `create_page` | Create course page |
+| `edit_page_content` | Update page content |
 | `list_modules` | List course modules |
 | `list_module_items` | Items within a module |
 | `list_discussion_topics` | Discussion forums |
