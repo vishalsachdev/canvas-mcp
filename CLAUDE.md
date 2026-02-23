@@ -284,6 +284,23 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 - [ ] Page content versioning/history tools
 
 ## Session Log
+### 2026-02-23
+- **PR #75 Review & Merge**: Reviewed Samuel Parks' file download/listing tools PR
+  - Fixed path traversal vulnerability (sanitize_filename on API-provided filenames)
+  - Switched to streaming downloads (aiter_bytes) for large files
+  - Added sort/order parameter validation in list_course_files
+  - Replaced hardcoded `/tmp` with `tempfile.gettempdir()`
+  - Added 17 new tests (50 total file tests), Codex review passed
+  - Cherry-picked fix commits onto main after fork-based merge gap
+- **Article**: "The Moment Your Side Project Stops Being Yours" — OSS contributor stories
+  - Published drafts to Substack, LinkedIn (1,101 subscribers), and X/Twitter
+  - Generated 3 cover images (LinkedIn 1200x628, Substack 1100x220, Twitter 1200x675)
+- **Skill Updates**: Fixed `/publish-to-substack` and `/publish-to-linkedin` skills
+  - Substack: title/subtitle changed from contenteditable divs to `<textarea>` elements
+  - Substack: body editor selector changed to `.tiptap.ProseMirror`
+  - LinkedIn: title also changed to `<textarea>` — native value setter pattern needed
+  - Both skills: updated CSS selectors reference tables and known bugs
+
 ### 2026-02-20
 - **CI cleanup**: Removed auto-update README step from `create-release.yml` (~160 lines deleted)
   - The step created orphaned branches (e.g., `auto-update-readme-v1.0.8`) when branch protection blocked direct pushes
