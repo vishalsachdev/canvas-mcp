@@ -1,0 +1,57 @@
+<h1>The Moment Your Side Project Stops Being Yours</h1>
+<p><em>How strangers across three continents turned a solo teaching tool into something I never expected</em></p>
+<hr>
+<p>A year ago, I pushed the first commit to canvas-mcp — a tool born from frustration with Canvas LMS's clunky interface. I built it for myself: an MCP server that let me talk to Canvas through Claude instead of clicking through seventeen screens to grade an assignment.</p>
+<p>I never expected strangers to care.</p>
+<p>But here I am, scrolling through pull requests from a professor in North Carolina, a student in Singapore, and an astrophysicist down the hall — and I'm realizing the most rewarding part of open source isn't the code. It's the people.</p>
+<h2>The First Pull Request Was Not Mine</h2>
+<p>Forty-nine days after the first commit, I woke up to a notification. Matias Carrasco Kind — a colleague at UIUC, director of Data Science Research Services at Gies, former astrophysicist at NCSA — had submitted PR #1. His commit message was simple: <em>"update script so it get the folder from the same repo and not hardcoded."</em></p>
+<p>It was a one-line fix. But it meant someone was reading the code. Someone was <em>using</em> it.</p>
+<p>The next day, Matias opened PR #2: <em>"add group and peer-review management."</em> Four contributions total. He'd seen what I was building and thought, <em>I need this too — and it needs peer review tools.</em> The feature he added is still in the codebase today, eleven months later, handling thousands of peer review assignments across real courses.</p>
+<p>That first contribution changed something in my head. This wasn't my tool anymore. It was <em>ours</em>.</p>
+<h2>Professors Don't Usually Submit Pull Requests</h2>
+<p>Jerid Francom is a linguistics professor at Wake Forest University. His GitHub bio reads: <em>"Fluent in both linguistic theory and shell scripting."</em> In June 2025, he submitted PR #5: an executable wrapper that made canvas-mcp dramatically easier to install.</p>
+<p>Think about that for a moment. A professor at a university 700 miles away found my repo, tried to install it, hit friction, and instead of filing an issue saying "this is hard to set up" — he wrote the fix himself. That's the open source dream, and it happened three months in.</p>
+<p>I've never met Jerid. We've never emailed. But his code runs every time someone installs canvas-mcp.</p>
+<h2>The Ecosystem Finds You</h2>
+<p>In April 2025, Frank Fiegel from Glama opened Issue #3: <em>"Glama listing is missing Dockerfile."</em> I didn't know what Glama was — it's an MCP marketplace. Someone had listed canvas-mcp there, and they needed Docker support. This one issue led to PR #15, proper containerization, and eventually listing on the MCP Registry and PyPI.</p>
+<p>In September, Bell Eapen — an assistant professor at the University of Illinois Springfield, formerly Mayo Clinic — opened a feature request for UDOIT accessibility integration. He wasn't asking for a bug fix. He was seeing canvas-mcp as <em>infrastructure</em> — a platform where accessibility tooling could plug in. That's a different kind of compliment entirely.</p>
+<p>Daniel Traynor noticed I'd gotten the MCP acronym wrong in the README. He didn't just file an issue. He submitted the fix the same day, PR #12. Merged in eight minutes.</p>
+<p>Ansh Tulsyan tried to set up the project and discovered the <code>env.template</code> file referenced in the README didn't exist. Classic open source moment — the maintainer never noticed because they'd had the file locally all along.</p>
+<p>These aren't headline contributions. No one's writing blog posts about fixing an acronym or adding a template file. But each one made the project better for the next person who found it. That's the compound interest of open source.</p>
+<h2>The Relay Race: Singapore to Illinois</h2>
+<p>This is my favorite story.</p>
+<p>In early February 2026, a user named Soulfire filed Issue #64: a datetime comparison bug in <code>get_my_upcoming_assignments</code>. The tool was crashing when comparing timezone-naive and timezone-aware datetimes — a classic Python gotcha. Three days later, they filed Issue #66: another bug in the same tool, this time an <code>argument of type 'int' is not iterable</code> error.</p>
+<p>Soulfire was a <em>student</em>. They were actually using canvas-mcp to check their upcoming assignments and hit real bugs in production.</p>
+<p>Two weeks later, Justin Cheah — a computer science student at the National University of Singapore — submitted PR #72 and PR #73, fixing both of Soulfire's bugs. He'd found the repo independently, saw open issues he could fix, and knocked them out in the same afternoon.</p>
+<p>A student in the US hit a bug. A student in Singapore fixed it. They've never spoken. The relay baton was the issue tracker.</p>
+<p>This is the moment open source stops being about code and starts being about community. Two students, 9,500 miles apart, collaborating through nothing but a shared GitHub repository.</p>
+<h2>When Someone Adds a Feature You Actually Needed</h2>
+<p>Last week, Samuel Parks submitted PR #75: file download and listing tools. Canvas-mcp could upload files to courses but couldn't download them — a gap I'd been meaning to address but kept deprioritizing.</p>
+<p>Samuel didn't just add a basic download function. He followed the project's patterns exactly: <code>@mcp.tool()</code> decorators, <code>@validate_params</code>, <code>get_course_id()</code> for flexible identifiers, proper error handling. He'd clearly read the codebase carefully enough to write code that looked like mine.</p>
+<p>During code review, GitHub's automated tools flagged a path traversal vulnerability — the filename from Canvas API was being used directly without sanitization. We also switched to streaming downloads for large files and added input validation. The collaboration between the initial contribution and the review process made the final result better than either of us would have produced alone.</p>
+<p>Seventeen new tests. Zero lint errors. Merged the same day.</p>
+<h2>The Numbers, If You Care About Numbers</h2>
+<p>Canvas-mcp turned one year old last week. Here's where it stands:</p>
+<ul>
+<li><strong>61 stars</strong> and <strong>26 forks</strong> — modest by npm standards, extraordinary for a niche education tool</li>
+<li><strong>195 unique cloners</strong> in the last two weeks alone — people actively installing it</li>
+<li><strong>84 MCP tools</strong> across courses, assignments, discussions, grading, messaging, analytics, modules, pages, files, and accessibility</li>
+<li><strong>6 external contributors</strong> with merged pull requests</li>
+<li><strong>5 external issue reporters</strong> who shaped the roadmap</li>
+<li>Contributors spanning from Illinois to North Carolina to Singapore</li>
+</ul>
+<p>When I described the technical evolution of this project last September in <a href="https://chatwithgpt.substack.com/p/three-months-of-canvas-mcp-evolution">Three Months of Canvas MCP Evolution</a>, the story was about commits and architecture. The story now is about something different.</p>
+<h2>What They Don't Tell You About Maintaining OSS</h2>
+<p>Nobody prepares you for the emotional weight of it. Not the burden — that's well-documented in maintainer burnout literature. I mean the <em>weight of mattering</em>.</p>
+<p>When Soulfire filed that bug report, it meant a student was relying on my code to check their assignments. When Bell Eapen requested accessibility integration, it meant someone saw educational equity potential in what started as a convenience hack. When Justin fixed bugs from across the Pacific, it meant the project had grown past my ability to imagine all its users.</p>
+<p>Every notification is a small vote of confidence. Someone took time out of their day to make your thing better. Not because they were paid. Not because they were assigned. Because they cared enough.</p>
+<p>The closed PRs matter too. Frank (Sallvainian) — bio: <em>"Vibe coding till I make it"</em> — submitted two PRs for token efficiency optimization. They didn't get merged, but they showed me that token cost was a real pain point for users. That insight shaped later architecture decisions even though the specific code didn't land.</p>
+<h2>The Real Product</h2>
+<p>Canvas-mcp started as 200 lines of Python to avoid clicking through Canvas. It's now 84 tools, 250+ tests, published on PyPI and the MCP Registry, with security hardening, FERPA compliance, and a CI/CD pipeline.</p>
+<p>But the real product isn't the code. It's the proof that a niche tool for a specific pain point, built honestly and maintained openly, can attract exactly the right people. Not thousands of drive-by stars — but professors who teach with Canvas, students who learn through Canvas, and developers who see what a well-structured MCP server looks like and want to contribute.</p>
+<p>If you're sitting on a tool you built for yourself and wondering whether to open source it: do it. Not for the stars. Not for the resume line. For the morning you wake up and discover that a professor 700 miles away rewrote your installer, a student on the other side of the world fixed a bug you didn't know existed, and an astrophysicist added peer review management because he needed it too.</p>
+<p>That's the joy. That's the whole thing.</p>
+<hr>
+<p><em>Canvas-mcp is open source at <a href="https://github.com/vishalsachdev/canvas-mcp">github.com/vishalsachdev/canvas-mcp</a>. The project accepts contributions of all sizes — from acronym fixes to new tool implementations. If you teach with Canvas, you might find it useful.</em></p>
+<p><em>Thank you to Matias, Jerid, Daniel, Ansh, Suyash, Bell, Frank, Frank, Soulfire, Justin, and Samuel. This project is better because of you.</em></p>
