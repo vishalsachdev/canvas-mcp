@@ -13,6 +13,7 @@ This module handles all three steps transparently.
 """
 
 import os
+import tempfile
 
 from mcp.server.fastmcp import FastMCP
 
@@ -206,8 +207,8 @@ def register_file_tools(mcp: FastMCP):
         Args:
             course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
             file_id: The Canvas file ID (from list_module_items content_id or list_course_files)
-            save_directory: Local directory to save the file. Defaults to /tmp.
-                           The directory must already exist.
+            save_directory: Local directory to save the file. Defaults to the
+                           system temp directory. The directory must already exist.
 
         Returns:
             Success message with local file path, or error message.
@@ -244,7 +245,7 @@ def register_file_tools(mcp: FastMCP):
             return "Error: No download URL available for this file. Check permissions."
 
         # Determine save path
-        save_dir = save_directory or "/tmp"
+        save_dir = save_directory or tempfile.gettempdir()
         if not os.path.isdir(save_dir):
             return f"Error: Directory does not exist: {save_dir}"
 
