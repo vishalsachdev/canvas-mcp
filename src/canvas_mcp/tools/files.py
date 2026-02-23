@@ -1,8 +1,8 @@
 """File-related MCP tools for Canvas API.
 
-Provides tools for uploading files to Canvas courses. Uploaded files can be
-used with other tools like add_module_item (for adding files to modules)
-and send_conversation (for attaching files to messages).
+Provides tools for uploading, downloading, and listing files in Canvas courses.
+Uploaded files can be used with other tools like add_module_item (for adding
+files to modules) and send_conversation (for attaching files to messages).
 
 The Canvas file upload process uses a 3-step protocol:
 1. Request upload URL from Canvas API
@@ -12,11 +12,17 @@ The Canvas file upload process uses a 3-step protocol:
 This module handles all three steps transparently.
 """
 
+import os
 
 from mcp.server.fastmcp import FastMCP
 
 from ..core.cache import get_course_code, get_course_id
-from ..core.client import make_canvas_request, upload_file_to_storage
+from ..core.client import (
+    _get_http_client,
+    fetch_all_paginated_results,
+    make_canvas_request,
+    upload_file_to_storage,
+)
 from ..core.file_validation import (
     FileValidationResult,
     format_file_size,
@@ -182,4 +188,149 @@ def register_file_tools(mcp: FastMCP):
         if file_url:
             result += f"  - Direct URL: {file_url}\n"
 
+        return result
+
+    @mcp.tool()
+    @validate_params
+    async def download_course_file(
+        course_identifier: str | int,
+        file_id: str | int,
+        save_directory: str | None = None,
+    ) -> str:
+        """Download a file from a Canvas course to the local filesystem.
+
+        Fetches a file from Canvas by its file ID and saves it locally. Use
+        list_course_files or list_module_items to find file IDs.
+
+        Args:
+            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            file_id: The Canvas file ID (from list_module_items content_id or list_course_files)
+            save_directory: Local directory to save the file. Defaults to /tmp.
+                           The directory must already exist.
+
+        Returns:
+            Success message with local file path, or error message.
+
+        Example usage:
+            1. Find files in a module:
+               list_module_items("52607", module_id=356544)
+               → Shows files with Content IDs
+
+            2. Download a specific file:
+               download_course_file("52607", file_id=14069275)
+               → "Downloaded: Midterm_Review_2026.pdf | Path: /tmp/Midterm_Review_2026.pdf"
+
+            3. Download to a specific directory:
+               download_course_file("52607", 14069275, save_directory="/Users/me/Downloads")
+        """
+        course_id = await get_course_id(course_identifier)
+
+        # Get file metadata from Canvas API
+        file_info = await make_canvas_request(
+            "get",
+            f"/courses/{course_id}/files/{file_id}"
+        )
+
+        if isinstance(file_info, dict) and "error" in file_info:
+            return f"Error getting file info: {file_info['error']}"
+
+        filename = file_info.get("display_name") or file_info.get("filename", f"file_{file_id}")
+        download_url = file_info.get("url")
+        file_size = file_info.get("size", 0)
+        content_type = file_info.get("content-type", "unknown")
+
+        if not download_url:
+            return "Error: No download URL available for this file. Check permissions."
+
+        # Determine save path
+        save_dir = save_directory or "/tmp"
+        if not os.path.isdir(save_dir):
+            return f"Error: Directory does not exist: {save_dir}"
+
+        save_path = os.path.join(save_dir, filename)
+
+        # Download the file using the authenticated client
+        client = _get_http_client()
+        try:
+            response = await client.get(download_url, follow_redirects=True)
+            response.raise_for_status()
+
+            with open(save_path, 'wb') as f:
+                f.write(response.content)
+
+            size_str = format_file_size(len(response.content))
+            course_display = await get_course_code(course_id) or course_identifier
+
+            result = f"Downloaded: {filename}\n"
+            result += f"  Path: {save_path}\n"
+            result += f"  Size: {size_str}\n"
+            result += f"  Type: {content_type}\n"
+            result += f"  Course: {course_display}\n"
+            return result
+
+        except Exception as e:
+            return f"Error downloading file: {str(e)}"
+
+    @mcp.tool()
+    @validate_params
+    async def list_course_files(
+        course_identifier: str | int,
+        search_term: str | None = None,
+        sort: str = "updated_at",
+        order: str = "desc",
+    ) -> str:
+        """List files in a Canvas course with optional search.
+
+        Browse all files uploaded to a course. Useful for finding file IDs
+        needed by download_course_file.
+
+        Args:
+            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            search_term: Optional search string to filter files by name
+            sort: Sort field - one of: name, size, created_at, updated_at, content_type
+                  (default: updated_at)
+            order: Sort order - "asc" or "desc" (default: desc)
+
+        Returns:
+            Formatted list of files with IDs, names, sizes, and types.
+
+        Example usage:
+            list_course_files("52607")
+            list_course_files("52607", search_term="midterm")
+        """
+        course_id = await get_course_id(course_identifier)
+
+        params = {
+            "per_page": 100,
+            "sort": sort,
+            "order": order,
+        }
+        if search_term:
+            params["search_term"] = search_term
+
+        files = await fetch_all_paginated_results(
+            f"/courses/{course_id}/files",
+            params
+        )
+
+        if isinstance(files, dict) and "error" in files:
+            return f"Error listing files: {files['error']}"
+
+        if not files:
+            msg = "No files found"
+            if search_term:
+                msg += f" matching '{search_term}'"
+            return msg
+
+        course_display = await get_course_code(course_id) or course_identifier
+        result = f"Files in {course_display}:\n\n"
+
+        for f in files:
+            fid = f.get("id", "?")
+            name = f.get("display_name") or f.get("filename", "unknown")
+            size = format_file_size(f.get("size", 0))
+            ctype = f.get("content-type", "unknown")
+            result += f"  ID: {fid} | {name} ({size}, {ctype})\n"
+
+        result += f"\nTotal: {len(files)} file(s)"
         return result
