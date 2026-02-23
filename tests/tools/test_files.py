@@ -645,5 +645,325 @@ class TestAllowedExtensions:
             assert result.valid is False, f"Extension {ext} should be blocked"
 
 
+class TestDownloadCourseFile:
+    """Tests for download_course_file tool."""
+
+    @pytest.fixture
+    def mock_download_api(self):
+        """Fixture to mock APIs needed for download_course_file."""
+        with patch('canvas_mcp.tools.files.get_course_id') as mock_get_id, \
+             patch('canvas_mcp.tools.files.get_course_code') as mock_get_code, \
+             patch('canvas_mcp.tools.files.make_canvas_request') as mock_request, \
+             patch('canvas_mcp.tools.files._get_http_client') as mock_client:
+
+            mock_get_id.return_value = "60366"
+            mock_get_code.return_value = "badm_350_120251"
+
+            yield {
+                'get_course_id': mock_get_id,
+                'get_course_code': mock_get_code,
+                'make_canvas_request': mock_request,
+                '_get_http_client': mock_client,
+            }
+
+    def _setup_mock_stream(self, mock_client, content=b"file content here"):
+        """Helper to set up a mock streaming response."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_response = AsyncMock()
+        mock_response.raise_for_status = MagicMock()
+
+        async def aiter_bytes(chunk_size=8192):
+            yield content
+
+        mock_response.aiter_bytes = aiter_bytes
+
+        # Create async context manager for client.stream()
+        mock_stream_cm = AsyncMock()
+        mock_stream_cm.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_stream_cm.__aexit__ = AsyncMock(return_value=False)
+
+        mock_http = AsyncMock()
+        mock_http.stream = MagicMock(return_value=mock_stream_cm)
+        mock_client.return_value = mock_http
+
+        return mock_http
+
+    @pytest.mark.asyncio
+    async def test_download_success(self, mock_download_api, tmp_path):
+        """Test successful file download."""
+        mock_download_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "display_name": "syllabus.pdf",
+            "url": "https://canvas.example.com/files/12345/download",
+            "size": 1024,
+            "content-type": "application/pdf",
+        }
+
+        self._setup_mock_stream(mock_download_api['_get_http_client'])
+
+        download_fn = get_tool_function('download_course_file')
+        result = await download_fn("badm_350_120251", 12345, save_directory=str(tmp_path))
+
+        assert "Downloaded: syllabus.pdf" in result
+        assert str(tmp_path) in result
+        assert "application/pdf" in result
+        assert "badm_350_120251" in result
+
+    @pytest.mark.asyncio
+    async def test_download_custom_directory(self, mock_download_api, tmp_path):
+        """Test download to a custom directory."""
+        mock_download_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "display_name": "notes.pdf",
+            "url": "https://canvas.example.com/files/12345/download",
+            "content-type": "application/pdf",
+        }
+
+        self._setup_mock_stream(mock_download_api['_get_http_client'])
+
+        download_fn = get_tool_function('download_course_file')
+        result = await download_fn("60366", 12345, save_directory=str(tmp_path))
+
+        assert str(tmp_path) in result
+        assert "Downloaded: notes.pdf" in result
+
+    @pytest.mark.asyncio
+    async def test_download_api_error(self, mock_download_api):
+        """Test handling of Canvas API error."""
+        mock_download_api['make_canvas_request'].return_value = {
+            "error": "File not found"
+        }
+
+        download_fn = get_tool_function('download_course_file')
+        result = await download_fn("60366", 99999)
+
+        assert "error" in result.lower()
+        assert "File not found" in result
+
+    @pytest.mark.asyncio
+    async def test_download_no_url(self, mock_download_api):
+        """Test handling when file has no download URL."""
+        mock_download_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "display_name": "locked.pdf",
+            "size": 1024,
+        }
+
+        download_fn = get_tool_function('download_course_file')
+        result = await download_fn("60366", 12345)
+
+        assert "error" in result.lower()
+        assert "download url" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_download_nonexistent_directory(self, mock_download_api):
+        """Test error when save directory does not exist."""
+        mock_download_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "display_name": "test.pdf",
+            "url": "https://canvas.example.com/files/12345/download",
+            "content-type": "application/pdf",
+        }
+
+        download_fn = get_tool_function('download_course_file')
+        result = await download_fn("60366", 12345, save_directory="/nonexistent/path")
+
+        assert "error" in result.lower()
+        assert "does not exist" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_download_path_traversal_prevention(self, mock_download_api, tmp_path):
+        """Test that malicious filenames are sanitized to prevent path traversal."""
+        mock_download_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "display_name": "../../../etc/passwd",
+            "url": "https://canvas.example.com/files/12345/download",
+            "content-type": "application/octet-stream",
+        }
+
+        self._setup_mock_stream(mock_download_api['_get_http_client'])
+
+        download_fn = get_tool_function('download_course_file')
+        result = await download_fn("60366", 12345, save_directory=str(tmp_path))
+
+        # The file should be saved with a sanitized name, not the traversal path
+        assert "../" not in result
+        assert "Downloaded:" in result
+
+    @pytest.mark.asyncio
+    async def test_download_uses_filename_fallback(self, mock_download_api, tmp_path):
+        """Test fallback to 'filename' when 'display_name' is missing."""
+        mock_download_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "filename": "backup_name.pdf",
+            "url": "https://canvas.example.com/files/12345/download",
+            "content-type": "application/pdf",
+        }
+
+        self._setup_mock_stream(mock_download_api['_get_http_client'])
+
+        download_fn = get_tool_function('download_course_file')
+        result = await download_fn("60366", 12345, save_directory=str(tmp_path))
+
+        assert "Downloaded: backup_name.pdf" in result
+
+    @pytest.mark.asyncio
+    async def test_download_http_error(self, mock_download_api, tmp_path):
+        """Test handling of HTTP download errors."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_download_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "display_name": "test.pdf",
+            "url": "https://canvas.example.com/files/12345/download",
+            "content-type": "application/pdf",
+        }
+
+        # Set up client.stream() to raise an exception
+        mock_response = AsyncMock()
+        mock_response.raise_for_status = MagicMock(side_effect=Exception("403 Forbidden"))
+
+        mock_stream_cm = AsyncMock()
+        mock_stream_cm.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_stream_cm.__aexit__ = AsyncMock(return_value=False)
+
+        mock_http = AsyncMock()
+        mock_http.stream = MagicMock(return_value=mock_stream_cm)
+        mock_download_api['_get_http_client'].return_value = mock_http
+
+        download_fn = get_tool_function('download_course_file')
+        result = await download_fn("60366", 12345, save_directory=str(tmp_path))
+
+        assert "error" in result.lower()
+
+
+class TestListCourseFiles:
+    """Tests for list_course_files tool."""
+
+    @pytest.fixture
+    def mock_list_api(self):
+        """Fixture to mock APIs needed for list_course_files."""
+        with patch('canvas_mcp.tools.files.get_course_id') as mock_get_id, \
+             patch('canvas_mcp.tools.files.get_course_code') as mock_get_code, \
+             patch('canvas_mcp.tools.files.fetch_all_paginated_results') as mock_fetch:
+
+            mock_get_id.return_value = "60366"
+            mock_get_code.return_value = "badm_350_120251"
+
+            yield {
+                'get_course_id': mock_get_id,
+                'get_course_code': mock_get_code,
+                'fetch_all_paginated_results': mock_fetch,
+            }
+
+    @pytest.mark.asyncio
+    async def test_list_files_success(self, mock_list_api):
+        """Test successful file listing."""
+        mock_list_api['fetch_all_paginated_results'].return_value = [
+            {"id": 1, "display_name": "syllabus.pdf", "size": 102400, "content-type": "application/pdf"},
+            {"id": 2, "display_name": "notes.docx", "size": 51200, "content-type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+        ]
+
+        list_fn = get_tool_function('list_course_files')
+        result = await list_fn("badm_350_120251")
+
+        assert "Files in badm_350_120251" in result
+        assert "syllabus.pdf" in result
+        assert "notes.docx" in result
+        assert "Total: 2 file(s)" in result
+
+    @pytest.mark.asyncio
+    async def test_list_files_with_search(self, mock_list_api):
+        """Test file listing with search term."""
+        mock_list_api['fetch_all_paginated_results'].return_value = [
+            {"id": 1, "display_name": "midterm_review.pdf", "size": 5000, "content-type": "application/pdf"},
+        ]
+
+        list_fn = get_tool_function('list_course_files')
+        result = await list_fn("60366", search_term="midterm")
+
+        assert "midterm_review.pdf" in result
+        assert "Total: 1 file(s)" in result
+
+        # Verify search_term was passed in params
+        call_args = mock_list_api['fetch_all_paginated_results'].call_args
+        params = call_args[0][1]  # second positional arg
+        assert params["search_term"] == "midterm"
+
+    @pytest.mark.asyncio
+    async def test_list_files_empty_result(self, mock_list_api):
+        """Test empty file listing."""
+        mock_list_api['fetch_all_paginated_results'].return_value = []
+
+        list_fn = get_tool_function('list_course_files')
+        result = await list_fn("60366")
+
+        assert "No files found" in result
+
+    @pytest.mark.asyncio
+    async def test_list_files_empty_with_search(self, mock_list_api):
+        """Test empty file listing with search term."""
+        mock_list_api['fetch_all_paginated_results'].return_value = []
+
+        list_fn = get_tool_function('list_course_files')
+        result = await list_fn("60366", search_term="nonexistent")
+
+        assert "No files found" in result
+        assert "nonexistent" in result
+
+    @pytest.mark.asyncio
+    async def test_list_files_api_error(self, mock_list_api):
+        """Test handling of Canvas API errors."""
+        mock_list_api['fetch_all_paginated_results'].return_value = {
+            "error": "Insufficient permissions"
+        }
+
+        list_fn = get_tool_function('list_course_files')
+        result = await list_fn("60366")
+
+        assert "error" in result.lower()
+        assert "Insufficient permissions" in result
+
+    @pytest.mark.asyncio
+    async def test_list_files_invalid_sort(self):
+        """Test validation rejects invalid sort field."""
+        list_fn = get_tool_function('list_course_files')
+        result = await list_fn("60366", sort="invalid_field")
+
+        assert "Invalid sort field" in result
+        assert "invalid_field" in result
+
+    @pytest.mark.asyncio
+    async def test_list_files_invalid_order(self):
+        """Test validation rejects invalid order."""
+        list_fn = get_tool_function('list_course_files')
+        result = await list_fn("60366", order="random")
+
+        assert "Invalid order" in result
+        assert "random" in result
+
+    @pytest.mark.asyncio
+    async def test_list_files_valid_sort_options(self, mock_list_api):
+        """Test all valid sort fields are accepted."""
+        mock_list_api['fetch_all_paginated_results'].return_value = []
+
+        list_fn = get_tool_function('list_course_files')
+
+        for sort_field in ["name", "size", "created_at", "updated_at", "content_type"]:
+            result = await list_fn("60366", sort=sort_field)
+            assert "Invalid sort field" not in result, f"Sort field '{sort_field}' should be valid"
+
+    @pytest.mark.asyncio
+    async def test_list_files_asc_order(self, mock_list_api):
+        """Test ascending order is accepted."""
+        mock_list_api['fetch_all_paginated_results'].return_value = []
+
+        list_fn = get_tool_function('list_course_files')
+        result = await list_fn("60366", order="asc")
+
+        assert "Invalid order" not in result
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

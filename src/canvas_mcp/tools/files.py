@@ -26,6 +26,7 @@ from ..core.client import (
 from ..core.file_validation import (
     FileValidationResult,
     format_file_size,
+    sanitize_filename,
     validate_file_for_upload,
 )
 from ..core.validation import validate_params
@@ -234,9 +235,9 @@ def register_file_tools(mcp: FastMCP):
         if isinstance(file_info, dict) and "error" in file_info:
             return f"Error getting file info: {file_info['error']}"
 
-        filename = file_info.get("display_name") or file_info.get("filename", f"file_{file_id}")
+        raw_filename = file_info.get("display_name") or file_info.get("filename", f"file_{file_id}")
+        filename = sanitize_filename(raw_filename)
         download_url = file_info.get("url")
-        file_size = file_info.get("size", 0)
         content_type = file_info.get("content-type", "unknown")
 
         if not download_url:
@@ -249,16 +250,19 @@ def register_file_tools(mcp: FastMCP):
 
         save_path = os.path.join(save_dir, filename)
 
-        # Download the file using the authenticated client
+        # Download the file using streaming to handle large files efficiently
         client = _get_http_client()
         try:
-            response = await client.get(download_url, follow_redirects=True)
-            response.raise_for_status()
+            total_bytes = 0
+            async with client.stream("GET", download_url, follow_redirects=True) as response:
+                response.raise_for_status()
 
-            with open(save_path, 'wb') as f:
-                f.write(response.content)
+                with open(save_path, 'wb') as f:
+                    async for chunk in response.aiter_bytes(chunk_size=8192):
+                        f.write(chunk)
+                        total_bytes += len(chunk)
 
-            size_str = format_file_size(len(response.content))
+            size_str = format_file_size(total_bytes)
             course_display = await get_course_code(course_id) or course_identifier
 
             result = f"Downloaded: {filename}\n"
@@ -298,6 +302,14 @@ def register_file_tools(mcp: FastMCP):
             list_course_files("52607")
             list_course_files("52607", search_term="midterm")
         """
+        # Validate sort and order parameters
+        valid_sort_fields = {"name", "size", "created_at", "updated_at", "content_type"}
+        if sort not in valid_sort_fields:
+            return f"Invalid sort field: '{sort}'. Must be one of: {', '.join(sorted(valid_sort_fields))}"
+
+        if order not in ("asc", "desc"):
+            return f"Invalid order: '{order}'. Must be 'asc' or 'desc'."
+
         course_id = await get_course_id(course_identifier)
 
         params = {
