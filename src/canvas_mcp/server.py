@@ -231,7 +231,10 @@ def main() -> None:
 
         from .core.client import cleanup_http_client
 
-        asyncio.run(cleanup_http_client())
+        try:
+            asyncio.run(cleanup_http_client())
+        except RuntimeError:
+            pass  # Event loop already closed — safe to ignore
         log_info("Server stopped")
 
 

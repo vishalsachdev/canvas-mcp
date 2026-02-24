@@ -254,12 +254,6 @@ This repository has multiple documentation files for different audiences. To pre
 - Do NOT add architecture details to AGENTS.md (that's for CLAUDE.md)
 - Do NOT add example prompts to tools/README.md (that's for AGENTS.md)
 
-## Psychology
-
-Do not be afraid to question what I say. Do not always respond with "You're right!" Question the assertions I make and decide whether they are true. If they are probably true, don't question them. If they are probably false, question them. If you are unsure, question them. Always think critically about what I say and decide for yourself whether it is true or false
-
----
-
 ## Current Focus
 - [ ] CI/CD cleanup and maintenance
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
@@ -284,6 +278,25 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 - [ ] Page content versioning/history tools
 
 ## Session Log
+> Full history: [session-history.md](./session-history.md)
+
+### 2026-02-23
+- **PR #75 Review & Merge**: Reviewed Samuel Parks' file download/listing tools PR
+  - Fixed path traversal vulnerability (sanitize_filename on API-provided filenames)
+  - Switched to streaming downloads (aiter_bytes) for large files
+  - Added sort/order parameter validation in list_course_files
+  - Replaced hardcoded `/tmp` with `tempfile.gettempdir()`
+  - Added 17 new tests (50 total file tests), Codex review passed
+  - Cherry-picked fix commits onto main after fork-based merge gap
+- **Article**: "The Moment Your Side Project Stops Being Yours" — OSS contributor stories
+  - Published drafts to Substack, LinkedIn (1,101 subscribers), and X/Twitter
+  - Generated 3 cover images (LinkedIn 1200x628, Substack 1100x220, Twitter 1200x675)
+- **Skill Updates**: Fixed `/publish-to-substack` and `/publish-to-linkedin` skills
+  - Substack: title/subtitle changed from contenteditable divs to `<textarea>` elements
+  - Substack: body editor selector changed to `.tiptap.ProseMirror`
+  - LinkedIn: title also changed to `<textarea>` — native value setter pattern needed
+  - Both skills: updated CSS selectors reference tables and known bugs
+
 ### 2026-02-20
 - **CI cleanup**: Removed auto-update README step from `create-release.yml` (~160 lines deleted)
   - The step created orphaned branches (e.g., `auto-update-readme-v1.0.8`) when branch protection blocked direct pushes
@@ -333,44 +346,3 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
     - Ready for future deployment if Smithery opens up access
   - **Decision**: Skip Smithery → focus on MCP Registry + PyPI (already published)
   - `smithery-wrapper/` removed in 2026-02-16 session (unused prototype)
-
-### 2026-01-25
-- Added `update_assignment` tool:
-  - PUT /api/v1/courses/:course_id/assignments/:id
-  - Parameters: course_identifier, assignment_id, name, description, submission_types, due_at, unlock_at, lock_at, points_possible, grading_type, published, assignment_group_id, peer_reviews, automatic_peer_reviews, allowed_extensions
-  - All update fields optional (only changed fields sent to API)
-  - 9 unit tests following TDD pattern
-  - Updated TODO.md (moved to Completed)
-- Tool follows existing patterns from `create_assignment`
-
-### 2026-01-21
-- Fixed broken rubric API tools:
-  - Disabled `create_rubric` (Canvas API returns 500 error - known bug)
-  - Disabled `update_rubric` (API does full replacement, causes data loss)
-  - Both tools now return informative error messages with workarounds
-  - Added "Known Canvas API Limitations" section to AGENTS.md
-  - Updated README.md and tools/README.md with limitations
-- Pushed: `c01dc7d` fix: Disable broken rubric API tools (create_rubric, update_rubric)
-
-### 2026-01-20
-- Updated README documentation:
-  - Corrected tool count from 50+ to 80+ (actual: 84 tools)
-  - Updated test count from 51 to 167 tests
-  - Reorganized tool sections by Canvas permissions
-  - Moved module/page management tools to Educator Tools
-  - Kept only read-only tools in Shared Tools section
-  - Added example prompts for new educator tools
-- Pushed: `85c9fef` docs: Update README with accurate tool count
-
-### 2026-01-18
-- Completed: Module tools feature branch (`feature/module-creation-tool`)
-  - 7 MCP tools for Canvas module management
-  - 36 unit tests
-  - Full documentation in tools/README.md and AGENTS.md
-- Completed: Page settings tools (`feature/page-settings-tools`)
-  - `update_page_settings` - publish/unpublish, front page, editing roles
-  - `bulk_update_pages` - batch operations on multiple pages
-  - 15 unit tests (TDD approach)
-  - Added TDD enforcement section to CLAUDE.md
-  - Created GitHub issue #56 for comprehensive test coverage
-- Released: v1.0.6 with 9 new tools

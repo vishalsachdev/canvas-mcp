@@ -1,5 +1,5 @@
 ---
-name: canvas-morning-check
+name: morning-check
 description: Educator morning course health check. Shows submission rates, struggling students, grade distribution, and upcoming deadlines. Use when educator says "morning check", "course status", "how are my students", or at the start of a teaching day.
 ---
 
@@ -117,4 +117,4 @@ Would you like me to:
 - With anonymization enabled, student names appear as `Student_xxxxxxxx`
 - Keep local mapping file to correlate anonymous IDs with real students
 - This skill works best when run weekly (Monday mornings)
-- Pairs well with `/canvas-week-plan` for students
+- Pairs well with `/week-plan` for students
