@@ -50,11 +50,6 @@ Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are org
 | `update_module` | Update module settings | "Rename the midterm module" |
 | `add_module_item` | Add content to module | "Add the syllabus page to Week 1" |
 | `delete_module` | Remove a module | "Delete the empty test module" |
-| **Page & Content** | | |
-| `create_page` | Create course page | "Create a page for office hours" |
-| `edit_page_content` | Update page content | "Update the syllabus page" |
-| `update_page_settings` | Publish/unpublish pages | "Publish all Week 3 pages" |
-| `bulk_update_pages` | Batch page operations | "Unpublish all draft pages" |
 | **File Management** | | |
 | `upload_course_file` | Upload local file to Canvas | "Upload syllabus.pdf to the course" |
 
@@ -73,6 +68,8 @@ Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are org
 | `get_front_page` | Course front page |
 | `create_page` | Create course page |
 | `edit_page_content` | Update page content |
+| `update_page_settings` | Publish/unpublish, set front page, change editing roles |
+| `bulk_update_pages` | Batch publish/unpublish multiple pages |
 | `list_modules` | List course modules |
 | `list_module_items` | Items within a module |
 | `list_discussion_topics` | Discussion forums |
@@ -230,6 +227,8 @@ Canvas MCP is compatible with Canvas LMS API and stays current with Canvas API c
 **Important Canvas API Changes:**
 - **January 2026**: User-Agent header enforcement (✅ implemented in v1.0.4+)
 - **January 2026**: Deprecation of `limit` parameter in favor of `per_page` (✅ compliant)
+- **String IDs**: Canvas MCP sends `Accept: application/json+canvas-string-ids` — all numeric IDs are returned as strings, preventing precision loss for large 64-bit IDs
+- **March 2026**: Canvas will include a `verifier` query parameter in authenticated file download URLs; Canvas MCP handles this transparently
 - **Modern Canvas REST API**: All endpoints use current Canvas API standards
 
 **Canvas Instance Requirements:**
