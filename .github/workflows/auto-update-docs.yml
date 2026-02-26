@@ -31,19 +31,18 @@ jobs:
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
 
-            Tool files have been modified in this PR. Please:
+            Tool files have been modified in this PR. Follow the documentation
+            hierarchy defined in CLAUDE.md under "Documentation Maintenance".
 
-            1. Review the changes in src/canvas_mcp/tools/ to understand what new tools or modifications were made
-            2. Update the README.md to reflect:
-               - New tools added (with descriptions and examples)
-               - Modified tool signatures or parameters
-               - New features or capabilities
-            3. Ensure the documentation accurately describes:
-               - Tool categories (assignments, discussions, pages, rubrics, etc.)
-               - Required parameters
-               - Example usage
-            4. Keep the documentation style consistent with existing format
-            5. If changes are needed, commit them directly to this PR branch
+            1. Review the changes in src/canvas_mcp/tools/ to understand what
+               new tools or modifications were made.
+            2. Update these files as needed (source of truth for tool docs):
+               - docs/tools/README.md — full human-readable tool documentation
+               - AGENTS.md — concise tool table for AI agents
+               - docs/tools/TOOL_MANIFEST.json — machine-readable tool catalog
+            3. Do NOT update the top-level README.md unless this is a major feature.
+            4. Keep the documentation style consistent with existing format.
+            5. If changes are needed, commit them directly to this PR branch.
 
             Use git commands to commit your documentation updates if needed.
 

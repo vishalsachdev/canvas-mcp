@@ -19,20 +19,19 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e .
           pip install pytest pytest-asyncio pytest-cov
-      
+
       - name: Run security tests
         run: |
           pytest tests/security/ -v --cov=src/canvas_mcp --cov-report=html --cov-report=term
-        continue-on-error: true
       
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -56,19 +55,19 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: Install SAST tools
         run: |
           pip install bandit semgrep
-      
+
       - name: Run Bandit scan
         run: |
           bandit -r src/canvas_mcp/ -f json -o bandit-report.json
         continue-on-error: true
-      
+
       - name: Run Semgrep scan
         run: |
           semgrep --config=auto src/ --json -o semgrep-report.json
@@ -98,27 +97,27 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-      
+
       - name: Install scanning tools
         run: |
           pip install pip-audit safety
-      
+
       - name: Run pip-audit
         run: |
           pip-audit --format json --output pip-audit-report.json
         continue-on-error: true
-      
-      - name: Run Safety check
+
+      - name: Run Safety scan
         run: |
-          safety check --json --output safety-report.json
+          safety scan --output json > safety-report.json
         continue-on-error: true
       
       - name: Upload dependency scan results
@@ -147,10 +146,10 @@ jobs:
           fetch-depth: 0  # Full history for secret scanning
       
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: Install secret scanning tools
         run: |
           pip install detect-secrets
@@ -194,22 +193,22 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@v3
         with:
           languages: python
           queries: security-and-quality
       
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v2
+        uses: github/codeql-action/autobuild@v3
       
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@v3
         with:
           category: "/language:python"
 
   security-summary:
     name: Security Test Summary
-    needs: [security-tests, sast-scan, dependency-scan, secret-scan]
+    needs: [security-tests, sast-scan, dependency-scan, secret-scan, codeql-analysis]
     runs-on: ubuntu-latest
     if: always()
     
