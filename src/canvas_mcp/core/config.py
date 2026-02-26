@@ -1,14 +1,17 @@
 """Configuration management for Canvas MCP server."""
 
 import os
-import sys
 
 from dotenv import load_dotenv
+
+from .logging import log_error, log_warning
 
 # Load environment variables from .env file
 load_dotenv()
 
 _INVALID_INT_ENV_VARS: dict[str, str] = {}
+
+VALID_SANDBOX_MODES = frozenset({"auto", "local", "container"})
 
 
 def _bool_env(name: str, default: bool) -> bool:
@@ -114,39 +117,36 @@ def validate_config() -> bool:
     }
 
     if not config.canvas_api_token:
-        print("Error: CANVAS_API_TOKEN environment variable is required", file=sys.stderr)
-        print("Please set it to your Canvas API token in your .env file", file=sys.stderr)
+        log_error("CANVAS_API_TOKEN environment variable is required")
+        log_error("Please set CANVAS_API_TOKEN in your .env file")
         return False
 
     if not config.canvas_api_url:
-        print("Error: CANVAS_API_URL environment variable is required", file=sys.stderr)
-        print("Please set it to your Canvas API URL in your .env file", file=sys.stderr)
+        log_error("CANVAS_API_URL environment variable is required")
+        log_error("Please set CANVAS_API_URL in your .env file")
         return False
 
     if not config.canvas_api_url.endswith("/api/v1"):
-        print("Warning: CANVAS_API_URL should end with '/api/v1'", file=sys.stderr)
-        print(f"Current URL: {config.canvas_api_url}", file=sys.stderr)
+        log_warning(
+            "CANVAS_API_URL should end with '/api/v1'",
+            current_url=config.canvas_api_url,
+        )
 
-    if config.ts_sandbox_mode not in {"auto", "local", "container"}:
-        print(
-            "Warning: TS_SANDBOX_MODE should be one of auto, local, container; "
-            f"defaulting to 'auto' (got '{config.ts_sandbox_mode}')",
-            file=sys.stderr
+    if config.ts_sandbox_mode not in VALID_SANDBOX_MODES:
+        log_warning(
+            "TS_SANDBOX_MODE should be one of auto, local, container; "
+            f"defaulting to 'auto' (got '{config.ts_sandbox_mode}')"
         )
 
     for env_name, env_value in _INVALID_INT_ENV_VARS.items():
-        print(
-            f"Warning: {env_name} expects an integer; using default value "
-            f"(got '{env_value}')",
-            file=sys.stderr
+        log_warning(
+            f"{env_name} expects an integer; using default value "
+            f"(got '{env_value}')"
         )
 
     for env_name, note in unimplemented_env_vars.items():
         if os.getenv(env_name):
-            print(
-                f"Warning: {env_name} is set but {note}.",
-                file=sys.stderr
-            )
+            log_warning(f"{env_name} is set but {note}.")
 
     return True
 
