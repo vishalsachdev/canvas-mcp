@@ -1,0 +1,157 @@
+{
+  "version": "1.0",
+  "created": "2026-02-25",
+  "branch": "claude/titan-codebase-refactor-l9nqr",
+  "regression_baseline": {
+    "tests_passed": 252,
+    "tests_skipped": 18,
+    "tests_failed": 0,
+    "ruff_violations": 0,
+    "total_source_lines": 12410,
+    "total_test_lines": 5322
+  },
+  "domains": {
+    "core": {
+      "path": "src/canvas_mcp/core/",
+      "files": [
+        {"file": "validation.py", "lines": 238, "max_cc": 47, "max_depth": 10, "priority": "P0", "status": "pending"},
+        {"file": "client.py", "lines": 393, "max_cc": 23, "max_depth": 7, "priority": "P0", "status": "pending"},
+        {"file": "peer_review_comments.py", "lines": 584, "max_cc": 27, "max_depth": 6, "priority": "P0", "status": "pending"},
+        {"file": "peer_reviews.py", "lines": 581, "max_cc": 19, "max_depth": 5, "priority": "P1", "status": "pending"},
+        {"file": "anonymization.py", "lines": 296, "max_cc": 16, "max_depth": 8, "priority": "P1", "status": "pending"},
+        {"file": "file_validation.py", "lines": 295, "max_cc": 8, "max_depth": 3, "priority": "P2", "status": "pending"},
+        {"file": "config.py", "lines": 156, "max_cc": 8, "max_depth": 0, "priority": "P2", "status": "pending"},
+        {"file": "audit.py", "lines": 178, "max_cc": 1, "max_depth": 0, "priority": "P3", "status": "pending"},
+        {"file": "logging.py", "lines": 133, "max_cc": 1, "max_depth": 4, "priority": "P2", "status": "pending"},
+        {"file": "cache.py", "lines": 116, "max_cc": 8, "max_depth": 3, "priority": "P2", "status": "pending"},
+        {"file": "dates.py", "lines": 99, "max_cc": 1, "max_depth": 3, "priority": "P3", "status": "pending"},
+        {"file": "types.py", "lines": 0, "max_cc": 0, "max_depth": 0, "priority": "P3", "status": "pending"},
+        {"file": "__init__.py", "lines": 0, "max_cc": 0, "max_depth": 0, "priority": "P3", "status": "pending"}
+      ]
+    },
+    "tools": {
+      "path": "src/canvas_mcp/tools/",
+      "files": [
+        {"file": "discussions.py", "lines": 1314, "max_cc": 194, "max_depth": 6, "priority": "P0", "status": "pending"},
+        {"file": "rubrics.py", "lines": 1352, "max_cc": 106, "max_depth": 7, "priority": "P0", "status": "pending"},
+        {"file": "assignments.py", "lines": 945, "max_cc": 139, "max_depth": 4, "priority": "P0", "status": "pending"},
+        {"file": "modules.py", "lines": 624, "max_cc": 99, "max_depth": 4, "priority": "P0", "status": "pending"},
+        {"file": "other_tools.py", "lines": 662, "max_cc": 81, "max_depth": 5, "priority": "P0", "status": "pending"},
+        {"file": "student_tools.py", "lines": 383, "max_cc": 64, "max_depth": 6, "priority": "P0", "status": "pending"},
+        {"file": "code_execution.py", "lines": 671, "max_cc": 58, "max_depth": 5, "priority": "P0", "status": "pending"},
+        {"file": "messaging.py", "lines": 526, "max_cc": 44, "max_depth": 4, "priority": "P1", "status": "pending"},
+        {"file": "files.py", "lines": 349, "max_cc": 38, "max_depth": 0, "priority": "P1", "status": "pending"},
+        {"file": "accessibility.py", "lines": 442, "max_cc": 32, "max_depth": 4, "priority": "P1", "status": "pending"},
+        {"file": "courses.py", "lines": 254, "max_cc": 37, "max_depth": 6, "priority": "P1", "status": "pending"},
+        {"file": "peer_review_comments.py", "lines": 418, "max_cc": 29, "max_depth": 6, "priority": "P1", "status": "pending"},
+        {"file": "pages.py", "lines": 187, "max_cc": 26, "max_depth": 0, "priority": "P2", "status": "pending"},
+        {"file": "peer_reviews.py", "lines": 194, "max_cc": 16, "max_depth": 4, "priority": "P2", "status": "pending"},
+        {"file": "discovery.py", "lines": 174, "max_cc": 17, "max_depth": 6, "priority": "P2", "status": "pending"},
+        {"file": "message_templates.py", "lines": 284, "max_cc": 1, "max_depth": 0, "priority": "P3", "status": "pending"},
+        {"file": "__init__.py", "lines": 0, "max_cc": 0, "max_depth": 0, "priority": "P3", "status": "pending"}
+      ]
+    },
+    "server": {
+      "path": "src/canvas_mcp/",
+      "files": [
+        {"file": "server.py", "lines": 242, "max_cc": 19, "max_depth": 3, "priority": "P1", "status": "pending"},
+        {"file": "__init__.py", "lines": 5, "max_cc": 0, "max_depth": 0, "priority": "P3", "status": "pending"}
+      ]
+    },
+    "resources": {
+      "path": "src/canvas_mcp/resources/",
+      "files": [
+        {"file": "resources.py", "lines": 176, "max_cc": 18, "max_depth": 0, "priority": "P2", "status": "pending"},
+        {"file": "__init__.py", "lines": 0, "max_cc": 0, "max_depth": 0, "priority": "P3", "status": "pending"}
+      ]
+    }
+  },
+  "gauntlet_violations": {
+    "silent_failures": {
+      "count": 5,
+      "locations": [
+        "server.py:236",
+        "core/validation.py:177",
+        "tools/assignments.py:493",
+        "tools/code_execution.py:580",
+        "tools/code_execution.py:585"
+      ]
+    },
+    "print_instead_of_logging": {
+      "count": 28,
+      "primary_files": ["core/config.py", "core/cache.py", "core/client.py", "core/dates.py", "core/audit.py", "server.py"]
+    },
+    "complexity_hotspots_cc_gt_20": [
+      {"file": "core/validation.py", "func": "validate_parameter", "cc": 47, "depth": 10},
+      {"file": "tools/discussions.py", "func": "register_discussion_tools", "cc": 194, "depth": 6},
+      {"file": "tools/assignments.py", "func": "register_assignment_tools", "cc": 139, "depth": 4},
+      {"file": "tools/rubrics.py", "func": "register_rubric_tools", "cc": 106, "depth": 6},
+      {"file": "tools/modules.py", "func": "register_module_tools", "cc": 99, "depth": 4},
+      {"file": "tools/other_tools.py", "func": "register_other_tools", "cc": 81, "depth": 5},
+      {"file": "tools/student_tools.py", "func": "register_student_tools", "cc": 64, "depth": 6},
+      {"file": "tools/code_execution.py", "func": "register_code_execution_tools", "cc": 58, "depth": 5},
+      {"file": "tools/code_execution.py", "func": "execute_typescript", "cc": 51, "depth": 5},
+      {"file": "tools/discussions.py", "func": "list_discussion_entries", "cc": 48, "depth": 6},
+      {"file": "tools/messaging.py", "func": "register_messaging_tools", "cc": 44, "depth": 4},
+      {"file": "tools/discussions.py", "func": "get_discussion_entry_details", "cc": 32, "depth": 6},
+      {"file": "tools/assignments.py", "func": "get_assignment_analytics", "cc": 41, "depth": 4},
+      {"file": "tools/files.py", "func": "register_file_tools", "cc": 38, "depth": 0},
+      {"file": "tools/courses.py", "func": "register_course_tools", "cc": 37, "depth": 6},
+      {"file": "tools/discussions.py", "func": "delete_announcements_by_criteria", "cc": 36, "depth": 4},
+      {"file": "tools/assignments.py", "func": "create_assignment", "cc": 30, "depth": 3},
+      {"file": "tools/assignments.py", "func": "update_assignment", "cc": 31, "depth": 3},
+      {"file": "tools/modules.py", "func": "add_module_item", "cc": 29, "depth": 3},
+      {"file": "core/peer_review_comments.py", "func": "get_peer_review_comments", "cc": 27, "depth": 6},
+      {"file": "tools/rubrics.py", "func": "bulk_grade_submissions", "cc": 28, "depth": 4},
+      {"file": "tools/rubrics.py", "func": "validate_rubric_criteria", "cc": 27, "depth": 7},
+      {"file": "tools/discussions.py", "func": "get_discussion_with_replies", "cc": 25, "depth": 6},
+      {"file": "tools/courses.py", "func": "get_course_content_overview", "cc": 25, "depth": 6},
+      {"file": "core/client.py", "func": "make_canvas_request", "cc": 23, "depth": 7},
+      {"file": "tools/student_tools.py", "func": "get_my_submission_status", "cc": 22, "depth": 4}
+    ]
+  },
+  "work_batches": {
+    "batch_1_critical_core": {
+      "description": "Core infrastructure: validation, client, peer_review_comments",
+      "files": ["core/validation.py", "core/client.py", "core/peer_review_comments.py"],
+      "total_lines": 1215,
+      "priority": "P0",
+      "status": "pending"
+    },
+    "batch_2_core_remaining": {
+      "description": "Remaining core: peer_reviews, anonymization, cache, config, logging, dates, file_validation",
+      "files": ["core/peer_reviews.py", "core/anonymization.py", "core/cache.py", "core/config.py", "core/logging.py", "core/dates.py", "core/file_validation.py", "core/audit.py", "core/types.py"],
+      "total_lines": 1926,
+      "priority": "P1",
+      "status": "pending"
+    },
+    "batch_3_tools_heavy": {
+      "description": "Highest-complexity tools: discussions, rubrics, assignments",
+      "files": ["tools/discussions.py", "tools/rubrics.py", "tools/assignments.py"],
+      "total_lines": 3611,
+      "priority": "P0",
+      "status": "pending"
+    },
+    "batch_4_tools_medium": {
+      "description": "Medium-complexity tools: modules, other_tools, student_tools, code_execution",
+      "files": ["tools/modules.py", "tools/other_tools.py", "tools/student_tools.py", "tools/code_execution.py"],
+      "total_lines": 2340,
+      "priority": "P0",
+      "status": "pending"
+    },
+    "batch_5_tools_light": {
+      "description": "Lower-complexity tools: messaging, files, accessibility, courses, peer_review_comments, pages, peer_reviews, discovery, message_templates",
+      "files": ["tools/messaging.py", "tools/files.py", "tools/accessibility.py", "tools/courses.py", "tools/peer_review_comments.py", "tools/pages.py", "tools/peer_reviews.py", "tools/discovery.py", "tools/message_templates.py"],
+      "total_lines": 2828,
+      "priority": "P1",
+      "status": "pending"
+    },
+    "batch_6_server_resources": {
+      "description": "Server entry point and resource definitions",
+      "files": ["server.py", "resources/resources.py"],
+      "total_lines": 418,
+      "priority": "P2",
+      "status": "pending"
+    }
+  }
+}

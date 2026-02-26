@@ -9,6 +9,7 @@ academic tracking.
 """
 
 import argparse
+import asyncio
 import sys
 
 from mcp.server.fastmcp import FastMCP
@@ -93,8 +94,6 @@ def test_connection() -> bool:
     log_info("Testing Canvas API connection...")
 
     try:
-        import asyncio
-
         async def test_api() -> bool:
             ok, message = await _validate_token()
             if ok:
@@ -131,8 +130,8 @@ def main() -> None:
 
     # Validate configuration
     if not validate_config():
-        print("\nPlease check your .env file configuration.", file=sys.stderr)
-        print("Use the env.template file as a reference.", file=sys.stderr)
+        log_error("Please check your .env file configuration")
+        log_error("Use the env.template file as a reference")
         sys.exit(1)
 
     config = get_config()
@@ -178,10 +177,10 @@ def main() -> None:
 
     if args.test:
         if test_connection():
-            print("✓ All tests passed!", file=sys.stderr)
+            log_info("All tests passed!")
             sys.exit(0)
         else:
-            print("✗ Connection test failed!", file=sys.stderr)
+            log_error("Connection test failed!")
             sys.exit(1)
 
     # Initialize audit logging (before any API calls)
@@ -195,8 +194,6 @@ def main() -> None:
 
     # Validate token on startup (warn but don't block)
     try:
-        import asyncio
-
         ok, message = asyncio.run(_validate_token())
         if ok:
             log_info(f"✓ {message}")
@@ -227,8 +224,6 @@ def main() -> None:
         sys.exit(1)
     finally:
         # Cleanup HTTP client resources
-        import asyncio
-
         from .core.client import cleanup_http_client
 
         try:

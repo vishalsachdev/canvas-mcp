@@ -1,17 +1,20 @@
 """HTTP client and Canvas API utilities."""
 
 import asyncio
-import sys
 from typing import Any
 from urllib.parse import urlencode
 
 import httpx
 
 from .anonymization import anonymize_response_data
+from .logging import log_debug, log_error, log_warning, sanitize_url
 
 # Rate limit retry configuration
 MAX_RETRIES = 3
 INITIAL_BACKOFF_SECONDS = 2
+
+# Default number of results per page for paginated requests
+DEFAULT_PAGE_SIZE = 100
 
 # HTTP client will be initialized with configuration
 http_client: httpx.AsyncClient | None = None
@@ -117,7 +120,9 @@ async def make_canvas_request(
         skip_anonymization: Skip anonymization (used by paginated fetchers)
     """
 
+    from .audit import log_data_access
     from .config import get_config
+
     config = get_config()
     client = _get_http_client()
 
@@ -134,8 +139,7 @@ async def make_canvas_request(
             # Log the request for debugging (if enabled)
             if config.log_api_requests:
                 retry_info = f" (retry {attempt}/{MAX_RETRIES})" if attempt > 0 else ""
-                from .logging import sanitize_url
-                print(f"Making {method.upper()} request to {sanitize_url(url)}{retry_info}", file=sys.stderr)
+                log_debug(f"Making {method.upper()} request to {sanitize_url(url)}{retry_info}")
 
             if method.lower() == "get":
                 response = await client.get(url, params=params)
@@ -184,10 +188,9 @@ async def make_canvas_request(
 
                 # Log anonymization for debugging (if enabled)
                 if config.anonymization_debug:
-                    print(f"🔒 Applied {data_type} anonymization to {endpoint}", file=sys.stderr)
+                    log_debug(f"Applied {data_type} anonymization to {endpoint}")
 
             # Audit: log successful data access
-            from .audit import log_data_access
             log_data_access(method, endpoint, "success")
 
             return result
@@ -205,7 +208,7 @@ async def make_canvas_request(
                 else:
                     wait_time = INITIAL_BACKOFF_SECONDS * (2 ** attempt)
 
-                print(f"⏳ Rate limited (429). Retrying in {wait_time}s... (attempt {attempt + 1}/{MAX_RETRIES})", file=sys.stderr)
+                log_warning(f"Rate limited (429). Retrying in {wait_time}s...", attempt=attempt + 1, max_retries=MAX_RETRIES)
                 await asyncio.sleep(wait_time)
                 continue
 
@@ -218,21 +221,17 @@ async def make_canvas_request(
                 error_details = e.response.text
                 error_message += f", Text: {error_details}"
 
-            from .logging import sanitize_url
-            print(f"API error on {sanitize_url(endpoint)}: {e.response.status_code}", file=sys.stderr)
+            log_error(f"API error on {sanitize_url(endpoint)}", status_code=e.response.status_code)
 
             # Audit: log HTTP error (status code only — response body may contain PII)
-            from .audit import log_data_access
             log_data_access(method, endpoint, "error", f"HTTP {e.response.status_code}")
 
             return {"error": error_message}
 
         except Exception as e:
-            from .logging import sanitize_url
-            print(f"Request failed for {sanitize_url(endpoint)}: {type(e).__name__}", file=sys.stderr)
+            log_error(f"Request failed for {sanitize_url(endpoint)}", error_type=type(e).__name__)
 
             # Audit: log request exception (type only — message may contain PII)
-            from .audit import log_data_access
             log_data_access(method, endpoint, "error", type(e).__name__)
 
             return {"error": f"Request failed: {str(e)}"}
@@ -287,10 +286,7 @@ async def upload_file_to_storage(
 
             # Log for debugging
             if config.log_api_requests:
-                print(f"Uploading file to storage: {upload_url}", file=sys.stderr)
-                print(f"  Filename: {filename}", file=sys.stderr)
-                print(f"  Content-Type: {content_type}", file=sys.stderr)
-                print(f"  Size: {len(file_content)} bytes", file=sys.stderr)
+                log_debug(f"Uploading file to storage: {upload_url}", filename=filename, content_type=content_type, size=len(file_content))
 
             # Make the upload request
             # Note: follow_redirects=False because Canvas may return a 3xx with file info
@@ -365,7 +361,7 @@ async def fetch_all_paginated_results(endpoint: str, params: dict[str, Any] | No
         response = await make_canvas_request("get", endpoint, params=current_params, skip_anonymization=True)
 
         if isinstance(response, dict) and "error" in response:
-            print(f"Error fetching page {page}: {response['error']}", file=sys.stderr)
+            log_error(f"Error fetching page {page}", error=response['error'])
             return response
 
         if not response or not isinstance(response, list) or len(response) == 0:
@@ -388,6 +384,6 @@ async def fetch_all_paginated_results(endpoint: str, params: dict[str, Any] | No
         all_results = anonymize_response_data(all_results, data_type)
 
         if config.anonymization_debug:
-            print(f"🔒 Applied {data_type} anonymization to paginated results from {endpoint}", file=sys.stderr)
+            log_debug(f"Applied {data_type} anonymization to paginated results from {endpoint}")
 
     return all_results
