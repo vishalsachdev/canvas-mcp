@@ -525,7 +525,7 @@ class PeerReviewAnalyzer:
                 }
 
                 if include_contact_info:
-                    student_data["contact_email"] = "student@illinois.edu"  # Placeholder
+                    student_data["contact_email"] = "student@institution.edu"  # Placeholder
 
                 followup_categories["urgent"]["students"].append(student_data)
 
@@ -542,7 +542,7 @@ class PeerReviewAnalyzer:
                 }
 
                 if include_contact_info:
-                    student_data["contact_email"] = "student@illinois.edu"  # Placeholder
+                    student_data["contact_email"] = "student@institution.edu"  # Placeholder
 
                 followup_categories["medium"]["students"].append(student_data)
 

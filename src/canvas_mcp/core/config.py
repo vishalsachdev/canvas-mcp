@@ -38,7 +38,7 @@ class Config:
     def __init__(self) -> None:
         # Required configuration
         self.canvas_api_token = os.getenv("CANVAS_API_TOKEN", "")
-        self.canvas_api_url = os.getenv("CANVAS_API_URL", "https://canvas.illinois.edu/api/v1")
+        self.canvas_api_url = os.getenv("CANVAS_API_URL", "")
 
         # Optional configuration with defaults
         self.mcp_server_name = os.getenv("MCP_SERVER_NAME", "canvas-api")
