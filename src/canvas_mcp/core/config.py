@@ -1,14 +1,17 @@
 """Configuration management for Canvas MCP server."""
 
 import os
-import sys
 
 from dotenv import load_dotenv
+
+from .logging import log_error, log_warning
 
 # Load environment variables from .env file
 load_dotenv()
 
 _INVALID_INT_ENV_VARS: dict[str, str] = {}
+
+VALID_SANDBOX_MODES = frozenset({"auto", "local", "container"})
 
 
 def _bool_env(name: str, default: bool) -> bool:
@@ -35,7 +38,7 @@ class Config:
     def __init__(self) -> None:
         # Required configuration
         self.canvas_api_token = os.getenv("CANVAS_API_TOKEN", "")
-        self.canvas_api_url = os.getenv("CANVAS_API_URL", "https://canvas.illinois.edu/api/v1")
+        self.canvas_api_url = os.getenv("CANVAS_API_URL", "")
 
         # Optional configuration with defaults
         self.mcp_server_name = os.getenv("MCP_SERVER_NAME", "canvas-api")
@@ -51,15 +54,21 @@ class Config:
         # Privacy and security configuration
         self.enable_data_anonymization = _bool_env("ENABLE_DATA_ANONYMIZATION", False)
         self.anonymization_debug = _bool_env("ANONYMIZATION_DEBUG", False)
+        self.log_redact_pii = _bool_env("LOG_REDACT_PII", True)
 
-        # Code execution sandbox configuration (best-effort by default)
-        self.enable_ts_sandbox = _bool_env("ENABLE_TS_SANDBOX", False)
+        # Audit logging configuration
+        self.log_access_events = _bool_env("LOG_ACCESS_EVENTS", False)
+        self.log_execution_events = _bool_env("LOG_EXECUTION_EVENTS", False)
+        self.audit_log_dir = os.getenv("AUDIT_LOG_DIR", "")
+
+        # Code execution sandbox configuration (secure defaults)
+        self.enable_ts_sandbox = _bool_env("ENABLE_TS_SANDBOX", True)
         self.ts_sandbox_mode = os.getenv("TS_SANDBOX_MODE", "auto").lower()
-        self.ts_sandbox_block_outbound_network = _bool_env("TS_SANDBOX_BLOCK_OUTBOUND_NETWORK", False)
+        self.ts_sandbox_block_outbound_network = _bool_env("TS_SANDBOX_BLOCK_OUTBOUND_NETWORK", True)
         self.ts_sandbox_allowlist_hosts = os.getenv("TS_SANDBOX_ALLOWLIST_HOSTS", "")
-        self.ts_sandbox_cpu_limit = _int_env("TS_SANDBOX_CPU_LIMIT", 0)
-        self.ts_sandbox_memory_limit_mb = _int_env("TS_SANDBOX_MEMORY_LIMIT_MB", 0)
-        self.ts_sandbox_timeout_sec = _int_env("TS_SANDBOX_TIMEOUT_SEC", 0)
+        self.ts_sandbox_cpu_limit = _int_env("TS_SANDBOX_CPU_LIMIT", 30)
+        self.ts_sandbox_memory_limit_mb = _int_env("TS_SANDBOX_MEMORY_LIMIT_MB", 512)
+        self.ts_sandbox_timeout_sec = _int_env("TS_SANDBOX_TIMEOUT_SEC", 120)
         self.ts_sandbox_container_image = os.getenv("TS_SANDBOX_CONTAINER_IMAGE", "node:20-alpine")
 
         # Optional metadata
@@ -99,14 +108,10 @@ def validate_config() -> bool:
     unimplemented_env_vars = {
         "TOKEN_STORAGE_BACKEND": "token storage backend selection is not enforced yet",
         "TOKEN_ENVELOPE_KEY_SOURCE": "token envelope encryption is not enforced yet",
-        "TOKEN_STARTUP_VALIDATION": "token startup validation is not enforced yet",
         "MCP_CLIENT_AUTH_MODE": "MCP client authentication is not implemented for stdio transport",
         "MCP_CLIENT_API_KEY_REQUIRED": "MCP client authentication is not implemented for stdio transport",
         "MCP_CLIENT_CERT_AUTHORITY": "MCP client authentication is not implemented for stdio transport",
-        "LOG_REDACT_PII": "PII redaction is not enforced yet",
         "LOG_ROTATION_DAYS": "log rotation is not enforced yet",
-        "LOG_ACCESS_EVENTS": "access/audit logging is not implemented yet",
-        "LOG_EXECUTION_EVENTS": "execution event logging is not implemented yet",
         "LOG_RETENTION_DAYS": "log retention is not enforced yet",
         "LOG_DESTINATION": "log destinations are not configurable yet",
         "SIEM_FORWARDING_ENABLED": "SIEM forwarding is not implemented yet",
@@ -116,39 +121,36 @@ def validate_config() -> bool:
     }
 
     if not config.canvas_api_token:
-        print("Error: CANVAS_API_TOKEN environment variable is required", file=sys.stderr)
-        print("Please set it to your Canvas API token in your .env file", file=sys.stderr)
+        log_error("CANVAS_API_TOKEN environment variable is required")
+        log_error("Please set CANVAS_API_TOKEN in your .env file")
         return False
 
     if not config.canvas_api_url:
-        print("Error: CANVAS_API_URL environment variable is required", file=sys.stderr)
-        print("Please set it to your Canvas API URL in your .env file", file=sys.stderr)
+        log_error("CANVAS_API_URL environment variable is required")
+        log_error("Please set CANVAS_API_URL in your .env file")
         return False
 
     if not config.canvas_api_url.endswith("/api/v1"):
-        print("Warning: CANVAS_API_URL should end with '/api/v1'", file=sys.stderr)
-        print(f"Current URL: {config.canvas_api_url}", file=sys.stderr)
+        log_warning(
+            "CANVAS_API_URL should end with '/api/v1'",
+            current_url=config.canvas_api_url,
+        )
 
-    if config.ts_sandbox_mode not in {"auto", "local", "container"}:
-        print(
-            "Warning: TS_SANDBOX_MODE should be one of auto, local, container; "
-            f"defaulting to 'auto' (got '{config.ts_sandbox_mode}')",
-            file=sys.stderr
+    if config.ts_sandbox_mode not in VALID_SANDBOX_MODES:
+        log_warning(
+            "TS_SANDBOX_MODE should be one of auto, local, container; "
+            f"defaulting to 'auto' (got '{config.ts_sandbox_mode}')"
         )
 
     for env_name, env_value in _INVALID_INT_ENV_VARS.items():
-        print(
-            f"Warning: {env_name} expects an integer; using default value "
-            f"(got '{env_value}')",
-            file=sys.stderr
+        log_warning(
+            f"{env_name} expects an integer; using default value "
+            f"(got '{env_value}')"
         )
 
     for env_name, note in unimplemented_env_vars.items():
         if os.getenv(env_name):
-            print(
-                f"Warning: {env_name} is set but {note}.",
-                file=sys.stderr
-            )
+            log_warning(f"{env_name} is set but {note}.")
 
     return True
 

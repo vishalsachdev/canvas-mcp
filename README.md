@@ -108,35 +108,26 @@ Canvas MCP provides **83+ tools** for interacting with Canvas LMS. Tools are org
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data through any MCP-compatible client.
 
-## 🎉 Latest Release: v1.0.7
+## Latest Release: v1.0.8
 
-**Released:** February 1, 2026 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.0.7)**
+**Released:** February 16, 2026 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.0.8)**
 
-### What's New in v1.0.7
-- **✏️ Assignment Update Tool** - Complete assignment CRUD with `update_assignment`
-  - Modify due dates, points, submission types, and more
-  - All update fields optional (only changed fields sent to API)
-  - 9 unit tests following TDD pattern
+- **Security Hardening** — PII sanitization, token validation, audit logging, sandbox-by-default
+- **Code Quality** — Ruff linting with pre-commit hook (464 issues resolved)
+- **235+ tests** including 32 security tests
 
-### Previous Release (v1.0.6)
-- **📦 Module Management Tools** - Complete module CRUD operations (7 new tools)
-  - `create_module`, `update_module`, `delete_module` - Full module lifecycle
-  - `add_module_item`, `update_module_item`, `delete_module_item` - Manage module content
-  - Prerequisites, unlock dates, sequential progress support
-- **📄 Page Settings Tools** - Control page publishing and access (2 new tools)
-  - `update_page_settings` - Publish/unpublish, set front page, editing roles
-  - `bulk_update_pages` - Batch operations on multiple pages
-- **🧪 Comprehensive Test Suite** - 167 unit tests covering all major functionality
-- **📚 Enhanced Documentation** - TDD enforcement and comprehensive tool docs
+<details>
+<summary>Previous releases</summary>
 
-### Previous Release (v1.0.5)
-- **🎯 Claude Code Skills** - One-command workflows for common tasks
-- **🌐 GitHub Pages Website** - Documentation site at [vishalsachdev.github.io/canvas-mcp](https://vishalsachdev.github.io/canvas-mcp/)
+**v1.0.7** — Assignment Update Tool (`update_assignment`), complete CRUD, 9 tests
 
-### Previous Release (v1.0.4)
-- **🚀 Code Execution Environment** - Execute custom TypeScript code for token-efficient bulk operations (99.7% token savings)
-- **📊 Bulk Operations** - `bulk_grade_submissions`, `bulk_grade_discussions`, `search_canvas_tools`
-- **MCP 2.14 Compliance** - Production-ready features and structured logging
+**v1.0.6** — Module Management (7 tools), Page Settings (2 tools), 235+ tests
+
+**v1.0.5** — Claude Code Skills, GitHub Pages site
+
+**v1.0.4** — Code Execution API (99.7% token savings), Bulk Operations, MCP 2.14 compliance
+
+</details>
 
 ### For Students 👨‍🎓
 Get AI-powered assistance with:
@@ -158,16 +149,36 @@ Enhance your teaching with:
 
 **[→ Get Started as an Educator](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/EDUCATOR_GUIDE.md)**
 
-## 🎯 Claude Code Skills
+## 🤖 Agent Skills
 
-Pre-built workflows that combine multiple tools into one-command actions. These skills work with [Claude Code](https://claude.ai/code) (CLI) and [Claude Desktop](https://claude.ai/download).
+Pre-built workflow recipes that teach AI agents how to use Canvas MCP tools effectively. Available for **40+ coding agents** via [skills.sh](https://skills.sh), or as Claude Code-specific slash commands.
+
+### Install via skills.sh (Any Agent)
+
+```bash
+npx skills add vishalsachdev/canvas-mcp
+```
+
+This launches an interactive picker to install skills into your agent of choice (Claude Code, Cursor, Codex, OpenCode, Cline, Zed, and [many more](https://skills.sh)).
 
 | Skill | For | What It Does |
 |-------|-----|--------------|
-| `/canvas-morning-check` | Educators | Course health check: submission rates, struggling students, grade distribution, upcoming deadlines |
-| `/canvas-week-plan` | Students | Weekly planner: all due dates, submission status, grades, peer reviews across courses |
+| `canvas-week-plan` | Students | Weekly planner: due dates, submission status, grades, peer reviews |
+| `canvas-morning-check` | Educators | Course health dashboard: submission rates, struggling students, deadlines |
+| `canvas-bulk-grading` | Educators | Grading decision tree: single → bulk → code execution with safety checks |
+| `canvas-peer-review-manager` | Educators | Full peer review pipeline: analytics, quality analysis, reminders, reports |
+| `canvas-discussion-facilitator` | Both | Discussion browsing, participation monitoring, replying, facilitation |
 
-**Example usage in Claude:**
+Install a specific skill:
+
+```bash
+npx skills add vishalsachdev/canvas-mcp -s canvas-week-plan
+```
+
+### Claude Code Slash Commands
+
+If you use [Claude Code](https://claude.ai/code), the same workflows are also available as slash commands:
+
 ```
 You: /canvas-morning-check CS 101
 Claude: [Generates comprehensive course status report]
@@ -176,9 +187,7 @@ You: /canvas-week-plan
 Claude: [Shows prioritized weekly assignment plan]
 ```
 
-Skills are located in `.claude/skills/` and can be customized for your workflow.
-
-> **Note**: These skills are currently designed for Claude Desktop and Claude Code. Other MCP clients may support similar custom workflows through their own mechanisms.
+Claude Code skills are located in `.claude/skills/` and can be customized for your workflow.
 
 **Want a custom skill?** [Submit a request](https://github.com/vishalsachdev/canvas-mcp/issues/new?labels=skill-request&title=[Skill%20Request]) describing your repetitive workflow!
 
@@ -209,50 +218,11 @@ All student data is anonymized **before** it reaches AI systems. See [Educator G
 - **Canvas API Access** - API token and institution URL
 - **MCP Client** - Any MCP-compatible client (Claude Desktop, Cursor, Zed, Windsurf, Continue, etc.)
 
-### Canvas API Compatibility
-
-Canvas MCP is compatible with Canvas LMS API and stays current with Canvas API changes:
-
-| Canvas MCP Version | Canvas API Version | Status | Notes |
-|-------------------|-------------------|--------|-------|
-| v1.0.4+ | 2024-2026 | ✅ Current | Compliant with upcoming 2026 API requirements |
-| v1.0.0-1.0.3 | 2024-2025 | ✅ Compatible | Functional but missing User-Agent header (required Jan 2026) |
-
-**Important Canvas API Changes:**
-- **January 2026**: User-Agent header enforcement (✅ implemented in v1.0.4+)
-- **January 2026**: Deprecation of `limit` parameter in favor of `per_page` (✅ compliant)
-- **Modern Canvas REST API**: All endpoints use current Canvas API standards
-
-**Canvas Instance Requirements:**
-- Canvas Cloud (canvas.instructure.com) - Fully supported
-- Self-hosted Canvas instances - Supported (API v1+)
-- Minimum recommended: Canvas LMS 2020+ for full feature compatibility
-
-For Canvas API changes, see [Canvas API Change Log](https://canvas.instructure.com/doc/api/file.changelog.html)
-
 ### Supported MCP Clients
 
-Canvas MCP works with any application that supports the Model Context Protocol. Popular options include:
+Works with any MCP-compatible client: [Claude Desktop](https://claude.ai/download), [Cursor](https://cursor.sh), [Zed](https://zed.dev), [Windsurf](https://codeium.com/windsurf), [Continue](https://continue.dev), [Replit](https://replit.com), [Copilot Studio](https://www.microsoft.com/microsoft-copilot/microsoft-copilot-studio), and [more](https://modelcontextprotocol.io/clients).
 
-**Recommended:**
-- **[Claude Desktop](https://claude.ai/download)** - Official Anthropic desktop app with full MCP support
-
-**AI Coding Assistants:**
-- **[Zed](https://zed.dev)** - High-performance code editor with built-in MCP support
-- **[Cursor](https://cursor.sh)** - AI-first code editor
-- **[Windsurf IDE](https://codeium.com/windsurf)** (by Codeium) - AI-powered development environment
-- **[Continue](https://continue.dev)** - Open-source AI code assistant
-
-**Development Platforms:**
-- **[Replit](https://replit.com)** - Cloud-based coding platform with MCP integration
-- **[Sourcegraph Cody](https://sourcegraph.com/cody)** - AI coding assistant with MCP support
-
-**Enterprise:**
-- **[Microsoft Copilot Studio](https://www.microsoft.com/microsoft-copilot/microsoft-copilot-studio)** - MCP support in enterprise environments
-
-See the [official MCP clients list](https://modelcontextprotocol.io/clients) for more options.
-
-> **Note**: Canvas MCP is designed to work with any MCP-compatible client. The installation guide provides configuration examples for popular clients including Claude Desktop, Cursor, Zed, Windsurf, and Continue.
+Canvas MCP is compliant with Canvas LMS API 2024-2026 requirements (User-Agent header, `per_page` pagination). Works with Canvas Cloud and self-hosted instances.
 
 ## Installation
 
@@ -446,42 +416,22 @@ The Canvas MCP Server provides a comprehensive set of tools for interacting with
 
 📖 [View Full Tool Documentation](tools/README.md) for detailed information about all available tools.
 
-## 🚀 Code Execution API (New!)
+## Code Execution API
 
-The Canvas MCP now supports **code execution patterns** for maximum token efficiency when performing bulk operations.
+For bulk operations (30+ items), Canvas MCP supports **TypeScript code execution** with 99.7% token savings compared to traditional tool calling.
 
-### When to Use Each Approach
+| Approach | Best For | Token Cost |
+|----------|----------|------------|
+| MCP tools | Simple queries, small datasets | Normal |
+| `bulk_grade_submissions` | Batch grading 10-29 items | Low |
+| `execute_typescript` | 30+ items, custom logic | **99.7% less** |
 
-**Traditional Tool Calling** (for simple queries):
-```
-Ask Claude: "Show me my courses"
-Ask Claude: "Get assignment details for assignment 123"
-```
-✅ Best for: Single queries, small datasets, quick lookups
+Use `search_canvas_tools` to discover available operations, then `execute_typescript` to run them locally. Code runs in a **secure sandbox by default** (network blocked, env filtered, resource limits).
 
-**Bulk Grade Submissions Tool** (for batch grading with predefined grades):
-```
-Ask Claude: "Grade these 10 students with their specific rubric scores"
-```
-✅ Best for: Batch grading when you already have the grades/scores, concurrent processing
+<details>
+<summary>Code execution examples and security details</summary>
 
-**Code Execution** (for bulk operations with custom logic):
-```
-Ask Claude: "Grade all 90 Jupyter notebook submissions by analyzing each notebook"
-Ask Claude: "Send reminders to all students who haven't submitted"
-```
-✅ Best for: Bulk processing with custom analysis logic, large datasets, complex conditions
-
-### Token Savings Example
-
-**Scenario**: Grading 90 Jupyter notebook submissions
-
-| Approach | Token Usage | Efficiency |
-|----------|-------------|-----------|
-| **Traditional** | 1.35M tokens | Loads all submissions into context |
-| **Code Execution** | 3.5K tokens | **99.7% reduction!** 🎉 |
-
-### Example: Bulk Grading
+### Bulk Grading Example
 
 ```typescript
 import { bulkGrade } from './canvas/grading/bulkGrade';
@@ -490,281 +440,50 @@ await bulkGrade({
   courseIdentifier: "60366",
   assignmentId: "123",
   gradingFunction: (submission) => {
-    // Analysis happens locally, not in Claude's context!
     const notebook = submission.attachments?.find(f =>
       f.filename.endsWith('.ipynb')
     );
-
-    if (!notebook) return null; // Skip
-
-    const hasErrors = analyzeNotebook(notebook.url);
-
-    return hasErrors ? null : {
-      points: 100,
-      rubricAssessment: { "_8027": { points: 100 } },
-      comment: "Great work! No errors."
-    };
+    if (!notebook) return null;
+    return { points: 100, comment: "Great work!" };
   }
 });
 ```
 
-### Example: Bulk Discussion Grading
+### Security Modes
 
-Grade discussion posts with initial post + peer review requirements:
+| Mode | Config | What It Does |
+|------|--------|-------------|
+| Local sandbox (default) | None needed | Timeout 120s, memory 512MB, network blocked, env filtered |
+| Container sandbox | `TS_SANDBOX_MODE=container` | Full filesystem isolation via Docker/Podman |
+| No sandbox | `ENABLE_TS_SANDBOX=false` | Full local access (not recommended) |
 
-```typescript
-import { bulkGradeDiscussion } from './canvas/discussions/bulkGradeDiscussion';
+See [Bulk Grading Example](examples/bulk_grading_example.md) for a detailed walkthrough.
 
-// Preview grades first (dry run)
-await bulkGradeDiscussion({
-  courseIdentifier: "60365",
-  topicId: "990001",
-  criteria: {
-    initialPostPoints: 10,      // Points for initial post
-    peerReviewPointsEach: 5,    // Points per peer review
-    requiredPeerReviews: 2,     // Must review 2 peers
-    maxPeerReviewPoints: 10     // Cap at 10 pts for reviews
-  },
-  dryRun: true  // Preview first!
-});
+</details>
 
-// Then apply grades
-await bulkGradeDiscussion({
-  courseIdentifier: "60365",
-  topicId: "990001",
-  assignmentId: "1234567",  // Required to write grades
-  criteria: {
-    initialPostPoints: 10,
-    peerReviewPointsEach: 5,
-    requiredPeerReviews: 2,
-    maxPeerReviewPoints: 10
-  },
-  dryRun: false
-});
-```
+## Usage
 
-**Features:**
-- Automatically analyzes initial posts vs peer reviews
-- Configurable grading criteria with point allocation
-- Optional late penalties with customizable deadline
-- Dry run mode to preview grades before applying
-- Concurrent processing with rate limiting
-- Returns comprehensive participation analytics
+MCP clients start the server automatically. Just ask naturally:
 
-### Discovering Available Tools
+- *"What's due this week?"* / *"Show my grades"* / *"What peer reviews do I need?"*
+- *"Who hasn't submitted Assignment 3?"* / *"Send reminders to missing students"*
 
-The Canvas MCP Server includes a **`search_canvas_tools`** MCP tool that helps you discover and explore available code execution API operations. This tool searches through the TypeScript code API files and returns information about available Canvas operations.
-
-**Tool Parameters:**
-- `query` (string, optional): Search term to filter tools by keyword (e.g., "grading", "assignment", "discussion"). Empty string returns all available tools.
-- `detail_level` (string, optional): Controls how much information to return. Options:
-  - `"names"`: Just file paths (most efficient for quick lookups)
-  - `"signatures"`: File paths + function signatures + descriptions (recommended, default)
-  - `"full"`: Complete file contents (use sparingly for detailed inspection)
-
-**Example Usage:**
-
-Ask Claude in natural language:
-- *"Search for grading tools in the code API"*
-- *"What bulk operations are available?"*
-- *"Show me all code API tools"*
-
-Or use directly via MCP:
-```typescript
-// Search for grading-related tools with signatures
-search_canvas_tools("grading", "signatures")
-
-// List all available tools (names only)
-search_canvas_tools("", "names")
-
-// Get full implementation details for bulk operations
-search_canvas_tools("bulk", "full")
-
-// Find discussion-related operations
-search_canvas_tools("discussion", "signatures")
-```
-
-**Returns:**
-JSON response with:
-- `query`: The search term used
-- `detail_level`: The detail level requested
-- `count`: Number of matching tools found
-- `tools`: Array of matching tools with requested detail level
-
-### Code API File Structure
-
-```
-src/canvas_mcp/code_api/
-├── client.ts              # Base MCP client bridge
-├── index.ts               # Main entry point
-└── canvas/
-    ├── assignments/       # Assignment operations
-    │   └── listSubmissions.ts
-    ├── grading/          # Grading operations
-    │   ├── gradeWithRubric.ts
-    │   └── bulkGrade.ts  # ⭐ Bulk grading (99.7% token savings!)
-    ├── discussions/      # Discussion operations
-    │   ├── listDiscussions.ts
-    │   ├── postEntry.ts
-    │   └── bulkGradeDiscussion.ts  # ⭐ Bulk discussion grading
-    ├── courses/          # Course operations
-    └── communications/   # Messaging operations
-```
-
-### How It Works
-
-1. **Discovery**: Use `search_canvas_tools` to find available operations
-2. **Execution**: Claude reads TypeScript code API files and executes them locally
-3. **Processing**: Data stays in execution environment (no context cost!)
-4. **Results**: Only summaries flow back to Claude's context
-
-📖 [View Bulk Grading Example](examples/bulk_grading_example.md) for a detailed walkthrough.
-
-### Code Execution Security
-
-The `execute_typescript` tool provides powerful capabilities but requires clear boundaries. It always runs locally; sandboxing is optional and best-effort unless a container runtime is available.
-
-**Security Modes:**
-- **Default (no sandbox)**: Code runs with your local user permissions and full network access.
-- **Sandbox (`ENABLE_TS_SANDBOX=true`)**: Applies optional limits (timeout, memory, CPU seconds) plus a Node-level outbound allowlist guard. If Docker/Podman is available and `TS_SANDBOX_MODE=auto`, code runs inside a container for stronger isolation (default image: `node:20-alpine` via `TS_SANDBOX_CONTAINER_IMAGE`).
-
-**Best Practices:**
-- **Trusted Environment Required**: Only use code execution in environments you control
-- **Review Generated Code**: Always review TypeScript code before execution, especially for bulk operations
-- **Resource Monitoring**: Monitor system resources when processing large datasets
-- **Timeout Configuration**: Adjust timeout values based on expected operation duration
-
-**What Code Execution Has Access To:**
-- Canvas API credentials from your `.env` file
-- All TypeScript modules in `src/canvas_mcp/code_api/`
-- Standard Node.js modules and npm packages
-- File system access under the current user or container permissions
-
-**Limitations:**
-- Network allowlist is enforced inside Node; external binaries spawned by user code are not blocked
-- Container mode is optional; when unavailable, the server falls back to local execution with warnings
-- File system isolation is only enforced when running inside a container
-
-For technical implementation details, see `src/canvas_mcp/tools/code_execution.py`.
-
-## Usage with MCP Clients
-
-This MCP server works seamlessly with any MCP-compatible client:
-
-1. **Automatic Startup**: MCP clients start the server when needed
-2. **Tool Integration**: Canvas tools appear in your AI assistant's interface
-3. **Natural Language**: Interact naturally with prompts like:
-
-**Students:**
-- *"What assignments do I have due this week?"*
-- *"Show me my current grades"*
-- *"What peer reviews do I need to complete?"*
-- *"Have I submitted everything for BADM 350?"*
-
-**Educators:**
-- *"Which students haven't submitted the latest assignment?"*
-- *"Create an announcement about tomorrow's exam"*
-- *"Show me peer review completion analytics"*
-
-### Quick Start Examples
-
-New to Canvas MCP? Check out these practical guides:
-
-- **[Student Quick Start](examples/student_quickstart.md)** - Common tasks for students
-- **[Educator Quick Start](examples/educator_quickstart.md)** - Essential workflows for teachers
-- **[Real-World Workflows](examples/real_world_workflows.md)** - Complete scenarios combining multiple features
-- **[Common Issues & Solutions](examples/common_issues.md)** - Troubleshooting guide
-- **[Bulk Grading Example](examples/bulk_grading_example.md)** - Token-efficient batch grading
-
-## Project Structure
-
-Modern Python package structure following 2025 best practices:
-
-```
-canvas-mcp/
-├── pyproject.toml             # Modern Python project config
-├── env.template              # Environment configuration template
-├── src/
-│   └── canvas_mcp/            # Main package
-│       ├── __init__.py        # Package initialization
-│       ├── server.py          # Main server entry point
-│       ├── core/              # Core utilities
-│       │   ├── config.py      # Configuration management
-│       │   ├── client.py      # HTTP client
-│       │   ├── cache.py       # Caching system
-│       │   └── validation.py  # Input validation
-│       ├── tools/             # MCP tool implementations
-│       │   ├── courses.py     # Course management
-│       │   ├── assignments.py # Assignment tools
-│       │   ├── discussions.py # Discussion tools
-│       │   ├── rubrics.py     # Rubric tools
-│       │   ├── student_tools.py # Student-specific tools
-│       │   ├── messaging.py   # Communication tools
-│       │   ├── discovery.py   # Code API tool discovery
-│       │   ├── code_execution.py # TypeScript code execution (NEW!)
-│       │   └── ...            # Other tool modules
-│       ├── code_api/          # Code execution API (NEW!)
-│       │   ├── client.ts      # MCP client bridge
-│       │   └── canvas/        # Canvas operations
-│       │       ├── grading/   # Bulk grading (99.7% token savings!)
-│       │       ├── courses/   # Course operations
-│       │       └── ...        # Other modules
-│       └── resources/         # MCP resources
-├── examples/                 # Usage examples (NEW!)
-└── docs/                     # Documentation
-```
+Quick start guides: [Student](examples/student_quickstart.md) | [Educator](examples/educator_quickstart.md) | [Real-World Workflows](examples/real_world_workflows.md) | [Troubleshooting](examples/common_issues.md)
 
 ## Documentation
 
-- **[Tool Documentation](https://github.com/vishalsachdev/canvas-mcp/blob/main/tools/README.md)** - Complete reference for all available tools
-- **[Pages Implementation Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/PAGES_IMPLEMENTATION.md)** - Comprehensive Pages feature guide
-- **[Course Documentation Template](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/course_documentation_prompt_template.md)** - Hybrid approach for efficient course documentation
-- **[Development Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/CLAUDE.md)** - Architecture details and development reference
-## Technical Details
+- **[Tool Documentation](tools/README.md)** — Complete reference for all 80+ tools
+- **[Student Guide](docs/STUDENT_GUIDE.md)** — Getting started as a student
+- **[Educator Guide](docs/EDUCATOR_GUIDE.md)** — FERPA compliance and educator workflows
+- **[Bulk Grading Example](examples/bulk_grading_example.md)** — Token-efficient batch grading walkthrough
+- **[Development Guide](CLAUDE.md)** — Architecture and contributing
 
-### Modern Architecture (2025)
+<details>
+<summary>Technical details</summary>
 
-Built with current Python ecosystem best practices:
+Built on **FastMCP** with async `httpx`, `pydantic` validation, and `python-dotenv` configuration. Modern `src/` layout with `pyproject.toml`. Full type hints, connection pooling, smart pagination, and rate limiting. 235+ tests. `ruff` + `black` for code quality.
 
-- **Package Structure**: Modern `src/` layout with `pyproject.toml`
-- **Dependency Management**: Fast `uv` package manager with locked dependencies
-- **Configuration**: Environment-based config with validation and templates
-- **Entry Points**: Proper CLI commands via `pyproject.toml` scripts
-- **Type Safety**: Full type hints and runtime validation
-
-### Core Components
-
-- **FastMCP Framework**: Robust MCP server implementation with tool registration
-- **Async Architecture**: `httpx` client with connection pooling and rate limiting
-- **Smart Caching**: Intelligent request caching with configurable TTL
-- **Configuration System**: Environment-based config with validation and defaults
-- **Educational Focus**: Tools designed for real teaching workflows
-
-### Dependencies
-
-Modern Python packages (see `pyproject.toml`):
-- **`fastmcp`**: MCP server framework
-- **`httpx`**: Async HTTP client
-- **`python-dotenv`**: Environment configuration
-- **`pydantic`**: Data validation and settings
-- **`python-dateutil`**: Date/time handling
-
-### Performance Features
-
-- **Connection Pooling**: Reuse HTTP connections for efficiency
-- **Request Caching**: Minimize redundant Canvas API calls
-- **Async Operations**: Non-blocking I/O for concurrent requests
-- **Smart Pagination**: Automatic handling of Canvas API pagination
-- **Rate Limiting**: Respect Canvas API limits with backoff
-
-### Development Tools
-
-- **Automated Setup**: One-command installation script
-- **Configuration Testing**: Built-in connection and config testing
-- **Type Checking**: `mypy` support for type safety
-- **Code Quality**: `ruff` and `black` for formatting and linting
-
-For contributors, see the [Development Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/CLAUDE.md) for detailed architecture and development reference.
+</details>
 
 ## Troubleshooting
 
@@ -775,113 +494,22 @@ If you encounter issues:
 3. **Connection Issues** - Verify Canvas API URL correctness and network access
 4. **Debugging** - Check your MCP client's console logs (e.g., Claude Desktop's developer console) or run server manually for error output
 
-## Security & Privacy Features
+## Security
 
-### API Security
-- Your Canvas API token grants access to your Canvas account
-- Never commit your `.env` file to version control
-- The server runs locally on your machine - no external data transmission
-- Consider using a token with limited permissions if possible
+Four layers of runtime security, all enabled by default:
 
-### Privacy Controls (Educators Only)
+| Layer | Default |
+|-------|---------|
+| PII sanitization in logs | `LOG_REDACT_PII=true` |
+| Token validation on startup | Always on |
+| Structured audit logging | Opt-in: `LOG_ACCESS_EVENTS=true` |
+| Sandboxed code execution | `ENABLE_TS_SANDBOX=true` |
 
-Educators working with student data can enable FERPA-compliant anonymization:
+FERPA-compliant anonymization for educators: `ENABLE_DATA_ANONYMIZATION=true`. See [Educator Guide](docs/EDUCATOR_GUIDE.md) for details.
 
-```bash
-# In your .env file
-ENABLE_DATA_ANONYMIZATION=true  # Anonymizes student names/emails before AI processing
-ANONYMIZATION_DEBUG=true        # Debug anonymization (optional)
-```
+## Publishing
 
-Students don't need anonymization since they only access their own data.
-
-For detailed privacy configuration, see:
-- **[Educator Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/EDUCATOR_GUIDE.md)** - FERPA compliance and anonymization
-- **[Student Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/STUDENT_GUIDE.md)** - Privacy information for students
-
-## Publishing to MCP Registry
-
-This server is published to the [Model Context Protocol Registry](https://registry.modelcontextprotocol.io/) for easy installation.
-
-### Automated Publishing (Recommended)
-
-Publishing is automated via GitHub Actions:
-
-1. **Prepare a release**:
-   ```bash
-   # Update version in pyproject.toml and src/canvas_mcp/__init__.py
-   # Update CHANGELOG if applicable
-   git commit -am "chore: bump version to X.Y.Z"
-   git push
-   ```
-
-2. **Create and push a version tag**:
-   ```bash
-   git tag vX.Y.Z
-   git push origin vX.Y.Z
-   ```
-
-3. **Automated workflows** (triggered by tag push):
-   - **Publish workflow** (`publish-mcp.yml`):
-     - Runs tests
-     - Builds Python package
-     - Publishes to PyPI
-     - Publishes to MCP Registry using GitHub OIDC
-   - **Release workflow** (`create-release.yml`):
-     - Creates GitHub release with changelog
-     - Updates README.md with latest release info
-     - Commits README changes back to main branch
-
-4. **Testing the release workflow** (optional):
-   - The release workflow can be manually triggered from the Actions tab
-   - Go to Actions → "Create Release and Update README" → Run workflow
-   - Enter a test tag name (e.g., `v1.0.7-test`)
-   - This allows testing without creating an actual release tag
-
-### Prerequisites for Publishing
-
-- **PyPI Account**: Create account at [pypi.org](https://pypi.org)
-- **Trusted Publisher Setup** (recommended, no tokens needed):
-  1. Visit [PyPI Trusted Publishers](https://pypi.org/manage/account/publishing/)
-  2. Add a "pending publisher" for your repository:
-     - **Owner**: `vishalsachdev`
-     - **Repository**: `canvas-mcp`
-     - **Workflow**: `publish-mcp.yml`
-     - **Environment**: (leave blank)
-  3. This reserves the package name and enables tokenless publishing
-
-**Alternative**: Use API token (legacy method - not recommended):
-- Generate token at PyPI → Account Settings → API tokens
-- Add as `PYPI_API_TOKEN` secret in repository settings
-- Update workflow to use `password: ${{ secrets.PYPI_API_TOKEN }}`
-
-### Manual Publishing (Alternative)
-
-For manual publishing:
-
-```bash
-# Install MCP Publisher
-curl -fsSL https://modelcontextprotocol.io/install.sh | sh
-
-# Login using GitHub
-mcp-publisher login github
-
-# Publish server
-mcp-publisher publish
-```
-
-### Registry Validation
-
-The `server.json` configuration is automatically validated against the MCP schema during CI/CD. To validate locally:
-
-```bash
-# Download schema
-curl -s https://registry.modelcontextprotocol.io/v0/server.schema.json -o /tmp/mcp-schema.json
-
-# Validate (requires jsonschema CLI)
-pip install jsonschema
-jsonschema -i server.json /tmp/mcp-schema.json
-```
+Published to [PyPI](https://pypi.org/project/canvas-mcp/) and [MCP Registry](https://registry.modelcontextprotocol.io/). Releases are automated via GitHub Actions — tag a version (`git tag vX.Y.Z && git push origin vX.Y.Z`) and CI handles the rest.
 
 ## Contributing
 

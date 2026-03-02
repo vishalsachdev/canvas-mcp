@@ -5,7 +5,6 @@ to access only the student's own data across their enrolled courses.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
@@ -32,7 +31,7 @@ def register_student_tools(mcp: FastMCP):
         """
         # Calculate the date range (use timezone-aware datetime)
         end_date = datetime.now(timezone.utc) + timedelta(days=days)
-        end_date_str = end_date.strftime("%Y-%m-%d")
+        end_date.strftime("%Y-%m-%d")
 
         # Get upcoming events for the current user
         events = await fetch_all_paginated_results(
@@ -76,11 +75,16 @@ def register_student_tools(mcp: FastMCP):
             # Get course name
             course_display = await get_course_code(course_id) if course_id else "Unknown Course"
 
-            # Get submission status
-            submission = assignment.get("submission")
-            if submission:
-                submitted = submission.get("submitted_at") is not None
-                status = "✅ Submitted" if submitted else "❌ Not Submitted"
+            assignment_id = assignment.get("id")
+            if course_id and assignment_id:
+                sub = await make_canvas_request(
+                    "get",
+                    f"/courses/{course_id}/assignments/{assignment_id}/submissions/self"
+                )
+                if isinstance(sub, dict) and sub.get("submitted_at"):
+                    status = "✅ Submitted"
+                else:
+                    status = "❌ Not Submitted"
             else:
                 status = "❌ Not Submitted"
 
@@ -428,7 +432,7 @@ def register_student_tools(mcp: FastMCP):
             course_display = await get_course_code(course_id) if course_id else "Unknown Course"
 
             user_id = review.get("user_id")
-            assessor_id = review.get("assessor_id")
+            review.get("assessor_id")
 
             output_lines.append(
                 f"• {assignment_name}\n"

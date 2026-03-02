@@ -1,11 +1,13 @@
 """Code execution tools for running TypeScript in Node.js environment."""
 
 import asyncio
+import hashlib
 import json
 import os
 import re
 import shutil
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -15,6 +17,34 @@ from mcp.server.fastmcp import FastMCP
 from ..core.config import get_config
 from ..core.logging import log_warning
 from ..core.validation import validate_params
+
+# Environment variable allowlist for subprocess execution.
+# Only these keys are passed through from the host environment.
+_SAFE_ENV_KEYS = frozenset({
+    "PATH", "HOME", "USER", "SHELL", "TERM", "LANG", "LC_ALL",
+    "NODE_PATH", "NODE_OPTIONS", "NODE_ENV",
+    "TMPDIR", "TMP", "TEMP",
+    # Container runtime vars needed for Docker/Podman sandbox mode
+    "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH",
+    "CONTAINER_HOST",
+})
+
+
+def _build_safe_env(config: Any) -> dict[str, str]:
+    """Build a filtered environment dict for subprocess execution.
+
+    Only passes through keys in _SAFE_ENV_KEYS, plus explicitly adds
+    CANVAS_API_URL and CANVAS_API_TOKEN from config.
+    """
+    env: dict[str, str] = {}
+    for key in _SAFE_ENV_KEYS:
+        val = os.environ.get(key)
+        if val is not None:
+            env[key] = val
+    # Explicitly add Canvas credentials from config
+    env["CANVAS_API_URL"] = config.canvas_api_url
+    env["CANVAS_API_TOKEN"] = config.canvas_api_token
+    return env
 
 
 def _validate_container_image(image: str) -> bool:
@@ -146,6 +176,23 @@ https.request = function (...args) {{
   enforce(host);
   return originalHttpsRequest.apply(this, args);
 }};
+
+// Intercept globalThis.fetch (modern Node.js >=18)
+if (typeof globalThis.fetch === 'function') {{
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = function (input, init) {{
+    let host = '';
+    if (typeof input === 'string') {{
+      try {{ host = new URL(input).hostname; }} catch (_) {{ host = input; }}
+    }} else if (input instanceof URL) {{
+      host = input.hostname;
+    }} else if (input && typeof input === 'object' && input.url) {{
+      try {{ host = new URL(input.url).hostname; }} catch (_) {{ host = ''; }}
+    }}
+    enforce(host);
+    return originalFetch.apply(this, arguments);
+  }};
+}}
 """
     guard_file = tempfile.NamedTemporaryFile(
         mode="w",
@@ -359,10 +406,12 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
             temp_file_path = temp_file.name
 
         try:
-            # Prepare environment variables
-            env = os.environ.copy()
-            env['CANVAS_API_URL'] = config.canvas_api_url
-            env['CANVAS_API_TOKEN'] = config.canvas_api_token
+            # Compute code hash for audit logging (never log raw code)
+            code_hash = hashlib.sha256(code.encode()).hexdigest()[:16]
+            exec_start = time.monotonic()
+
+            # Prepare filtered environment variables (allowlist only)
+            env = _build_safe_env(config)
             if node_options_local:
                 env["NODE_OPTIONS"] = node_options_local
 
@@ -490,11 +539,28 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     result_lines.append("=== Errors/Warnings ===")
                     result_lines.append(stderr)
 
+                # Audit: log successful/failed execution
+                from ..core.audit import log_code_execution
+                duration = time.monotonic() - exec_start
+                exec_status = "success" if process.returncode == 0 else "error"
+                log_code_execution(
+                    code_hash, sandbox_mode, exec_status, duration,
+                    error=f"exit code {process.returncode}" if process.returncode != 0 else None,
+                )
+
                 return "\n".join(result_lines) if result_lines else "No output"
 
             except asyncio.TimeoutError:
                 process.kill()
                 await process.wait()
+
+                # Audit: log timeout
+                from ..core.audit import log_code_execution
+                duration = time.monotonic() - exec_start
+                log_code_execution(
+                    code_hash, sandbox_mode, "timeout", duration,
+                )
+
                 return f"❌ Execution timed out after {effective_timeout} seconds"
 
         except FileNotFoundError as e:

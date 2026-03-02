@@ -1,9 +1,8 @@
 """Course caching system for Canvas API."""
 
-import sys
-
 from .client import fetch_all_paginated_results, make_canvas_request
 from .config import get_config
+from .logging import log_error, log_info
 from .validation import validate_params
 
 # Global cache for course codes to IDs
@@ -26,14 +25,14 @@ async def refresh_course_cache(include_all_terms: bool = False) -> bool:
     # Apply term filtering from config unless overridden
     if not include_all_terms and config.default_term_id:
         params["enrollment_term_id"] = config.default_term_id
-        print(f"Refreshing course cache (term {config.default_term_id})...", file=sys.stderr)
+        log_info(f"Refreshing course cache (term {config.default_term_id})")
     else:
-        print("Refreshing course cache (all terms)...", file=sys.stderr)
+        log_info("Refreshing course cache (all terms)")
 
     courses = await fetch_all_paginated_results("/courses", params)
 
     if isinstance(courses, dict) and "error" in courses:
-        print(f"Error building course cache: {courses.get('error')}", file=sys.stderr)
+        log_error("Error building course cache", error=courses.get("error"))
         return False
 
     # Build caches for bidirectional lookups
@@ -48,7 +47,7 @@ async def refresh_course_cache(include_all_terms: bool = False) -> bool:
             course_code_to_id_cache[course_code] = course_id
             id_to_course_code_cache[course_id] = course_code
 
-    print(f"Cached {len(course_code_to_id_cache)} course codes", file=sys.stderr)
+    log_info(f"Cached {len(course_code_to_id_cache)} course codes")
     return True
 
 
@@ -97,9 +96,11 @@ async def get_course_id(course_identifier: str | int) -> str | None:
     return course_str
 
 
-async def get_course_code(course_id: str) -> str | None:
+async def get_course_code(course_id: str | int) -> str | None:
     """Get course code from ID, with caching."""
     global id_to_course_code_cache, course_code_to_id_cache
+
+    course_id = str(course_id)
 
     # If it's already a code-like string with underscores
     if "_" in course_id:

@@ -62,6 +62,11 @@ show_student_mappings.py
 local_maps/
 docs/hybrid_builder_launch.md
 
+# Internal planning/tracking files
+CLEANUP.md
+CLEANUP_STATE.json
+cleanup/
+
 # Archive directory - old structure and development files
 archive/
 node_modules/

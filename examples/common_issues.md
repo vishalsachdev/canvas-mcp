@@ -55,13 +55,13 @@ uv pip install -e .
 **Solution**:
 Your Canvas API URL should look like:
 ```bash
-CANVAS_API_URL=https://canvas.illinois.edu
+CANVAS_API_URL=https://your-institution.instructure.com/api/v1
 ```
 
 **NOT**:
-- ❌ `https://canvas.illinois.edu/` (no trailing slash)
-- ❌ `https://canvas.illinois.edu/api/v1` (don't include /api/v1)
-- ❌ `canvas.illinois.edu` (must include https://)
+- ❌ `https://your-institution.instructure.com/` (missing /api/v1)
+- ❌ `your-institution.instructure.com/api/v1` (must include https://)
+- ❌ `https://your-institution.instructure.com/api/v1/` (no trailing slash)
 
 Test with:
 ```bash
@@ -297,7 +297,7 @@ Show me all students and all their submissions
    - [Open an issue](https://github.com/vishalsachdev/canvas-mcp/issues)
    - Include:
      - Error messages (redact your API token!)
-     - Your Canvas instance type (e.g., "canvas.illinois.edu")
+     - Your Canvas instance URL (e.g., "your-institution.instructure.com")
      - What you were trying to do
      - Output from `canvas-mcp-server --test`
 

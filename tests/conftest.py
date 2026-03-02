@@ -1,7 +1,8 @@
 """Shared pytest fixtures for Canvas MCP tests."""
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 
 @pytest.fixture

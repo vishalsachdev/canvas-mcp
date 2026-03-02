@@ -1,5 +1,5 @@
 ---
-name: canvas-week-plan
+name: week-plan
 description: Student weekly assignment planner. Shows all due dates, submission status, grades, and peer reviews across all courses. Use when student says "what's due", "plan my week", "weekly check", or wants to organize their coursework.
 ---
 
@@ -138,7 +138,7 @@ If user says "quick check" or "just the highlights":
 If user specifies a course:
 
 ```
-/canvas-week-plan CS 101
+/week-plan CS 101
 ```
 
 Show only that course's assignments, grades, and details.

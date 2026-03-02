@@ -164,6 +164,8 @@ git merge upstream/main
 ## Release Checklist
 
 When bumping the version in `pyproject.toml`, also update:
+- [ ] `src/canvas_mcp/__init__.py` - Update `__version__`
+- [ ] `server.json` - Update both `version` fields (top-level and packages[0]) for MCP Registry
 - [ ] `README.md` - Update "Latest Release" section with new version, date, and changelog
 - [ ] `docs/index.html` - Update version badge, tool count, and meta descriptions (GitHub Pages site)
 - [ ] Create git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
@@ -336,16 +338,10 @@ This repository has multiple documentation files for different audiences. To pre
 - Do NOT add architecture details to AGENTS.md (that's for CLAUDE.md)
 - Do NOT add example prompts to tools/README.md (that's for AGENTS.md)
 
-## Psychology
-
-Do not be afraid to question what I say. Do not always respond with "You're right!" Question the assertions I make and decide whether they are true. If they are probably true, don't question them. If they are probably false, question them. If you are unsure, question them. Always think critically about what I say and decide for yourself whether it is true or false
-
----
-
 ## Current Focus
-- [x] Release v1.0.6 with module and page tools
-- [x] Add `update_assignment` tool (completes CRUD for assignments)
-- [x] Transdisciplinary discovery tools (3 tools, 29 tests)
+- [ ] CI/CD cleanup and maintenance
+- [ ] Backlog triage (module templates, bulk creation, page versioning)
+- [ ] Student risk dashboard tools (institutional analytics)
 
 ## Roadmap
 - [x] Module management tools (7 tools, 36 tests)
@@ -354,7 +350,10 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 - [x] Release v1.0.6
 - [x] `update_assignment` tool (9 tests)
 - [x] Transdisciplinary discovery tools (3 tools, 29 tests)
-- [ ] Student risk dashboard tools (institutional analytics)
+- [x] Security hardening — PII sanitization, token validation, audit logging, sandbox defaults
+- [x] CodeQL alert remediation (31 alerts → 0)
+- [x] Ruff linting enforcement + pre-commit hook
+- [x] Release v1.0.8 — all CI/CD pipelines passing (PyPI, MCP Registry, GitHub Release)
 
 ## Backlog
 - [ ] Module templates (pre-configured module structures)
@@ -363,7 +362,6 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
 - [ ] Page templates
 - [ ] Bulk page creation from markdown files
 - [ ] Page content versioning/history tools
-- [ ] Smithery publishing (blocked - see 2026-02-01 session log)
 
 ## Session Log
 
@@ -387,6 +385,3 @@ Do not be afraid to question what I say. Do not always respond with "You're righ
   - Audit logging via `pii_audit` logger for FERPA compliance
   - 14 new tests in `tests/core/test_deanonymization.py`
 - **Git remote safety**: Configured `upstream` as read-only to prevent accidental pushes to original repo
-
-### 2026-02-01
-- **Smithery Publishing** (blocked): Requires HTTP transport or "Hosted" access (private beta). Built TypeScript wrapper at `smithery-wrapper/` for future use. Focus on MCP Registry + PyPI for now.

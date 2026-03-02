@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "canvas-mcp"
-version = "1.0.7"
+version = "1.1.0"
 description = "A Model Context Protocol server for Canvas LMS integration"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
 authors = [
-    { name = "Vishal Sachdev", email = "vishal@example.com" },
+    { name = "Vishal Sachdev", email = "vsachde2@illinois.edu" },
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -64,6 +64,9 @@ packages = ["src/canvas_mcp"]
 [tool.ruff]
 target-version = "py310"
 line-length = 88
+exclude = ["archive/"]
+
+[tool.ruff.lint]
 select = [
     "E",  # pycodestyle errors
     "W",  # pycodestyle warnings
@@ -79,7 +82,7 @@ ignore = [
     "C901", # too complex
 ]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 
 [tool.black]

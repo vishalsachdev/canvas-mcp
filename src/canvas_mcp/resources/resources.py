@@ -156,11 +156,11 @@ Summarize the key information about this course and suggest what the user might 
 
         # Check if it's a TypeScript file
         if full_path.suffix not in ['.ts', '.js', '.mts', '.mjs']:
-            return f"❌ Error: Only TypeScript/JavaScript files are accessible"
+            return "❌ Error: Only TypeScript/JavaScript files are accessible"
 
         # Read and return the file
         try:
-            with open(full_path, 'r', encoding='utf-8') as f:
+            with open(full_path, encoding='utf-8') as f:
                 content = f.read()
 
             # Add helpful header

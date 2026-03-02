@@ -286,6 +286,68 @@ def register_other_tools(mcp: FastMCP):
         return f"Successfully updated page '{page_title}' in course {course_display}. Last updated: {updated_at}"
 
     @mcp.tool()
+    @validate_params
+    async def delete_page(
+        course_identifier: str | int,
+        page_url_or_id: str,
+        require_title_match: str | None = None
+    ) -> str:
+        """Delete a page from a Canvas course.
+
+        Args:
+            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            page_url_or_id: The page URL slug or page ID to delete
+            require_title_match: If provided, only delete if the page title matches exactly
+                (safety check to prevent accidental deletion)
+
+        Returns:
+            String describing the deletion result with page title and status
+
+        Raises:
+            HTTPError:
+                - 401: User doesn't have permission to delete the page
+                - 404: Page not found in the specified course
+        """
+        course_id = await get_course_id(course_identifier)
+
+        # Fetch page details first for confirmation and safety check
+        page = await make_canvas_request(
+            "get", f"/courses/{course_id}/pages/{page_url_or_id}"
+        )
+
+        if "error" in page:
+            return f"Error fetching page details: {page['error']}"
+
+        page_title = page.get("title", "Unknown Title")
+        page_url = page.get("url", page_url_or_id)
+
+        # Safety check: verify title match if requested
+        if require_title_match and page_title != require_title_match:
+            return (
+                f"❌ Title mismatch — deletion aborted.\n\n"
+                f"  Expected: {require_title_match}\n"
+                f"  Actual:   {page_title}\n\n"
+                f"  Page URL: {page_url}"
+            )
+
+        # Proceed with deletion
+        response = await make_canvas_request(
+            "delete", f"/courses/{course_id}/pages/{page_url_or_id}"
+        )
+
+        if "error" in response:
+            return f"Error deleting page '{page_title}': {response['error']}"
+
+        course_display = await get_course_code(course_id) or course_identifier
+        return (
+            f"✅ Page deleted successfully!\n\n"
+            f"  **{page_title}**\n"
+            f"  Course: {course_display}\n"
+            f"  URL slug: {page_url}\n"
+            f"  Status: deleted"
+        )
+
+    @mcp.tool()
     async def get_anonymization_status() -> str:
         """Get current data anonymization status and statistics.
 

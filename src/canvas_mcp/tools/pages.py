@@ -4,7 +4,6 @@ Provides tools for updating page settings (publish/unpublish, front page,
 editing roles) separate from content editing.
 """
 
-from typing import Optional, Union
 
 from mcp.server.fastmcp import FastMCP
 
@@ -20,12 +19,12 @@ def register_page_tools(mcp: FastMCP):
     @mcp.tool()
     @validate_params
     async def update_page_settings(
-        course_identifier: Union[str, int],
+        course_identifier: str | int,
         page_url_or_id: str,
-        published: Optional[bool] = None,
-        front_page: Optional[bool] = None,
-        editing_roles: Optional[str] = None,
-        notify_of_update: Optional[bool] = None
+        published: bool | None = None,
+        front_page: bool | None = None,
+        editing_roles: str | None = None,
+        notify_of_update: bool | None = None
     ) -> str:
         """Update settings for an existing page (without changing content).
 
@@ -82,7 +81,7 @@ def register_page_tools(mcp: FastMCP):
 
         course_display = await get_course_code(course_id) or course_identifier
 
-        result = f"✅ Page settings updated successfully!\n\n"
+        result = "✅ Page settings updated successfully!\n\n"
         result += f"**{page_title}**\n"
         result += f"  Course: {course_display}\n"
         result += f"  URL: {page_url}\n"
@@ -98,11 +97,11 @@ def register_page_tools(mcp: FastMCP):
     @mcp.tool()
     @validate_params
     async def bulk_update_pages(
-        course_identifier: Union[str, int],
+        course_identifier: str | int,
         page_urls: str,
-        published: Optional[bool] = None,
-        editing_roles: Optional[str] = None,
-        notify_of_update: Optional[bool] = None
+        published: bool | None = None,
+        editing_roles: str | None = None,
+        notify_of_update: bool | None = None
     ) -> str:
         """Update settings for multiple pages at once.
 
@@ -164,7 +163,7 @@ def register_page_tools(mcp: FastMCP):
         # Format result
         course_display = await get_course_code(course_id) or course_identifier
 
-        result = f"## Bulk Page Update Results\n\n"
+        result = "## Bulk Page Update Results\n\n"
         result += f"**Course:** {course_display}\n"
         result += f"**Total pages:** {len(urls)}\n"
         result += f"**Successful:** {success_count}\n"
