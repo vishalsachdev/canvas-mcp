@@ -1006,10 +1006,67 @@
             background: var(--color-bg-deep);
         }
 
+        .skills-install {
+            background: var(--color-bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: 36px 44px;
+            margin-bottom: 48px;
+            display: flex;
+            align-items: center;
+            gap: 36px;
+        }
+
+        .skills-install-text {
+            flex: 1;
+        }
+
+        .skills-install-text h3 {
+            font-family: var(--font-display);
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .skills-install-text p {
+            color: var(--color-text-secondary);
+            font-size: 0.95rem;
+            margin: 0;
+        }
+
+        .skills-install-code {
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            padding: 16px 24px;
+            color: var(--color-accent-primary);
+            white-space: nowrap;
+            user-select: all;
+        }
+
+        .skills-install-agents {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        .skills-install-agents span {
+            font-size: 0.75rem;
+            color: var(--color-text-muted);
+            background: rgba(100, 120, 160, 0.1);
+            border: 1px solid var(--color-border);
+            border-radius: 50px;
+            padding: 3px 10px;
+        }
+
         .skills-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 32px;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
             margin-bottom: 48px;
         }
 
@@ -1044,6 +1101,10 @@
 
         .skill-card.student::before {
             background: linear-gradient(90deg, var(--color-student), #c4b5fd);
+        }
+
+        .skill-card.both::before {
+            background: linear-gradient(90deg, var(--color-accent-primary), var(--color-accent-secondary));
         }
 
         .skill-card h3 {
@@ -1249,6 +1310,15 @@
             .privacy-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
+
+            .skills-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .skills-install {
+                flex-direction: column;
+                text-align: center;
+            }
         }
 
         @media (max-width: 1024px) {
@@ -1301,6 +1371,17 @@
 
             .skills-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .skills-install {
+                flex-direction: column;
+                text-align: center;
+                padding: 28px 20px;
+            }
+
+            .skills-install-code {
+                font-size: 0.85rem;
+                padding: 12px 16px;
             }
 
             .privacy-grid {
@@ -1670,33 +1751,73 @@ canvas-mcp-server --test<br>
     <section class="skills" id="skills">
         <div class="container">
             <div class="section-header">
-                <div class="section-label">// AI Skills & Workflows</div>
-                <h2 class="section-title">One-Command Workflows</h2>
-                <p class="section-desc">Pre-built skills that combine multiple tools into powerful, repeatable workflows.</p>
+                <div class="section-label">// Agent Skills</div>
+                <h2 class="section-title">Workflow Recipes for 40+ Agents</h2>
+                <p class="section-desc">Pre-built skills that teach AI agents how to use Canvas MCP effectively. Install via skills.sh or use as Claude Code slash commands.</p>
             </div>
-            <div class="skills-grid">
-                <div class="skill-card educator animate-on-scroll">
-                    <div class="feature-icon" style="background: linear-gradient(135deg, rgba(244, 114, 182, 0.2), rgba(249, 168, 212, 0.1)); margin-bottom: 24px;">👨‍🏫</div>
-                    <h3>/canvas-morning-check</h3>
-                    <p>Educator morning course health check. Get submission rates, identify struggling students, see grade distributions, and upcoming deadlines - all in one command.</p>
-                    <div class="skill-try">
-                        <strong>Try:</strong> "morning check for CS 101" or "how are my students doing"
+            <div class="skills-install animate-on-scroll">
+                <div class="skills-install-text">
+                    <h3>Install with skills.sh</h3>
+                    <p>One command to add Canvas workflows to any supported agent.</p>
+                    <div class="skills-install-agents">
+                        <span>Claude Code</span>
+                        <span>Cursor</span>
+                        <span>Codex</span>
+                        <span>OpenCode</span>
+                        <span>Cline</span>
+                        <span>Zed</span>
+                        <span>40+ more</span>
                     </div>
                 </div>
+                <div class="skills-install-code">npx skills add vishalsachdev/canvas-mcp</div>
+            </div>
+            <div class="skills-grid">
                 <div class="skill-card student animate-on-scroll">
-                    <div class="feature-icon" style="background: linear-gradient(135deg, rgba(167, 139, 250, 0.2), rgba(196, 181, 253, 0.1)); margin-bottom: 24px;">👨‍🎓</div>
-                    <h3>/canvas-week-plan</h3>
-                    <p>Student weekly planner. See all due dates, submission status, current grades, and pending peer reviews across all courses - prioritized by urgency.</p>
+                    <div class="feature-icon" style="background: linear-gradient(135deg, rgba(167, 139, 250, 0.2), rgba(196, 181, 253, 0.1)); margin-bottom: 24px;">📋</div>
+                    <h3>canvas-week-plan</h3>
+                    <p>Student weekly planner. Due dates, submission status, grades, and peer reviews across all courses &mdash; prioritized by urgency.</p>
                     <div class="skill-try">
-                        <strong>Try:</strong> "what's due this week" or "plan my week"
+                        <strong>Try:</strong> "what's due this week"
+                    </div>
+                </div>
+                <div class="skill-card educator animate-on-scroll">
+                    <div class="feature-icon" style="background: linear-gradient(135deg, rgba(244, 114, 182, 0.2), rgba(249, 168, 212, 0.1)); margin-bottom: 24px;">🌅</div>
+                    <h3>canvas-morning-check</h3>
+                    <p>Educator morning dashboard. Submission rates, struggling students, grade distribution, and upcoming deadlines in one view.</p>
+                    <div class="skill-try">
+                        <strong>Try:</strong> "morning check for CS 101"
+                    </div>
+                </div>
+                <div class="skill-card educator animate-on-scroll">
+                    <div class="feature-icon" style="background: linear-gradient(135deg, rgba(244, 114, 182, 0.2), rgba(249, 168, 212, 0.1)); margin-bottom: 24px;">📊</div>
+                    <h3>canvas-bulk-grading</h3>
+                    <p>Smart grading decision tree. Routes to single, bulk, or code execution based on submission count, with safety-first dry runs.</p>
+                    <div class="skill-try">
+                        <strong>Try:</strong> "grade Assignment 5 using the rubric"
+                    </div>
+                </div>
+                <div class="skill-card educator animate-on-scroll">
+                    <div class="feature-icon" style="background: linear-gradient(135deg, rgba(244, 114, 182, 0.2), rgba(249, 168, 212, 0.1)); margin-bottom: 24px;">🔍</div>
+                    <h3>canvas-peer-review-manager</h3>
+                    <p>Full peer review pipeline. Completion analytics, quality analysis, problematic review flagging, targeted reminders, and reports.</p>
+                    <div class="skill-try">
+                        <strong>Try:</strong> "how are peer reviews going"
+                    </div>
+                </div>
+                <div class="skill-card both animate-on-scroll">
+                    <div class="feature-icon" style="background: linear-gradient(135deg, rgba(0, 212, 170, 0.2), rgba(0, 180, 216, 0.1)); margin-bottom: 24px;">💬</div>
+                    <h3>canvas-discussion-facilitator</h3>
+                    <p>Discussion forum facilitation. Browse, read, reply, monitor participation, and post &mdash; for both students and educators.</p>
+                    <div class="skill-try">
+                        <strong>Try:</strong> "show discussion posts for Topic 3"
                     </div>
                 </div>
             </div>
             <div class="skill-cta animate-on-scroll">
                 <h3>Want a Custom Skill?</h3>
-                <p>Instructors: Have a repetitive workflow you'd like automated? Submit an issue describing your use case and we'll create a skill for it!</p>
+                <p>Have a repetitive Canvas workflow you'd like automated? Submit an issue describing your use case!</p>
                 <a href="https://github.com/vishalsachdev/canvas-mcp/issues/new?labels=skill-request&title=[Skill%20Request]%20&body=**Describe%20the%20workflow%20you%20want%20automated:**%0A%0A**Steps%20you%20currently%20take%20manually:**%0A1.%20%0A2.%20%0A3.%20%0A%0A**How%20often%20do%20you%20do%20this?**%0A%0A**Any%20other%20context:**" class="btn btn-primary">
-                    <span>💡 Request a Skill</span>
+                    <span>Request a Skill</span>
                 </a>
             </div>
         </div>
