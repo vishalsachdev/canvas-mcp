@@ -430,14 +430,21 @@ Please complete your peer reviews as soon as possible to receive full participat
     @validate_params
     async def send_peer_review_followup_campaign(
         course_identifier: str | int,
-        assignment_id: str | int
+        assignment_id: str | int,
+        dry_run: bool = True
     ) -> dict[str, Any]:
         """
         Complete workflow: analyze peer reviews and send targeted reminders.
 
+        IMPORTANT: dry_run defaults to True. When dry_run=True, returns the analytics
+        and planned messages WITHOUT actually sending them. The teacher must review
+        the planned messages and call again with dry_run=False to send.
+
         Args:
             course_identifier: Canvas course ID
             assignment_id: Canvas assignment ID for peer review
+            dry_run: If True (default), return planned messages without sending.
+                     If False, actually send the reminder messages.
 
         Returns:
             Results of the complete campaign including analytics and messaging
@@ -473,14 +480,46 @@ Please complete your peer reviews as soon as possible to receive full participat
             analytics = analytics_response["analytics"]
             completion_groups = analytics.get("completion_groups", {})
 
+            no_reviews = completion_groups.get("none_complete", [])
+            partial_reviews = completion_groups.get("partial_complete", [])
+
             results = {
                 "success": True,
+                "dry_run": dry_run,
                 "analytics": analytics,
                 "messaging_results": {}
             }
 
-            # Send urgent reminders to students with no reviews
-            no_reviews = completion_groups.get("none_complete", [])
+            if dry_run:
+                # Return planned messages without sending
+                planned_messages = []
+                if no_reviews:
+                    planned_messages.append({
+                        "type": "urgent",
+                        "recipient_count": len(no_reviews),
+                        "recipient_ids": [str(s["student_id"]) for s in no_reviews],
+                        "subject_prefix": "URGENT: Peer Review",
+                        "message_preview": "URGENT: You have not completed any peer reviews for this assignment. Please complete them as soon as possible to avoid late penalties."
+                    })
+                if partial_reviews:
+                    planned_messages.append({
+                        "type": "partial",
+                        "recipient_count": len(partial_reviews),
+                        "recipient_ids": [str(s["student_id"]) for s in partial_reviews],
+                        "subject_prefix": "Reminder: Complete Peer Review",
+                        "message_preview": "You're almost done! Please complete your remaining peer review to receive full participation credit."
+                    })
+
+                results["planned_messages"] = planned_messages
+                results["summary"] = {
+                    "students_needing_urgent_reminders": len(no_reviews),
+                    "students_needing_partial_reminders": len(partial_reviews),
+                    "total_messages_planned": len(no_reviews) + len(partial_reviews),
+                    "note": "DRY RUN — no messages were sent. Call again with dry_run=False to send."
+                }
+                return results
+
+            # Actually send messages (dry_run=False)
             if no_reviews:
                 urgent_ids = [str(student["student_id"]) for student in no_reviews]
                 urgent_result = await send_peer_review_reminders(
@@ -492,8 +531,6 @@ Please complete your peer reviews as soon as possible to receive full participat
                 )
                 results["messaging_results"]["urgent"] = urgent_result
 
-            # Send gentle reminders to students with partial completion
-            partial_reviews = completion_groups.get("partial_complete", [])
             if partial_reviews:
                 partial_ids = [str(student["student_id"]) for student in partial_reviews]
                 partial_result = await send_peer_review_reminders(

@@ -25,13 +25,17 @@ from .tools import (
     register_course_tools,
     register_discovery_tools,
     register_discussion_tools,
+    register_enrollment_tools,
     register_file_tools,
+    register_gradebook_tools,
+    register_group_tools,
     register_messaging_tools,
     register_module_tools,
     register_other_tools,
     register_page_tools,
     register_peer_review_comment_tools,
     register_peer_review_tools,
+    register_quiz_tools,
     register_rubric_tools,
     register_student_tools,
     register_transdisciplinary_tools,
@@ -55,10 +59,14 @@ def register_all_tools(mcp: FastMCP) -> None:
     register_course_tools(mcp)
     register_assignment_tools(mcp)
     register_discussion_tools(mcp)
+    register_enrollment_tools(mcp)
     register_file_tools(mcp)
+    register_gradebook_tools(mcp)
+    register_group_tools(mcp)
     register_module_tools(mcp)
     register_other_tools(mcp)
     register_page_tools(mcp)
+    register_quiz_tools(mcp)
     register_rubric_tools(mcp)
     register_peer_review_tools(mcp)
     register_peer_review_comment_tools(mcp)
@@ -213,6 +221,11 @@ def main() -> None:
             "Could not validate token on startup (network may be unavailable). "
             "Server will start anyway."
         )
+    finally:
+        # Reset the HTTP client — asyncio.run() created it on a temporary event loop
+        # that is now closed. It must be recreated on the MCP server's event loop.
+        from .core import client as _client_mod
+        _client_mod.http_client = None
 
     log_info("Use Ctrl+C to stop the server")
 

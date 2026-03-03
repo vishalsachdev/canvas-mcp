@@ -760,6 +760,70 @@ def register_discussion_tools(mcp: FastMCP):
 
     @mcp.tool()
     @validate_params
+    async def update_discussion_entry(course_identifier: str | int,
+                                     topic_id: str | int,
+                                     entry_id: str | int,
+                                     message: str) -> str:
+        """Update the text of a discussion entry.
+
+        Args:
+            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            topic_id: The Canvas discussion topic ID
+            entry_id: The Canvas discussion entry ID to update
+            message: The new message content for the entry
+        """
+        course_id = await get_course_id(course_identifier)
+
+        data = {"message": message}
+
+        response = await make_canvas_request(
+            "put",
+            f"/courses/{course_id}/discussion_topics/{topic_id}/entries/{entry_id}",
+            data=data
+        )
+
+        if isinstance(response, dict) and "error" in response:
+            return f"Error updating discussion entry: {response['error']}"
+
+        course_display = await get_course_code(course_id) or course_identifier
+        result = "Discussion entry updated successfully!\n\n"
+        result += f"Course: {course_display}\n"
+        result += f"Topic ID: {topic_id}\n"
+        result += f"Entry ID: {entry_id}\n"
+        result += f"Updated content: {truncate_text(message, 200)}\n"
+        return result
+
+    @mcp.tool()
+    @validate_params
+    async def delete_discussion_entry(course_identifier: str | int,
+                                     topic_id: str | int,
+                                     entry_id: str | int) -> str:
+        """Delete a discussion entry (marks as deleted in Canvas).
+
+        Args:
+            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            topic_id: The Canvas discussion topic ID
+            entry_id: The Canvas discussion entry ID to delete
+        """
+        course_id = await get_course_id(course_identifier)
+
+        response = await make_canvas_request(
+            "delete",
+            f"/courses/{course_id}/discussion_topics/{topic_id}/entries/{entry_id}"
+        )
+
+        if isinstance(response, dict) and "error" in response:
+            return f"Error deleting discussion entry: {response['error']}"
+
+        course_display = await get_course_code(course_id) or course_identifier
+        result = "Discussion entry deleted successfully!\n\n"
+        result += f"Course: {course_display}\n"
+        result += f"Topic ID: {topic_id}\n"
+        result += f"Entry ID: {entry_id}\n"
+        return result
+
+    @mcp.tool()
+    @validate_params
     async def create_discussion_topic(course_identifier: str | int,
                                     title: str,
                                     message: str,
