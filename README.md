@@ -2,9 +2,13 @@
 
 <!--mcp-name: io.github.vishalsachdev/canvas-mcp-->
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![skills.sh](https://img.shields.io/badge/skills.sh-canvas--mcp-blue)](https://skills.sh)
 
-This repository contains a Model Context Protocol (MCP) server implementation for interacting with the Canvas Learning Management System API. The server is designed to work with any MCP-compatible client, including Claude Desktop, Cursor, Zed, Windsurf, and Continue.
+MCP server for Canvas LMS with **80+ tools** and **5 agent skills**. Works with Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh).
+
+```bash
+npx skills add vishalsachdev/canvas-mcp
+```
 
 > **Note**: Recently refactored to a modular architecture for better maintainability. The legacy monolithic implementation has been archived.
 
@@ -505,7 +509,7 @@ FERPA-compliant anonymization for educators: `ENABLE_DATA_ANONYMIZATION=true`. S
 
 ## Publishing
 
-Published to [PyPI](https://pypi.org/project/canvas-mcp/) and [MCP Registry](https://registry.modelcontextprotocol.io/). Releases are automated via GitHub Actions — tag a version (`git tag vX.Y.Z && git push origin vX.Y.Z`) and CI handles the rest.
+Published to [PyPI](https://pypi.org/project/canvas-mcp/), [MCP Registry](https://registry.modelcontextprotocol.io/), and [skills.sh](https://skills.sh) (agent skills). Releases are automated via GitHub Actions — tag a version (`git tag vX.Y.Z && git push origin vX.Y.Z`) and CI handles the rest.
 
 ## Contributing
 
