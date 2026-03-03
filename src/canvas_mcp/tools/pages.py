@@ -9,6 +9,7 @@ from mcp.server.fastmcp import FastMCP
 
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import make_canvas_request
+from ..core.config import get_config
 from ..core.dates import format_date
 from ..core.validation import validate_params
 
@@ -81,10 +82,17 @@ def register_page_tools(mcp: FastMCP):
 
         course_display = await get_course_code(course_id) or course_identifier
 
+        html_url = response.get("html_url", "")
+        if not html_url and page_url:
+            config = get_config()
+            html_url = f"{config.browser_base_url}/courses/{course_id}/pages/{page_url}"
+
         result = "✅ Page settings updated successfully!\n\n"
         result += f"**{page_title}**\n"
         result += f"  Course: {course_display}\n"
-        result += f"  URL: {page_url}\n"
+        result += f"  URL slug: {page_url}\n"
+        if html_url:
+            result += f"  URL: {html_url}\n"
         result += f"  Published: {'Yes' if is_published else 'No'}\n"
         result += f"  Front Page: {'Yes' if is_front_page else 'No'}\n"
         result += f"  Editing Roles: {roles}\n"

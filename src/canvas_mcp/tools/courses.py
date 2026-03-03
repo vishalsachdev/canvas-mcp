@@ -133,9 +133,14 @@ def register_course_tools(mcp: FastMCP):
             course_code_to_id_cache[response["course_code"]] = str(response["id"])
             id_to_course_code_cache[str(response["id"])] = response["course_code"]
 
+        # Construct browser URL
+        config = get_config()
+        html_url = f"{config.browser_base_url}/courses/{course_id}"
+
         details = [
             f"Code: {response.get('course_code', 'N/A')}",
             f"Name: {response.get('name', 'N/A')}",
+            f"URL: {html_url}",
             f"Start Date: {format_date(response.get('start_at'))}",
             f"End Date: {format_date(response.get('end_at'))}",
             f"Time Zone: {response.get('time_zone', 'N/A')}",

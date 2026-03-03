@@ -6,6 +6,7 @@ from mcp.server.fastmcp import FastMCP
 from ..core.anonymization import anonymize_response_data
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
+from ..core.config import get_config
 from ..core.dates import format_date
 from ..core.validation import validate_params
 
@@ -94,8 +95,17 @@ def register_other_tools(mcp: FastMCP):
 
         course_display = await get_course_code(course_id) or course_identifier
         status = "Published" if published else "Unpublished"
+        page_url_slug = response.get("url", "")
+        html_url = response.get("html_url", "")
+        if not html_url and page_url_slug:
+            config = get_config()
+            html_url = f"{config.browser_base_url}/courses/{course_id}/pages/{page_url_slug}"
 
-        return f"Page Content for '{title}' in Course {course_display} ({status}):\n\n{body}"
+        result = f"Page Content for '{title}' in Course {course_display} ({status}):\n"
+        if html_url:
+            result += f"URL: {html_url}\n"
+        result += f"\n{body}"
+        return result
 
     @mcp.tool()
     @validate_params
@@ -151,10 +161,16 @@ def register_other_tools(mcp: FastMCP):
             status_info.append("Locked")
 
         course_display = await get_course_code(course_id) or course_identifier
+        html_url = response.get("html_url", "")
+        if not html_url and url:
+            config = get_config()
+            html_url = f"{config.browser_base_url}/courses/{course_id}/pages/{url}"
 
         result = f"Page Details for Course {course_display}:\n\n"
         result += f"Title: {title}\n"
-        result += f"URL: {url}\n"
+        result += f"URL slug: {url}\n"
+        if html_url:
+            result += f"URL: {html_url}\n"
         result += f"Status: {', '.join(status_info)}\n"
         result += f"Created: {created_at}\n"
         result += f"Updated: {updated_at}\n"
@@ -231,10 +247,16 @@ def register_other_tools(mcp: FastMCP):
         published_status = "Published" if response.get("published", False) else "Unpublished"
 
         course_display = await get_course_code(course_id) or course_identifier
+        html_url = response.get("html_url", "")
+        if not html_url and page_url:
+            config = get_config()
+            html_url = f"{config.browser_base_url}/courses/{course_id}/pages/{page_url}"
 
         result = f"Successfully created page in Course {course_display}:\n\n"
         result += f"Title: {page_title}\n"
-        result += f"URL: {page_url}\n"
+        result += f"URL slug: {page_url}\n"
+        if html_url:
+            result += f"URL: {html_url}\n"
         result += f"Status: {published_status}\n"
         result += f"Created: {created_at}\n"
 
@@ -281,9 +303,17 @@ def register_other_tools(mcp: FastMCP):
 
         page_title = response.get("title", "Unknown page")
         updated_at = format_date(response.get("updated_at"))
+        page_url_slug = response.get("url", "")
+        html_url = response.get("html_url", "")
+        if not html_url and page_url_slug:
+            config = get_config()
+            html_url = f"{config.browser_base_url}/courses/{course_id}/pages/{page_url_slug}"
         course_display = await get_course_code(course_id) or course_identifier
 
-        return f"Successfully updated page '{page_title}' in course {course_display}. Last updated: {updated_at}"
+        result = f"Successfully updated page '{page_title}' in course {course_display}. Last updated: {updated_at}"
+        if html_url:
+            result += f"\n  URL: {html_url}"
+        return result
 
     @mcp.tool()
     @validate_params

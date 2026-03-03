@@ -24,6 +24,7 @@ from ..core.client import (
     make_canvas_request,
     upload_file_to_storage,
 )
+from ..core.config import get_config
 from ..core.file_validation import (
     FileValidationResult,
     format_file_size,
@@ -183,12 +184,14 @@ def register_file_tools(mcp: FastMCP):
         if folder_path:
             result += f"  Folder Path: {folder_path}\n"
 
+        # Construct browser URL for the file
+        config = get_config()
+        html_url = f"{config.browser_base_url}/courses/{course_id}/files/{file_id}"
+        result += f"  URL: {html_url}\n"
+
         result += "\n**Next steps:**\n"
         result += f"  - Add to module: add_module_item(..., item_type='File', content_id={file_id})\n"
         result += f"  - Attach to message: send_conversation(..., attachment_ids=['{file_id}'])\n"
-
-        if file_url:
-            result += f"  - Direct URL: {file_url}\n"
 
         return result
 

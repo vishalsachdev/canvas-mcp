@@ -9,6 +9,7 @@ from mcp.server.fastmcp import FastMCP
 
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
+from ..core.config import get_config
 from ..core.dates import format_date, parse_date
 from ..core.validation import validate_params
 
@@ -159,12 +160,16 @@ def register_module_tools(mcp: FastMCP):
         module_published = response.get("published", False)
 
         course_display = await get_course_code(course_id) or course_identifier
+        config = get_config()
+        html_url = f"{config.browser_base_url}/courses/{course_id}/modules#{module_id}"
+
         result = "✅ Module created successfully!\n\n"
         result += f"**{module_name}**\n"
         result += f"  Course: {course_display}\n"
         result += f"  Module ID: {module_id}\n"
         result += f"  Position: {module_position}\n"
         result += f"  Published: {'Yes' if module_published else 'No'}\n"
+        result += f"  URL: {html_url}\n"
 
         if unlock_at:
             result += f"  Unlocks: {format_date(response.get('unlock_at'))}\n"
@@ -253,12 +258,16 @@ def register_module_tools(mcp: FastMCP):
         module_published = response.get("published", False)
 
         course_display = await get_course_code(course_id) or course_identifier
+        config = get_config()
+        html_url = f"{config.browser_base_url}/courses/{course_id}/modules#{module_id}"
+
         result = "✅ Module updated successfully!\n\n"
         result += f"**{module_name}**\n"
         result += f"  Course: {course_display}\n"
         result += f"  Module ID: {module_id}\n"
         result += f"  Position: {module_position}\n"
         result += f"  Published: {'Yes' if module_published else 'No'}\n"
+        result += f"  URL: {html_url}\n"
 
         if response.get("unlock_at"):
             result += f"  Unlocks: {format_date(response.get('unlock_at'))}\n"

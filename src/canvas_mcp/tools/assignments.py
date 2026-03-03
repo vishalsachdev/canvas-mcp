@@ -75,6 +75,8 @@ def register_assignment_tools(mcp: FastMCP):
         if "error" in response:
             return f"Error fetching assignment details: {response['error']}"
 
+        html_url = response.get("html_url", "")
+
         details = [
             f"Name: {response.get('name', 'N/A')}",
             f"Description: {response.get('description', 'N/A')}",
@@ -84,6 +86,9 @@ def register_assignment_tools(mcp: FastMCP):
             f"Published: {response.get('published', False)}",
             f"Locked: {response.get('locked_for_user', False)}"
         ]
+
+        if html_url:
+            details.append(f"URL: {html_url}")
 
         # Try to get the course code for display
         course_display = await get_course_code(course_id) or course_identifier

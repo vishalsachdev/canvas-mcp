@@ -104,11 +104,14 @@ def register_discussion_tools(mcp: FastMCP):
         # Format the output
         course_display = await get_course_code(course_id) or course_identifier
         topic_type = "Announcement" if is_announcement else "Discussion"
+        html_url = response.get("html_url", "")
 
         result = f"{topic_type} Details for Course {course_display}:\n\n"
         result += f"Title: {title}\n"
         result += f"ID: {topic_id}\n"
         result += f"Type: {topic_type}\n"
+        if html_url:
+            result += f"URL: {html_url}\n"
         result += f"Author: {author_name} (ID: {author_id})\n"
         result += f"Created: {created_at}\n"
         result += f"Posted: {posted_at}\n"
@@ -801,12 +804,16 @@ def register_discussion_tools(mcp: FastMCP):
         topic_id = response.get("id")
         topic_title = response.get("title", title)
         created_at = format_date(response.get("created_at"))
+        html_url = response.get("html_url", "")
 
         course_display = await get_course_code(course_id) or course_identifier
-        return f"Discussion topic created successfully in course {course_display}:\n\n" + \
-               f"ID: {topic_id}\n" + \
-               f"Title: {topic_title}\n" + \
-               f"Created: {created_at}"
+        result = f"Discussion topic created successfully in course {course_display}:\n\n"
+        result += f"ID: {topic_id}\n"
+        result += f"Title: {topic_title}\n"
+        result += f"Created: {created_at}\n"
+        if html_url:
+            result += f"URL: {html_url}\n"
+        return result
 
     @mcp.tool()
     @validate_params
@@ -1030,12 +1037,16 @@ def register_discussion_tools(mcp: FastMCP):
         announcement_id = response.get("id")
         announcement_title = response.get("title", title)
         created_at = format_date(response.get("created_at"))
+        html_url = response.get("html_url", "")
 
         course_display = await get_course_code(course_id) or course_identifier
-        return f"Announcement created successfully in course {course_display}:\n\n" + \
-               f"ID: {announcement_id}\n" + \
-               f"Title: {announcement_title}\n" + \
-               f"Created: {created_at}"
+        result = f"Announcement created successfully in course {course_display}:\n\n"
+        result += f"ID: {announcement_id}\n"
+        result += f"Title: {announcement_title}\n"
+        result += f"Created: {created_at}\n"
+        if html_url:
+            result += f"URL: {html_url}\n"
+        return result
 
     # ===== ANNOUNCEMENT DELETION TOOLS =====
 
