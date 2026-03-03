@@ -808,6 +808,148 @@ def register_discussion_tools(mcp: FastMCP):
                f"Title: {topic_title}\n" + \
                f"Created: {created_at}"
 
+    @mcp.tool()
+    @validate_params
+    async def update_discussion_topic(
+        course_identifier: str | int,
+        topic_id: str | int,
+        title: str | None = None,
+        message: str | None = None,
+        published: bool | None = None,
+        pinned: bool | None = None,
+        locked: bool | None = None,
+        require_initial_post: bool | None = None,
+        delayed_post_at: str | None = None,
+        lock_at: str | None = None
+    ) -> str:
+        """Update an existing discussion topic.
+
+        Args:
+            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            topic_id: The discussion topic ID to update
+            title: New title for the discussion
+            message: New content/body for the discussion
+            published: Whether the discussion is published
+            pinned: Whether to pin this discussion
+            locked: Whether to lock the discussion (prevent new replies)
+            require_initial_post: Whether students must post before seeing others
+            delayed_post_at: Schedule posting date (ISO 8601), or empty string to clear
+            lock_at: Auto-lock date (ISO 8601), or empty string to clear
+        """
+        course_id = await get_course_id(course_identifier)
+
+        data = {}
+
+        if title is not None:
+            data["title"] = title
+        if message is not None:
+            data["message"] = message
+        if published is not None:
+            data["published"] = published
+        if pinned is not None:
+            data["pinned"] = pinned
+        if locked is not None:
+            data["locked"] = locked
+        if require_initial_post is not None:
+            data["require_initial_post"] = require_initial_post
+        if delayed_post_at is not None:
+            if delayed_post_at == "":
+                data["delayed_post_at"] = None
+            else:
+                parsed = parse_date(delayed_post_at)
+                if parsed:
+                    data["delayed_post_at"] = parsed.isoformat()
+        if lock_at is not None:
+            if lock_at == "":
+                data["lock_at"] = None
+            else:
+                parsed = parse_date(lock_at)
+                if parsed:
+                    data["lock_at"] = parsed.isoformat()
+
+        if not data:
+            return "No changes specified. Please provide at least one field to update."
+
+        response = await make_canvas_request(
+            "put",
+            f"/courses/{course_id}/discussion_topics/{topic_id}",
+            data=data
+        )
+
+        if "error" in response:
+            return f"Error updating discussion topic: {response['error']}"
+
+        topic_title = response.get("title", "Unknown")
+        is_published = response.get("published", False)
+        is_pinned = response.get("pinned", False)
+        is_locked = response.get("locked", False)
+        html_url = response.get("html_url", "")
+
+        course_display = await get_course_code(course_id) or course_identifier
+
+        result = "✅ Discussion topic updated successfully!\n\n"
+        result += f"**{topic_title}**\n"
+        result += f"  Course: {course_display}\n"
+        result += f"  Topic ID: {topic_id}\n"
+        result += f"  Published: {'Yes' if is_published else 'No'}\n"
+        result += f"  Pinned: {'Yes' if is_pinned else 'No'}\n"
+        result += f"  Locked: {'Yes' if is_locked else 'No'}\n"
+        result += f"  Updated fields: {', '.join(data.keys())}\n"
+
+        if html_url:
+            result += f"  URL: {html_url}\n"
+
+        return result
+
+    @mcp.tool()
+    @validate_params
+    async def delete_discussion_topic(
+        course_identifier: str | int,
+        topic_id: str | int
+    ) -> str:
+        """Delete a discussion topic from a course.
+
+        Note: If the topic is an announcement, use delete_announcement instead.
+
+        Args:
+            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            topic_id: The discussion topic ID to delete
+        """
+        course_id = await get_course_id(course_identifier)
+
+        # Fetch topic details first
+        topic_response = await make_canvas_request(
+            "get",
+            f"/courses/{course_id}/discussion_topics/{topic_id}"
+        )
+
+        if "error" in topic_response:
+            return f"Error fetching discussion topic: {topic_response['error']}"
+
+        topic_title = topic_response.get("title", "Unknown")
+
+        # Guard: if it's an announcement, redirect
+        if topic_response.get("is_announcement", False):
+            return "This is an announcement. Use delete_announcement instead."
+
+        # Delete the topic
+        response = await make_canvas_request(
+            "delete",
+            f"/courses/{course_id}/discussion_topics/{topic_id}"
+        )
+
+        if isinstance(response, dict) and "error" in response:
+            return f"Error deleting discussion topic: {response['error']}"
+
+        course_display = await get_course_code(course_id) or course_identifier
+
+        result = "✅ Discussion topic deleted successfully!\n\n"
+        result += f"  Deleted: **{topic_title}**\n"
+        result += f"  Course: {course_display}\n"
+        result += f"  Topic ID: {topic_id}\n"
+
+        return result
+
     # ===== ANNOUNCEMENT TOOLS =====
 
     @mcp.tool()

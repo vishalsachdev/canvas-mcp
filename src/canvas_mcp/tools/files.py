@@ -347,3 +347,118 @@ def register_file_tools(mcp: FastMCP):
 
         result += f"\nTotal: {len(files)} file(s)"
         return result
+
+    @mcp.tool()
+    @validate_params
+    async def delete_file(
+        file_id: str | int,
+        course_identifier: str | int | None = None
+    ) -> str:
+        """Delete a file from Canvas.
+
+        WARNING: If this file is linked from any page or assignment, those links
+        will break. Canvas does not provide a way to check file references.
+
+        Args:
+            file_id: The Canvas file ID to delete
+            course_identifier: Optional course code or ID (for display context only)
+        """
+        # Fetch file metadata first
+        file_response = await make_canvas_request(
+            "get",
+            f"/files/{file_id}"
+        )
+
+        if isinstance(file_response, dict) and "error" in file_response:
+            return f"Error fetching file info: {file_response['error']}"
+
+        file_name = file_response.get("display_name") or file_response.get("filename", "Unknown")
+        file_size = file_response.get("size", 0)
+        folder_id = file_response.get("folder_id")
+
+        # Delete the file (NOT course-scoped)
+        response = await make_canvas_request(
+            "delete",
+            f"/files/{file_id}"
+        )
+
+        if isinstance(response, dict) and "error" in response:
+            return f"Error deleting file: {response['error']}"
+
+        result = "✅ File deleted successfully!\n\n"
+        result += f"  Deleted: **{file_name}**\n"
+        result += f"  File ID: {file_id}\n"
+        result += f"  Size: {format_file_size(file_size)}\n"
+
+        if folder_id:
+            result += f"  Folder ID: {folder_id}\n"
+
+        if course_identifier:
+            course_id = await get_course_id(course_identifier)
+            course_display = await get_course_code(course_id) or course_identifier
+            result += f"  Course: {course_display}\n"
+
+        result += "\n⚠️  Any pages or assignments linking to this file will now have broken links."
+
+        return result
+
+    @mcp.tool()
+    @validate_params
+    async def update_file(
+        file_id: str | int,
+        name: str | None = None,
+        parent_folder_id: str | int | None = None,
+        locked: bool | None = None,
+        hidden: bool | None = None
+    ) -> str:
+        """Update a file's metadata (rename, move, lock, or hide).
+
+        Args:
+            file_id: The Canvas file ID to update
+            name: New filename (renames the file)
+            parent_folder_id: Move the file to a different folder
+            locked: Whether the file is locked (prevents student access)
+            hidden: Whether the file is hidden from students
+        """
+        data = {}
+
+        if name is not None:
+            data["name"] = name
+        if parent_folder_id is not None:
+            data["parent_folder_id"] = parent_folder_id
+        if locked is not None:
+            data["locked"] = locked
+        if hidden is not None:
+            data["hidden"] = hidden
+
+        if not data:
+            return "No changes specified. Please provide at least one field to update (name, parent_folder_id, locked, hidden)."
+
+        response = await make_canvas_request(
+            "put",
+            f"/files/{file_id}",
+            data=data
+        )
+
+        if isinstance(response, dict) and "error" in response:
+            return f"Error updating file: {response['error']}"
+
+        file_name = response.get("display_name") or response.get("filename", "Unknown")
+        file_size = response.get("size", 0)
+        is_locked = response.get("locked", False)
+        is_hidden = response.get("hidden", False)
+        updated_folder_id = response.get("folder_id")
+
+        result = "✅ File updated successfully!\n\n"
+        result += f"**{file_name}**\n"
+        result += f"  File ID: {file_id}\n"
+        result += f"  Size: {format_file_size(file_size)}\n"
+        result += f"  Locked: {'Yes' if is_locked else 'No'}\n"
+        result += f"  Hidden: {'Yes' if is_hidden else 'No'}\n"
+
+        if updated_folder_id:
+            result += f"  Folder ID: {updated_folder_id}\n"
+
+        result += f"  Updated fields: {', '.join(data.keys())}\n"
+
+        return result

@@ -80,6 +80,11 @@ class Config:
         self.default_term_id = _int_env("DEFAULT_TERM_ID", 0)
 
     @property
+    def browser_base_url(self) -> str:
+        """Canvas browser-facing URL (API URL with /api/v1 stripped)."""
+        return self.canvas_api_url.rstrip("/").removesuffix("/api/v1")
+
+    @property
     def api_base_url(self) -> str:
         """Legacy compatibility for API_BASE_URL."""
         return self.canvas_api_url

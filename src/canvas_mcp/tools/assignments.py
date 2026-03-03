@@ -1028,3 +1028,92 @@ def register_assignment_tools(mcp: FastMCP):
             result += f"  URL: {html_url}\n"
 
         return result
+
+    @mcp.tool()
+    @validate_params
+    async def delete_assignment(
+        course_identifier: str | int,
+        assignment_id: str | int,
+        dry_run: bool = True
+    ) -> str:
+        """Delete an assignment and ALL its submissions/grades. IRREVERSIBLE.
+
+        WARNING: This permanently destroys all student submissions and grades
+        for this assignment. This cannot be undone.
+
+        Args:
+            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            assignment_id: The assignment ID to delete
+            dry_run: If True (default), shows what would be deleted without deleting.
+                     Set to False to actually delete.
+        """
+        course_id = await get_course_id(course_identifier)
+
+        # Fetch assignment details first
+        assignment_response = await make_canvas_request(
+            "get",
+            f"/courses/{course_id}/assignments/{assignment_id}"
+        )
+
+        if "error" in assignment_response:
+            return f"Error fetching assignment: {assignment_response['error']}"
+
+        assignment_name = assignment_response.get("name", "Unknown")
+        points_possible = assignment_response.get("points_possible", 0)
+        published = assignment_response.get("published", False)
+        submission_types = assignment_response.get("submission_types", [])
+        html_url = assignment_response.get("html_url", "")
+
+        # Count submissions that have actual student work
+        submission_count = 0
+        try:
+            submissions = await fetch_all_paginated_results(
+                f"/courses/{course_id}/assignments/{assignment_id}/submissions",
+                {"per_page": 100}
+            )
+            if isinstance(submissions, list):
+                submission_count = sum(
+                    1 for s in submissions
+                    if s.get("workflow_state") != "unsubmitted"
+                )
+        except Exception:
+            pass
+
+        course_display = await get_course_code(course_id) or course_identifier
+
+        if dry_run:
+            result = "⚠️  DRY RUN — Assignment would be deleted:\n\n"
+            result += f"**{assignment_name}**\n"
+            result += f"  Course: {course_display}\n"
+            result += f"  Assignment ID: {assignment_id}\n"
+            result += f"  Points: {points_possible}\n"
+            result += f"  Published: {'Yes' if published else 'No'}\n"
+            result += f"  Submission Types: {', '.join(submission_types)}\n"
+            result += f"  Submissions: {submission_count}\n"
+            if html_url:
+                result += f"  URL: {html_url}\n"
+            result += "\n⚠️  This will permanently destroy all submissions and grades.\n"
+            result += "Set dry_run=False to confirm deletion."
+            return result
+
+        # Execute the delete
+        response = await make_canvas_request(
+            "delete",
+            f"/courses/{course_id}/assignments/{assignment_id}"
+        )
+
+        if isinstance(response, dict) and "error" in response:
+            return f"Error deleting assignment: {response['error']}"
+
+        from ..core.config import get_config
+        config = get_config()
+        assignments_url = f"{config.browser_base_url}/courses/{course_id}/assignments"
+
+        result = "✅ Assignment deleted permanently.\n\n"
+        result += f"  Deleted: **{assignment_name}**\n"
+        result += f"  Course: {course_display}\n"
+        result += f"  Assignment ID: {assignment_id}\n"
+        result += f"  Submissions destroyed: {submission_count}\n"
+        result += f"  Assignments page: {assignments_url}\n"
+
+        return result
