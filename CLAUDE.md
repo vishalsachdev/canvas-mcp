@@ -280,6 +280,16 @@ This repository has multiple documentation files for different audiences. To pre
 ## Session Log
 > Full history: [session-history.md](./session-history.md)
 
+### 2026-03-03
+- **skills.sh discovery debugging**: Investigated why `npx skills find canvas-mcp` returned no results
+  - Root cause 1: CLI package is `skills` not `skills.sh` (`npx skills.sh` → 404)
+  - Root cause 2: `find` searches the online leaderboard (populated by install telemetry), not GitHub repos
+  - `npx skills add vishalsachdev/canvas-mcp` works perfectly — detects all 7 skills from repo
+- **Self-installed skills globally**: `npx skills add vishalsachdev/canvas-mcp -g -y` to seed first telemetry event
+  - Installed to 7 agents: Claude Code, Codex, Cursor, Windsurf, Gemini CLI, Antigravity, OpenCode
+  - Removed duplicate `morning-check`/`week-plan` (non-prefixed copies from `.claude/skills/`)
+- **README hero update**: Moved `npx skills add` command above the fold, added skills.sh badge, updated Publishing section
+
 ### 2026-02-23
 - **PR #75 Review & Merge**: Reviewed Samuel Parks' file download/listing tools PR
   - Fixed path traversal vulnerability (sanitize_filename on API-provided filenames)
