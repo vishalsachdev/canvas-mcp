@@ -220,6 +220,12 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   - Added ChatGPT to Compatibility grid (was in hero text but missing from grid)
   - Added file management mention to Educator persona card
   - Added parse_ufixit_violations to README LD tools table (synced with AGENTS.md)
+- **CLAUDE.md audit**: Scored 68/100 → improved to ~85/100 (384 → 263 lines)
+  - Fixed 3 bugs: AGENTS.md link, test mock path (`src.` prefix), test command
+  - Updated repo tree (added skills/, tests/, tools/ dirs)
+  - Removed 3 workflow sections duplicating AGENTS.md
+  - Condensed Documentation Maintenance (50 → 8 lines)
+  - Archived Feb 1/16/20 session logs to session-history.md
 
 ### 2026-03-03
 - **skills.sh discovery debugging**: Investigated why `npx skills find canvas-mcp` returned no results
