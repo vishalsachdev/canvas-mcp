@@ -56,7 +56,17 @@ systemctl restart canvas-mcp
 echo "Service status:"
 systemctl status canvas-mcp --no-pager || true
 
-# 5. Install nginx config
+# 5. Generate self-signed SSL cert for Cloudflare Full mode
+if [ ! -f /etc/nginx/ssl/origin.crt ]; then
+    echo "Generating self-signed SSL cert..."
+    mkdir -p /etc/nginx/ssl
+    openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+        -keyout /etc/nginx/ssl/origin.key \
+        -out /etc/nginx/ssl/origin.crt \
+        -subj "/CN=mcp.illinihunt.org" 2>/dev/null
+fi
+
+# 6. Install nginx config
 echo "Configuring nginx..."
 cp deploy/nginx-canvas-mcp.conf /etc/nginx/sites-available/canvas-mcp
 ln -sf /etc/nginx/sites-available/canvas-mcp /etc/nginx/sites-enabled/
