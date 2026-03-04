@@ -270,6 +270,7 @@ This repository has multiple documentation files for different audiences. To pre
 - [x] Ruff linting enforcement + pre-commit hook
 - [x] Release v1.0.8 — all CI/CD pipelines passing (PyPI, MCP Registry, GitHub Release)
 - [x] Learning Designer tools & skills — `get_course_structure` tool + 3 skills (QC, accessibility, builder)
+- [x] GitHub Pages audit — 7 disconnects fixed (tool count, test count, analytics, URLs, compatibility)
 
 ## Backlog
 - [ ] Module templates (pre-configured module structures)
@@ -281,6 +282,16 @@ This repository has multiple documentation files for different audiences. To pre
 
 ## Session Log
 > Full history: [session-history.md](./session-history.md)
+
+### 2026-03-04
+- **GitHub Pages audit**: Cross-referenced docs/index.html against codebase, found 7 disconnects
+  - Updated tool count 80+ → 90+ (actual: 91) across 6 places in index.html + 3 in README
+  - Added Cloudflare Web Analytics beacon (was missing per global CLAUDE.md rule)
+  - Updated test count 235+ → 290+ (actual: 294) in README current text
+  - Fixed server.json websiteUrl to match canonical domain (canvas-mcp.illinihunt.org)
+  - Added ChatGPT to Compatibility grid (was in hero text but missing from grid)
+  - Added file management mention to Educator persona card
+  - Added parse_ufixit_violations to README LD tools table (synced with AGENTS.md)
 
 ### 2026-03-03
 - **skills.sh discovery debugging**: Investigated why `npx skills find canvas-mcp` returned no results
