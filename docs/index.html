@@ -84,6 +84,7 @@
             --color-student: #a78bfa;
             --color-educator: #f472b6;
             --color-developer: #fb923c;
+            --color-designer: #06b6d4;
             --color-border: rgba(100, 120, 160, 0.15);
             --color-border-light: rgba(100, 120, 160, 0.25);
             --shadow-glow: 0 0 60px var(--color-accent-glow);
@@ -631,7 +632,7 @@
 
         .user-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(2, 1fr);
             gap: 32px;
         }
 
@@ -677,6 +678,10 @@
             background: linear-gradient(90deg, var(--color-developer), #fdba74);
         }
 
+        .user-card.designer::before {
+            background: linear-gradient(90deg, var(--color-designer), #67e8f9);
+        }
+
         .user-card-icon {
             width: 72px;
             height: 72px;
@@ -698,6 +703,10 @@
 
         .user-card.developer .user-card-icon {
             background: linear-gradient(135deg, rgba(251, 146, 60, 0.2), rgba(253, 186, 116, 0.1));
+        }
+
+        .user-card.designer .user-card-icon {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(103, 232, 249, 0.1));
         }
 
         .user-card h3 {
@@ -1107,6 +1116,10 @@
             background: linear-gradient(90deg, var(--color-accent-primary), var(--color-accent-secondary));
         }
 
+        .skill-card.designer::before {
+            background: linear-gradient(90deg, var(--color-designer), #67e8f9);
+        }
+
         .skill-card h3 {
             font-family: var(--font-mono);
             font-size: 1.3rem;
@@ -1467,7 +1480,7 @@
                 <h1>
                     <span class="gradient-text">AI-Powered</span> Canvas<br>LMS Integration
                 </h1>
-                <p>Bridge AI assistants with Canvas Learning Management System. 80+ MCP tools for students, educators, and developers. Works with Claude, ChatGPT, Cursor, and more.</p>
+                <p>Bridge AI assistants with Canvas Learning Management System. 80+ MCP tools for students, educators, learning designers, and developers. Works with Claude, ChatGPT, Cursor, and more.</p>
                 <div class="hero-buttons">
                     <a href="#install" class="btn btn-primary">
                         <span>🚀 Quick Start</span>
@@ -1543,7 +1556,7 @@
             <div class="section-header">
                 <div class="section-label">// For Everyone</div>
                 <h2 class="section-title">Built for Your Role</h2>
-                <p class="section-desc">Whether you're a student tracking assignments or an educator managing courses, Canvas MCP has you covered.</p>
+                <p class="section-desc">Whether you're a student tracking assignments, an educator managing courses, or a learning designer building them, Canvas MCP has you covered.</p>
             </div>
             <div class="user-grid">
                 <div class="user-card student animate-on-scroll">
@@ -1571,6 +1584,19 @@
                         <li>Bulk messaging and announcements</li>
                     </ul>
                     <a href="educator-guide.html" class="btn btn-secondary">Educator Guide →</a>
+                </div>
+                <div class="user-card designer animate-on-scroll">
+                    <div class="user-card-icon">🎨</div>
+                    <h3>For Learning Designers</h3>
+                    <p>AI-powered course design, quality assurance, and accessibility compliance at scale.</p>
+                    <ul class="user-features">
+                        <li>Scaffold courses from specs or templates</li>
+                        <li>Pre-semester quality audits</li>
+                        <li>WCAG accessibility scanning &amp; remediation</li>
+                        <li>Course structure analysis in one call</li>
+                        <li>Clone structure across courses</li>
+                    </ul>
+                    <a href="https://github.com/vishalsachdev/canvas-mcp/blob/main/AGENTS.md#learning-designer-tools" class="btn btn-secondary">LD Tools →</a>
                 </div>
                 <div class="user-card developer animate-on-scroll">
                     <div class="user-card-icon">💻</div>
@@ -1810,6 +1836,30 @@ canvas-mcp-server --test<br>
                     <p>Discussion forum facilitation. Browse, read, reply, monitor participation, and post &mdash; for both students and educators.</p>
                     <div class="skill-try">
                         <strong>Try:</strong> "show discussion posts for Topic 3"
+                    </div>
+                </div>
+                <div class="skill-card designer animate-on-scroll">
+                    <div class="feature-icon" style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(103, 232, 249, 0.1)); margin-bottom: 24px;">✅</div>
+                    <h3>canvas-course-qc</h3>
+                    <p>Pre-semester quality audit. Checks structure, content, publishing state, and completeness &mdash; generates a prioritized issue report.</p>
+                    <div class="skill-try">
+                        <strong>Try:</strong> "run QC check on CS 101"
+                    </div>
+                </div>
+                <div class="skill-card designer animate-on-scroll">
+                    <div class="feature-icon" style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(103, 232, 249, 0.1)); margin-bottom: 24px;">♿</div>
+                    <h3>canvas-accessibility-auditor</h3>
+                    <p>WCAG compliance workflow. Scans content, generates prioritized reports, guides remediation, and verifies fixes.</p>
+                    <div class="skill-try">
+                        <strong>Try:</strong> "audit accessibility for BADM 350"
+                    </div>
+                </div>
+                <div class="skill-card designer animate-on-scroll">
+                    <div class="feature-icon" style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(103, 232, 249, 0.1)); margin-bottom: 24px;">🏗️</div>
+                    <h3>canvas-course-builder</h3>
+                    <p>Scaffold complete course structures from specs, templates, or by cloning. Creates modules, pages, assignments, and discussions in bulk.</p>
+                    <div class="skill-try">
+                        <strong>Try:</strong> "build a 15-week structure for CS 102"
                     </div>
                 </div>
             </div>
