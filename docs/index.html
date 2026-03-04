@@ -1681,8 +1681,38 @@
         <div class="container">
             <div class="section-header">
                 <div class="section-label">// Get Started</div>
-                <h2 class="section-title">Quick Installation</h2>
-                <p class="section-desc">Get up and running with Canvas MCP in just a few minutes.</p>
+                <h2 class="section-title">Get Started in 30 Seconds</h2>
+                <p class="section-desc">Use the hosted server instantly — no Python, no cloning, no setup. Or install locally for full control.</p>
+            </div>
+
+            <!-- Hosted Server (Primary) -->
+            <div class="install-steps" style="margin-bottom: 48px;">
+                <div class="install-step animate-on-scroll" style="border-left: 3px solid var(--color-accent-primary);">
+                    <div class="step-number" style="background: linear-gradient(135deg, var(--color-accent-primary), var(--color-accent-secondary));">&#x26A1;</div>
+                    <div class="step-content">
+                        <h3>Use Without Installing (Recommended)</h3>
+                        <p>Add this to your MCP client config (Claude Desktop, Cursor, Windsurf, etc.) — replace with your Canvas credentials:</p>
+                        <div class="step-code">
+{<br>
+&nbsp;&nbsp;"mcpServers": {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;"canvas": {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"url": "https://mcp.illinihunt.org/mcp",<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"headers": {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"X-Canvas-Token": "your_canvas_api_token",<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"X-Canvas-URL": "https://your-school.instructure.com/api/v1"<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;}<br>
+}
+                        </div>
+                        <p style="margin-top: 12px; color: var(--color-text-secondary); font-size: 0.9rem;">Get your token: Canvas &rarr; Account &rarr; Settings &rarr; New Access Token. Your credentials are sent as headers with each request and never stored on the server.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Local Installation (Alternative) -->
+            <div class="section-header" style="margin-bottom: 24px;">
+                <h3 style="font-size: 1.2rem; color: var(--color-text-secondary);">Or install locally:</h3>
             </div>
             <div class="install-steps">
                 <div class="install-step animate-on-scroll">
@@ -1751,8 +1781,8 @@ canvas-mcp-server --test<br>
             <div class="privacy-grid">
                 <div class="privacy-card animate-on-scroll">
                     <div class="privacy-icon">🏠</div>
-                    <h3>Local Processing</h3>
-                    <p>Everything runs on your machine. No data is sent to external servers beyond Canvas API.</p>
+                    <h3>Zero Credential Storage</h3>
+                    <p>Local mode runs on your machine. Hosted mode passes your credentials as HTTP headers per-request — nothing is stored on the server.</p>
                 </div>
                 <div class="privacy-card animate-on-scroll">
                     <div class="privacy-icon">🔐</div>

@@ -8,13 +8,31 @@ Canvas MCP is a Model Context Protocol server that bridges AI assistants with Ca
 
 **Key capability:** The server supports both traditional MCP tool calls AND a code execution API for bulk operations with 99.7% token savings.
 
-## Authentication Required
+## Authentication
 
-All tools require a valid Canvas API token. The token must be configured in the MCP server's environment:
+All tools require a valid Canvas API token. Two connection modes:
 
+### Remote (Hosted Server — No Installation)
+Connect to the hosted server with your credentials as HTTP headers:
+```json
+{
+  "mcpServers": {
+    "canvas": {
+      "url": "https://mcp.illinihunt.org/mcp",
+      "headers": {
+        "X-Canvas-Token": "your_canvas_api_token",
+        "X-Canvas-URL": "https://your-school.instructure.com/api/v1"
+      }
+    }
+  }
+}
+```
+
+### Local (Self-Hosted)
+Configure credentials in the MCP server's `.env` file:
 ```
 CANVAS_API_TOKEN=your_token_here
-CANVAS_API_URL=https://your-institution.instructure.com
+CANVAS_API_URL=https://your-institution.instructure.com/api/v1
 ```
 
 Students and educators use the same server but have access to different tools based on Canvas API permissions.

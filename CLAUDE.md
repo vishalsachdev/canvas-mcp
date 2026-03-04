@@ -200,6 +200,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] Learning Designer tools & skills — `get_course_structure` tool + 3 skills (QC, accessibility, builder)
 - [x] GitHub Pages audit — 7 disconnects fixed (tool count, test count, analytics, URLs, compatibility)
 - [x] MCP token optimization — trimmed tool docstrings ~35% (350 lines removed across 15 files)
+- [x] HTTP transport & hosted server — per-request credentials via ContextVar, deployed to VPS at mcp.illinihunt.org
 
 ## Backlog
 - [ ] Module templates (pre-configured module structures)
@@ -213,6 +214,14 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 > Full history: [session-history.md](./session-history.md)
 
 ### 2026-03-04
+- **HTTP transport & hosted deployment**: Implemented per-request credential system for multi-tenant hosting
+  - New `core/credentials.py`: ContextVar-based per-request credential threading
+  - Modified `core/client.py`: Per-request httpx client when ContextVar is set, falls back to global for stdio
+  - Modified `server.py`: ASGI middleware extracts X-Canvas-Token/X-Canvas-URL headers, CLI args for transport/host/port
+  - Deployed to VPS (76.13.122.44): systemd service, nginx reverse proxy with SSL, Cloudflare DNS + Workers route bypass
+  - Live at `https://mcp.illinihunt.org/mcp` — verified MCP initialize handshake working
+  - Added `tests/test_http_transport.py` (12 tests: ContextVar, middleware, client integration, CLI args)
+  - Updated README (Use Without Installing section), AGENTS.md (remote auth), docs/index.html (hosted quickstart)
 - **MCP token optimization**: Trimmed tool docstrings across all 91 tools (15 files) for ~35% token reduction
   - Removed Example Usage blocks (biggest savings: rubrics.py, code_execution.py, discussions.py)
   - Removed Returns/Raises sections from all MCP tool docstrings

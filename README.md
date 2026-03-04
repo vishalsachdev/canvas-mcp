@@ -127,6 +127,7 @@ The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning 
 
 **Released:** March 4, 2026 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.1.0)**
 
+- **Hosted Server** — Use without installing: connect via `https://mcp.illinihunt.org/mcp` with your Canvas credentials as HTTP headers
 - **Learning Designer Tools** — New `get_course_structure` tool + 3 skills for course QC, accessibility auditing, and course scaffolding
 - **Agent Skills** — 8 workflow skills for 40+ coding agents via [skills.sh](https://skills.sh)
 - **File Management** — `download_course_file` and `list_course_files` tools (community PR #75)
@@ -240,11 +241,59 @@ All student data is anonymized **before** it reaches AI systems. See [Educator G
 ### For Students: Your Data Stays Private
 
 - **Your data only**: Student tools access only your own Canvas data via Canvas API's "self" endpoints
-- **Local processing**: Everything runs on your machine - no data sent to external servers
+- **No credential storage**: In hosted mode, your Canvas token is sent as an HTTP header per-request and never stored on the server. In local mode, everything runs on your machine.
 - **No tracking**: Your Canvas usage and AI interactions remain private
 - **No anonymization needed**: Since you're only accessing your own data, there are no privacy concerns
 
-## Prerequisites
+## Use Without Installing (Hosted Server)
+
+Connect to the hosted Canvas MCP server — no Python, no cloning, no setup. Just add a URL and your Canvas credentials to your MCP client.
+
+**All you need:** A Canvas API token and your institution's Canvas URL.
+
+<details open>
+<summary><strong>Claude Desktop / Cursor / Windsurf / Continue</strong></summary>
+
+Add to your MCP client configuration:
+
+```json
+{
+  "mcpServers": {
+    "canvas": {
+      "url": "https://mcp.illinihunt.org/mcp",
+      "headers": {
+        "X-Canvas-Token": "your_canvas_api_token",
+        "X-Canvas-URL": "https://your-school.instructure.com/api/v1"
+      }
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Claude Code (CLI)</strong></summary>
+
+```bash
+claude mcp add canvas \
+  --transport http \
+  --url https://mcp.illinihunt.org/mcp \
+  --header "X-Canvas-Token: your_canvas_api_token" \
+  --header "X-Canvas-URL: https://your-school.instructure.com/api/v1"
+```
+
+</details>
+
+> **Get your Canvas API token:** Canvas → Account → Settings → New Access Token
+
+> **Find your Canvas URL:** It's your institution's Canvas domain with `/api/v1` appended (e.g., `https://canvas.illinois.edu/api/v1`). Check the URL bar when you log into Canvas.
+
+Your credentials are sent as HTTP headers with each request — they are never stored on the server. All 90+ tools work the same as local installation.
+
+---
+
+## Prerequisites (Local Installation)
 
 - **Python 3.10+** - Required for modern features and type hints
 - **Canvas API Access** - API token and institution URL
@@ -256,7 +305,7 @@ Works with any MCP-compatible client: [Claude Desktop](https://claude.ai/downloa
 
 Canvas MCP is compliant with Canvas LMS API 2024-2026 requirements (User-Agent header, `per_page` pagination). Works with Canvas Cloud and self-hosted instances.
 
-## Installation
+## Local Installation
 
 ### 1. Install Dependencies
 
