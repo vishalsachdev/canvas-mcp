@@ -72,3 +72,4 @@ node_modules/
 .smithery/
 smithery-wrapper/node_modules/
 smithery-wrapper/.smithery/
+.mcp.json
