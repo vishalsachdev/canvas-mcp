@@ -199,6 +199,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] Release v1.0.8 — all CI/CD pipelines passing (PyPI, MCP Registry, GitHub Release)
 - [x] Learning Designer tools & skills — `get_course_structure` tool + 3 skills (QC, accessibility, builder)
 - [x] GitHub Pages audit — 7 disconnects fixed (tool count, test count, analytics, URLs, compatibility)
+- [x] MCP token optimization — trimmed tool docstrings ~35% (350 lines removed across 15 files)
 
 ## Backlog
 - [ ] Module templates (pre-configured module structures)
@@ -212,6 +213,12 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 > Full history: [session-history.md](./session-history.md)
 
 ### 2026-03-04
+- **MCP token optimization**: Trimmed tool docstrings across all 91 tools (15 files) for ~35% token reduction
+  - Removed Example Usage blocks (biggest savings: rubrics.py, code_execution.py, discussions.py)
+  - Removed Returns/Raises sections from all MCP tool docstrings
+  - Compressed Args descriptions to one-liners (e.g., `course_identifier` pattern)
+  - Preserved first-line summaries and IMPORTANT behavioral notes
+  - Net: -688 lines, +337 lines (351 lines removed). All 275 tests pass.
 - **GitHub Pages audit**: Cross-referenced docs/index.html against codebase, found 7 disconnects
   - Updated tool count 80+ → 90+ (actual: 91) across 6 places in index.html + 3 in README
   - Added Cloudflare Web Analytics beacon (was missing per global CLAUDE.md rule)
