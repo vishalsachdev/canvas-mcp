@@ -192,7 +192,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 
 ## Current Focus
 - [ ] Re-enable GitHub Actions (account-level billing toggle)
-- [ ] Create v1.1.0 GitHub Release (blocked by Actions)
+- [x] Create v1.1.0 GitHub Release (created manually via `gh release create`)
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
 
 ## Roadmap
