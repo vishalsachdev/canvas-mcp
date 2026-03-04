@@ -255,7 +255,8 @@ This repository has multiple documentation files for different audiences. To pre
 - Do NOT add example prompts to tools/README.md (that's for AGENTS.md)
 
 ## Current Focus
-- [ ] CI/CD cleanup and maintenance
+- [ ] Re-enable GitHub Actions (account-level billing toggle)
+- [ ] Create v1.1.0 GitHub Release (blocked by Actions)
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
 
 ## Roadmap
@@ -268,6 +269,7 @@ This repository has multiple documentation files for different audiences. To pre
 - [x] CodeQL alert remediation (31 alerts → 0)
 - [x] Ruff linting enforcement + pre-commit hook
 - [x] Release v1.0.8 — all CI/CD pipelines passing (PyPI, MCP Registry, GitHub Release)
+- [x] Learning Designer tools & skills — `get_course_structure` tool + 3 skills (QC, accessibility, builder)
 
 ## Backlog
 - [ ] Module templates (pre-configured module structures)
@@ -289,6 +291,19 @@ This repository has multiple documentation files for different audiences. To pre
   - Installed to 7 agents: Claude Code, Codex, Cursor, Windsurf, Gemini CLI, Antigravity, OpenCode
   - Removed duplicate `morning-check`/`week-plan` (non-prefixed copies from `.claude/skills/`)
 - **README hero update**: Moved `npx skills add` command above the fold, added skills.sh badge, updated Publishing section
+- **Version sync**: Updated server.json and docs/index.html from v1.0.8 → v1.1.0 (were missed during Feb 28 bump)
+- **Learning Designer features**: Brainstormed, designed, and implemented full LD toolset
+  - New MCP tool: `get_course_structure` (full module→items tree + summary stats, 5 tests)
+  - 3 new skills: `canvas-course-qc`, `canvas-accessibility-auditor`, `canvas-course-builder`
+  - Skills available via skills.sh (40+ agents) and Claude Code slash commands
+  - Updated AGENTS.md, README.md, tools/README.md, docs/index.html (new LD persona card + 3 skill cards)
+  - Codex review: clean (0 issues)
+- **Live QC test on BADM 350 (Spring 2026)**: Ran canvas-course-qc workflow end-to-end
+  - Fixed: GenAI Module 2 Quiz missing due date (set to Mar 13)
+  - Deleted: 2 orphaned duplicate overview pages (Week 2, Week 3)
+  - Renamed: 6 participation assignments for naming consistency
+  - Added: 3 "Semester Project" subheaders to Weeks 5, 6, 8
+  - Investigated: GenAI Fluency nav pages (orphaned, leave unpublished), Yellowdig reminders (Calendar Events don't notify — keep as-is)
 
 ### 2026-02-23
 - **PR #75 Review & Merge**: Reviewed Samuel Parks' file download/listing tools PR
