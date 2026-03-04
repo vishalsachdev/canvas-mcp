@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![skills.sh](https://img.shields.io/badge/skills.sh-canvas--mcp-blue)](https://skills.sh)
 
-MCP server for Canvas LMS with **80+ tools** and **5 agent skills**. Works with Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh).
+MCP server for Canvas LMS with **80+ tools** and **8 agent skills**. Works with Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh).
 
 ```bash
 npx skills add vishalsachdev/canvas-mcp
@@ -83,6 +83,20 @@ Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are org
 </details>
 
 <details>
+<summary><strong>Learning Designer Tools</strong> (course design & QC)</summary>
+
+| Tool | Purpose | Example Prompt |
+|------|---------|----------------|
+| `get_course_structure` | Full module→items tree as JSON | "Show me the structure of CS 101" |
+| `scan_course_content_accessibility` | WCAG violation scanner | "Audit accessibility for BADM 350" |
+| `fetch_ufixit_report` | Institutional accessibility report | "Pull the UFIXIT report for this course" |
+| `format_accessibility_summary` | Readable violation report | "Summarize the accessibility issues" |
+
+**Skills:** `canvas-course-qc` (pre-semester audit), `canvas-accessibility-auditor` (WCAG compliance), `canvas-course-builder` (scaffold courses from specs/templates).
+
+</details>
+
+<details>
 <summary><strong>Developer Tools</strong> (for bulk operations)</summary>
 
 | Tool | Purpose | When to Use |
@@ -108,16 +122,22 @@ Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are org
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data through any MCP-compatible client.
 
-## Latest Release: v1.0.8
+## Latest Release: v1.1.0
 
-**Released:** February 16, 2026 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.0.8)**
+**Released:** February 28, 2026 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.1.0)**
 
-- **Security Hardening** — PII sanitization, token validation, audit logging, sandbox-by-default
-- **Code Quality** — Ruff linting with pre-commit hook (464 issues resolved)
-- **235+ tests** including 32 security tests
+- **Generic Distribution** — Removed institution-specific defaults for universal use
+- **Agent Skills** — 8 workflow skills for 40+ coding agents via [skills.sh](https://skills.sh)
+- **Learning Designer Tools** — New `get_course_structure` tool + 3 skills for course QC, accessibility auditing, and course scaffolding
+- **File Management** — `download_course_file` and `list_course_files` tools (community PR #75)
+- **`delete_page` tool** — Title-match safety check for page deletion
+- **Codebase Refactor** — Type dispatch extraction, structured logging, reduced complexity
+- **Python 3.14 Fix** — Resolved asyncio shutdown crash
 
 <details>
 <summary>Previous releases</summary>
+
+**v1.0.8** — Security Hardening (PII sanitization, audit logging, sandbox-by-default), Ruff linting, 235+ tests
 
 **v1.0.7** — Assignment Update Tool (`update_assignment`), complete CRUD, 9 tests
 
@@ -149,6 +169,15 @@ Enhance your teaching with:
 
 **[→ Get Started as an Educator](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/EDUCATOR_GUIDE.md)**
 
+### For Learning Designers 🎨
+AI-powered course design and quality assurance:
+- **Course scaffolding** — Build entire course structures from specs, templates, or by cloning existing courses
+- **Quality audits** — Pre-semester QC checks for structure, content, publishing, and completeness
+- **Accessibility compliance** — WCAG scanning, prioritized reports, guided remediation, and verification
+- **Course structure analysis** — Full module→items tree in a single call for rapid course review
+
+3 dedicated skills (`canvas-course-qc`, `canvas-accessibility-auditor`, `canvas-course-builder`) plus the `get_course_structure` tool.
+
 ## 🤖 Agent Skills
 
 Pre-built workflow recipes that teach AI agents how to use Canvas MCP tools effectively. Available for **40+ coding agents** via [skills.sh](https://skills.sh), or as Claude Code-specific slash commands.
@@ -168,6 +197,9 @@ This launches an interactive picker to install skills into your agent of choice 
 | `canvas-bulk-grading` | Educators | Grading decision tree: single → bulk → code execution with safety checks |
 | `canvas-peer-review-manager` | Educators | Full peer review pipeline: analytics, quality analysis, reminders, reports |
 | `canvas-discussion-facilitator` | Both | Discussion browsing, participation monitoring, replying, facilitation |
+| `canvas-course-qc` | Learning Designers | Pre-semester quality audit: structure, content, publishing, completeness |
+| `canvas-accessibility-auditor` | Learning Designers | WCAG scan, prioritized report, guided remediation, verification |
+| `canvas-course-builder` | Learning Designers | Scaffold courses from specs, templates, or existing courses |
 
 Install a specific skill:
 

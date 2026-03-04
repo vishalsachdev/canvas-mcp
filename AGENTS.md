@@ -75,6 +75,17 @@ Content access tools available to all authenticated users.
 | `post_discussion_entry` | Add a discussion post |
 | `reply_to_discussion_entry` | Reply to a post |
 
+### Learning Designer Tools
+Course design, quality assurance, and accessibility compliance.
+
+| Tool | Purpose |
+|------|---------|
+| `get_course_structure` | Full module→items tree as JSON (one call) |
+| `scan_course_content_accessibility` | Scan for WCAG violations |
+| `fetch_ufixit_report` | Retrieve UFIXIT accessibility report |
+| `parse_ufixit_violations` | Extract structured violations from report |
+| `format_accessibility_summary` | Format violations into readable report |
+
 ### Developer Tools
 Advanced tools for bulk operations and custom logic.
 

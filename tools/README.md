@@ -595,6 +595,23 @@ Get detailed page metadata.
 
 Modules are Canvas's primary content organization system, allowing you to structure course content into ordered units with prerequisites and completion requirements.
 
+#### `get_course_structure`
+Get the complete course module structure as a JSON tree. Returns all modules with their items in a single call, plus summary statistics. Ideal for course auditing, QC checks, and structure cloning.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `include_unpublished` (optional): Include unpublished modules/items (default: true)
+
+**Example:**
+```
+"Show me the full structure of BADM 350"
+"Get the module tree for my course"
+```
+
+**Returns:** JSON with `course_id`, `modules` array (each with nested `items`), and `summary` object with counts for total modules, items, unpublished items, empty modules, and item type breakdown.
+
+---
+
 #### `list_modules`
 List all modules in a course.
 

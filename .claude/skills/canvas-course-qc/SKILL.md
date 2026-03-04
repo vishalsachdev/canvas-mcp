@@ -1,0 +1,1 @@
+../../../skills/canvas-course-qc/SKILL.md
