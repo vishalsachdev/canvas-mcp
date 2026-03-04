@@ -125,15 +125,14 @@ The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning 
 
 ## Latest Release: v1.1.0
 
-**Released:** February 28, 2026 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.1.0)**
+**Released:** March 4, 2026 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.1.0)**
 
-- **Generic Distribution** — Removed institution-specific defaults for universal use
-- **Agent Skills** — 8 workflow skills for 40+ coding agents via [skills.sh](https://skills.sh)
 - **Learning Designer Tools** — New `get_course_structure` tool + 3 skills for course QC, accessibility auditing, and course scaffolding
+- **Agent Skills** — 8 workflow skills for 40+ coding agents via [skills.sh](https://skills.sh)
 - **File Management** — `download_course_file` and `list_course_files` tools (community PR #75)
-- **`delete_page` tool** — Title-match safety check for page deletion
-- **Codebase Refactor** — Type dispatch extraction, structured logging, reduced complexity
-- **Python 3.14 Fix** — Resolved asyncio shutdown crash
+- **Token Optimization** — Trimmed tool docstrings ~35% for faster MCP context loading
+- **Generic Distribution** — Removed institution-specific defaults for universal use
+- **Codebase Refactor** — Type dispatch, structured logging, Python 3.14 fix
 
 <details>
 <summary>Previous releases</summary>
