@@ -291,6 +291,8 @@ claude mcp add canvas \
 
 Your credentials are sent as HTTP headers with each request — they are never stored on the server. All 90+ tools work the same as local installation.
 
+> **Privacy note:** The hosted server does not store or log credentials or Canvas data. However, data passes through a third-party VPS in transit. **Educators handling FERPA-protected student data should use the [local installation](#local-installation) instead.** The hosted server is ideal for students (who only access their own data) and for trying out Canvas MCP before installing locally.
+
 ---
 
 ## Prerequisites (Local Installation)

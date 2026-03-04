@@ -13,7 +13,7 @@ Canvas MCP is a Model Context Protocol server that bridges AI assistants with Ca
 All tools require a valid Canvas API token. Two connection modes:
 
 ### Remote (Hosted Server — No Installation)
-Connect to the hosted server with your credentials as HTTP headers:
+Connect to the hosted server with your credentials as HTTP headers. Best for students and quick evaluation. Educators with FERPA obligations should use local mode.
 ```json
 {
   "mcpServers": {
