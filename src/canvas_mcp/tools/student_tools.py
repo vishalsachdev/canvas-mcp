@@ -24,9 +24,6 @@ def register_student_tools(mcp: FastMCP):
 
         Args:
             days: Number of days to look ahead (default: 7)
-
-        Returns upcoming assignments due within the specified timeframe,
-        sorted by due date, with submission status.
         """
         # Calculate the date range (use timezone-aware datetime)
         end_date = datetime.now(timezone.utc) + timedelta(days=days)
@@ -102,10 +99,7 @@ def register_student_tools(mcp: FastMCP):
         """Get your submission status for assignments.
 
         Args:
-            course_identifier: Optional course code or ID to filter by specific course.
-                             If not provided, shows all courses.
-
-        Returns your submission status across assignments, highlighting missing submissions.
+            course_identifier: Course code or Canvas ID (omit for all courses)
         """
         if course_identifier:
             # Get submissions for specific course
@@ -209,11 +203,7 @@ def register_student_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_my_course_grades() -> str:
-        """Get your current grades across all enrolled courses.
-
-        Returns your current grade, enrollment status, and recent performance
-        for each active course.
-        """
+        """Get your current grades across all enrolled courses."""
         courses = await fetch_all_paginated_results(
             "/courses",
             params={
@@ -267,11 +257,7 @@ def register_student_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_my_todo_items() -> str:
-        """Get your Canvas TODO list.
-
-        Returns all items in your Canvas TODO list including assignments,
-        quizzes, and discussions that need your attention.
-        """
+        """Get your Canvas TODO list."""
         todos = await fetch_all_paginated_results(
             "/users/self/todo",
             params={"per_page": 100}
@@ -310,9 +296,7 @@ def register_student_tools(mcp: FastMCP):
         """Get peer reviews you need to complete.
 
         Args:
-            course_identifier: Optional course code or ID to filter by specific course
-
-        Returns list of peer reviews assigned to you that need completion.
+            course_identifier: Course code or Canvas ID (omit for all courses)
         """
         if course_identifier:
             course_ids = [await get_course_id(course_identifier)]

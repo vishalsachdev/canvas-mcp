@@ -301,8 +301,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         """Get rubrics attached to a specific assignment.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            assignment_id: The Canvas assignment ID
+            course_identifier: Course code or Canvas ID
+            assignment_id: Canvas assignment ID
         """
         course_id = await get_course_id(course_identifier)
         assignment_id_str = str(assignment_id)
@@ -382,8 +382,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         """Get detailed rubric criteria and rating descriptions for an assignment.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            assignment_id: The Canvas assignment ID
+            course_identifier: Course code or Canvas ID
+            assignment_id: Canvas assignment ID
         """
         course_id = await get_course_id(course_identifier)
         assignment_id_str = str(assignment_id)
@@ -476,8 +476,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         """Get detailed rubric criteria and scoring information.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            rubric_id: The Canvas rubric ID
+            course_identifier: Course code or Canvas ID
+            rubric_id: Canvas rubric ID
         """
         course_id = await get_course_id(course_identifier)
         rubric_id_str = str(rubric_id)
@@ -554,9 +554,9 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         """Get rubric assessment scores for a specific submission.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            assignment_id: The Canvas assignment ID
-            user_id: The Canvas user ID of the student
+            course_identifier: Course code or Canvas ID
+            assignment_id: Canvas assignment ID
+            user_id: Canvas user ID of the student
         """
         course_id = await get_course_id(course_identifier)
         assignment_id_str = str(assignment_id)
@@ -669,43 +669,16 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                               comment: str | None = None) -> str:
         """Submit grades using rubric criteria.
 
-        This tool submits grades for individual rubric criteria. The rubric must already be
-        associated with the assignment and configured for grading (use_for_grading=true).
-
-        IMPORTANT NOTES:
-        - Criterion IDs often start with underscore (e.g., "_8027")
-        - Use list_assignment_rubrics or get_rubric_details to find criterion IDs and rating IDs
-        - Points must be within the range defined by the rubric criterion
-        - The rubric must be attached to the assignment before grading
+        IMPORTANT: Criterion IDs often start with underscore (e.g., "_8027").
+        Use list_assignment_rubrics or get_rubric_details to find criterion/rating IDs.
+        The rubric must be attached to the assignment and configured for grading (use_for_grading=true).
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            assignment_id: The Canvas assignment ID
-            user_id: The Canvas user ID of the student
-            rubric_assessment: Dict mapping criterion IDs to assessment data
-                             Format: {
-                               "criterion_id": {
-                                 "points": <number>,           # Required: points awarded
-                                 "rating_id": "<string>",      # Optional: specific rating ID
-                                 "comments": "<string>"        # Optional: feedback comments
-                               }
-                             }
+            course_identifier: Course code or Canvas ID
+            assignment_id: Canvas assignment ID
+            user_id: Canvas user ID of the student
+            rubric_assessment: Dict mapping criterion_id to {points (required), rating_id?, comments?}
             comment: Optional overall comment for the submission
-
-        Example Usage:
-            {
-              "course_identifier": "60366",
-              "assignment_id": "1440586",
-              "user_id": "9824",
-              "rubric_assessment": {
-                "_8027": {
-                  "points": 2,
-                  "rating_id": "blank",
-                  "comments": "Great work!"
-                }
-              },
-              "comment": "Nice job on this assignment"
-            }
         """
         course_id = await get_course_id(course_identifier)
         assignment_id_str = str(assignment_id)
@@ -792,8 +765,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         """List all rubrics in a specific course with optional detailed criteria.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            include_criteria: Whether to include detailed criteria and ratings (default: True)
+            course_identifier: Course code or Canvas ID
+            include_criteria: Include detailed criteria and ratings (default: True)
         """
         course_id = await get_course_id(course_identifier)
 
@@ -891,24 +864,18 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                           purpose: str = "grading") -> str:
         """Create a new rubric in the specified course.
 
-        ⚠️ DISABLED: This tool is currently disabled due to a known Canvas API limitation.
-        The Canvas rubric creation API consistently returns 500 Internal Server Error.
-        See: https://community.canvaslms.com/t5/Canvas-Question-Forum/Uploading-rubric-from-CSV-sheet/m-p/602222
-
-        WORKAROUND: Create rubrics via the Canvas web UI:
-        1. Go to Course → Assignments → Create/Edit Assignment
-        2. Click "+ Rubric" at the bottom
-        3. Use "Find a Rubric" to copy rubrics between courses
+        ⚠️ DISABLED: Canvas API returns 500 Internal Server Error for rubric creation.
+        WORKAROUND: Create rubrics via Canvas web UI (Course → Assignments → Edit → "+ Rubric").
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            title: The title of the rubric
-            criteria: JSON string or dictionary containing rubric criteria structure
-            free_form_criterion_comments: Allow free-form comments on rubric criteria (default: True)
-            association_id: Optional ID to associate rubric with (assignment, course, etc.)
-            association_type: Type of association (Assignment, Course, Account) (default: Assignment)
-            use_for_grading: Whether to use rubric for grade calculation (default: False)
-            purpose: Purpose of the rubric association (grading, bookmark) (default: grading)
+            course_identifier: Course code or Canvas ID
+            title: Title of the rubric
+            criteria: JSON string or dict of rubric criteria
+            free_form_criterion_comments: Allow free-form comments (default: True)
+            association_id: Optional ID to associate rubric with
+            association_type: Association type: Assignment, Course, Account (default: Assignment)
+            use_for_grading: Use rubric for grade calculation (default: False)
+            purpose: Association purpose: grading, bookmark (default: grading)
         """
         # DISABLED: Canvas API returns 500 Internal Server Error for rubric creation
         # This is a known Canvas API limitation that has existed for years.
@@ -945,22 +912,17 @@ Reference: https://community.canvaslms.com/t5/Canvas-Question-Forum/Uploading-ru
                           skip_updating_points_possible: bool = False) -> str:
         """Update an existing rubric in the specified course.
 
-        ⚠️ DISABLED: This tool is currently disabled due to destructive Canvas API behavior.
-        The Canvas API does a FULL REPLACEMENT instead of a partial update (PATCH).
-        Updating just the title will DELETE all criteria and reset points to 0.
-
-        WORKAROUND: Edit rubrics via the Canvas web UI:
-        1. Go to Course → Assignments → Edit Assignment with rubric
-        2. Click on the rubric to edit it
-        3. Make changes and save
+        ⚠️ DISABLED: Canvas API does FULL REPLACEMENT instead of partial update -- updating
+        just the title DELETES all criteria and resets points to 0.
+        WORKAROUND: Edit rubrics via Canvas web UI (Course → Assignments → Edit → click rubric).
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            rubric_id: The ID of the rubric to update
-            title: Optional new title for the rubric
-            criteria: Optional JSON string or dictionary containing updated rubric criteria structure
-            free_form_criterion_comments: Optional boolean to allow free-form comments
-            skip_updating_points_possible: Skip updating points possible calculation (default: False)
+            course_identifier: Course code or Canvas ID
+            rubric_id: ID of the rubric to update
+            title: Optional new title
+            criteria: Optional JSON string or dict of updated criteria
+            free_form_criterion_comments: Optional, allow free-form comments
+            skip_updating_points_possible: Skip recalculating points possible (default: False)
         """
         # DISABLED: Canvas API does full replacement instead of partial update (PATCH)
         # This causes data loss - updating just the title will wipe all criteria!
@@ -1000,8 +962,8 @@ WORKING ALTERNATIVES:
         """Delete a rubric and remove all its associations.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            rubric_id: The ID of the rubric to delete
+            course_identifier: Course code or Canvas ID
+            rubric_id: ID of the rubric to delete
         """
         course_id = await get_course_id(course_identifier)
         rubric_id_str = str(rubric_id)
@@ -1045,11 +1007,11 @@ WORKING ALTERNATIVES:
         """Associate an existing rubric with an assignment.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            rubric_id: The ID of the rubric to associate
-            assignment_id: The ID of the assignment to associate with
-            use_for_grading: Whether to use rubric for grade calculation (default: False)
-            purpose: Purpose of the association (grading, bookmark) (default: grading)
+            course_identifier: Course code or Canvas ID
+            rubric_id: ID of the rubric to associate
+            assignment_id: ID of the assignment to associate with
+            use_for_grading: Use rubric for grade calculation (default: False)
+            purpose: Association purpose: grading, bookmark (default: grading)
         """
         course_id = await get_course_id(course_identifier)
         rubric_id_str = str(rubric_id)
@@ -1108,57 +1070,15 @@ WORKING ALTERNATIVES:
     ) -> str:
         """Grade multiple submissions efficiently with concurrent processing.
 
-        This tool applies grades to multiple student submissions in batches, reducing the
-        number of individual API calls needed. It supports both rubric-based grading and
-        simple point-based grading.
-
-        IMPORTANT: This is the most efficient way to grade bulk submissions!
-        Token savings: Processing submissions in batches without loading all data into context.
+        Supports both rubric-based and simple point-based grading in batches.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            assignment_id: The Canvas assignment ID
-            grades: Dictionary mapping user IDs to grade information
-                   Format: {
-                     "user_id": {
-                       "rubric_assessment": {...},  # Optional: rubric-based grading
-                       "grade": <number>,           # Optional: simple grade
-                       "comment": "<string>"        # Optional: feedback comment
-                     }
-                   }
-            dry_run: If True, analyze but don't actually submit grades (for testing)
-            max_concurrent: Maximum concurrent grading operations (default: 5)
+            course_identifier: Course code or Canvas ID
+            assignment_id: Canvas assignment ID
+            grades: Dict mapping user_id to {rubric_assessment?, grade?, comment?}
+            dry_run: If True, validate without submitting (default: False)
+            max_concurrent: Max concurrent grading operations (default: 5)
             rate_limit_delay: Delay between batches in seconds (default: 1.0)
-
-        Example Usage - Rubric Grading:
-            {
-              "course_identifier": "60366",
-              "assignment_id": "1440586",
-              "grades": {
-                "9824": {
-                  "rubric_assessment": {
-                    "_8027": {"points": 100, "comments": "Excellent work!"}
-                  },
-                  "comment": "Great job!"
-                },
-                "9825": {
-                  "rubric_assessment": {
-                    "_8027": {"points": 75, "comments": "Good work"}
-                  }
-                }
-              },
-              "dry_run": true
-            }
-
-        Example Usage - Simple Grading:
-            {
-              "course_identifier": "60366",
-              "assignment_id": "1440586",
-              "grades": {
-                "9824": {"grade": 100, "comment": "Perfect!"},
-                "9825": {"grade": 85, "comment": "Very good"}
-              }
-            }
         """
         import asyncio
 

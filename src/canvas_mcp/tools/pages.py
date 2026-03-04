@@ -29,15 +29,14 @@ def register_page_tools(mcp: FastMCP):
         """Update settings for an existing page (without changing content).
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            page_url_or_id: The page URL slug or page ID
-            published: Set to True to publish, False to unpublish (draft)
-            front_page: Set to True to make this the course front page
-            editing_roles: Who can edit - one of: teachers, students, members, public
-            notify_of_update: Set to True to notify users of the update
+            course_identifier: Course code or Canvas ID
+            page_url_or_id: Page URL slug or page ID
+            published: True to publish, False to unpublish
+            front_page: True to make this the course front page
+            editing_roles: One of: teachers, students, members, public
+            notify_of_update: True to notify users of the update
 
-        Note: The front page cannot be unpublished. To unpublish it, first set
-        another page as the front page.
+        IMPORTANT: The front page cannot be unpublished. First set another page as front page.
         """
         course_id = await get_course_id(course_identifier)
 
@@ -106,13 +105,13 @@ def register_page_tools(mcp: FastMCP):
         """Update settings for multiple pages at once.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            page_urls: Comma-separated list of page URL slugs to update
-            published: Set to True to publish all, False to unpublish all
-            editing_roles: Who can edit - one of: teachers, students, members, public
-            notify_of_update: Set to True to notify users of updates
+            course_identifier: Course code or Canvas ID
+            page_urls: Comma-separated list of page URL slugs
+            published: True to publish all, False to unpublish all
+            editing_roles: One of: teachers, students, members, public
+            notify_of_update: True to notify users of updates
 
-        Note: front_page is not supported in bulk updates (only one page can be front page).
+        IMPORTANT: front_page is not supported in bulk updates.
         """
         course_id = await get_course_id(course_identifier)
 

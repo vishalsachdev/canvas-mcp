@@ -20,12 +20,12 @@ def register_peer_review_tools(mcp: FastMCP):
         include_names: bool = True,
         include_submission_details: bool = False
     ) -> str:
-        """Get comprehensive peer review assignment mapping showing who is assigned to review whom with accurate completion status.
+        """Get peer review assignment mapping showing who reviews whom with completion status.
 
         Args:
-            course_identifier: Canvas course code (e.g., badm_554_120251_246794) or ID
+            course_identifier: Course code or Canvas ID
             assignment_id: Canvas assignment ID
-            include_names: Include student names (requires additional API call)
+            include_names: Include student names
             include_submission_details: Include submission metadata
         """
         try:
@@ -55,10 +55,10 @@ def register_peer_review_tools(mcp: FastMCP):
         include_student_details: bool = True,
         group_by_status: bool = True
     ) -> str:
-        """Get detailed analytics on peer review completion rates with student-by-student breakdown and summary statistics.
+        """Get peer review completion analytics with student-level breakdown and summary stats.
 
         Args:
-            course_identifier: Canvas course code (e.g., badm_554_120251_246794) or ID
+            course_identifier: Course code or Canvas ID
             assignment_id: Canvas assignment ID
             include_student_details: Include per-student breakdown
             group_by_status: Group students by completion status
@@ -95,12 +95,12 @@ def register_peer_review_tools(mcp: FastMCP):
         save_to_file: bool = False,
         filename: str = None
     ) -> str:
-        """Generate comprehensive peer review completion report with executive summary, detailed analytics, and actionable follow-up recommendations.
+        """Generate peer review completion report with summary, analytics, and follow-up recommendations.
 
         Args:
-            course_identifier: Canvas course code (e.g., badm_554_120251_246794) or ID
+            course_identifier: Course code or Canvas ID
             assignment_id: Canvas assignment ID
-            report_format: Report format (markdown, csv, json)
+            report_format: Output format (markdown, csv, json)
             include_executive_summary: Include executive summary
             include_student_details: Include student details
             include_action_items: Include action items
@@ -159,13 +159,13 @@ def register_peer_review_tools(mcp: FastMCP):
         include_contact_info: bool = False,
         days_threshold: int = 3
     ) -> str:
-        """Get prioritized list of students requiring instructor follow-up based on peer review completion status.
+        """Get prioritized list of students needing follow-up on peer review completion.
 
         Args:
-            course_identifier: Canvas course code (e.g., badm_554_120251_246794) or ID
+            course_identifier: Course code or Canvas ID
             assignment_id: Canvas assignment ID
-            priority_filter: Priority filter (urgent, medium, low, all)
-            include_contact_info: Include email addresses if available
+            priority_filter: Filter by priority (urgent, medium, low, all)
+            include_contact_info: Include email addresses
             days_threshold: Days since assignment for urgency calculation
         """
         try:

@@ -250,51 +250,17 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
     ) -> str:
         """Execute TypeScript code in a Node.js environment with access to Canvas API.
 
-        This tool enables token-efficient bulk operations by executing code locally
-        rather than loading all data into Claude's context. The code runs in a
-        sandboxed Node.js environment with access to:
-        - Canvas API credentials from environment
-        - All TypeScript modules in src/canvas_mcp/code_api/
-        - Standard Node.js modules
-
         IMPORTANT: This achieves 99.7% token savings for bulk operations!
+        Code runs in a sandboxed Node.js environment with Canvas API credentials,
+        all TypeScript modules in src/canvas_mcp/code_api/, and standard Node.js modules.
+
+        IMPORTANT: Security is best-effort unless container sandboxing is available.
+        Code runs in a temp file (deleted after), with optional network allowlist,
+        timeout, memory, and CPU limits.
 
         Args:
-            code: TypeScript code to execute. Can import from './canvas/*' modules.
-            timeout: Maximum execution time in seconds (default: 120)
-
-        Example Usage - Bulk Grading:
-            ```typescript
-            import { bulkGrade } from './canvas/grading/bulkGrade.js';
-
-            await bulkGrade({
-              courseIdentifier: "60366",
-              assignmentId: "123",
-              gradingFunction: (submission) => {
-                // This runs locally - no token cost!
-                const notebook = submission.attachments?.find(
-                  f => f.filename.endsWith('.ipynb')
-                );
-
-                if (!notebook) return null;
-
-                // Your grading logic here
-                return {
-                  points: 100,
-                  rubricAssessment: { "_8027": { points: 100 } },
-                  comment: "Great work!"
-                };
-              }
-            });
-            ```
-
-        Returns:
-            Combined stdout and stderr from the execution, or error message if failed.
-
-        Security (best-effort unless container sandboxing is available):
-            - Code runs in a temporary file that is deleted after execution
-            - Optional network allowlist guard for outbound requests
-            - Optional resource limits (timeout, memory, CPU seconds)
+            code: TypeScript code to execute; can import from './canvas/*' modules.
+            timeout: Max execution time in seconds (default: 120).
         """
         config = get_config()
         warnings: list[str] = []
@@ -590,14 +556,8 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
     async def list_code_api_modules() -> str:
         """List all available TypeScript modules in the code execution API.
 
-        Returns a formatted list of all TypeScript files that can be imported
-        in the execute_typescript tool, organized by category with descriptions.
-
-        This helps Claude discover what operations are available for token-efficient
-        bulk processing.
-
-        Returns:
-            Formatted string listing all available modules by category with descriptions.
+        Shows importable TypeScript files for execute_typescript, organized by
+        category with descriptions. Use to discover available bulk operations.
         """
         code_api_dir = Path(__file__).parent.parent / "code_api"
 

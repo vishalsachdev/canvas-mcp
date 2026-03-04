@@ -25,8 +25,8 @@ def register_discussion_tools(mcp: FastMCP):
         """List discussion topics for a specific course.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            include_announcements: Whether to include announcements in the list (default: False)
+            course_identifier: Course code or Canvas ID
+            include_announcements: Include announcements in the list (default: False)
         """
         course_id = await get_course_id(course_identifier)
 
@@ -68,8 +68,8 @@ def register_discussion_tools(mcp: FastMCP):
         """Get detailed information about a specific discussion topic.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            topic_id: The Canvas discussion topic ID
+            course_identifier: Course code or Canvas ID
+            topic_id: Discussion topic ID
         """
         course_id = await get_course_id(course_identifier)
 
@@ -139,10 +139,10 @@ def register_discussion_tools(mcp: FastMCP):
         """List discussion entries (posts) for a specific discussion topic with optional full content and replies.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            topic_id: The Canvas discussion topic ID
-            include_full_content: Whether to fetch full content for each entry (default: False)
-            include_replies: Whether to fetch replies for each entry (default: False)
+            course_identifier: Course code or Canvas ID
+            topic_id: Discussion topic ID
+            include_full_content: Fetch full content for each entry (default: False)
+            include_replies: Fetch replies for each entry (default: False)
         """
         course_id = await get_course_id(course_identifier)
 
@@ -374,10 +374,10 @@ def register_discussion_tools(mcp: FastMCP):
         """Get detailed information about a specific discussion entry including all its replies.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            topic_id: The Canvas discussion topic ID
-            entry_id: The Canvas discussion entry ID
-            include_replies: Whether to fetch and include replies (default: True)
+            course_identifier: Course code or Canvas ID
+            topic_id: Discussion topic ID
+            entry_id: Discussion entry ID
+            include_replies: Fetch and include replies (default: True)
         """
         course_id = await get_course_id(course_identifier)
 
@@ -539,9 +539,9 @@ def register_discussion_tools(mcp: FastMCP):
         """Enhanced function to get discussion entries with optional reply fetching.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            topic_id: The Canvas discussion topic ID
-            include_replies: Whether to fetch detailed replies for all entries (default: False)
+            course_identifier: Course code or Canvas ID
+            topic_id: Discussion topic ID
+            include_replies: Fetch detailed replies for all entries (default: False)
         """
         course_id = await get_course_id(course_identifier)
 
@@ -667,9 +667,9 @@ def register_discussion_tools(mcp: FastMCP):
         """Post a new top-level entry to a discussion topic.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            topic_id: The Canvas discussion topic ID
-            message: The entry message content
+            course_identifier: Course code or Canvas ID
+            topic_id: Discussion topic ID
+            message: Entry message content
         """
         course_id = await get_course_id(course_identifier)
 
@@ -722,10 +722,10 @@ def register_discussion_tools(mcp: FastMCP):
         """Reply to a student's discussion entry/comment.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            topic_id: The Canvas discussion topic ID
-            entry_id: The Canvas discussion entry ID to reply to
-            message: The reply message content
+            course_identifier: Course code or Canvas ID
+            topic_id: Discussion topic ID
+            entry_id: Discussion entry ID to reply to
+            message: Reply message content
         """
         course_id = await get_course_id(course_identifier)
 
@@ -767,13 +767,13 @@ def register_discussion_tools(mcp: FastMCP):
         """Create a new discussion topic for a course.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            title: The title/subject of the discussion topic
-            message: The content/body of the discussion topic
-            delayed_post_at: Optional ISO 8601 datetime to schedule posting (e.g., "2024-01-15T12:00:00Z")
-            lock_at: Optional ISO 8601 datetime to automatically lock the discussion
-            require_initial_post: Whether students must post before seeing other posts
-            pinned: Whether to pin this discussion topic
+            course_identifier: Course code or Canvas ID
+            title: Discussion topic title
+            message: Discussion topic body content
+            delayed_post_at: ISO 8601 datetime to schedule posting
+            lock_at: ISO 8601 datetime to auto-lock the discussion
+            require_initial_post: Students must post before seeing others (default: False)
+            pinned: Pin this discussion topic (default: False)
         """
         course_id = await get_course_id(course_identifier)
 
@@ -816,7 +816,7 @@ def register_discussion_tools(mcp: FastMCP):
         """List announcements for a specific course.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            course_identifier: Course code or Canvas ID
         """
         course_id = await get_course_id(course_identifier)
 
@@ -857,11 +857,11 @@ def register_discussion_tools(mcp: FastMCP):
         """Create a new announcement for a course with optional scheduling.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            title: The title/subject of the announcement
-            message: The content/body of the announcement
-            delayed_post_at: Optional ISO 8601 datetime to schedule posting (e.g., "2024-01-15T12:00:00Z")
-            lock_at: Optional ISO 8601 datetime to automatically lock the announcement
+            course_identifier: Course code or Canvas ID
+            title: Announcement title
+            message: Announcement body content
+            delayed_post_at: ISO 8601 datetime to schedule posting
+            lock_at: ISO 8601 datetime to auto-lock the announcement
         """
         course_id = await get_course_id(course_identifier)
 
@@ -903,28 +903,11 @@ def register_discussion_tools(mcp: FastMCP):
         course_identifier: str | int,
         announcement_id: str | int
     ) -> str:
-        """
-        Delete an announcement from a Canvas course.
-
-        Announcements are technically discussion topics in Canvas, so this uses
-        the discussion_topics endpoint to delete them.
+        """Delete an announcement from a Canvas course.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            announcement_id: The Canvas announcement/discussion topic ID to delete
-
-        Returns:
-            String describing the deletion result with status and title
-
-        Raises:
-            HTTPError:
-                - 401: User doesn't have permission to delete the announcement
-                - 404: Announcement not found in the specified course
-                - 403: Editing is restricted for this announcement
-
-        Example usage:
-            result = delete_announcement("60366", "925355")
-            print(f"Result: {result}")
+            course_identifier: Course code or Canvas ID
+            announcement_id: Announcement ID to delete
         """
         course_id = await get_course_id(course_identifier)
 
@@ -960,23 +943,12 @@ def register_discussion_tools(mcp: FastMCP):
         announcement_ids: list[str | int],
         stop_on_error: bool = False
     ) -> str:
-        """
-        Delete multiple announcements from a Canvas course.
+        """Delete multiple announcements from a Canvas course.
 
         Args:
-            course_identifier: The Canvas course code or ID
+            course_identifier: Course code or Canvas ID
             announcement_ids: List of announcement IDs to delete
-            stop_on_error: If True, stop processing on first error; if False, continue with remaining
-
-        Returns:
-            String with detailed results including successful and failed deletions
-
-        Example usage:
-            results = bulk_delete_announcements(
-                "60366",
-                ["925355", "925354", "925353"],
-                stop_on_error=False
-            )
+            stop_on_error: Stop on first error; if False, continue with remaining (default: False)
         """
         course_id = await get_course_id(course_identifier)
 
@@ -1064,29 +1036,13 @@ def register_discussion_tools(mcp: FastMCP):
         require_title_match: str | None = None,
         dry_run: bool = False
     ) -> str:
-        """
-        Delete an announcement with optional safety checks.
+        """Delete an announcement with optional safety checks.
 
         Args:
-            course_identifier: The Canvas course code or ID
-            announcement_id: The announcement ID to delete
-            require_title_match: If provided, only delete if the announcement title matches exactly
-            dry_run: If True, verify but don't actually delete (for testing)
-
-        Returns:
-            String with operation result including status and title match information
-
-        Raises:
-            ValueError: If require_title_match is provided and doesn't match the actual title
-
-        Example usage:
-            # Delete only if title matches exactly (safety check)
-            result = delete_announcement_with_confirmation(
-                "60366",
-                "925355",
-                require_title_match="Preparing for the week",
-                dry_run=False
-            )
+            course_identifier: Course code or Canvas ID
+            announcement_id: Announcement ID to delete
+            require_title_match: Only delete if title matches this string exactly
+            dry_run: Verify but don't actually delete (default: False)
         """
         course_id = await get_course_id(course_identifier)
 
@@ -1146,35 +1102,13 @@ def register_discussion_tools(mcp: FastMCP):
         limit: int | None = None,
         dry_run: bool = True
     ) -> str:
-        """
-        Delete announcements matching specific criteria.
+        """Delete announcements matching specific criteria.
 
         Args:
-            course_identifier: The Canvas course code or ID
-            criteria: Dict with search criteria:
-                - "title_contains": str - Delete if title contains this text
-                - "older_than": str - Delete if posted before this date (ISO format)
-                - "newer_than": str - Delete if posted after this date (ISO format)
-                - "title_regex": str - Delete if title matches regex pattern
-            limit: Maximum number of announcements to delete (safety limit)
-            dry_run: If True, show what would be deleted without actually deleting
-
-        Returns:
-            String with operation results showing matched and deleted announcements
-
-        Example usage:
-            # Delete all announcements older than 30 days
-            from datetime import datetime, timedelta
-
-            results = delete_announcements_by_criteria(
-                "60366",
-                criteria={
-                    "older_than": (datetime.now() - timedelta(days=30)).isoformat(),
-                    "title_contains": "reminder"
-                },
-                limit=10,
-                dry_run=False
-            )
+            course_identifier: Course code or Canvas ID
+            criteria: Dict with keys: title_contains, older_than (ISO), newer_than (ISO), title_regex
+            limit: Max number of announcements to delete (safety limit)
+            dry_run: Show what would be deleted without deleting (default: True)
         """
         course_id = await get_course_id(course_identifier)
 

@@ -30,19 +30,16 @@ def register_messaging_tools(mcp: FastMCP) -> None:
         Send messages to students via Canvas conversations.
 
         Args:
-            course_identifier: Canvas course ID or code
-            recipient_ids: List of Canvas user IDs to send to
-            subject: Message subject line (max 255 characters)
-            body: Message content (required)
-            group_conversation: If True, creates group conversation (required for custom subjects)
-            bulk_message: If True, sends individual messages with same subject to each recipient
+            course_identifier: Course code or Canvas ID
+            recipient_ids: List of Canvas user IDs
+            subject: Message subject (max 255 chars)
+            body: Message content
+            group_conversation: Create group conversation (required for custom subjects)
+            bulk_message: Send individual messages with same subject to each recipient
             context_code: Course context (e.g., "course_60366")
-            mode: "sync" or "async" for bulk messages (>100 recipients should use async)
-            force_new: Force creation of new conversation even if one exists
-            attachment_ids: Optional list of attachment IDs
-
-        Returns:
-            Dict with conversation details or batch operation status
+            mode: "sync" or "async" (use async for >100 recipients)
+            force_new: Force new conversation even if one exists
+            attachment_ids: Optional attachment IDs
         """
 
         # Validate parameters
@@ -115,15 +112,12 @@ def register_messaging_tools(mcp: FastMCP) -> None:
         Send peer review completion reminders to specific students.
 
         Args:
-            course_identifier: Canvas course ID
-            assignment_id: Canvas assignment ID for peer review
+            course_identifier: Course code or Canvas ID
+            assignment_id: Canvas assignment ID
             recipient_ids: List of Canvas user IDs needing reminders
-            custom_message: Optional custom message (uses default template if None)
-            include_assignment_link: Whether to include direct link to assignment
+            custom_message: Custom message (uses default template if None)
+            include_assignment_link: Include direct link to assignment
             subject_prefix: Prefix for message subject
-
-        Returns:
-            Dict with sending results and any failures
         """
 
         if not recipient_ids:
@@ -191,14 +185,11 @@ Please complete your peer reviews as soon as possible to receive full participat
         List conversations for the current user.
 
         Args:
-            scope: Conversation scope ("unread", "starred", "sent", "archived", or "all")
-            filter_ids: Optional list of conversation IDs to filter by
-            filter_mode: How to apply filter_ids ("and" or "or")
-            include_participants: Include participant information
-            include_all_ids: Include all conversation participant IDs
-
-        Returns:
-            List of conversations
+            scope: "unread", "starred", "sent", "archived", or "all"
+            filter_ids: Conversation IDs to filter by
+            filter_mode: "and" or "or" for filter_ids
+            include_participants: Include participant info
+            include_all_ids: Include all participant IDs
         """
 
         valid_scopes = ["unread", "starred", "sent", "archived", "all"]
@@ -242,12 +233,9 @@ Please complete your peer reviews as soon as possible to receive full participat
         Get detailed conversation information with messages.
 
         Args:
-            conversation_id: ID of the conversation to retrieve
-            auto_mark_read: Automatically mark conversation as read when viewed
-            include_messages: Include all messages in the conversation
-
-        Returns:
-            Detailed conversation information
+            conversation_id: Conversation ID
+            auto_mark_read: Mark as read when viewed
+            include_messages: Include all messages
         """
 
         try:
@@ -276,12 +264,7 @@ Please complete your peer reviews as soon as possible to receive full participat
 
     @mcp.tool()
     async def get_unread_count() -> dict[str, Any]:
-        """
-        Get number of unread conversations.
-
-        Returns:
-            Unread conversation count
-        """
+        """Get number of unread conversations."""
 
         try:
             response = await make_canvas_request("get", "/conversations/unread_count")
@@ -306,9 +289,6 @@ Please complete your peer reviews as soon as possible to receive full participat
 
         Args:
             conversation_ids: List of conversation IDs to mark as read
-
-        Returns:
-            Result of the batch operation
         """
 
         if not conversation_ids:
@@ -349,15 +329,12 @@ Please complete your peer reviews as soon as possible to receive full participat
         Send customized messages to multiple recipients using templates.
 
         Args:
-            course_identifier: Canvas course ID
-            recipient_data: List of dicts with recipient info and custom data
-            subject_template: Subject template with placeholders (e.g., "Reminder - {missing_count} reviews")
-            body_template: Body template with placeholders (e.g., "Hi {name}, you have {missing_count}...")
+            course_identifier: Course code or Canvas ID
+            recipient_data: List of dicts with recipient info and template variables
+            subject_template: Subject with placeholders (e.g., "Reminder - {missing_count} reviews")
+            body_template: Body with placeholders (e.g., "Hi {name}, you have {missing_count}...")
             context_code: Course context
             mode: "sync" or "async"
-
-        Returns:
-            Results of bulk message sending
         """
 
         if not recipient_data:
@@ -436,11 +413,8 @@ Please complete your peer reviews as soon as possible to receive full participat
         Complete workflow: analyze peer reviews and send targeted reminders.
 
         Args:
-            course_identifier: Canvas course ID
-            assignment_id: Canvas assignment ID for peer review
-
-        Returns:
-            Results of the complete campaign including analytics and messaging
+            course_identifier: Course code or Canvas ID
+            assignment_id: Canvas assignment ID
         """
 
         try:

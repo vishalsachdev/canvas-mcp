@@ -26,9 +26,9 @@ def register_module_tools(mcp: FastMCP):
         """List all modules in a course.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            include_items: Whether to include a summary of items in each module
-            search_term: Optional search term to filter modules by name
+            course_identifier: Course code or Canvas ID
+            include_items: Include summary of items in each module
+            search_term: Filter modules by name
         """
         course_id = await get_course_id(course_identifier)
 
@@ -105,12 +105,12 @@ def register_module_tools(mcp: FastMCP):
         """Create a new module in a course.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            name: The name of the module (required)
-            position: Position in the module list (1-indexed, lower = earlier)
-            unlock_at: Date/time when the module unlocks (ISO 8601 format)
-            require_sequential_progress: If true, students must complete items in order
-            prerequisite_module_ids: Comma-separated list of module IDs that must be completed first
+            course_identifier: Course code or Canvas ID
+            name: Module name
+            position: Position in module list (1-indexed)
+            unlock_at: Unlock date/time (ISO 8601)
+            require_sequential_progress: Students must complete items in order
+            prerequisite_module_ids: Comma-separated module IDs that must be completed first
             published: Whether the module is published (default: True)
         """
         course_id = await get_course_id(course_identifier)
@@ -188,13 +188,13 @@ def register_module_tools(mcp: FastMCP):
         """Update an existing module's settings.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            module_id: The ID of the module to update
-            name: New name for the module
-            position: New position in the module list
-            unlock_at: New unlock date/time (ISO 8601 format), or empty string to remove
-            require_sequential_progress: Whether students must complete items in order
-            prerequisite_module_ids: Comma-separated list of prerequisite module IDs, or empty to clear
+            course_identifier: Course code or Canvas ID
+            module_id: Module ID to update
+            name: New module name
+            position: New position in module list
+            unlock_at: New unlock date/time (ISO 8601), or empty string to remove
+            require_sequential_progress: Students must complete items in order
+            prerequisite_module_ids: Comma-separated prerequisite module IDs, or empty to clear
             published: Whether the module is published
         """
         course_id = await get_course_id(course_identifier)
@@ -275,13 +275,11 @@ def register_module_tools(mcp: FastMCP):
     ) -> str:
         """Delete a module from a course.
 
-        Warning: This permanently removes the module and all its item associations.
-        The actual content (pages, assignments, etc.) is NOT deleted, only the
-        module organization.
+        IMPORTANT: Permanently removes the module and its item associations. The actual content (pages, assignments, etc.) is NOT deleted, only the module organization.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            module_id: The ID of the module to delete
+            course_identifier: Course code or Canvas ID
+            module_id: Module ID to delete
         """
         course_id = await get_course_id(course_identifier)
 
@@ -333,22 +331,21 @@ def register_module_tools(mcp: FastMCP):
     ) -> str:
         """Add an item to a module.
 
+        IMPORTANT: content_id required for File, Discussion, Assignment, Quiz, ExternalTool. page_url required for Page. title required for SubHeader, ExternalUrl.
+
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            module_id: The ID of the module to add the item to
-            item_type: Type of item - one of: File, Page, Discussion, Assignment, Quiz,
-                      SubHeader, ExternalUrl, ExternalTool
-            content_id: The Canvas ID of the content (required for File, Discussion,
-                       Assignment, Quiz, ExternalTool). Not needed for Page, SubHeader, ExternalUrl.
-            title: Title for the item (required for SubHeader, ExternalUrl; optional for others)
-            position: Position within the module (1-indexed)
-            indent: Indentation level (0-4, for visual hierarchy)
-            page_url: The URL slug of the page (required for Page type, e.g., "my-page-title")
-            external_url: The URL for ExternalUrl type items
-            new_tab: Whether external links open in a new tab (default: False)
-            completion_requirement_type: One of: must_view, must_submit, must_contribute,
-                                        min_score, must_mark_done
-            completion_requirement_min_score: Minimum score required (only for min_score type)
+            course_identifier: Course code or Canvas ID
+            module_id: Target module ID
+            item_type: One of: File, Page, Discussion, Assignment, Quiz, SubHeader, ExternalUrl, ExternalTool
+            content_id: Canvas ID of the content (required for File, Discussion, Assignment, Quiz, ExternalTool)
+            title: Item title (required for SubHeader, ExternalUrl; optional for others)
+            position: Position within module (1-indexed)
+            indent: Indentation level (0-4)
+            page_url: URL slug of the page (required for Page type)
+            external_url: URL for ExternalUrl items
+            new_tab: Open external links in new tab (default: False)
+            completion_requirement_type: One of: must_view, must_submit, must_contribute, min_score, must_mark_done
+            completion_requirement_min_score: Minimum score (only for min_score type)
         """
         course_id = await get_course_id(course_identifier)
 
@@ -480,18 +477,18 @@ def register_module_tools(mcp: FastMCP):
         """Update an existing module item.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            module_id: The ID of the module containing the item
-            item_id: The ID of the item to update
-            title: New title for the item
-            position: New position within the module
+            course_identifier: Course code or Canvas ID
+            module_id: Module ID containing the item
+            item_id: Item ID to update
+            title: New item title
+            position: New position within module
             indent: New indentation level (0-4)
-            external_url: New URL (for ExternalUrl items only)
-            new_tab: Whether external links open in a new tab
-            completion_requirement_type: New completion requirement type, or empty string to remove
-            completion_requirement_min_score: New minimum score (for min_score type)
+            external_url: New URL (ExternalUrl items only)
+            new_tab: Open external links in new tab
+            completion_requirement_type: New completion type, or empty string to remove
+            completion_requirement_min_score: Minimum score (for min_score type)
             published: Whether the item is published
-            move_to_module_id: Move this item to a different module
+            move_to_module_id: Move item to a different module
         """
         course_id = await get_course_id(course_identifier)
 
@@ -582,13 +579,12 @@ def register_module_tools(mcp: FastMCP):
     ) -> str:
         """Remove an item from a module.
 
-        Note: This only removes the item from the module. The actual content
-        (page, assignment, etc.) is NOT deleted.
+        IMPORTANT: Only unlinks the item from the module. The actual content (page, assignment, etc.) is NOT deleted.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            module_id: The ID of the module containing the item
-            item_id: The ID of the item to remove
+            course_identifier: Course code or Canvas ID
+            module_id: Module ID containing the item
+            item_id: Item ID to remove
         """
         course_id = await get_course_id(course_identifier)
 
@@ -631,12 +627,9 @@ def register_module_tools(mcp: FastMCP):
     ) -> str:
         """Get the full module and item structure for a course in a single call.
 
-        Returns a JSON object with all modules, their items, and a summary
-        including counts by type, unpublished content, and empty modules.
-
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            include_unpublished: Whether to include unpublished modules and items (default: True)
+            course_identifier: Course code or Canvas ID
+            include_unpublished: Include unpublished modules and items (default: True)
         """
         import json
 

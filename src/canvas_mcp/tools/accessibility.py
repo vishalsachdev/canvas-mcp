@@ -27,15 +27,9 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
     ) -> str:
         """Fetch UFIXIT accessibility report from Canvas course pages.
 
-        UFIXIT reports are typically stored as Canvas pages. This tool fetches
-        the report content for further analysis.
-
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            page_title: Title of the page containing the UFIXIT report (default: "UFIXIT")
-
-        Returns:
-            JSON string with report content or error message
+            course_identifier: Course code or Canvas ID
+            page_title: Title of the UFIXIT report page (default: "UFIXIT")
         """
         course_id = await get_course_id(course_identifier)
 
@@ -84,14 +78,8 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
     async def parse_ufixit_violations(report_json: str) -> str:
         """Parse UFIXIT report content to extract accessibility violations.
 
-        Takes the output from fetch_ufixit_report and extracts structured
-        violation data for analysis and remediation.
-
         Args:
-            report_json: JSON string from fetch_ufixit_report containing the report
-
-        Returns:
-            JSON string with parsed violations and summary statistics
+            report_json: JSON string from fetch_ufixit_report
         """
         try:
             report = json.loads(report_json)
@@ -127,9 +115,6 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
 
         Args:
             violations_json: JSON string from parse_ufixit_violations
-
-        Returns:
-            Formatted text summary of accessibility violations
         """
         try:
             data = json.loads(violations_json)
@@ -202,16 +187,9 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
     ) -> str:
         """Scan Canvas course content for basic accessibility issues.
 
-        This provides a lightweight alternative to UFIXIT by scanning course
-        content directly for common accessibility problems.
-
         Args:
-            course_identifier: The Canvas course code or ID
-            content_types: Comma-separated list of content types to scan
-                          (pages, assignments, discussions, syllabus)
-
-        Returns:
-            JSON string with detected accessibility issues
+            course_identifier: Course code or Canvas ID
+            content_types: Comma-separated types to scan: pages, assignments, discussions, syllabus
         """
         course_id = await get_course_id(course_identifier)
         types = [t.strip() for t in content_types.split(",")]

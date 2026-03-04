@@ -25,11 +25,11 @@ def register_other_tools(mcp: FastMCP):
         """List pages for a specific course.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            sort: Sort criteria ('title', 'created_at', 'updated_at')
-            order: Sort order ('asc' or 'desc')
-            search_term: Search for pages containing this term in title or body
-            published: Filter by published status (True, False, or None for all)
+            course_identifier: Course code or Canvas ID
+            sort: Sort by 'title', 'created_at', or 'updated_at'
+            order: 'asc' or 'desc'
+            search_term: Filter pages containing this term
+            published: Filter by published status (None for all)
         """
         course_id = await get_course_id(course_identifier)
 
@@ -75,8 +75,8 @@ def register_other_tools(mcp: FastMCP):
         """Get the full content body of a specific page.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            page_url_or_id: The page URL or page ID
+            course_identifier: Course code or Canvas ID
+            page_url_or_id: Page URL slug or page ID
         """
         course_id = await get_course_id(course_identifier)
 
@@ -103,8 +103,8 @@ def register_other_tools(mcp: FastMCP):
         """Get detailed information about a specific page.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            page_url_or_id: The page URL or page ID
+            course_identifier: Course code or Canvas ID
+            page_url_or_id: Page URL slug or page ID
         """
         course_id = await get_course_id(course_identifier)
 
@@ -170,7 +170,7 @@ def register_other_tools(mcp: FastMCP):
         """Get the front page content for a course.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            course_identifier: Course code or Canvas ID
         """
         course_id = await get_course_id(course_identifier)
 
@@ -201,12 +201,12 @@ def register_other_tools(mcp: FastMCP):
         """Create a new page in a Canvas course.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            title: The title of the new page
-            body: The HTML content for the page
-            published: Whether the page should be published (default: True)
-            front_page: Whether this should be the course front page (default: False)
-            editing_roles: Who can edit the page (default: "teachers")
+            course_identifier: Course code or Canvas ID
+            title: Page title
+            body: HTML content for the page
+            published: Whether to publish (default: True)
+            front_page: Whether to set as front page (default: False)
+            editing_roles: Who can edit (default: "teachers")
         """
         course_id = await get_course_id(course_identifier)
 
@@ -252,9 +252,9 @@ def register_other_tools(mcp: FastMCP):
         """Edit the content of a specific page.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            page_url_or_id: The page URL or page ID
-            new_content: The new HTML content for the page
+            course_identifier: Course code or Canvas ID
+            page_url_or_id: Page URL slug or page ID
+            new_content: New HTML content for the page
             title: Optional new title for the page
         """
         course_id = await get_course_id(course_identifier)
@@ -295,18 +295,9 @@ def register_other_tools(mcp: FastMCP):
         """Delete a page from a Canvas course.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            page_url_or_id: The page URL slug or page ID to delete
-            require_title_match: If provided, only delete if the page title matches exactly
-                (safety check to prevent accidental deletion)
-
-        Returns:
-            String describing the deletion result with page title and status
-
-        Raises:
-            HTTPError:
-                - 401: User doesn't have permission to delete the page
-                - 404: Page not found in the specified course
+            course_identifier: Course code or Canvas ID
+            page_url_or_id: Page URL slug or page ID to delete
+            require_title_match: Safety check — only delete if page title matches exactly
         """
         course_id = await get_course_id(course_identifier)
 
@@ -349,11 +340,7 @@ def register_other_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_anonymization_status() -> str:
-        """Get current data anonymization status and statistics.
-
-        Returns:
-            Status information about data anonymization
-        """
+        """Get current data anonymization status and statistics."""
         from ..core.anonymization import get_anonymization_stats
         from ..core.config import get_config
 
@@ -397,9 +384,9 @@ def register_other_tools(mcp: FastMCP):
         """List items within a specific module, including pages.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            course_identifier: Course code or Canvas ID
             module_id: The module ID
-            include_content_details: Whether to include additional details about content items
+            include_content_details: Include additional content details (default: True)
         """
         course_id = await get_course_id(course_identifier)
 
@@ -457,7 +444,7 @@ def register_other_tools(mcp: FastMCP):
         """List all groups and their members for a specific course.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            course_identifier: Course code or Canvas ID
         """
         course_id = await get_course_id(course_identifier)
 
@@ -522,7 +509,7 @@ def register_other_tools(mcp: FastMCP):
         """List users enrolled in a specific course.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            course_identifier: Course code or Canvas ID
         """
         course_id = await get_course_id(course_identifier)
 
@@ -576,11 +563,11 @@ def register_other_tools(mcp: FastMCP):
         """Get detailed analytics about student activity, participation, and progress in a course.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            current_only: Whether to include only assignments due on or before today
-            include_participation: Whether to include participation data (discussions, submissions)
-            include_assignment_stats: Whether to include assignment completion statistics
-            include_access_stats: Whether to include course access statistics
+            course_identifier: Course code or Canvas ID
+            current_only: Only assignments due on or before today (default: True)
+            include_participation: Include participation data (default: True)
+            include_assignment_stats: Include assignment completion stats (default: True)
+            include_access_stats: Include course access stats (default: True)
         """
         course_id = await get_course_id(course_identifier)
 
@@ -640,11 +627,8 @@ def register_other_tools(mcp: FastMCP):
     async def create_student_anonymization_map(course_identifier: str | int) -> str:
         """Create a local CSV file mapping real student data to anonymous IDs for a course.
 
-        This tool generates a de-anonymization key that allows faculty to identify students
-        from their anonymous IDs. The file is saved locally and should be kept secure.
-
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            course_identifier: Course code or Canvas ID
         """
         import csv
         from pathlib import Path

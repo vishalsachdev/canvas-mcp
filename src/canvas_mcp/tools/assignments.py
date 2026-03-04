@@ -22,7 +22,7 @@ def register_assignment_tools(mcp: FastMCP):
         """List assignments for a specific course.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            course_identifier: Course code or Canvas ID
         """
         course_id = await get_course_id(course_identifier)
 
@@ -60,8 +60,8 @@ def register_assignment_tools(mcp: FastMCP):
         """Get detailed information about a specific assignment.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            assignment_id: The Canvas assignment ID
+            course_identifier: Course code or Canvas ID
+            assignment_id: Canvas assignment ID
         """
         course_id = await get_course_id(course_identifier)
 
@@ -95,10 +95,10 @@ def register_assignment_tools(mcp: FastMCP):
         """Manually assign a peer review to a student for a specific assignment.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            assignment_id: The Canvas assignment ID
-            reviewer_id: The Canvas user ID of the student who will do the review
-            reviewee_id: The Canvas user ID of the student whose submission will be reviewed
+            course_identifier: Course code or Canvas ID
+            assignment_id: Canvas assignment ID
+            reviewer_id: User ID of the student who will review
+            reviewee_id: User ID of the student whose submission will be reviewed
         """
         course_id = await get_course_id(course_identifier)
 
@@ -172,8 +172,8 @@ def register_assignment_tools(mcp: FastMCP):
         """List all peer review assignments for a specific assignment.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            assignment_id: The Canvas assignment ID
+            course_identifier: Course code or Canvas ID
+            assignment_id: Canvas assignment ID
         """
         course_id = await get_course_id(course_identifier)
 
@@ -298,8 +298,8 @@ def register_assignment_tools(mcp: FastMCP):
         """List submissions for a specific assignment.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            assignment_id: The Canvas assignment ID
+            course_identifier: Course code or Canvas ID
+            assignment_id: Canvas assignment ID
         """
         course_id = await get_course_id(course_identifier)
 
@@ -353,8 +353,8 @@ def register_assignment_tools(mcp: FastMCP):
         """Get detailed analytics about student performance on a specific assignment.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            assignment_id: The Canvas assignment ID
+            course_identifier: Course code or Canvas ID
+            assignment_id: Canvas assignment ID
         """
         course_id = await get_course_id(course_identifier)
 
@@ -649,23 +649,20 @@ def register_assignment_tools(mcp: FastMCP):
         """Create a new assignment in a course.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            name: The name/title of the assignment (required)
-            description: HTML content for the assignment description
-            submission_types: Comma-separated list of allowed submission types:
-                online_text_entry, online_url, online_upload, discussion_topic,
-                none, on_paper, external_tool
-            due_at: Due date in ISO 8601 format (e.g., "2026-01-26T23:59:00Z")
-            unlock_at: Date when assignment becomes available (ISO 8601)
-            lock_at: Date when assignment locks (ISO 8601)
-            points_possible: Maximum points for the assignment
+            course_identifier: Course code or Canvas ID
+            name: Assignment name/title
+            description: HTML description
+            submission_types: Comma-separated types (online_text_entry, online_url, online_upload, discussion_topic, none, on_paper, external_tool)
+            due_at: Due date in ISO 8601 format
+            unlock_at: Available date in ISO 8601 format
+            lock_at: Lock date in ISO 8601 format
+            points_possible: Maximum points
             grading_type: One of: points, letter_grade, pass_fail, percent, not_graded
-            published: Whether to publish immediately (default: False for safety)
-            assignment_group_id: ID of the assignment group to place this in
-            peer_reviews: Whether to enable peer reviews
-            automatic_peer_reviews: Whether to automatically assign peer reviews
-            allowed_extensions: Comma-separated list of file extensions for online_upload
-                (e.g., "pdf,docx,txt")
+            published: Whether to publish immediately (default: False)
+            assignment_group_id: Assignment group ID
+            peer_reviews: Enable peer reviews
+            automatic_peer_reviews: Auto-assign peer reviews
+            allowed_extensions: Comma-separated file extensions (e.g., "pdf,docx,txt")
         """
         course_id = await get_course_id(course_identifier)
 
@@ -804,24 +801,21 @@ def register_assignment_tools(mcp: FastMCP):
         """Update an existing assignment in a course.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            assignment_id: The ID of the assignment to update
-            name: New name/title for the assignment
-            description: New HTML content for the assignment description
-            submission_types: Comma-separated list of allowed submission types:
-                online_text_entry, online_url, online_upload, discussion_topic,
-                none, on_paper, external_tool
-            due_at: New due date in ISO 8601 format (e.g., "2026-01-26T23:59:00Z")
-            unlock_at: New date when assignment becomes available (ISO 8601)
-            lock_at: New date when assignment locks (ISO 8601)
-            points_possible: New maximum points for the assignment
+            course_identifier: Course code or Canvas ID
+            assignment_id: Assignment ID to update
+            name: New assignment name/title
+            description: New HTML description
+            submission_types: Comma-separated types (online_text_entry, online_url, online_upload, discussion_topic, none, on_paper, external_tool)
+            due_at: New due date in ISO 8601 format
+            unlock_at: New available date in ISO 8601 format
+            lock_at: New lock date in ISO 8601 format
+            points_possible: New maximum points
             grading_type: One of: points, letter_grade, pass_fail, percent, not_graded
-            published: Whether the assignment should be published
-            assignment_group_id: ID of the assignment group to move this to
-            peer_reviews: Whether to enable peer reviews
-            automatic_peer_reviews: Whether to automatically assign peer reviews
-            allowed_extensions: Comma-separated list of file extensions for online_upload
-                (e.g., "pdf,docx,txt")
+            published: Whether to publish the assignment
+            assignment_group_id: Assignment group ID to move to
+            peer_reviews: Enable peer reviews
+            automatic_peer_reviews: Auto-assign peer reviews
+            allowed_extensions: Comma-separated file extensions (e.g., "pdf,docx,txt")
         """
         course_id = await get_course_id(course_identifier)
 

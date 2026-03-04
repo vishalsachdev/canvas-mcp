@@ -27,27 +27,9 @@ def register_discovery_tools(mcp: FastMCP) -> None:
         """
         Search available Canvas code API tools by keyword.
 
-        Use this to discover what Canvas operations are available in the code API.
-        Search by keyword (e.g., "grading", "assignment", "discussion") to find
-        relevant tools.
-
         Args:
-            query: Search term to filter tools. Empty string returns all tools.
-            detail_level: How much information to return:
-                - "names": Just file paths (most efficient)
-                - "signatures": File paths + function signatures (recommended)
-                - "full": Complete file contents (use sparingly)
-
-        Returns:
-            JSON string with matching tools
-
-        Examples:
-            - search_canvas_tools("grading", "signatures")
-              → Find all grading-related tools with signatures
-            - search_canvas_tools("", "names")
-              → List all available tools (just names)
-            - search_canvas_tools("bulk", "full")
-              → Get full details of bulk operation tools
+            query: Search term to filter tools (empty = all)
+            detail_level: "names" (paths only), "signatures" (recommended), or "full" (complete file contents)
         """
         try:
             # Get code API directory

@@ -27,16 +27,15 @@ def register_peer_review_comment_tools(mcp: FastMCP):
         include_submission_context: bool = False,
         anonymize_students: bool = False
     ) -> str:
-        """
-        Retrieve actual comment text for peer reviews on a specific assignment.
+        """Retrieve actual comment text for peer reviews on an assignment.
 
         Args:
-            course_identifier: Canvas course code (e.g., badm_554_120251_246794) or ID
+            course_identifier: Course code or Canvas ID
             assignment_id: Canvas assignment ID
-            include_reviewer_info: Include reviewer student information
-            include_reviewee_info: Include reviewee student information
-            include_submission_context: Include original submission details
-            anonymize_students: Replace student names with anonymous IDs
+            include_reviewer_info: Include reviewer details
+            include_reviewee_info: Include reviewee details
+            include_submission_context: Include submission details
+            anonymize_students: Replace names with anonymous IDs
         """
         try:
             course_id = await get_course_id(course_identifier)
@@ -67,14 +66,13 @@ def register_peer_review_comment_tools(mcp: FastMCP):
         analysis_criteria: str | None = None,
         generate_report: bool = True
     ) -> str:
-        """
-        Analyze the quality and content of peer review comments.
+        """Analyze the quality and content of peer review comments.
 
         Args:
-            course_identifier: Canvas course code or ID
+            course_identifier: Course code or Canvas ID
             assignment_id: Canvas assignment ID
-            analysis_criteria: JSON string of custom analysis criteria (optional)
-            generate_report: Whether to generate detailed analysis report
+            analysis_criteria: JSON string of custom criteria
+            generate_report: Generate detailed analysis report
         """
         try:
             course_id = await get_course_id(course_identifier)
@@ -110,13 +108,12 @@ def register_peer_review_comment_tools(mcp: FastMCP):
         assignment_id: str | int,
         criteria: str | None = None
     ) -> str:
-        """
-        Flag reviews that may need instructor attention.
+        """Flag reviews that may need instructor attention.
 
         Args:
-            course_identifier: Canvas course code or ID
+            course_identifier: Course code or Canvas ID
             assignment_id: Canvas assignment ID
-            criteria: JSON string of custom flagging criteria (optional)
+            criteria: JSON string of custom flagging criteria
         """
         try:
             course_id = await get_course_id(course_identifier)
@@ -155,17 +152,16 @@ def register_peer_review_comment_tools(mcp: FastMCP):
         save_locally: bool = True,
         filename: str | None = None
     ) -> str:
-        """
-        Export all peer review data in various formats for analysis.
+        """Export all peer review data in various formats for analysis.
 
         Args:
-            course_identifier: Canvas course code or ID
+            course_identifier: Course code or Canvas ID
             assignment_id: Canvas assignment ID
             output_format: Output format (csv, json, xlsx)
-            include_analytics: Include quality analytics in output
+            include_analytics: Include quality analytics
             anonymize_data: Anonymize student data
             save_locally: Save file locally
-            filename: Custom filename (optional)
+            filename: Custom filename
         """
         try:
             course_id = await get_course_id(course_identifier)
@@ -272,14 +268,13 @@ def register_peer_review_comment_tools(mcp: FastMCP):
         include_student_names: bool = False,
         format_type: str = "markdown"
     ) -> str:
-        """
-        Create instructor-ready reports on peer review quality.
+        """Create instructor-ready reports on peer review quality.
 
         Args:
-            course_identifier: Canvas course code or ID
+            course_identifier: Course code or Canvas ID
             assignment_id: Canvas assignment ID
             report_type: Report type (comprehensive, summary, individual)
-            include_student_names: Whether to include student names
+            include_student_names: Include student names
             format_type: Output format (markdown, html, text)
         """
         try:

@@ -92,7 +92,7 @@ def register_course_tools(mcp: FastMCP):
         """Get detailed information about a specific course.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            course_identifier: Course code or Canvas ID
         """
         course_id = await get_course_id(course_identifier)
 
@@ -130,10 +130,10 @@ def register_course_tools(mcp: FastMCP):
         """Get a comprehensive overview of course content including pages, modules, and syllabus.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            include_pages: Whether to include pages information
-            include_modules: Whether to include modules and their items
-            include_syllabus: Whether to include syllabus content
+            course_identifier: Course code or Canvas ID
+            include_pages: Include pages information (default: True)
+            include_modules: Include modules and their items (default: True)
+            include_syllabus: Include syllabus content (default: True)
         """
         course_id = await get_course_id(course_identifier)
 

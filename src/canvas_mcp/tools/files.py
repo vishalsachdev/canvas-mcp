@@ -47,35 +47,15 @@ def register_file_tools(mcp: FastMCP):
     ) -> str:
         """Upload a file to Canvas course storage.
 
-        Uploads a local file to a Canvas course. The returned file ID can be used with:
-        - add_module_item(item_type='File', content_id=<file_id>) to add to modules
-        - send_conversation(attachment_ids=[<file_id>]) to attach to messages
+        Uploads a local file to a Canvas course. The returned file ID can be used with
+        add_module_item (item_type='File') or send_conversation (attachment_ids).
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+            course_identifier: Course code or Canvas ID
             file_path: Absolute path to the local file to upload
-            folder_path: Canvas folder path (default: "course files" root).
-                        Examples: "Syllabus", "Week 1/Readings", "Uploads"
-            display_name: Override the filename shown in Canvas. If not provided,
-                         uses the original filename (sanitized).
-            on_duplicate: How to handle duplicate filenames:
-                         "rename" (default) - add number suffix
-                         "overwrite" - replace existing file
-
-        Returns:
-            Success message with file ID and details, or error message.
-
-        Example usage:
-            1. Upload a PDF:
-               upload_course_file("CS101", "/path/to/syllabus.pdf")
-               → "✅ Uploaded! File ID: 12345, Name: syllabus.pdf"
-
-            2. Then add to a module:
-               add_module_item("CS101", module_id, "File", content_id=12345)
-
-            3. Or attach to a message:
-               send_conversation("CS101", ["student_id"], "Subject", "Body",
-                               attachment_ids=["12345"])
+            folder_path: Canvas folder path (default: "course files" root)
+            display_name: Override the filename shown in Canvas
+            on_duplicate: "rename" (default) or "overwrite"
         """
         # Validate on_duplicate parameter
         if on_duplicate not in ("rename", "overwrite"):
@@ -201,29 +181,12 @@ def register_file_tools(mcp: FastMCP):
     ) -> str:
         """Download a file from a Canvas course to the local filesystem.
 
-        Fetches a file from Canvas by its file ID and saves it locally. Use
-        list_course_files or list_module_items to find file IDs.
+        Use list_course_files or list_module_items to find file IDs.
 
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            file_id: The Canvas file ID (from list_module_items content_id or list_course_files)
-            save_directory: Local directory to save the file. Defaults to the
-                           system temp directory. The directory must already exist.
-
-        Returns:
-            Success message with local file path, or error message.
-
-        Example usage:
-            1. Find files in a module:
-               list_module_items("52607", module_id=356544)
-               → Shows files with Content IDs
-
-            2. Download a specific file:
-               download_course_file("52607", file_id=14069275)
-               → "Downloaded: Midterm_Review_2026.pdf | Path: /tmp/Midterm_Review_2026.pdf"
-
-            3. Download to a specific directory:
-               download_course_file("52607", 14069275, save_directory="/Users/me/Downloads")
+            course_identifier: Course code or Canvas ID
+            file_id: Canvas file ID
+            save_directory: Local directory to save to (default: system temp dir, must exist)
         """
         course_id = await get_course_id(course_identifier)
 
@@ -286,22 +249,11 @@ def register_file_tools(mcp: FastMCP):
     ) -> str:
         """List files in a Canvas course with optional search.
 
-        Browse all files uploaded to a course. Useful for finding file IDs
-        needed by download_course_file.
-
         Args:
-            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
-            search_term: Optional search string to filter files by name
-            sort: Sort field - one of: name, size, created_at, updated_at, content_type
-                  (default: updated_at)
-            order: Sort order - "asc" or "desc" (default: desc)
-
-        Returns:
-            Formatted list of files with IDs, names, sizes, and types.
-
-        Example usage:
-            list_course_files("52607")
-            list_course_files("52607", search_term="midterm")
+            course_identifier: Course code or Canvas ID
+            search_term: Filter files by name
+            sort: Sort field: name, size, created_at, updated_at, content_type (default: updated_at)
+            order: "asc" or "desc" (default: desc)
         """
         # Validate sort and order parameters
         valid_sort_fields = {"name", "size", "created_at", "updated_at", "content_type"}
