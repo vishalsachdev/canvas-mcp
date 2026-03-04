@@ -3,7 +3,7 @@
   "name": "io.github.vishalsachdev/canvas-mcp",
   "description": "Canvas LMS integration for students and educators with FERPA-compliant analytics and workflows",
   "version": "1.1.0",
-  "websiteUrl": "https://vishalsachdev.github.io/canvas-mcp",
+  "websiteUrl": "https://canvas-mcp.illinihunt.org/",
   "repository": {
     "url": "https://github.com/vishalsachdev/canvas-mcp",
     "source": "github",

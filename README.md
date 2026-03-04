@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![skills.sh](https://img.shields.io/badge/skills.sh-canvas--mcp-blue)](https://skills.sh)
 
-MCP server for Canvas LMS with **80+ tools** and **8 agent skills**. Works with Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh).
+MCP server for Canvas LMS with **90+ tools** and **8 agent skills**. Works with Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh).
 
 ```bash
 npx skills add vishalsachdev/canvas-mcp
@@ -21,7 +21,7 @@ npx skills add vishalsachdev/canvas-mcp
   See CLAUDE.md "Documentation Maintenance" for full guidelines.
 -->
 
-Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are organized by user type:
+Canvas MCP provides **90+ tools** for interacting with Canvas LMS. Tools are organized by user type:
 
 <details>
 <summary><strong>Student Tools</strong> (click to expand)</summary>
@@ -90,6 +90,7 @@ Canvas MCP provides **80+ tools** for interacting with Canvas LMS. Tools are org
 | `get_course_structure` | Full module→items tree as JSON | "Show me the structure of CS 101" |
 | `scan_course_content_accessibility` | WCAG violation scanner | "Audit accessibility for BADM 350" |
 | `fetch_ufixit_report` | Institutional accessibility report | "Pull the UFIXIT report for this course" |
+| `parse_ufixit_violations` | Extract structured violations | "Parse the UFIXIT violations" |
 | `format_accessibility_summary` | Readable violation report | "Summarize the accessibility issues" |
 
 **Skills:** `canvas-course-qc` (pre-semester audit), `canvas-accessibility-auditor` (WCAG compliance), `canvas-course-builder` (scaffold courses from specs/templates).
@@ -504,7 +505,7 @@ Quick start guides: [Student](examples/student_quickstart.md) | [Educator](examp
 
 ## Documentation
 
-- **[Tool Documentation](tools/README.md)** — Complete reference for all 80+ tools
+- **[Tool Documentation](tools/README.md)** — Complete reference for all 90+ tools
 - **[Student Guide](docs/STUDENT_GUIDE.md)** — Getting started as a student
 - **[Educator Guide](docs/EDUCATOR_GUIDE.md)** — FERPA compliance and educator workflows
 - **[Bulk Grading Example](examples/bulk_grading_example.md)** — Token-efficient batch grading walkthrough
@@ -513,7 +514,7 @@ Quick start guides: [Student](examples/student_quickstart.md) | [Educator](examp
 <details>
 <summary>Technical details</summary>
 
-Built on **FastMCP** with async `httpx`, `pydantic` validation, and `python-dotenv` configuration. Modern `src/` layout with `pyproject.toml`. Full type hints, connection pooling, smart pagination, and rate limiting. 235+ tests. `ruff` + `black` for code quality.
+Built on **FastMCP** with async `httpx`, `pydantic` validation, and `python-dotenv` configuration. Modern `src/` layout with `pyproject.toml`. Full type hints, connection pooling, smart pagination, and rate limiting. 290+ tests. `ruff` + `black` for code quality.
 
 </details>
 
