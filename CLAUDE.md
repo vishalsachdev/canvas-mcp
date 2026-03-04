@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **Note**: This guide is for developers working ON the Canvas MCP codebase. If you're an AI agent USING the MCP server, see [AGENTS.md](../AGENTS.md) instead.
+> **Note**: This guide is for developers working ON the Canvas MCP codebase. If you're an AI agent USING the MCP server, see [AGENTS.md](./AGENTS.md) instead.
 
 # Canvas MCP Development Guide
 
@@ -23,13 +23,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 canvas-mcp/
 ├── src/canvas_mcp/        # Main application code
 │   ├── core/             # Core utilities (client, config, validation)
-│   ├── tools/            # MCP tool implementations
+│   ├── tools/            # MCP tool implementations (91 tools across 15 files)
 │   ├── resources/        # MCP resources and prompts
 │   └── server.py         # FastMCP server entry point
-├── docs/                 # Essential documentation
-├── archive/              # Legacy code and development specs (git-ignored)
-├── .env                  # Configuration
-└── start_canvas_server.sh # Server startup script
+├── skills/               # Agent skills for skills.sh (8 skills)
+├── tests/                # 290+ tests (pytest + pytest-asyncio)
+├── docs/                 # GitHub Pages site + guides
+├── tools/                # Tool documentation (README.md, TOOL_MANIFEST.json)
+├── archive/              # Legacy code (git-ignored)
+└── .env                  # Configuration (CANVAS_API_TOKEN, CANVAS_API_URL)
 ```
 
 ## Architecture Overview
@@ -133,7 +135,7 @@ When bumping the version in `pyproject.toml`, also update:
 ### TDD Workflow
 1. **Write tests first** (or alongside) for new tools
 2. **Minimum 3 tests per tool**: success path, error handling, edge case
-3. **Run tests** before committing: `pytest tests/tools/`
+3. **Run tests** before committing: `uv run python -m pytest tests/ -v`
 4. **No merging** without passing tests
 
 ### Test Structure
@@ -150,7 +152,7 @@ tests/
 ```python
 @pytest.fixture
 def mock_canvas_request():
-    with patch('src.canvas_mcp.tools.modules.make_canvas_request') as mock:
+    with patch('canvas_mcp.tools.modules.make_canvas_request') as mock:
         yield mock
 
 @pytest.mark.asyncio
@@ -169,30 +171,6 @@ async def test_tool_success(mock_canvas_request, mock_course_id):
 
 See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comprehensive test coverage plan.
 
-## Discussion Forum Interaction Workflow
-- **Browse discussions**: `list_discussion_topics(course_id)` - Find available discussion forums
-- **View student posts**: `list_discussion_entries(course_id, topic_id)` - See all posts in a discussion
-- **Read full content**: `get_discussion_entry_details(course_id, topic_id, entry_id)` - Get complete student comment
-- **Reply to students**: `reply_to_discussion_entry(course_id, topic_id, entry_id, "Your response")` - Respond to student comments
-- **Create discussions**: `create_discussion_topic(course_id, title, message)` - Start new discussion forums
-- **Post new entries**: `post_discussion_entry(course_id, topic_id, message)` - Add top-level posts
-
-## Canvas Messaging Workflow
-- **Analyze completion**: `get_peer_review_completion_analytics(course_id, assignment_id)` - Get students needing reminders
-- **Target recipients**: Extract user IDs from analytics results for messaging
-- **Choose template**: Use `MessageTemplates.get_template()` or custom message content
-- **Send reminders**: `send_peer_review_reminders()` for targeted messaging
-- **Bulk campaigns**: `send_peer_review_followup_campaign()` for complete automated workflow
-- **Monitor delivery**: Check Canvas inbox for message delivery confirmation
-
-## Peer Review Comment Analysis Workflow
-- **Extract comments**: `get_peer_review_comments(course_id, assignment_id)` - Get all review text and metadata
-- **Analyze quality**: `analyze_peer_review_quality(course_id, assignment_id)` - Generate comprehensive quality metrics
-- **Flag problems**: `identify_problematic_peer_reviews(course_id, assignment_id)` - Find reviews needing attention
-- **Export data**: `extract_peer_review_dataset(course_id, assignment_id, format="csv")` - Export for further analysis
-- **Generate reports**: `generate_peer_review_feedback_report(course_id, assignment_id)` - Create instructor-ready reports
-- **Take action**: Use problematic review lists to provide targeted feedback or follow-up
-
 ## Canvas API Specifics
 - Base URL from `CANVAS_API_URL` environment variable
 - Authentication via Bearer token in `CANVAS_API_TOKEN`
@@ -204,55 +182,13 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 
 ## Documentation Maintenance
 
-### Source of Truth Hierarchy
+**Source of truth per audience:**
+- **AI agents**: `AGENTS.md` (tool tables, workflows, constraints)
+- **Humans**: `tools/README.md` (full tool docs with all params)
+- **Machine**: `tools/TOOL_MANIFEST.json`
+- **Entry point**: `README.md` (installation, overview — update on major releases only)
 
-This repository has multiple documentation files for different audiences. To prevent redundancy:
-
-| File | Audience | Contains | Updates When |
-|------|----------|----------|--------------|
-| `AGENTS.md` | AI agents/MCP clients | Tool tables, workflows, constraints, examples | Tools added/changed |
-| `tools/README.md` | Human users | Comprehensive tool docs with all parameters | Tools added/changed |
-| `tools/TOOL_MANIFEST.json` | Programmatic access | Machine-readable tool catalog | Tools added/changed |
-| `README.md` | Everyone (entry point) | Installation, overview, links to other docs | Major releases only |
-| `examples/*.md` | Human users | Workflow tutorials, not tool reference | New workflows added |
-| `CLAUDE.md` | Developers | Codebase architecture, NOT tool usage | Architecture changes |
-
-### Rules to Prevent Redundancy
-
-1. **Tool documentation**:
-   - Source of truth: `tools/README.md` (humans) and `AGENTS.md` (agents)
-   - `README.md` inline section exists ONLY for fetch-constrained agents
-   - Do NOT add tool details to examples/*.md - link to tools/README.md instead
-
-2. **Example prompts**:
-   - Source of truth: `AGENTS.md` (has example prompts per tool)
-   - `tools/TOOL_MANIFEST.json` mirrors these for machine access
-   - Quickstart guides use DIFFERENT examples (workflow-focused, not tool-focused)
-
-3. **Rate limits/constraints**:
-   - Source of truth: `AGENTS.md` (agent-facing constraints)
-   - Do NOT duplicate in README.md or tools/README.md
-
-4. **Workflows**:
-   - Source of truth: `AGENTS.md` (common workflows) + `examples/*.md` (detailed tutorials)
-   - `TOOL_MANIFEST.json` has simplified workflow references
-
-5. **When adding a new tool**:
-   - Update `tools/README.md` with full documentation
-   - Update `AGENTS.md` tool table (keep it concise)
-   - Update `tools/TOOL_MANIFEST.json` with parameters and examples
-   - Do NOT update README.md unless it's a major feature
-
-6. **When updating tool behavior**:
-   - Update the source of truth files above
-   - Check for stale references in examples/*.md
-
-### What NOT to Do
-
-- Do NOT copy tool tables between files (they drift)
-- Do NOT add installation instructions outside README.md
-- Do NOT add architecture details to AGENTS.md (that's for CLAUDE.md)
-- Do NOT add example prompts to tools/README.md (that's for AGENTS.md)
+**When adding a new tool**, update: `tools/README.md` → `AGENTS.md` → `TOOL_MANIFEST.json`. Do NOT update `README.md` unless it's a major feature. Do NOT duplicate tool usage docs in `CLAUDE.md` (architecture only).
 
 ## Current Focus
 - [ ] Re-enable GitHub Actions (account-level billing toggle)
@@ -260,14 +196,6 @@ This repository has multiple documentation files for different audiences. To pre
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
 
 ## Roadmap
-- [x] Module management tools (7 tools, 36 tests)
-- [x] Page settings tools (2 tools, 15 tests)
-- [x] TDD enforcement in development workflow
-- [x] Release v1.0.6
-- [x] `update_assignment` tool (9 tests)
-- [x] Security hardening — PII sanitization, token validation, audit logging, sandbox defaults
-- [x] CodeQL alert remediation (31 alerts → 0)
-- [x] Ruff linting enforcement + pre-commit hook
 - [x] Release v1.0.8 — all CI/CD pipelines passing (PyPI, MCP Registry, GitHub Release)
 - [x] Learning Designer tools & skills — `get_course_structure` tool + 3 skills (QC, accessibility, builder)
 - [x] GitHub Pages audit — 7 disconnects fixed (tool count, test count, analytics, URLs, compatibility)
@@ -333,52 +261,3 @@ This repository has multiple documentation files for different audiences. To pre
   - LinkedIn: title also changed to `<textarea>` — native value setter pattern needed
   - Both skills: updated CSS selectors reference tables and known bugs
 
-### 2026-02-20
-- **CI cleanup**: Removed auto-update README step from `create-release.yml` (~160 lines deleted)
-  - The step created orphaned branches (e.g., `auto-update-readme-v1.0.8`) when branch protection blocked direct pushes
-  - README is already updated manually during release prep — automation was redundant
-  - Also removed `pull-requests: write` permission (no longer needed)
-- **Branch cleanup**: Deleted orphaned remote branch `auto-update-readme-v1.0.8`
-
-### 2026-02-16
-- **Security Hardening (v1.0.8)**:
-  - Implemented 4 security features via PR #74 (`feature/security-hardening`):
-    - PII sanitization in logs (`LOG_REDACT_PII=true` default)
-    - Token validation on startup (warns but doesn't block)
-    - Structured JSON audit logging (`LOG_ACCESS_EVENTS`, `LOG_EXECUTION_EVENTS`)
-    - Sandbox hardening — secure-by-default (sandbox ON, network blocked, CPU/memory limits)
-  - Codex CLI review caught 3 issues: raw error payloads in audit logs, stderr in code execution audit, missing Docker env vars — all fixed
-  - 235+ tests (up from 167)
-- **CodeQL Alert Remediation**:
-  - Resolved all 31 open alerts: 9 dismissed (archive), 4 false positives, 3 intentional patterns, 15 fixed in source/tests
-  - Codex CLI handled 12 test file cleanups automatically
-- **Ruff Linting Enforcement**:
-  - Fixed 464 lint issues across codebase (443 auto, 21 manual)
-  - Added `.git/hooks/pre-commit` running ruff on staged files
-  - Updated `~/.claude/AGENTS.md` with linting setup template for all Python repos
-- **Release v1.0.8**:
-  - Bumped version across `pyproject.toml`, `__init__.py`, `docs/index.html`, `server.json`
-  - Fixed server.json version (was stuck at 1.0.6 — caused MCP Registry "duplicate version" error)
-  - Added `workflow_dispatch` to `publish-mcp.yml` for manual re-triggers
-  - Made README auto-update non-blocking in `create-release.yml` with summary step
-  - All workflows passing: PyPI, MCP Registry, GitHub Release, GitHub Pages
-  - Added `server.json` and `__init__.py` to release checklist in CLAUDE.md
-- **Cleanup**: Removed `Build AI Product Sense/` and `smithery-wrapper/` from repo
-- **Tooling**: Created `/codex-review` skill for cross-checking changes with OpenAI Codex CLI
-- **Decision**: Smithery publishing dropped from backlog (wrapper removed, marketplace access blocked)
-
-### 2026-02-01
-- **Smithery Publishing Attempt** (blocked):
-  - Goal: Publish canvas-mcp to Smithery marketplace for additional distribution
-  - **Findings**:
-    - Smithery has 3 publishing options: URL (HTTP), Hosted, Local (stdio)
-    - **URL option**: Requires Streamable HTTP transport (canvas-mcp uses stdio)
-    - **Hosted option**: "Private Early Access" - not publicly available
-    - **Local option**: CLI expects server entry to exist first; can't create new servers via CLI
-    - Web UI only exposes URL option; no way to create Hosted/Local servers
-  - **What we built**: TypeScript wrapper at `smithery-wrapper/` with 10 core tools
-    - Native TS Canvas MCP using `@modelcontextprotocol/sdk`
-    - Builds successfully with `smithery build`
-    - Ready for future deployment if Smithery opens up access
-  - **Decision**: Skip Smithery → focus on MCP Registry + PyPI (already published)
-  - `smithery-wrapper/` removed in 2026-02-16 session (unused prototype)
