@@ -201,6 +201,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] GitHub Pages audit — 7 disconnects fixed (tool count, test count, analytics, URLs, compatibility)
 - [x] MCP token optimization — trimmed tool docstrings ~35% (350 lines removed across 15 files)
 - [x] HTTP transport & hosted server — per-request credentials via ContextVar, deployed to VPS at mcp.illinihunt.org
+- [x] Cloudflare Pages migration — site moved from GitHub Pages (blocked by Actions) to Cloudflare Pages
 
 ## Backlog
 - [ ] Module templates (pre-configured module structures)
@@ -214,6 +215,16 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 > Full history: [session-history.md](./session-history.md)
 
 ### 2026-03-04
+- **Cloudflare Pages migration**: Moved site from GitHub Pages (blocked by disabled Actions) to Cloudflare Pages
+  - Created Cloudflare Pages project, deployed `docs/` via `wrangler pages deploy`
+  - Added `canvas-mcp.illinihunt.org` custom domain, updated DNS CNAME from `github.io` → `pages.dev` (proxied)
+  - Created Workers route bypass for `canvas-mcp.*` (wildcard Worker was intercepting traffic)
+  - Disabled GitHub Pages via API, deleted `docs/CNAME`
+  - Auto-deploy not yet connected (manual `wrangler pages deploy` for now)
+- **Learning Designer guide page**: Created `docs/learning-designer-guide.html`
+  - Full guide with tools, AI skills (QC, accessibility, builder), workflows, and installation
+  - Updated homepage LD card link from GitHub AGENTS.md to local guide page
+  - Added "Designers" nav link to all guide pages (student, educator, bulk-grading)
 - **HTTP transport & hosted deployment**: Implemented per-request credential system for multi-tenant hosting
   - New `core/credentials.py`: ContextVar-based per-request credential threading
   - Modified `core/client.py`: Per-request httpx client when ContextVar is set, falls back to global for stdio
