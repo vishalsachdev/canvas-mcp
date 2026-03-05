@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learning Designer Guide - Canvas MCP</title>
+    <meta name="description" content="Learn how to use Canvas MCP as a learning designer for course design, quality assurance, accessibility compliance, and bulk course scaffolding.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav>
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <div class="logo-icon">📚</div>
+                Canvas MCP
+            </a>
+            <ul class="nav-links">
+                <li><a href="index.html#features">Features</a></li>
+                <li><a href="student-guide.html">Students</a></li>
+                <li><a href="educator-guide.html">Educators</a></li>
+                <li><a href="learning-designer-guide.html" class="active">Designers</a></li>
+                <li><a href="bulk-grading.html">Code API</a></li>
+            </ul>
+            <div class="nav-cta">
+                <a href="https://github.com/vishalsachdev/canvas-mcp" class="btn btn-secondary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    GitHub
+                </a>
+                <a href="index.html#install" class="btn btn-primary">Get Started</a>
+            </div>
+            <button class="mobile-menu-btn">☰</button>
+        </div>
+    </nav>
+
+    <div class="doc-page">
+        <header class="doc-header">
+            <div class="container">
+                <div class="doc-header-content">
+                    <span class="doc-badge designer">🎨 Learning Designer Guide</span>
+                    <h1>Canvas MCP for Learning Designers</h1>
+                    <p>AI-powered course design, quality assurance, and accessibility compliance at scale. Scaffold courses, audit content, and remediate WCAG violations.</p>
+                </div>
+            </div>
+        </header>
+
+        <div class="container">
+            <div class="doc-layout">
+                <aside class="doc-sidebar">
+                    <ul class="doc-nav">
+                        <li><a href="#what-can-it-do">What Can It Do?</a></li>
+                        <li><a href="#prerequisites">Prerequisites</a></li>
+                        <li><a href="#installation">Installation</a></li>
+                        <li><a href="#available-tools">Available Tools</a></li>
+                        <li><a href="#skills">AI Skills</a></li>
+                        <li><a href="#workflows">Example Workflows</a></li>
+                        <li><a href="#troubleshooting">Troubleshooting</a></li>
+                    </ul>
+                </aside>
+
+                <main class="doc-content">
+                    <section id="what-can-it-do">
+                        <h2>What Can Canvas MCP Do for You?</h2>
+                        <p>Canvas MCP provides AI-powered tools for learning designers who build, audit, and maintain Canvas courses:</p>
+
+                        <div class="feature-grid">
+                            <div class="feature-item">
+                                <h4>🏗️ Course Scaffolding</h4>
+                                <p>Build complete course structures from specs, templates, or by cloning existing courses. Create modules, pages, assignments, and discussions in bulk.</p>
+                            </div>
+                            <div class="feature-item">
+                                <h4>✅ Quality Assurance</h4>
+                                <p>Pre-semester audits that check module structure, content completeness, publishing state, date consistency, and naming conventions.</p>
+                            </div>
+                            <div class="feature-item">
+                                <h4>♿ Accessibility Compliance</h4>
+                                <p>Scan course content for WCAG violations, generate prioritized reports, guide remediation, and verify fixes.</p>
+                            </div>
+                            <div class="feature-item">
+                                <h4>📊 Course Structure Analysis</h4>
+                                <p>Get a full module-to-items tree as JSON in a single call. Understand course architecture at a glance.</p>
+                            </div>
+                            <div class="feature-item">
+                                <h4>📄 Page & Module Management</h4>
+                                <p>Create, edit, and organize pages and modules. Bulk update content across entire courses.</p>
+                            </div>
+                            <div class="feature-item">
+                                <h4>📋 Content Templates</h4>
+                                <p>Clone structures across courses, apply standard templates, and ensure consistency at scale.</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="prerequisites">
+                        <h2>Prerequisites</h2>
+                        <ul>
+                            <li><strong>Python 3.10+</strong> installed on your computer</li>
+                            <li><strong>An MCP-compatible AI client</strong> &mdash; Claude Desktop, Claude Code, Cursor, ChatGPT, or others</li>
+                            <li><strong>Canvas Account</strong> with designer or admin permissions</li>
+                        </ul>
+                    </section>
+
+                    <section id="installation">
+                        <h2>Installation</h2>
+
+                        <h3>Option A: Use the Hosted Server (Fastest)</h3>
+                        <p>No installation needed. Add this to your MCP client config:</p>
+                        <pre><code>{
+  "mcpServers": {
+    "canvas-api": {
+      "url": "https://mcp.illinihunt.org/mcp",
+      "headers": {
+        "X-Canvas-Token": "YOUR_CANVAS_TOKEN",
+        "X-Canvas-URL": "https://canvas.youruniversity.edu"
+      }
+    }
+  }
+}</code></pre>
+
+                        <h3>Option B: Install Locally</h3>
+                        <pre><code>git clone https://github.com/vishalsachdev/canvas-mcp.git
+cd canvas-mcp
+
+<span class="code-comment"># Create virtual environment</span>
+python3 -m venv .venv
+. .venv/bin/activate
+
+<span class="code-comment"># Install</span>
+pip install -e .</code></pre>
+
+                        <p>Configure <code>.env</code>:</p>
+                        <pre><code>CANVAS_API_TOKEN=your_token_here
+CANVAS_API_URL=https://canvas.youruniversity.edu</code></pre>
+
+                        <p>Add to your MCP client config:</p>
+                        <pre><code>{
+  "mcpServers": {
+    "canvas-api": {
+      "command": "/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
+    }
+  }
+}</code></pre>
+                    </section>
+
+                    <section id="available-tools">
+                        <h2>Available Tools</h2>
+
+                        <h3>Course Structure</h3>
+                        <ul class="tool-list">
+                            <li><code>get_course_structure</code> &mdash; Full module&rarr;items tree as JSON (one call)</li>
+                            <li><code>list_modules</code> &mdash; List all modules in a course</li>
+                            <li><code>list_module_items</code> &mdash; Items within a specific module</li>
+                            <li><code>get_course_details</code> &mdash; Course metadata and settings</li>
+                        </ul>
+
+                        <h3>Accessibility</h3>
+                        <ul class="tool-list">
+                            <li><code>scan_course_content_accessibility</code> &mdash; Scan for WCAG violations</li>
+                            <li><code>fetch_ufixit_report</code> &mdash; Retrieve UFIXIT accessibility report</li>
+                            <li><code>parse_ufixit_violations</code> &mdash; Extract structured violations from report</li>
+                            <li><code>format_accessibility_summary</code> &mdash; Format violations into readable report</li>
+                        </ul>
+
+                        <h3>Page Management</h3>
+                        <ul class="tool-list">
+                            <li><code>create_page</code> &mdash; Create a new page</li>
+                            <li><code>edit_page_content</code> &mdash; Update page HTML content</li>
+                            <li><code>list_pages</code> &mdash; List all pages in a course</li>
+                            <li><code>get_page_content</code> &mdash; Read page content</li>
+                            <li><code>bulk_update_pages</code> &mdash; Update multiple pages at once</li>
+                        </ul>
+
+                        <h3>Module Management</h3>
+                        <ul class="tool-list">
+                            <li><code>create_module</code> &mdash; Create a new module</li>
+                            <li><code>add_module_item</code> &mdash; Add items to a module</li>
+                            <li><code>update_module</code> &mdash; Modify module settings</li>
+                            <li><code>update_module_item</code> &mdash; Modify item settings</li>
+                        </ul>
+
+                        <h3>Assignment & Discussion Setup</h3>
+                        <ul class="tool-list">
+                            <li><code>create_assignment</code> &mdash; Create assignments with due dates, points, and submission types</li>
+                            <li><code>create_discussion_topic</code> &mdash; Create discussion forums</li>
+                            <li><code>create_rubric</code> &mdash; Build grading rubrics</li>
+                            <li><code>associate_rubric_with_assignment</code> &mdash; Link rubrics to assignments</li>
+                        </ul>
+                    </section>
+
+                    <section id="skills">
+                        <h2>AI Skills (Automated Workflows)</h2>
+                        <p>Skills are pre-built workflows that combine multiple tools into complete processes. Available via <a href="https://skills.sh">skills.sh</a> or as Claude Code slash commands.</p>
+
+                        <div class="workflow-box">
+                            <h4>✅ canvas-course-qc</h4>
+                            <p style="margin-bottom: 12px; color: var(--color-text-secondary);">Pre-semester quality audit. Checks structure, content, publishing state, date consistency, and completeness.</p>
+                            <p><strong>Try:</strong> <em>"Run a QC check on CS 101"</em></p>
+                            <div class="workflow-step">
+                                <span class="step-num">1</span>
+                                <span class="step-content">Scans all modules, assignments, and pages</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">2</span>
+                                <span class="step-content">Checks for missing dates, unpublished content, naming inconsistencies</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">3</span>
+                                <span class="step-content">Generates prioritized issue report with fix recommendations</span>
+                            </div>
+                        </div>
+
+                        <div class="workflow-box">
+                            <h4>♿ canvas-accessibility-auditor</h4>
+                            <p style="margin-bottom: 12px; color: var(--color-text-secondary);">WCAG compliance workflow. Scans content, generates prioritized reports, guides remediation.</p>
+                            <p><strong>Try:</strong> <em>"Audit accessibility for BADM 350"</em></p>
+                            <div class="workflow-step">
+                                <span class="step-num">1</span>
+                                <span class="step-content">Scans all course content for WCAG violations</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">2</span>
+                                <span class="step-content">Categorizes by severity (critical, major, minor)</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">3</span>
+                                <span class="step-content">Provides specific remediation steps for each violation</span>
+                            </div>
+                        </div>
+
+                        <div class="workflow-box">
+                            <h4>🏗️ canvas-course-builder</h4>
+                            <p style="margin-bottom: 12px; color: var(--color-text-secondary);">Scaffold complete course structures from specs, templates, or by cloning existing courses.</p>
+                            <p><strong>Try:</strong> <em>"Build a 15-week structure for CS 102"</em></p>
+                            <div class="workflow-step">
+                                <span class="step-num">1</span>
+                                <span class="step-content">Creates weekly modules with consistent naming</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">2</span>
+                                <span class="step-content">Adds standard pages, assignments, and discussions</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">3</span>
+                                <span class="step-content">Sets due dates, points, and submission types</span>
+                            </div>
+                        </div>
+
+                        <h3>Installing Skills</h3>
+                        <pre><code><span class="code-comment"># Install skills for 7+ AI agents (Claude Code, Cursor, etc.)</span>
+npx skills add vishalsachdev/canvas-mcp</code></pre>
+                    </section>
+
+                    <section id="workflows">
+                        <h2>Example Workflows</h2>
+
+                        <div class="workflow-box">
+                            <h4>📊 Course Structure Audit</h4>
+                            <p style="margin-bottom: 16px; color: var(--color-text-secondary);">Ask: "Show me the full structure of BADM 350"</p>
+                            <div class="workflow-step">
+                                <span class="step-num">1</span>
+                                <span class="step-content">Retrieves complete module&rarr;items tree</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">2</span>
+                                <span class="step-content">Shows summary stats (modules, items, assignments, pages)</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">3</span>
+                                <span class="step-content">Identifies structural issues (empty modules, orphaned items)</span>
+                            </div>
+                        </div>
+
+                        <div class="workflow-box">
+                            <h4>🔧 Bulk Content Update</h4>
+                            <p style="margin-bottom: 16px; color: var(--color-text-secondary);">Ask: "Update all overview pages to include the new syllabus link"</p>
+                            <div class="workflow-step">
+                                <span class="step-num">1</span>
+                                <span class="step-content">Lists all pages matching criteria</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">2</span>
+                                <span class="step-content">Reads current content for each page</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">3</span>
+                                <span class="step-content">Applies consistent updates across all matched pages</span>
+                            </div>
+                        </div>
+
+                        <div class="workflow-box">
+                            <h4>♿ Accessibility Remediation</h4>
+                            <p style="margin-bottom: 16px; color: var(--color-text-secondary);">Ask: "Fix all accessibility issues in BADM 350"</p>
+                            <div class="workflow-step">
+                                <span class="step-num">1</span>
+                                <span class="step-content">Scans all content for WCAG violations</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">2</span>
+                                <span class="step-content">Generates prioritized fix list by severity</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">3</span>
+                                <span class="step-content">Guides you through fixing each violation</span>
+                            </div>
+                            <div class="workflow-step">
+                                <span class="step-num">4</span>
+                                <span class="step-content">Re-scans to verify fixes</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="troubleshooting">
+                        <h2>Troubleshooting</h2>
+
+                        <h3>"Permission denied" or "Unauthorized"</h3>
+                        <ul>
+                            <li>Verify your Canvas account has designer or admin role in the course</li>
+                            <li>Check your API token has sufficient permissions</li>
+                            <li>Some institutions restrict API access &mdash; check with your Canvas admin</li>
+                        </ul>
+
+                        <h3>"Course not found"</h3>
+                        <ul>
+                            <li>Use the course code (e.g., "BADM_350") or Canvas course ID</li>
+                            <li>Verify the course exists and you have access</li>
+                        </ul>
+
+                        <h3>Need More Help?</h3>
+                        <p><a href="https://github.com/vishalsachdev/canvas-mcp/issues">Open an issue on GitHub</a> for additional support.</p>
+                    </section>
+
+                    <div style="text-align: center; margin-top: 48px; padding: 32px; background: var(--color-bg-card); border-radius: var(--radius-lg);">
+                        <h3 style="margin-bottom: 16px;">Ready to Streamline Course Design?</h3>
+                        <p style="color: var(--color-text-secondary); margin-bottom: 24px;">Install Canvas MCP and start building, auditing, and optimizing courses with AI assistance.</p>
+                        <div style="display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
+                            <a href="index.html#install" class="btn btn-primary">Quick Start Guide</a>
+                            <a href="educator-guide.html" class="btn btn-secondary">Educator Guide</a>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+
+        <footer>
+            <div class="container">
+                <div class="footer-content">
+                    <div class="footer-left">
+                        <a href="index.html" class="logo">
+                            <div class="logo-icon">📚</div>
+                            Canvas MCP
+                        </a>
+                        <div class="footer-links">
+                            <a href="https://github.com/vishalsachdev/canvas-mcp">GitHub</a>
+                            <a href="student-guide.html">Student Guide</a>
+                            <a href="educator-guide.html">Educator Guide</a>
+                            <a href="learning-designer-guide.html">Designer Guide</a>
+                            <a href="https://github.com/vishalsachdev/canvas-mcp/blob/main/LICENSE">MIT License</a>
+                        </div>
+                    </div>
+                    <div class="footer-right">
+                        Created by <a href="https://github.com/vishalsachdev">Vishal Sachdev</a>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        const sections = document.querySelectorAll('section[id]');
+        const navLinks = document.querySelectorAll('.doc-nav a');
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                if (scrollY >= sectionTop - 150) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === '#' + current) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
+    <!-- Cloudflare Web Analytics -->
+    <script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "f6e8d77284b0466eb2ca753f03d64ec0"}'></script>
+</body>
+</html>
