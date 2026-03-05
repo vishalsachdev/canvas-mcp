@@ -45,14 +45,73 @@ def register_assignment_tools(mcp: FastMCP):
             name = assignment.get("name", "Unnamed assignment")
             due_at = assignment.get("due_at", "No due date")
             points = assignment.get("points_possible", 0)
+            published = assignment.get("published", False)
+            assignment_group_id = assignment.get("assignment_group_id")
+            created_at = assignment.get("created_at")
+            has_overrides = assignment.get("has_overrides", False)
+            description = assignment.get("description", "")
+            rubric = assignment.get("rubric")
+            rubric_settings = assignment.get("rubric_settings")
 
-            assignments_info.append(
-                f"ID: {assignment_id}\nName: {name}\nDue: {due_at}\nPoints: {points}\n"
-            )
+            entry = f"ID: {assignment_id}\nName: {name}\nDue: {due_at}\nPoints: {points}\nPublished: {published}\n"
+            if assignment_group_id:
+                entry += f"Assignment Group ID: {assignment_group_id}\n"
+            if created_at:
+                entry += f"Created: {created_at}\n"
+            if has_overrides:
+                entry += f"Has Overrides: {has_overrides}\n"
+            if description:
+                entry += f"Description: {description}\n"
+            if rubric_settings:
+                entry += f"Rubric Settings: {rubric_settings}\n"
+            if rubric:
+                entry += f"Rubric: {rubric}\n"
+            assignments_info.append(entry)
 
         # Try to get the course code for display
         course_display = await get_course_code(course_id) or course_identifier
         return f"Assignments for Course {course_display}:\n\n" + "\n".join(assignments_info)
+
+    @mcp.tool()
+    @validate_params
+    async def list_assignment_groups(course_identifier: str | int) -> str:
+        """List assignment groups for a course with their weights.
+
+        Returns group ID, name, weight, and position for each assignment group.
+        Useful for auditing whether assignment weights match naming conventions.
+
+        Args:
+            course_identifier: The Canvas course code (e.g., badm_554_120251_246794) or ID
+        """
+        course_id = await get_course_id(course_identifier)
+
+        params = {"per_page": 100}
+
+        all_groups = await fetch_all_paginated_results(
+            f"/courses/{course_id}/assignment_groups", params
+        )
+
+        if isinstance(all_groups, dict) and "error" in all_groups:
+            return f"Error fetching assignment groups: {all_groups['error']}"
+
+        if not all_groups:
+            return f"No assignment groups found for course {course_identifier}."
+
+        groups_info = []
+        for group in all_groups:
+            group_id = group.get("id")
+            name = group.get("name", "Unnamed group")
+            weight = group.get("group_weight", 0)
+            position = group.get("position", 0)
+            rules = group.get("rules", {})
+
+            entry = f"ID: {group_id}\nName: {name}\nWeight: {weight}%\nPosition: {position}\n"
+            if rules:
+                entry += f"Rules: {rules}\n"
+            groups_info.append(entry)
+
+        course_display = await get_course_code(course_id) or course_identifier
+        return f"Assignment Groups for Course {course_display}:\n\n" + "\n".join(groups_info)
 
     @mcp.tool()
     @validate_params
@@ -312,7 +371,8 @@ def register_assignment_tools(mcp: FastMCP):
         assignment_id_str = str(assignment_id)
 
         params = {
-            "per_page": 100
+            "per_page": 100,
+            "include[]": ["submission_comments"]
         }
 
         submissions = await fetch_all_paginated_results(
@@ -373,16 +433,32 @@ def register_assignment_tools(mcp: FastMCP):
             submitted_at = submission.get("submitted_at", "Not submitted")
             score = submission.get("score", "Not graded")
             grade = submission.get("grade", "Not graded")
+            graded_at = submission.get("graded_at")
             submission_type = submission.get("submission_type", "none")
             body = submission.get("body", "")
 
             url = submission.get("url", "")
 
             entry = f"User ID: {user_id}\nSubmitted: {submitted_at}\nScore: {score}\nGrade: {grade}\nType: {submission_type}\n"
+            if graded_at:
+                entry += f"Graded At: {graded_at}\n"
             if url and submission_type == "online_url":
                 entry += f"URL: {url}\n"
             if body and submission_type == "online_text_entry":
                 entry += f"Body:\n{body}\n"
+            if submission_type == "online_upload":
+                attachments = submission.get("attachments", [])
+                if attachments:
+                    entry += "Attachments:\n"
+                    for att in attachments:
+                        att_id = att.get("id")
+                        att_name = att.get("display_name") or att.get("filename", "unknown")
+                        att_size = att.get("size", 0)
+                        entry += f"  - {att_name} (ID: {att_id}, {att_size} bytes)\n"
+            # Show existing comments count if any
+            comments = submission.get("submission_comments", [])
+            if comments:
+                entry += f"Comments: {len(comments)}\n"
             submissions_info.append(entry)
 
         # Try to get the course code for display
@@ -426,7 +502,7 @@ def register_assignment_tools(mcp: FastMCP):
         response = await make_canvas_request(
             "put",
             f"/courses/{course_id}/assignments/{assignment_id_str}/submissions/{student_id_str}",
-            json_data=payload
+            data=payload
         )
 
         if isinstance(response, dict) and "error" in response:
