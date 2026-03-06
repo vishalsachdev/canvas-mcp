@@ -448,9 +448,11 @@ def register_assignment_tools(mcp: FastMCP):
                 entry += f"Body:\n{body}\n"
             if submission_type == "online_upload":
                 attachments = submission.get("attachments", [])
-                if attachments:
+                if isinstance(attachments, list) and attachments:
                     entry += "Attachments:\n"
                     for att in attachments:
+                        if not isinstance(att, dict):
+                            continue
                         att_id = att.get("id")
                         att_name = att.get("display_name") or att.get("filename", "unknown")
                         att_size = att.get("size", 0)

@@ -238,9 +238,22 @@ def anonymize_submission_data(
             if field in anonymized and anonymized[field] and isinstance(anonymized[field], str):
                 anonymized[field] = scrub_pii_from_text(anonymized[field], known_names)
 
-        # Redact attachments (file metadata — can't scrub binary content)
-        if 'attachments' in anonymized and anonymized['attachments']:
-            anonymized['attachments'] = "[ATTACHMENTS_AVAILABLE_BUT_NOT_DISPLAYED]"
+        # Scrub PII from attachment metadata but preserve list structure
+        if 'attachments' in anonymized and isinstance(anonymized['attachments'], list):
+            scrubbed_attachments = []
+            for att in anonymized['attachments']:
+                if isinstance(att, dict):
+                    scrubbed = {
+                        'id': att.get('id'),
+                        'size': att.get('size', 0),
+                        'content-type': att.get('content-type', ''),
+                        'display_name': scrub_pii_from_text(
+                            att.get('display_name') or att.get('filename', 'unknown'),
+                            known_names,
+                        ),
+                    }
+                    scrubbed_attachments.append(scrubbed)
+            anonymized['attachments'] = scrubbed_attachments
 
     return anonymized
 
