@@ -214,6 +214,12 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 ## Session Log
 > Full history: [session-history.md](./session-history.md)
 
+### 2026-03-12
+- **CLI npm package**: Built and published `canvas-mcp` v1.1.0 to npm — `npx canvas-mcp setup` wizard configures 6 MCP clients (Codex, Claude Desktop, Cursor, Windsurf, VS Code, Claude Code)
+- **Workshop page**: Created unlisted page at `canvas-mcp.illinihunt.org/workshop` for learning designer workshop (2026-03-13). Codex desktop app setup with Illinois IT token request flow.
+- **Light theme**: Converted entire site (index.html, styles.css, workshop.html) from dark to light background. Replaced purple hues with teal (#0891b2).
+- **Workshop context**: Created `/Users/vishal/teaching/canvas-mcp/` with CLAUDE.md for workshop planning. Course: canvas.illinois.edu/courses/68866.
+
 ### 2026-03-05
 - **Cloudflare Web Analytics**: Added beacon to educator, student, and bulk-grading guide pages (all 5 docs/ HTML pages now covered)
 - **Cloudflare Pages auto-deploy**: Investigated connecting GitHub repo — not possible for Direct Upload projects. Manual deploy via `wrangler pages deploy` for now.
