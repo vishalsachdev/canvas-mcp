@@ -1,28 +1,28 @@
 /* Canvas MCP Documentation Styles */
 :root {
-    --color-bg-primary: #0a0f1a;
-    --color-bg-secondary: #111827;
-    --color-bg-card: #1a2332;
-    --color-bg-card-hover: #1f2937;
-    --color-text-primary: #f8fafc;
-    --color-text-secondary: #94a3b8;
-    --color-text-muted: #64748b;
-    --color-accent-primary: #06b6d4;
-    --color-accent-secondary: #0891b2;
-    --color-accent-tertiary: #22d3ee;
-    --color-gradient-start: #06b6d4;
-    --color-gradient-end: #3b82f6;
+    --color-bg-primary: #f8fafc;
+    --color-bg-secondary: #f1f5f9;
+    --color-bg-card: #ffffff;
+    --color-bg-card-hover: #f8fafc;
+    --color-text-primary: #0f172a;
+    --color-text-secondary: #475569;
+    --color-text-muted: #94a3b8;
+    --color-accent-primary: #0891b2;
+    --color-accent-secondary: #0e7490;
+    --color-accent-tertiary: #06b6d4;
+    --color-gradient-start: #0891b2;
+    --color-gradient-end: #0284c7;
     --color-success: #10b981;
     --color-warning: #f59e0b;
     --color-error: #ef4444;
-    --color-student: #8b5cf6;
-    --color-educator: #ec4899;
-    --color-developer: #f97316;
-    --color-border: #334155;
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
-    --shadow-glow: 0 0 40px rgba(6, 182, 212, 0.3);
+    --color-student: #7c3aed;
+    --color-educator: #db2777;
+    --color-developer: #ea580c;
+    --color-border: #e2e8f0;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+    --shadow-glow: 0 0 40px rgba(8, 145, 178, 0.15);
     --radius-sm: 6px;
     --radius-md: 12px;
     --radius-lg: 16px;
@@ -60,7 +60,7 @@ nav {
     left: 0;
     right: 0;
     z-index: 100;
-    background: rgba(10, 15, 26, 0.95);
+    background: rgba(248, 250, 252, 0.95);
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--color-border);
 }
@@ -184,21 +184,21 @@ nav {
 }
 
 .doc-badge.student {
-    background: rgba(139, 92, 246, 0.15);
+    background: rgba(124, 58, 237, 0.1);
     color: var(--color-student);
-    border: 1px solid rgba(139, 92, 246, 0.3);
+    border: 1px solid rgba(124, 58, 237, 0.25);
 }
 
 .doc-badge.educator {
-    background: rgba(236, 72, 153, 0.15);
+    background: rgba(219, 39, 119, 0.1);
     color: var(--color-educator);
-    border: 1px solid rgba(236, 72, 153, 0.3);
+    border: 1px solid rgba(219, 39, 119, 0.25);
 }
 
 .doc-badge.developer {
-    background: rgba(249, 115, 22, 0.15);
+    background: rgba(234, 88, 12, 0.1);
     color: var(--color-developer);
-    border: 1px solid rgba(249, 115, 22, 0.3);
+    border: 1px solid rgba(234, 88, 12, 0.25);
 }
 
 .doc-header h1 {
@@ -347,11 +347,11 @@ nav {
 }
 
 /* Code syntax highlighting */
-.code-keyword { color: #c678dd; }
-.code-string { color: #98c379; }
-.code-function { color: #61afef; }
-.code-comment { color: #5c6370; }
-.code-number { color: #d19a66; }
+.code-keyword { color: #7c3aed; }
+.code-string { color: #059669; }
+.code-function { color: #2563eb; }
+.code-comment { color: #94a3b8; }
+.code-number { color: #d97706; }
 
 /* Info boxes */
 .info-box {
