@@ -1,0 +1,25 @@
+{
+  "name": "canvas-mcp",
+  "version": "1.0.0",
+  "description": "Setup wizard for Canvas MCP — configure any AI coding client in one command",
+  "type": "module",
+  "bin": {
+    "canvas-mcp": "./bin/cli.js"
+  },
+  "files": ["bin/", "lib/"],
+  "keywords": ["canvas", "lms", "mcp", "education", "claude", "codex", "cursor"],
+  "author": "Vishal Sachdev <vsachde2@illinois.edu>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vishalsachdev/canvas-mcp",
+    "directory": "cli"
+  },
+  "dependencies": {
+    "prompts": "^2.4.2",
+    "@iarna/toml": "^2.2.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
