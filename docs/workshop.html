@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas MCP Workshop — Setup Guide</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .step-grid {
+            display: grid;
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+        .step-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 2rem;
+            position: relative;
+            color: #1e293b;
+        }
+        .step-card h3 {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-top: 0;
+            color: #0f172a;
+        }
+        .step-card p,
+        .step-card li,
+        .step-card strong {
+            color: #334155;
+        }
+        .step-card strong {
+            color: #0f172a;
+            font-weight: 700;
+        }
+        .step-card code {
+            background: #f1f5f9;
+            color: #7c3aed;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        .step-card a {
+            color: #6366f1;
+        }
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--accent-primary, #6366f1);
+            color: white;
+            font-weight: 700;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+        .time-badge {
+            display: inline-block;
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-left: auto;
+        }
+        .command-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 1rem 1.25rem;
+            border-radius: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            margin: 1rem 0;
+            position: relative;
+            overflow-x: auto;
+        }
+        .command-block .prompt {
+            color: #94a3b8;
+            user-select: none;
+        }
+        .command-block .cmd {
+            color: #7dd3fc;
+        }
+        .platform-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .platform-tab {
+            padding: 0.5rem 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: white;
+            color: #334155;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .platform-tab.active {
+            background: var(--accent-primary, #6366f1);
+            color: white;
+            border-color: var(--accent-primary, #6366f1);
+        }
+        .platform-content { display: none; }
+        .platform-content.active { display: block; }
+        .callout {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 1rem 1.25rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+        }
+        .callout-info {
+            background: #dbeafe;
+            border-left-color: #3b82f6;
+        }
+        .callout-success {
+            background: #dcfce7;
+            border-left-color: #22c55e;
+        }
+        .try-it-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        .try-it-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1.25rem;
+        }
+        .try-it-card h4 {
+            margin-top: 0;
+            font-size: 0.95rem;
+            color: #0f172a;
+        }
+        .try-it-card p {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            color: #6366f1;
+            margin-bottom: 0;
+        }
+        .callout, .callout-info, .callout-success {
+            color: #334155;
+        }
+        .callout strong, .callout-info strong, .callout-success strong {
+            color: #0f172a;
+        }
+        .env-instructions {
+            color: #334155;
+        }
+        .env-instructions strong {
+            color: #0f172a;
+        }
+        details summary {
+            color: #e2e8f0;
+        }
+        details p, details .command-block {
+            color: #cbd5e1;
+        }
+        .workshop-header {
+            text-align: center;
+            padding: 3rem 0;
+        }
+        .workshop-header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .workshop-header .subtitle {
+            font-size: 1.15rem;
+            color: #64748b;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .env-instructions {
+            background: #fefce8;
+            border: 1px solid #fde68a;
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin: 1rem 0;
+        }
+        .env-instructions code {
+            background: #fef9c3;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="doc-page" style="padding-top: 2rem;">
+        <header class="doc-header">
+            <div class="container">
+                <div class="workshop-header">
+                    <span class="doc-badge student">Workshop</span>
+                    <h1>Canvas MCP + Codex</h1>
+                    <p class="subtitle">Set up AI-powered Canvas LMS tools in under 2 minutes. No coding required.</p>
+                </div>
+            </div>
+        </header>
+
+        <div class="container">
+            <div class="doc-layout" style="max-width: 800px; margin: 0 auto;">
+                <main class="doc-content" style="max-width: 100%;">
+
+                    <!-- STEP 1 -->
+                    <div class="step-grid">
+                        <div class="step-card">
+                            <h3>
+                                <span class="step-number">1</span>
+                                Download the Codex App
+                                <span class="time-badge">1 min</span>
+                            </h3>
+
+                            <div class="platform-tabs">
+                                <button class="platform-tab active" onclick="switchPlatform('mac')">macOS</button>
+                                <button class="platform-tab" onclick="switchPlatform('win')">Windows</button>
+                            </div>
+
+                            <div id="platform-mac" class="platform-content active">
+                                <p>Download the Codex desktop app for macOS:</p>
+                                <p><a href="https://developers.openai.com/codex/app/" class="btn btn-primary" style="display: inline-flex; text-decoration: none;">Download Codex for Mac</a></p>
+                                <ol>
+                                    <li>Open the <code>.dmg</code> file and drag Codex to Applications</li>
+                                    <li>Launch Codex and sign in with your <strong>ChatGPT account</strong></li>
+                                </ol>
+                            </div>
+
+                            <div id="platform-win" class="platform-content">
+                                <p>Download the Codex desktop app for Windows:</p>
+                                <p><a href="https://apps.microsoft.com/detail/9plm9xgg6vks" class="btn btn-primary" style="display: inline-flex; text-decoration: none;">Download Codex for Windows</a></p>
+                                <ol>
+                                    <li>Install from the Microsoft Store</li>
+                                    <li>Launch Codex and sign in with your <strong>ChatGPT account</strong></li>
+                                </ol>
+                            </div>
+
+                            <div class="callout-info callout">
+                                You need a ChatGPT Plus, Team, or Enterprise account. Free accounts don't include Codex.
+                            </div>
+                        </div>
+
+                        <!-- STEP 2 -->
+                        <div class="step-card">
+                            <h3>
+                                <span class="step-number">2</span>
+                                Get Your Canvas API Token
+                                <span class="time-badge">1 min</span>
+                            </h3>
+                            <ol>
+                                <li>Log into <strong>Canvas</strong> in your browser</li>
+                                <li>Click your profile picture (top-left) &rarr; <strong>Settings</strong></li>
+                                <li>Scroll down to <strong>Approved Integrations</strong></li>
+                                <li>Click <strong>+ New Access Token</strong></li>
+                                <li>Set purpose to <code>Canvas MCP</code>, leave expiry blank, click <strong>Generate Token</strong></li>
+                                <li><strong>Copy the token now</strong> &mdash; you won't be able to see it again</li>
+                            </ol>
+                            <div class="callout">
+                                Save the token somewhere safe (e.g., a notes app). You'll need it in the next step.
+                            </div>
+                        </div>
+
+                        <!-- STEP 3 -->
+                        <div class="step-card">
+                            <h3>
+                                <span class="step-number">3</span>
+                                Run the Setup Wizard
+                                <span class="time-badge">30 sec</span>
+                            </h3>
+                            <p>Open your terminal and run:</p>
+                            <div class="command-block">
+                                <span class="prompt">$ </span><span class="cmd">npx canvas-mcp setup</span>
+                            </div>
+                            <p>The wizard will ask you three things:</p>
+                            <ol>
+                                <li><strong>Canvas API token</strong> &mdash; paste the token from Step 2</li>
+                                <li><strong>Canvas URL</strong> &mdash; your instructor will provide this</li>
+                                <li><strong>Which client</strong> &mdash; select <strong>Codex CLI</strong> (press Space, then Enter)</li>
+                            </ol>
+
+                            <div class="env-instructions">
+                                <strong>Important:</strong> After the wizard finishes, it will tell you to set an environment variable. Run the command it shows:
+                                <div class="command-block" style="margin-bottom: 0;">
+                                    <span class="prompt">$ </span><span class="cmd">export CANVAS_API_TOKEN="your-token-here"</span>
+                                </div>
+                            </div>
+
+                            <div class="callout-info callout">
+                                <strong>No Node.js?</strong> Download it from <a href="https://nodejs.org">nodejs.org</a> (LTS version). Then re-run the command above.
+                            </div>
+                        </div>
+
+                        <!-- STEP 4 -->
+                        <div class="step-card">
+                            <h3>
+                                <span class="step-number">4</span>
+                                Restart Codex and Test
+                                <span class="time-badge">30 sec</span>
+                            </h3>
+                            <ol>
+                                <li><strong>Quit Codex completely</strong> (Cmd+Q on Mac, close window on Windows)</li>
+                                <li>Reopen Codex</li>
+                                <li>Open a new session and try this prompt:</li>
+                            </ol>
+                            <div class="command-block">
+                                <span class="cmd">What courses am I enrolled in?</span>
+                            </div>
+                            <div class="callout-success callout">
+                                If you see your course list, you're all set!
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- THINGS TO TRY -->
+                    <section style="margin-top: 3rem;">
+                        <h2>Things to Try</h2>
+                        <p>Once you're connected, try asking Codex:</p>
+
+                        <div class="try-it-grid">
+                            <div class="try-it-card">
+                                <h4>Course Structure</h4>
+                                <p>"Show me the full module structure for this course"</p>
+                            </div>
+                            <div class="try-it-card">
+                                <h4>Assignment Overview</h4>
+                                <p>"List all assignments with their due dates and point values"</p>
+                            </div>
+                            <div class="try-it-card">
+                                <h4>Page Content</h4>
+                                <p>"Show me the content of the Week 1 Overview page"</p>
+                            </div>
+                            <div class="try-it-card">
+                                <h4>Rubrics</h4>
+                                <p>"What rubrics are set up in this course?"</p>
+                            </div>
+                            <div class="try-it-card">
+                                <h4>Discussions</h4>
+                                <p>"List all discussion topics and their settings"</p>
+                            </div>
+                            <div class="try-it-card">
+                                <h4>Course Files</h4>
+                                <p>"What files are uploaded to this course?"</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- TROUBLESHOOTING -->
+                    <section style="margin-top: 3rem; margin-bottom: 4rem;">
+                        <h2>Troubleshooting</h2>
+
+                        <details style="margin-bottom: 1rem;">
+                            <summary style="cursor: pointer; font-weight: 600; padding: 0.75rem 0;"><code>npx</code> command not found</summary>
+                            <p>You need Node.js installed. Download from <a href="https://nodejs.org">nodejs.org</a> (LTS version), then restart your terminal and try again.</p>
+                        </details>
+
+                        <details style="margin-bottom: 1rem;">
+                            <summary style="cursor: pointer; font-weight: 600; padding: 0.75rem 0;">Codex doesn't see Canvas tools after restart</summary>
+                            <p>Make sure you set the environment variable. Open a new terminal and run:</p>
+                            <div class="command-block">
+                                <span class="prompt">$ </span><span class="cmd">export CANVAS_API_TOKEN="your-token"</span>
+                            </div>
+                            <p>Then launch Codex from that same terminal, or add the export line to your <code>~/.zshrc</code> (Mac) or <code>~/.bashrc</code> (Linux/Windows WSL).</p>
+                        </details>
+
+                        <details style="margin-bottom: 1rem;">
+                            <summary style="cursor: pointer; font-weight: 600; padding: 0.75rem 0;">Canvas API token doesn't work</summary>
+                            <p>Double-check that you copied the entire token (they're long). Also verify the Canvas URL matches exactly what your instructor provided (no trailing slash).</p>
+                        </details>
+
+                        <details style="margin-bottom: 1rem;">
+                            <summary style="cursor: pointer; font-weight: 600; padding: 0.75rem 0;">I see "unauthorized" or "forbidden" errors</summary>
+                            <p>Your Canvas token may have expired or been revoked. Go back to Canvas Settings &rarr; Approved Integrations and generate a new token. Then re-run <code>npx canvas-mcp setup</code>.</p>
+                        </details>
+                    </section>
+
+                </main>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchPlatform(platform) {
+            document.querySelectorAll('.platform-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.platform-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('platform-' + platform).classList.add('active');
+        }
+    </script>
+</body>
+</html>
