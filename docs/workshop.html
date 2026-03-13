@@ -298,7 +298,7 @@
                     <p><a href="https://developers.openai.com/codex/app/" class="btn">Download Codex for Mac</a></p>
                     <ol>
                         <li>Open the <code>.dmg</code> file and drag Codex to Applications</li>
-                        <li>Launch Codex and sign in with your <strong>ChatGPT account</strong></li>
+                        <li>Launch Codex and sign in with an <strong>OpenAI API key</strong> (see below)</li>
                     </ol>
                 </div>
 
@@ -307,12 +307,12 @@
                     <p><a href="https://apps.microsoft.com/detail/9plm9xgg6vks" class="btn">Download Codex for Windows</a></p>
                     <ol>
                         <li>Install from the Microsoft Store</li>
-                        <li>Launch Codex and sign in with your <strong>ChatGPT account</strong></li>
+                        <li>Launch Codex and sign in with an <strong>OpenAI API key</strong> (see below)</li>
                     </ol>
                 </div>
 
                 <div class="callout callout-info">
-                    You need a ChatGPT Plus, Team, or Enterprise account. Free accounts don't include Codex.
+                    <strong>Enter API key:</strong> On the Codex sign-in screen, click <strong>"Enter API key"</strong> and paste the <strong>OpenAI API key</strong> from the <strong>MS Teams chat</strong> (it starts with <code>sk-</code>). This is <em>not</em> your Canvas API token &mdash; those are different keys used in a later step. Do <em>not</em> sign in with your ChatGPT Edu account.
                 </div>
             </div>
 
@@ -338,10 +338,71 @@
             <div class="step">
                 <div class="step-header">
                     <span class="step-num">3</span>
+                    <h3>Install Node.js (if you don't have it)</h3>
+                    <span class="time">2 min</span>
+                </div>
+                <p>The setup wizard requires Node.js. Most learning designers won't have this yet &mdash; that's totally fine.</p>
+
+                <div class="tabs">
+                    <button class="tab active" onclick="switchNode('mac')">macOS</button>
+                    <button class="tab" onclick="switchNode('win')">Windows</button>
+                </div>
+
+                <div id="node-mac" class="tab-content active">
+                    <ol>
+                        <li>Go to <a href="https://nodejs.org" target="_blank">nodejs.org</a></li>
+                        <li>Click the <strong>LTS</strong> (recommended) download button</li>
+                        <li>Open the downloaded <code>.pkg</code> file and follow the installer</li>
+                        <li><strong>Open Terminal:</strong> Press <kbd>Cmd</kbd>+<kbd>Space</kbd> to open Spotlight, type <code>Terminal</code>, and press Enter. A black/white window will appear &mdash; this is where you'll type commands.</li>
+                        <li>Type this and press Enter to confirm it worked:
+                            <div class="cmd-block" style="margin-top: 0.5rem;">
+                                <span class="dollar">$ </span><span class="command">node --version</span>
+                            </div>
+                            You should see something like <code>v22.x.x</code>. If so, you're good!
+                        </li>
+                    </ol>
+                    <div class="callout callout-info">
+                        <strong>Keep Terminal open</strong> &mdash; you'll need it for the next step.
+                    </div>
+                </div>
+                <div id="node-win" class="tab-content">
+                    <ol>
+                        <li>Go to <a href="https://nodejs.org" target="_blank">nodejs.org</a></li>
+                        <li>Click the <strong>LTS</strong> (recommended) download button</li>
+                        <li>Run the downloaded <code>.msi</code> installer (accept all defaults)</li>
+                        <li><strong>Open PowerShell:</strong> Press the <kbd>Windows</kbd> key, type <code>PowerShell</code>, and click <strong>Windows PowerShell</strong>. A blue window will appear &mdash; this is where you'll type commands.</li>
+                        <li>Type this and press Enter to confirm it worked:
+                            <div class="cmd-block" style="margin-top: 0.5rem;">
+                                <span class="dollar">&gt; </span><span class="command">node --version</span>
+                            </div>
+                            You should see something like <code>v22.x.x</code>. If so, you're good!
+                        </li>
+                    </ol>
+                    <div class="callout callout-info">
+                        <strong>Keep PowerShell open</strong> &mdash; you'll need it for the next step.
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 4 -->
+            <div class="step">
+                <div class="step-header">
+                    <span class="step-num">4</span>
                     <h3>Run the Setup Wizard</h3>
                     <span class="time">30 sec</span>
                 </div>
-                <p>Open your terminal and run:</p>
+                <p>In the same Terminal (Mac) or PowerShell (Windows) window from Step 3, run:</p>
+                <div class="callout callout-warn">
+                    <strong>Windows users:</strong> If you get a "running scripts is disabled" error, try one of these fixes:
+                    <ol style="margin-top: 0.5rem; margin-bottom: 0;">
+                        <li><strong>Option A:</strong> Run this in PowerShell, type <strong>Y</strong> when prompted, then try again:
+                            <div class="cmd-block" style="margin-top: 0.3rem; margin-bottom: 0.5rem;">
+                                <span class="dollar">&gt; </span><span class="command">Set-ExecutionPolicy RemoteSigned -Scope CurrentUser</span>
+                            </div>
+                        </li>
+                        <li><strong>Option B (university laptops):</strong> If that doesn't work, close PowerShell and use <strong>Command Prompt</strong> instead. Press the <kbd>Windows</kbd> key, type <code>cmd</code>, and open it. The <code>npx</code> command works the same way there.</li>
+                    </ol>
+                </div>
                 <div class="cmd-block">
                     <span class="dollar">$ </span><span class="command">npx canvas-mcp setup</span>
                 </div>
@@ -352,26 +413,44 @@
                     <li><strong>Which client</strong> &mdash; select <strong>Codex CLI</strong> (press Space, then Enter). This configures both the CLI and the desktop app.</li>
                 </ol>
                 <div class="callout callout-env">
-                    <strong>Important:</strong> After the wizard finishes, it will tell you to set an environment variable. Run the command it shows:
-                    <div class="cmd-block" style="margin-bottom: 0;">
-                        <span class="dollar">$ </span><span class="command">export CANVAS_API_TOKEN="your-token-here"</span>
+                    <strong>Important:</strong> After the wizard finishes, it will tell you to set an environment variable. The command depends on your platform:
+
+                    <div class="tabs" style="margin-top: 0.75rem;">
+                        <button class="tab active" onclick="switchEnv('mac')">macOS (Terminal)</button>
+                        <button class="tab" onclick="switchEnv('win')">Windows</button>
                     </div>
-                </div>
-                <div class="callout callout-info">
-                    <strong>No Node.js?</strong> Download it from <a href="https://nodejs.org">nodejs.org</a> (LTS version). Then re-run the command above.
+
+                    <div id="env-mac" class="tab-content active">
+                        <div class="cmd-block" style="margin-bottom: 0.5rem;">
+                            <span class="dollar">$ </span><span class="command">export CANVAS_API_TOKEN="your-token-here"</span>
+                        </div>
+                        <p style="font-size: 0.85rem; margin: 0;">To make it persist, also add this line to your <code>~/.zshrc</code> file.</p>
+                    </div>
+
+                    <div id="env-win" class="tab-content">
+                        <p style="font-size: 0.85rem; margin-bottom: 0.5rem;">The <code>export</code> command does <strong>not</strong> work on Windows. Instead, set a permanent environment variable in PowerShell:</p>
+                        <div class="cmd-block" style="margin-bottom: 0.5rem;">
+                            <span class="dollar">&gt; </span><span class="command">[System.Environment]::SetEnvironmentVariable("CANVAS_API_TOKEN","your-token-here","User")</span>
+                        </div>
+                        <p style="font-size: 0.85rem; margin: 0;"><strong>Note:</strong> <code>"User"</code> stays exactly as written &mdash; only replace <code>your-token-here</code> with your actual token. After running this, <strong>close all terminals</strong> and reopen before continuing.</p>
+                    </div>
                 </div>
             </div>
 
-            <!-- STEP 4 -->
+            <!-- STEP 5 -->
             <div class="step">
                 <div class="step-header">
-                    <span class="step-num">4</span>
+                    <span class="step-num">5</span>
                     <h3>Restart Codex and Test</h3>
                     <span class="time">30 sec</span>
                 </div>
+                <div class="callout callout-warn">
+                    <strong>Windows users:</strong> Before reopening Codex, close <strong>all</strong> PowerShell and Command Prompt windows first. Codex only reads environment variables at launch &mdash; if any old terminals are open, the Canvas token may not be picked up.
+                </div>
                 <ol>
-                    <li><strong>Quit the Codex app completely</strong> (Cmd+Q on Mac, close window on Windows)</li>
+                    <li><strong>Quit the Codex app completely</strong> (Cmd+Q on Mac, close window on Windows) and close all terminal windows</li>
                     <li>Reopen the Codex app</li>
+                    <li><strong>Open a folder first:</strong> Click the folder icon or File &rarr; Open Folder and select any directory (e.g., Desktop or an empty folder). Codex needs this before it can run commands.</li>
                     <li>Start a new session and type this prompt:</li>
                 </ol>
                 <div class="cmd-block">
@@ -383,33 +462,39 @@
             </div>
         </div>
 
-        <!-- THINGS TO TRY -->
-        <h2>Things to Try</h2>
-        <p class="section-intro">Once you're connected, try asking Codex:</p>
-        <div class="try-grid">
+        <!-- WORKSHOP DAY -->
+        <h2>Workshop Day: AI Course Assembly</h2>
+        <p class="section-intro">Together, we'll build a complete course in 30 minutes. Each person gets a role with specific prompts to run in Codex.</p>
+
+        <div class="step" style="margin-bottom: 1.5rem;">
+            <div class="step-header">
+                <span class="step-num" style="background: #f59e0b;">!</span>
+                <h3>Before We Start</h3>
+            </div>
+            <ol>
+                <li>Make sure you completed Steps 1&ndash;5 above and Codex can see your courses</li>
+                <li>Open the <a href="https://canvas.illinois.edu/courses/68866" target="_blank">workshop Canvas course</a></li>
+                <li>Go to the <strong>&ldquo;Start Here &mdash; Your Workshop Role&rdquo;</strong> module</li>
+                <li>Vishal will assign you a role &mdash; open your role page for prompts to copy into Codex</li>
+            </ol>
+        </div>
+
+        <div class="try-grid" style="grid-template-columns: repeat(2, 1fr);">
             <div class="try-card">
-                <h4>Course Structure</h4>
-                <p>"Show me the full module structure for this course"</p>
+                <h4>Content Creators</h4>
+                <p>Role 1: Page Builder<br>Role 2: Assignment Designer<br>Role 3: Discussion Starter<br>Role 4: Resource Curator</p>
             </div>
             <div class="try-card">
-                <h4>Assignment Overview</h4>
-                <p>"List all assignments with their due dates and point values"</p>
+                <h4>Course Architects</h4>
+                <p>Role 5: Rubric Builder<br>Role 6: Module Organizer<br>Role 7: Syllabus Author</p>
             </div>
             <div class="try-card">
-                <h4>Page Content</h4>
-                <p>"Show me the content of the Week 1 Overview page"</p>
+                <h4>Quality &amp; Analytics</h4>
+                <p>Role 8: Accessibility Auditor<br>Role 9: Announcer<br>Role 10: Course Reviewer</p>
             </div>
             <div class="try-card">
-                <h4>Rubrics</h4>
-                <p>"What rubrics are set up in this course?"</p>
-            </div>
-            <div class="try-card">
-                <h4>Discussions</h4>
-                <p>"List all discussion topics and their settings"</p>
-            </div>
-            <div class="try-card">
-                <h4>Course Files</h4>
-                <p>"What files are uploaded to this course?"</p>
+                <h4>The Big Reveal</h4>
+                <p>At the 20-minute mark, we'll screenshare the course and see what we built together!</p>
             </div>
         </div>
 
@@ -447,14 +532,46 @@
                 <p>Your Canvas token may have expired or been revoked. Go back to Canvas Settings &rarr; Approved Integrations and generate a new token. Then re-run <code>npx canvas-mcp setup</code>.</p>
             </div>
         </details>
+
+        <details>
+            <summary>"Set up Agent sandbox to continue" error</summary>
+            <div class="detail-body">
+                <p>Codex needs a project folder open before it can run commands. Click the <strong>folder icon</strong> or use <strong>File &rarr; Open Folder</strong> and select any directory (even an empty one works).</p>
+                <p><strong>macOS:</strong> The native sandbox works out of the box &mdash; no Docker needed.</p>
+                <p><strong>Windows:</strong> Open PowerShell as Administrator and run: <code>wsl --install</code>, then restart your computer. After restarting, reopen Codex and open a folder again.</p>
+            </div>
+        </details>
+
+        <details>
+            <summary>Every command returns "usage limit" in Codex</summary>
+            <div class="detail-body">
+                <p>This means your setup is actually working &mdash; Codex is authenticated and connected. The problem is likely that your <strong>ChatGPT Edu account</strong> doesn't include Codex access.</p>
+                <p><strong>Fix:</strong> Sign out of your Edu/university ChatGPT account in the Codex app (Profile &rarr; Sign Out). Then reopen Codex and use it <strong>without signing in</strong>, or sign in with a personal (free) account. The free plan includes Codex.</p>
+            </div>
+        </details>
     </div>
 
     <script>
         function switchPlatform(platform) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            const step = document.getElementById('platform-' + platform).parentElement;
+            step.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            step.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             event.target.classList.add('active');
             document.getElementById('platform-' + platform).classList.add('active');
+        }
+        function switchEnv(platform) {
+            const step = document.getElementById('env-' + platform).parentElement;
+            step.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            step.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('env-' + platform).classList.add('active');
+        }
+        function switchNode(platform) {
+            const step = document.getElementById('node-' + platform).parentElement;
+            step.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            step.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('node-' + platform).classList.add('active');
         }
     </script>
 </body>
