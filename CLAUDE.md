@@ -214,6 +214,11 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 ## Session Log
 > Full history: [session-history.md](./session-history.md)
 
+### 2026-03-13
+- **Event loop bug fix**: Fixed "Event loop is closed" error on first MCP tool call in stdio mode. Root cause: `asyncio.run()` in startup token validation created global httpx client on a temporary event loop that was then closed. Added `is_closed` check in `_get_http_client()`.
+- **Concurrency limiter**: Enforced `MAX_CONCURRENT_REQUESTS` (default 10) via `asyncio.Semaphore` in `make_canvas_request()` — prevents overwhelming Canvas API when multiple users share the hosted HTTP server.
+- **Workshop support**: Enhanced workshop page with platform-specific Node.js install instructions, terminal guidance for non-technical users, PowerShell execution policy fix. Configured Canvas course 68866 (modules, TA roles, announcements). Investigated Codex rate limits and sandbox setup errors for workshop attendees.
+
 ### 2026-03-12
 - **CLI npm package**: Built and published `canvas-mcp` v1.1.0 to npm — `npx canvas-mcp setup` wizard configures 6 MCP clients (Codex, Claude Desktop, Cursor, Windsurf, VS Code, Claude Code)
 - **Workshop page**: Created unlisted page at `canvas-mcp.illinihunt.org/workshop` for learning designer workshop (2026-03-13). Codex desktop app setup with Illinois IT token request flow.
