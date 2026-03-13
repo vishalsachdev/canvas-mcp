@@ -20,6 +20,18 @@ DEFAULT_PAGE_SIZE = 100
 # HTTP client will be initialized with configuration
 http_client: httpx.AsyncClient | None = None
 
+# Concurrency limiter for outbound Canvas API calls
+_request_semaphore: asyncio.Semaphore | None = None
+
+
+def _get_request_semaphore() -> asyncio.Semaphore:
+    """Get or create the concurrency semaphore from config."""
+    global _request_semaphore
+    if _request_semaphore is None:
+        from .config import get_config
+        _request_semaphore = asyncio.Semaphore(get_config().max_concurrent_requests)
+    return _request_semaphore
+
 
 def _determine_data_type(endpoint: str) -> str:
     """Determine the type of data based on the API endpoint."""
@@ -78,6 +90,8 @@ def _should_anonymize_endpoint(endpoint: str) -> bool:
 def _get_http_client() -> httpx.AsyncClient:
     """Get or create the HTTP client with current configuration."""
     global http_client
+    if http_client is not None and http_client.is_closed:
+        http_client = None
     if http_client is None:
         from .. import __version__
         from .config import get_config
@@ -152,115 +166,118 @@ async def make_canvas_request(
         url = f"{config.api_base_url.rstrip('/')}{endpoint}"
         _close_client = False
 
-    # Retry loop for rate limiting
-    try:
-        for attempt in range(MAX_RETRIES + 1):
-            try:
-                # Log the request for debugging (if enabled)
-                if config.log_api_requests:
-                    retry_info = f" (retry {attempt}/{MAX_RETRIES})" if attempt > 0 else ""
-                    log_debug(f"Making {method.upper()} request to {sanitize_url(url)}{retry_info}")
-
-                if method.lower() == "get":
-                    response = await client.get(url, params=params)
-                elif method.lower() == "post":
-                    if use_form_data:
-                        # Handle list of tuples separately to work around httpx async bug
-                        # with duplicate keys (e.g., module[prerequisite_module_ids][])
-                        if isinstance(data, list):
-                            encoded = urlencode(data)
-                            response = await client.post(
-                                url,
-                                content=encoded,
-                                headers={"Content-Type": "application/x-www-form-urlencoded"}
-                            )
-                        else:
-                            response = await client.post(url, data=data)
-                    else:
-                        response = await client.post(url, json=data)
-                elif method.lower() == "put":
-                    if use_form_data:
-                        # Handle list of tuples separately to work around httpx async bug
-                        if isinstance(data, list):
-                            encoded = urlencode(data)
-                            response = await client.put(
-                                url,
-                                content=encoded,
-                                headers={"Content-Type": "application/x-www-form-urlencoded"}
-                            )
-                        else:
-                            response = await client.put(url, data=data)
-                    else:
-                        response = await client.put(url, json=data)
-                elif method.lower() == "delete":
-                    response = await client.delete(url, params=params)
-                else:
-                    return {"error": f"Unsupported method: {method}"}
-
-                response.raise_for_status()
-                result = response.json()
-
-                # Apply anonymization if enabled and this endpoint contains student data
-                # Skip if explicitly requested (e.g., from paginated fetcher that will anonymize the full result)
-                if not skip_anonymization and config.enable_data_anonymization and _should_anonymize_endpoint(endpoint):
-                    data_type = _determine_data_type(endpoint)
-                    result = anonymize_response_data(result, data_type)
-
-                    # Log anonymization for debugging (if enabled)
-                    if config.anonymization_debug:
-                        log_debug(f"Applied {data_type} anonymization to {endpoint}")
-
-                # Audit: log successful data access
-                log_data_access(method, endpoint, "success")
-
-                return result
-
-            except httpx.HTTPStatusError as e:
-                # Handle rate limiting with exponential backoff
-                if e.response.status_code == 429 and attempt < MAX_RETRIES:
-                    # Check for Retry-After header
-                    retry_after = e.response.headers.get('Retry-After')
-                    if retry_after:
-                        try:
-                            wait_time = int(retry_after)
-                        except ValueError:
-                            wait_time = INITIAL_BACKOFF_SECONDS * (2 ** attempt)
-                    else:
-                        wait_time = INITIAL_BACKOFF_SECONDS * (2 ** attempt)
-
-                    log_warning(f"Rate limited (429). Retrying in {wait_time}s...", attempt=attempt + 1, max_retries=MAX_RETRIES)
-                    await asyncio.sleep(wait_time)
-                    continue
-
-                # Not a rate limit error or out of retries - format and return error
-                error_message = f"HTTP error: {e.response.status_code}"
+    # Gate outbound calls with concurrency semaphore (uses MAX_CONCURRENT_REQUESTS)
+    semaphore = _get_request_semaphore()
+    async with semaphore:
+        # Retry loop for rate limiting
+        try:
+            for attempt in range(MAX_RETRIES + 1):
                 try:
-                    error_details = e.response.json()
-                    error_message += f", Details: {error_details}"
-                except ValueError:
-                    error_details = e.response.text
-                    error_message += f", Text: {error_details}"
+                    # Log the request for debugging (if enabled)
+                    if config.log_api_requests:
+                        retry_info = f" (retry {attempt}/{MAX_RETRIES})" if attempt > 0 else ""
+                        log_debug(f"Making {method.upper()} request to {sanitize_url(url)}{retry_info}")
 
-                log_error(f"API error on {sanitize_url(endpoint)}", status_code=e.response.status_code)
+                    if method.lower() == "get":
+                        response = await client.get(url, params=params)
+                    elif method.lower() == "post":
+                        if use_form_data:
+                            # Handle list of tuples separately to work around httpx async bug
+                            # with duplicate keys (e.g., module[prerequisite_module_ids][])
+                            if isinstance(data, list):
+                                encoded = urlencode(data)
+                                response = await client.post(
+                                    url,
+                                    content=encoded,
+                                    headers={"Content-Type": "application/x-www-form-urlencoded"}
+                                )
+                            else:
+                                response = await client.post(url, data=data)
+                        else:
+                            response = await client.post(url, json=data)
+                    elif method.lower() == "put":
+                        if use_form_data:
+                            # Handle list of tuples separately to work around httpx async bug
+                            if isinstance(data, list):
+                                encoded = urlencode(data)
+                                response = await client.put(
+                                    url,
+                                    content=encoded,
+                                    headers={"Content-Type": "application/x-www-form-urlencoded"}
+                                )
+                            else:
+                                response = await client.put(url, data=data)
+                        else:
+                            response = await client.put(url, json=data)
+                    elif method.lower() == "delete":
+                        response = await client.delete(url, params=params)
+                    else:
+                        return {"error": f"Unsupported method: {method}"}
 
-                # Audit: log HTTP error (status code only — response body may contain PII)
-                log_data_access(method, endpoint, "error", f"HTTP {e.response.status_code}")
+                    response.raise_for_status()
+                    result = response.json()
 
-                return {"error": error_message}
+                    # Apply anonymization if enabled and this endpoint contains student data
+                    # Skip if explicitly requested (e.g., from paginated fetcher that will anonymize the full result)
+                    if not skip_anonymization and config.enable_data_anonymization and _should_anonymize_endpoint(endpoint):
+                        data_type = _determine_data_type(endpoint)
+                        result = anonymize_response_data(result, data_type)
 
-            except Exception as e:
-                log_error(f"Request failed for {sanitize_url(endpoint)}", error_type=type(e).__name__)
+                        # Log anonymization for debugging (if enabled)
+                        if config.anonymization_debug:
+                            log_debug(f"Applied {data_type} anonymization to {endpoint}")
 
-                # Audit: log request exception (type only — message may contain PII)
-                log_data_access(method, endpoint, "error", type(e).__name__)
+                    # Audit: log successful data access
+                    log_data_access(method, endpoint, "success")
 
-                return {"error": f"Request failed: {str(e)}"}
+                    return result
 
-        # Should never reach here, but just in case
-        return {"error": "Max retries exceeded"}
-    finally:
-        if _close_client:
-            await client.aclose()
+                except httpx.HTTPStatusError as e:
+                    # Handle rate limiting with exponential backoff
+                    if e.response.status_code == 429 and attempt < MAX_RETRIES:
+                        # Check for Retry-After header
+                        retry_after = e.response.headers.get('Retry-After')
+                        if retry_after:
+                            try:
+                                wait_time = int(retry_after)
+                            except ValueError:
+                                wait_time = INITIAL_BACKOFF_SECONDS * (2 ** attempt)
+                        else:
+                            wait_time = INITIAL_BACKOFF_SECONDS * (2 ** attempt)
+
+                        log_warning(f"Rate limited (429). Retrying in {wait_time}s...", attempt=attempt + 1, max_retries=MAX_RETRIES)
+                        await asyncio.sleep(wait_time)
+                        continue
+
+                    # Not a rate limit error or out of retries - format and return error
+                    error_message = f"HTTP error: {e.response.status_code}"
+                    try:
+                        error_details = e.response.json()
+                        error_message += f", Details: {error_details}"
+                    except ValueError:
+                        error_details = e.response.text
+                        error_message += f", Text: {error_details}"
+
+                    log_error(f"API error on {sanitize_url(endpoint)}", status_code=e.response.status_code)
+
+                    # Audit: log HTTP error (status code only — response body may contain PII)
+                    log_data_access(method, endpoint, "error", f"HTTP {e.response.status_code}")
+
+                    return {"error": error_message}
+
+                except Exception as e:
+                    log_error(f"Request failed for {sanitize_url(endpoint)}", error_type=type(e).__name__)
+
+                    # Audit: log request exception (type only — message may contain PII)
+                    log_data_access(method, endpoint, "error", type(e).__name__)
+
+                    return {"error": f"Request failed: {str(e)}"}
+
+            # Should never reach here, but just in case
+            return {"error": "Max retries exceeded"}
+        finally:
+            if _close_client:
+                await client.aclose()
 
 
 async def upload_file_to_storage(
