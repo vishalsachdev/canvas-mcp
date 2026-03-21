@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/canvas-mcp-header.png" alt="Canvas MCP — AI tools for Canvas LMS" width="800">
+</p>
+
 # Canvas MCP Server
 
 <!--mcp-name: io.github.vishalsachdev/canvas-mcp-->
@@ -9,8 +13,6 @@ MCP server for Canvas LMS with **90+ tools** and **8 agent skills**. Works with 
 ```bash
 npx skills add vishalsachdev/canvas-mcp
 ```
-
-> **Note**: Recently refactored to a modular architecture for better maintainability. The legacy monolithic implementation has been archived.
 
 ## For AI Agents
 
@@ -564,7 +566,7 @@ Quick start guides: [Student](examples/student_quickstart.md) | [Educator](examp
 <details>
 <summary>Technical details</summary>
 
-Built on **FastMCP** with async `httpx`, `pydantic` validation, and `python-dotenv` configuration. Modern `src/` layout with `pyproject.toml`. Full type hints, connection pooling, smart pagination, and rate limiting. 290+ tests. `ruff` + `black` for code quality.
+Built on **FastMCP** with async `httpx`, `pydantic` validation, and `python-dotenv` configuration. Modern `src/` layout with `pyproject.toml`. Full type hints, connection pooling, smart pagination, and rate limiting. 300+ tests. `ruff` + `black` for code quality.
 
 </details>
 
