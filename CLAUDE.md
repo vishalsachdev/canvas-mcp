@@ -204,6 +204,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] Cloudflare Pages migration — site moved from GitHub Pages (blocked by Actions) to Cloudflare Pages
 
 ## Backlog
+- [ ] Impact tracker: automated weekly stats collection + website section (plan in `.claude/plans/impact-tracker.md`)
 - [ ] Module templates (pre-configured module structures)
 - [ ] Bulk module creation from JSON/YAML specs
 - [ ] Module duplication across courses
@@ -213,6 +214,12 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 
 ## Session Log
 > Full history: [session-history.md](./session-history.md)
+
+### 2026-03-20
+- **InstructureCon 2026 proposal**: Drafted CFP submission for InstructureCon26 (Louisville, July 21-23). Title: "Teaching AI to Talk to Canvas: How to Turn Any AI Assistant into Your Course Co-Pilot". Breakout session format. Proposal + bio saved to `/Users/vishal/teaching/talks/instcon26/`.
+- **Impact metrics audit**: Collected GitHub (81 stars, 30 forks, 9 contributors), PyPI, and npm stats. Discovered ~50K of 57K PyPI downloads were bot/scanner traffic (flat 555/day Nov–Feb). Real human installs: ~15/day. Saved corrected snapshot to `docs/impact-metrics-2026-03-20.md`.
+- **README refresh**: Added canvas-mcp-header.png banner, removed stale refactoring note, updated test count to 300+.
+- **Impact tracker plan**: Created `.claude/plans/impact-tracker.md` for automated weekly stats collection (GitHub + PyPI + npm) with website section.
 
 ### 2026-03-13
 - **Event loop bug fix**: Fixed "Event loop is closed" error on first MCP tool call in stdio mode. Root cause: `asyncio.run()` in startup token validation created global httpx client on a temporary event loop that was then closed. Added `is_closed` check in `_get_http_client()`.
