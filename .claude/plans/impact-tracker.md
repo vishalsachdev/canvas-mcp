@@ -61,13 +61,13 @@ Add to `docs/index.html` — a new "Impact" card/section that reads `docs/data/i
 
 ## Implementation Steps
 
-1. [ ] Create `scripts/collect-impact-stats.sh` (bash, uses gh + curl)
-2. [ ] Create `docs/data/impact.json` (initial snapshot)
-3. [ ] Add Impact section to `docs/index.html` (fetches JSON, renders cards)
-4. [ ] Create launchd plist for weekly execution
-5. [ ] Create `/impact-stats` skill for on-demand refresh
-6. [ ] Deploy to Cloudflare Pages
-7. [ ] Test end-to-end (collect → JSON → deploy → verify on site)
+1. [x] Create `scripts/collect-impact-stats.sh` (bash, uses gh + curl)
+2. [x] Create `docs/data/impact.json` (initial snapshot)
+3. [x] Add Impact section to `docs/index.html` (fetches JSON, renders cards)
+4. [x] Create launchd plist for weekly execution (`~/Library/LaunchAgents/com.canvas-mcp.impact-stats.plist`)
+5. [x] Create `/impact-stats` skill for on-demand refresh
+6. [x] Deploy to Cloudflare Pages
+7. [x] Test end-to-end (collect → JSON → deploy → verify on site)
 
 ## Critical Notes
 - GitHub traffic API only retains 14 days — MUST collect weekly or data is lost

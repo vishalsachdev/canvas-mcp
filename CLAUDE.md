@@ -220,6 +220,8 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - **Impact metrics audit**: Collected GitHub (81 stars, 30 forks, 9 contributors), PyPI, and npm stats. Discovered ~50K of 57K PyPI downloads were bot/scanner traffic (flat 555/day Nov–Feb). Real human installs: ~15/day. Saved corrected snapshot to `docs/impact-metrics-2026-03-20.md`.
 - **README refresh**: Added canvas-mcp-header.png banner, removed stale refactoring note, updated test count to 300+.
 - **Impact tracker plan**: Created `.claude/plans/impact-tracker.md` for automated weekly stats collection (GitHub + PyPI + npm) with website section.
+- **Impact tracker implemented**: Built `scripts/collect-impact-stats.sh` (GitHub + PyPI + npm APIs), live "Open Source Impact" section on website fetching `docs/data/impact.json`, launchd plist for Monday 9am auto-collection + deploy, `/impact-stats` skill for on-demand refresh.
+- **Speaker profile**: Saved bio, LinkedIn, Substack links to global memory for reuse across talks/events.
 
 ### 2026-03-13
 - **Event loop bug fix**: Fixed "Event loop is closed" error on first MCP tool call in stdio mode. Root cause: `asyncio.run()` in startup token validation created global httpx client on a temporary event loop that was then closed. Added `is_closed` check in `_get_http_client()`.
