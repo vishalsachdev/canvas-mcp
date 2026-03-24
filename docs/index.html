@@ -1011,6 +1011,90 @@
             line-height: 1.7;
         }
 
+        /* Testimonial Section */
+        .testimonial {
+            background: var(--color-bg-primary);
+            padding: 100px 0;
+        }
+
+        .testimonial .section-header {
+            margin-bottom: 40px;
+        }
+
+        .testimonial-card {
+            max-width: 720px;
+            margin: 0 auto;
+            background: var(--color-bg-card-solid);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: 48px;
+            position: relative;
+        }
+
+        .testimonial-quote {
+            margin-bottom: 32px;
+        }
+
+        .quote-icon {
+            color: var(--color-accent-primary);
+            opacity: 0.3;
+            margin-bottom: 16px;
+        }
+
+        .testimonial-card blockquote {
+            font-size: 1.15rem;
+            line-height: 1.85;
+            color: var(--color-text-primary);
+            margin: 0;
+            font-style: italic;
+        }
+
+        .testimonial-author {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding-top: 24px;
+            border-top: 1px solid var(--color-border);
+        }
+
+        .testimonial-avatar {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--color-border);
+        }
+
+        .testimonial-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .testimonial-name {
+            font-size: 1.05rem;
+            color: var(--color-text-primary);
+        }
+
+        .testimonial-role {
+            font-size: 0.9rem;
+            color: var(--color-text-secondary);
+        }
+
+        .testimonial-linkedin {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.8rem;
+            color: var(--color-accent-primary);
+            text-decoration: none;
+            margin-top: 2px;
+        }
+
+        .testimonial-linkedin:hover {
+            text-decoration: underline;
+        }
+
         /* Skills Section */
         .skills {
             background: var(--color-bg-deep);
@@ -1491,6 +1575,14 @@
                 grid-template-columns: 1fr;
             }
 
+            .testimonial-card {
+                padding: 32px 24px;
+            }
+
+            .testimonial-card blockquote {
+                font-size: 1.05rem;
+            }
+
             .install-step {
                 flex-direction: column;
                 text-align: center;
@@ -1889,6 +1981,35 @@ canvas-mcp-server --test<br>
                     <div class="privacy-icon">🚫</div>
                     <h3>No Tracking</h3>
                     <p>Your Canvas usage and AI interactions remain completely private.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonial Section -->
+    <section class="testimonial">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-label">// Testimonial</div>
+            </div>
+            <div class="testimonial-card animate-on-scroll">
+                <div class="testimonial-quote">
+                    <svg class="quote-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="40" height="40">
+                        <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"/>
+                        <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"/>
+                    </svg>
+                    <blockquote>Canvas MCP is the only tool I've found that lets me bridge my institutionally-secured Gemini instance with a local server that keeps my credentials and student materials where they belong: on my own system. It turns a massive administrative burden, like auditing hundreds of due dates, into a 30-second conversation, all while maintaining a zero-trust security posture that would make any IT Director proud.</blockquote>
+                </div>
+                <div class="testimonial-author">
+                    <img src="drew-rozema.jpeg" alt="Drew Rozema" class="testimonial-avatar" width="64" height="64" loading="lazy">
+                    <div class="testimonial-info">
+                        <strong class="testimonial-name">Drew Rozema</strong>
+                        <span class="testimonial-role">Educator &amp; Cybersecurity Strategist</span>
+                        <a href="https://www.linkedin.com/in/drewrozema/" target="_blank" rel="noopener" class="testimonial-linkedin">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                            LinkedIn
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
