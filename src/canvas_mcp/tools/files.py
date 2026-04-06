@@ -12,7 +12,6 @@ The Canvas file upload process uses a 3-step protocol:
 This module handles all three steps transparently.
 """
 
-import os
 import tempfile
 
 from mcp.server.fastmcp import FastMCP
@@ -207,12 +206,15 @@ def register_file_tools(mcp: FastMCP):
         if not download_url:
             return "Error: No download URL available for this file. Check permissions."
 
-        # Determine save path
-        save_dir = save_directory or tempfile.gettempdir()
-        if not os.path.isdir(save_dir):
-            return f"Error: Directory does not exist: {save_dir}"
+        # Determine save path with symlink resolution
+        from pathlib import Path
+        save_dir = Path(save_directory or tempfile.gettempdir()).resolve()
+        if not save_dir.is_dir():
+            return f"Error: Directory does not exist: {save_directory}"
 
-        save_path = os.path.join(save_dir, filename)
+        save_path = (save_dir / filename).resolve()
+        if not save_path.is_relative_to(save_dir):
+            return "Error: Invalid filename - path outside allowed directory"
 
         # Download the file using streaming to handle large files efficiently
         client = _get_http_client()

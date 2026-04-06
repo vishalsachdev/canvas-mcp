@@ -655,14 +655,16 @@ def register_other_tools(mcp: FastMCP):
             return f"No students found for course {course_identifier}."
 
         # Create local_maps directory if it doesn't exist
-        maps_dir = Path("local_maps")
+        maps_dir = Path("local_maps").resolve()
         maps_dir.mkdir(exist_ok=True)
 
         # Generate filename with course identifier
         course_display = await get_course_code(course_id) or str(course_identifier)
         safe_course_name = "".join(c for c in course_display if c.isalnum() or c in ("-", "_"))
         filename = f"anonymization_map_{safe_course_name}.csv"
-        filepath = maps_dir / filename
+        filepath = (maps_dir / filename).resolve()
+        if not filepath.is_relative_to(maps_dir):
+            return "Error: Invalid course name produced unsafe filename"
 
         # Create mapping data
         mapping_data = []

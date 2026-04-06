@@ -144,7 +144,7 @@ Summarize the key information about this course and suggest what the user might 
             full_path = full_path.resolve()
             code_api_dir = code_api_dir.resolve()
 
-            if not str(full_path).startswith(str(code_api_dir)):
+            if not full_path.is_relative_to(code_api_dir):
                 return "❌ Error: Access denied - path outside code_api directory"
 
         except Exception:

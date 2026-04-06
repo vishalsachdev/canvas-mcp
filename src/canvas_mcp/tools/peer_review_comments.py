@@ -4,12 +4,14 @@ import csv
 import json
 import sys
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
 from ..core.cache import get_course_id
 from ..core.client import make_canvas_request
+from ..core.file_validation import sanitize_filename
 from ..core.peer_review_comments import PeerReviewCommentAnalyzer
 from ..core.validation import validate_params
 
@@ -186,6 +188,12 @@ def register_peer_review_comment_tools(mcp: FastMCP):
                 safe_name = "".join(c for c in assignment_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
                 filename = f"peer_reviews_{safe_name}_{assignment_id}"
 
+            # Sanitize filename and confine to exports directory
+            if save_locally:
+                exports_dir = Path("./exports").resolve()
+                exports_dir.mkdir(parents=True, exist_ok=True)
+                filename = sanitize_filename(Path(filename).name)
+
             # Include analytics if requested
             if include_analytics:
                 analytics_data = await analyzer.analyze_peer_review_quality(
@@ -199,16 +207,22 @@ def register_peer_review_comment_tools(mcp: FastMCP):
             if output_format.lower() == "json":
                 output_filename = f"{filename}.json"
                 if save_locally:
-                    with open(output_filename, 'w', encoding='utf-8') as f:
+                    resolved = (exports_dir / output_filename).resolve()
+                    if not resolved.is_relative_to(exports_dir):
+                        return "Error: Invalid filename - path outside allowed directory"
+                    with open(resolved, 'w', encoding='utf-8') as f:
                         json.dump(comments_data, f, indent=2, ensure_ascii=False)
-                    return f"Data exported to {output_filename}"
+                    return f"Data exported to {resolved}"
                 else:
                     return json.dumps(comments_data, indent=2)
 
             elif output_format.lower() == "csv":
                 output_filename = f"{filename}.csv"
                 if save_locally:
-                    with open(output_filename, 'w', newline='', encoding='utf-8') as f:
+                    resolved = (exports_dir / output_filename).resolve()
+                    if not resolved.is_relative_to(exports_dir):
+                        return "Error: Invalid filename - path outside allowed directory"
+                    with open(resolved, 'w', newline='', encoding='utf-8') as f:
                         writer = csv.writer(f)
 
                         # Write header
@@ -235,7 +249,7 @@ def register_peer_review_comment_tools(mcp: FastMCP):
                                 content.get("timestamp", "")
                             ])
 
-                    return f"Data exported to {output_filename}"
+                    return f"Data exported to {resolved}"
                 else:
                     # Return CSV as string
                     csv_lines = []

@@ -5,6 +5,7 @@ import json
 from mcp.server.fastmcp import FastMCP
 
 from ..core.cache import get_course_id
+from ..core.file_validation import sanitize_filename
 from ..core.peer_reviews import PeerReviewAnalyzer
 from ..core.validation import validate_params
 
@@ -127,7 +128,6 @@ def register_peer_review_tools(mcp: FastMCP):
 
             # Handle file saving if requested
             if save_to_file and "report" in result:
-                import os
                 from datetime import datetime
                 from pathlib import Path
 
@@ -138,9 +138,9 @@ def register_peer_review_tools(mcp: FastMCP):
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     filename = f"peer_review_report_{assignment_id}_{timestamp}.{report_format}"
 
-                # Sanitize filename: strip any directory components and resolve
-                # against the reports directory to prevent path traversal.
-                safe_name = Path(filename).name  # discard any directory parts
+                # Sanitize filename: strip directory components, clean special
+                # characters, then resolve against reports dir to prevent traversal.
+                safe_name = sanitize_filename(Path(filename).name)
                 resolved = (reports_dir / safe_name).resolve()
                 if not resolved.is_relative_to(reports_dir):
                     result["save_error"] = "Invalid filename: path outside allowed directory"
