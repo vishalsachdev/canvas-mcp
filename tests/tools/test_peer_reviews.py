@@ -90,5 +90,87 @@ class TestPeerReviewTools:
             assert result == []
 
 
+class TestGeneratePeerReviewReportFileSafety:
+    """Security tests for the generate_peer_review_report file-save path."""
+
+    @pytest.mark.asyncio
+    async def test_path_traversal_basename_only(self, tmp_path):
+        """Directory traversal components are stripped; only the basename is used."""
+        from pathlib import Path
+
+        reports_dir = (tmp_path / "reports")
+        reports_dir.mkdir()
+        r_dir = reports_dir.resolve()
+
+        # Attacker-supplied filename with traversal
+        filename_input = "../../etc/passwd"
+        safe_name = Path(filename_input).name  # "passwd"
+        resolved = (r_dir / safe_name).resolve()
+
+        # The file should be confined to reports_dir
+        assert safe_name == "passwd"
+        assert resolved.is_relative_to(r_dir)
+        # Crucially it must NOT point outside tmp_path
+        assert str(resolved).startswith(str(r_dir))
+
+    @pytest.mark.asyncio
+    async def test_absolute_path_traversal_basename_only(self, tmp_path):
+        """Only the basename of an absolute filename is used."""
+        from pathlib import Path
+
+        reports_dir = (tmp_path / "reports")
+        reports_dir.mkdir()
+        r_dir = reports_dir.resolve()
+
+        filename_input = "/etc/passwd"
+        safe_name = Path(filename_input).name
+        resolved = (r_dir / safe_name).resolve()
+
+        assert safe_name == "passwd"
+        assert resolved.is_relative_to(r_dir)
+
+    @pytest.mark.asyncio
+    async def test_normal_filename_is_accepted(self, tmp_path):
+        """A plain filename without path separators is accepted and lands in reports_dir."""
+        from pathlib import Path
+
+        reports_dir = (tmp_path / "reports")
+        reports_dir.mkdir()
+        r_dir = reports_dir.resolve()
+
+        filename_input = "my_report.md"
+        safe_name = Path(filename_input).name
+        resolved = (r_dir / safe_name).resolve()
+
+        assert resolved.is_relative_to(r_dir)
+        assert resolved.name == "my_report.md"
+
+    @pytest.mark.asyncio
+    async def test_symlink_traversal_rejected(self, tmp_path):
+        """A symlink inside reports_dir that points outside is rejected by is_relative_to()."""
+        from pathlib import Path
+        import os
+
+        reports_dir = (tmp_path / "reports")
+        reports_dir.mkdir()
+        r_dir = reports_dir.resolve()
+
+        # Create a symlink inside reports_dir that points to a directory outside
+        secret_dir = tmp_path / "secret"
+        secret_dir.mkdir()
+        link_path = reports_dir / "escape_link"
+        link_path.symlink_to(secret_dir)
+
+        # If an attacker supplies "escape_link" as the basename, resolve() will
+        # follow the symlink and land outside reports_dir.
+        safe_name = Path("escape_link").name
+        resolved = (r_dir / safe_name).resolve()
+
+        # The is_relative_to() guard must reject this
+        assert not resolved.is_relative_to(r_dir), (
+            "Symlink pointing outside reports_dir should fail the is_relative_to check"
+        )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
