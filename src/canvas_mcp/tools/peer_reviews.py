@@ -129,18 +129,28 @@ def register_peer_review_tools(mcp: FastMCP):
             if save_to_file and "report" in result:
                 import os
                 from datetime import datetime
+                from pathlib import Path
+
+                reports_dir = Path("./reports").resolve()
+                reports_dir.mkdir(parents=True, exist_ok=True)
 
                 if not filename:
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     filename = f"peer_review_report_{assignment_id}_{timestamp}.{report_format}"
 
-                try:
-                    # Save to current working directory
-                    with open(filename, 'w', encoding='utf-8') as f:
-                        f.write(result["report"])
-                    result["saved_to"] = os.path.abspath(filename)
-                except Exception as save_error:
-                    result["save_error"] = f"Failed to save file: {str(save_error)}"
+                # Sanitize filename: strip any directory components and resolve
+                # against the reports directory to prevent path traversal.
+                safe_name = Path(filename).name  # discard any directory parts
+                resolved = (reports_dir / safe_name).resolve()
+                if not resolved.is_relative_to(reports_dir):
+                    result["save_error"] = "Invalid filename: path outside allowed directory"
+                else:
+                    try:
+                        with open(resolved, 'w', encoding='utf-8') as f:
+                            f.write(result["report"])
+                        result["saved_to"] = str(resolved)
+                    except Exception as save_error:
+                        result["save_error"] = f"Failed to save file: {str(save_error)}"
 
             if report_format in ["csv", "markdown"]:
                 return result.get("report", json.dumps(result, indent=2))
