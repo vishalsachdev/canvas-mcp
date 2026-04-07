@@ -204,7 +204,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] Cloudflare Pages migration — site moved from GitHub Pages (blocked by Actions) to Cloudflare Pages
 
 ## Backlog
-- [ ] Impact tracker: automated weekly stats collection + website section (plan in `.claude/plans/impact-tracker.md`)
+- [x] Impact tracker: automated weekly stats collection + website section
 - [ ] Module templates (pre-configured module structures)
 - [ ] Bulk module creation from JSON/YAML specs
 - [ ] Module duplication across courses
@@ -215,106 +215,27 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 ## Session Log
 > Full history: [session-history.md](./session-history.md)
 
+### 2026-04-06
+- **Security: PR #81 review & merge**: Reviewed Copilot-generated PR fixing CWE-22 path traversal in `generate_peer_review_report`. Verified fix (basename extraction + directory confinement + symlink guard), ran 292 tests, admin-merged.
+- **Security: codebase-wide file I/O hardening**: Integrated `sanitize_filename()` into PR #81's fix. Ran security audit that found 4 additional CWE-22 sites — applied consistent defense-in-depth pattern:
+  - `peer_review_comments.py`: unsanitized filename → confine to `./exports/`, sanitize + `is_relative_to()`
+  - `files.py`: `save_directory` not resolved → `Path.resolve()` + `is_relative_to()`
+  - `other_tools.py`: PII CSV in relative CWD → resolve `local_maps/` + symlink check
+  - `resources.py`: `str.startswith()` bypass → replaced with `is_relative_to()`
+- **Housekeeping**: Archived 6 stale session log entries (Feb 23 – Mar 5) to session-history.md. Deleted 2 completed plans (impact-tracker, learning-designer-skill).
+- Next: Re-enable GitHub Actions. Backlog triage.
+
 ### 2026-03-20
-- **InstructureCon 2026 proposal**: Drafted CFP submission for InstructureCon26 (Louisville, July 21-23). Title: "Teaching AI to Talk to Canvas: How to Turn Any AI Assistant into Your Course Co-Pilot". Breakout session format. Proposal + bio saved to `/Users/vishal/teaching/talks/instcon26/`.
-- **Impact metrics audit**: Collected GitHub (81 stars, 30 forks, 9 contributors), PyPI, and npm stats. Discovered ~50K of 57K PyPI downloads were bot/scanner traffic (flat 555/day Nov–Feb). Real human installs: ~15/day. Saved corrected snapshot to `docs/impact-metrics-2026-03-20.md`.
-- **README refresh**: Added canvas-mcp-header.png banner, removed stale refactoring note, updated test count to 300+.
-- **Impact tracker plan**: Created `.claude/plans/impact-tracker.md` for automated weekly stats collection (GitHub + PyPI + npm) with website section.
-- **Impact tracker implemented**: Built `scripts/collect-impact-stats.sh` (GitHub + PyPI + npm APIs), live "Open Source Impact" section on website fetching `docs/data/impact.json`, launchd plist for Monday 9am auto-collection + deploy, `/impact-stats` skill for on-demand refresh.
-- **Speaker profile**: Saved bio, LinkedIn, Substack links to global memory for reuse across talks/events.
+- **InstructureCon 2026 proposal**: Drafted CFP submission for InstructureCon26 (Louisville, July 21-23). Breakout session format.
+- **Impact tracker implemented**: Built `scripts/collect-impact-stats.sh`, live website section, launchd plist, `/impact-stats` skill.
+- **Impact metrics audit**: Real human PyPI installs ~15/day (50K of 57K were bot traffic).
 
 ### 2026-03-13
-- **Event loop bug fix**: Fixed "Event loop is closed" error on first MCP tool call in stdio mode. Root cause: `asyncio.run()` in startup token validation created global httpx client on a temporary event loop that was then closed. Added `is_closed` check in `_get_http_client()`.
-- **Concurrency limiter**: Enforced `MAX_CONCURRENT_REQUESTS` (default 10) via `asyncio.Semaphore` in `make_canvas_request()` — prevents overwhelming Canvas API when multiple users share the hosted HTTP server.
-- **Workshop support**: Enhanced workshop page with platform-specific Node.js install instructions, terminal guidance for non-technical users, PowerShell execution policy fix. Configured Canvas course 68866 (modules, TA roles, announcements). Investigated Codex rate limits and sandbox setup errors for workshop attendees.
+- **Event loop bug fix**: Fixed "Event loop is closed" on first MCP tool call. Added `is_closed` check in `_get_http_client()`.
+- **Concurrency limiter**: `asyncio.Semaphore` in `make_canvas_request()` (default 10).
+- **Workshop support**: Enhanced workshop page, configured Canvas course 68866.
 
 ### 2026-03-12
-- **CLI npm package**: Built and published `canvas-mcp` v1.1.0 to npm — `npx canvas-mcp setup` wizard configures 6 MCP clients (Codex, Claude Desktop, Cursor, Windsurf, VS Code, Claude Code)
-- **Workshop page**: Created unlisted page at `canvas-mcp.illinihunt.org/workshop` for learning designer workshop (2026-03-13). Codex desktop app setup with Illinois IT token request flow.
-- **Light theme**: Converted entire site (index.html, styles.css, workshop.html) from dark to light background. Replaced purple hues with teal (#0891b2).
-- **Workshop context**: Created `/Users/vishal/teaching/canvas-mcp/` with CLAUDE.md for workshop planning. Course: canvas.illinois.edu/courses/68866.
-
-### 2026-03-05
-- **Cloudflare Web Analytics**: Added beacon to educator, student, and bulk-grading guide pages (all 5 docs/ HTML pages now covered)
-- **Cloudflare Pages auto-deploy**: Investigated connecting GitHub repo — not possible for Direct Upload projects. Manual deploy via `wrangler pages deploy` for now.
-
-### 2026-03-04
-- **Cloudflare Pages migration**: Moved site from GitHub Pages (blocked by disabled Actions) to Cloudflare Pages
-  - Created Cloudflare Pages project, deployed `docs/` via `wrangler pages deploy`
-  - Added `canvas-mcp.illinihunt.org` custom domain, updated DNS CNAME from `github.io` → `pages.dev` (proxied)
-  - Created Workers route bypass for `canvas-mcp.*` (wildcard Worker was intercepting traffic)
-  - Disabled GitHub Pages via API, deleted `docs/CNAME`
-  - Auto-deploy not yet connected (manual `wrangler pages deploy` for now)
-- **Learning Designer guide page**: Created `docs/learning-designer-guide.html`
-  - Full guide with tools, AI skills (QC, accessibility, builder), workflows, and installation
-  - Updated homepage LD card link from GitHub AGENTS.md to local guide page
-  - Added "Designers" nav link to all guide pages (student, educator, bulk-grading)
-- **HTTP transport & hosted deployment**: Implemented per-request credential system for multi-tenant hosting
-  - New `core/credentials.py`: ContextVar-based per-request credential threading
-  - Modified `core/client.py`: Per-request httpx client when ContextVar is set, falls back to global for stdio
-  - Modified `server.py`: ASGI middleware extracts X-Canvas-Token/X-Canvas-URL headers, CLI args for transport/host/port
-  - Deployed to VPS (76.13.122.44): systemd service, nginx reverse proxy with SSL, Cloudflare DNS + Workers route bypass
-  - Live at `https://mcp.illinihunt.org/mcp` — verified MCP initialize handshake working
-  - Added `tests/test_http_transport.py` (12 tests: ContextVar, middleware, client integration, CLI args)
-  - Updated README (Use Without Installing section), AGENTS.md (remote auth), docs/index.html (hosted quickstart)
-- **MCP token optimization**: Trimmed tool docstrings across all 91 tools (15 files) for ~35% token reduction
-  - Removed Example Usage blocks (biggest savings: rubrics.py, code_execution.py, discussions.py)
-  - Removed Returns/Raises sections from all MCP tool docstrings
-  - Compressed Args descriptions to one-liners (e.g., `course_identifier` pattern)
-  - Preserved first-line summaries and IMPORTANT behavioral notes
-  - Net: -688 lines, +337 lines (351 lines removed). All 275 tests pass.
-- **GitHub Pages audit**: Cross-referenced docs/index.html against codebase, found 7 disconnects
-  - Updated tool count 80+ → 90+ (actual: 91) across 6 places in index.html + 3 in README
-  - Added Cloudflare Web Analytics beacon (was missing per global CLAUDE.md rule)
-  - Updated test count 235+ → 290+ (actual: 294) in README current text
-  - Fixed server.json websiteUrl to match canonical domain (canvas-mcp.illinihunt.org)
-  - Added ChatGPT to Compatibility grid (was in hero text but missing from grid)
-  - Added file management mention to Educator persona card
-  - Added parse_ufixit_violations to README LD tools table (synced with AGENTS.md)
-- **CLAUDE.md audit**: Scored 68/100 → improved to ~85/100 (384 → 263 lines)
-  - Fixed 3 bugs: AGENTS.md link, test mock path (`src.` prefix), test command
-  - Updated repo tree (added skills/, tests/, tools/ dirs)
-  - Removed 3 workflow sections duplicating AGENTS.md
-  - Condensed Documentation Maintenance (50 → 8 lines)
-  - Archived Feb 1/16/20 session logs to session-history.md
-
-### 2026-03-03
-- **skills.sh discovery debugging**: Investigated why `npx skills find canvas-mcp` returned no results
-  - Root cause 1: CLI package is `skills` not `skills.sh` (`npx skills.sh` → 404)
-  - Root cause 2: `find` searches the online leaderboard (populated by install telemetry), not GitHub repos
-  - `npx skills add vishalsachdev/canvas-mcp` works perfectly — detects all 7 skills from repo
-- **Self-installed skills globally**: `npx skills add vishalsachdev/canvas-mcp -g -y` to seed first telemetry event
-  - Installed to 7 agents: Claude Code, Codex, Cursor, Windsurf, Gemini CLI, Antigravity, OpenCode
-  - Removed duplicate `morning-check`/`week-plan` (non-prefixed copies from `.claude/skills/`)
-- **README hero update**: Moved `npx skills add` command above the fold, added skills.sh badge, updated Publishing section
-- **Version sync**: Updated server.json and docs/index.html from v1.0.8 → v1.1.0 (were missed during Feb 28 bump)
-- **Learning Designer features**: Brainstormed, designed, and implemented full LD toolset
-  - New MCP tool: `get_course_structure` (full module→items tree + summary stats, 5 tests)
-  - 3 new skills: `canvas-course-qc`, `canvas-accessibility-auditor`, `canvas-course-builder`
-  - Skills available via skills.sh (40+ agents) and Claude Code slash commands
-  - Updated AGENTS.md, README.md, tools/README.md, docs/index.html (new LD persona card + 3 skill cards)
-  - Codex review: clean (0 issues)
-- **Live QC test on BADM 350 (Spring 2026)**: Ran canvas-course-qc workflow end-to-end
-  - Fixed: GenAI Module 2 Quiz missing due date (set to Mar 13)
-  - Deleted: 2 orphaned duplicate overview pages (Week 2, Week 3)
-  - Renamed: 6 participation assignments for naming consistency
-  - Added: 3 "Semester Project" subheaders to Weeks 5, 6, 8
-  - Investigated: GenAI Fluency nav pages (orphaned, leave unpublished), Yellowdig reminders (Calendar Events don't notify — keep as-is)
-
-### 2026-02-23
-- **PR #75 Review & Merge**: Reviewed Samuel Parks' file download/listing tools PR
-  - Fixed path traversal vulnerability (sanitize_filename on API-provided filenames)
-  - Switched to streaming downloads (aiter_bytes) for large files
-  - Added sort/order parameter validation in list_course_files
-  - Replaced hardcoded `/tmp` with `tempfile.gettempdir()`
-  - Added 17 new tests (50 total file tests), Codex review passed
-  - Cherry-picked fix commits onto main after fork-based merge gap
-- **Article**: "The Moment Your Side Project Stops Being Yours" — OSS contributor stories
-  - Published drafts to Substack, LinkedIn (1,101 subscribers), and X/Twitter
-  - Generated 3 cover images (LinkedIn 1200x628, Substack 1100x220, Twitter 1200x675)
-- **Skill Updates**: Fixed `/publish-to-substack` and `/publish-to-linkedin` skills
-  - Substack: title/subtitle changed from contenteditable divs to `<textarea>` elements
-  - Substack: body editor selector changed to `.tiptap.ProseMirror`
-  - LinkedIn: title also changed to `<textarea>` — native value setter pattern needed
-  - Both skills: updated CSS selectors reference tables and known bugs
+- **CLI npm package**: Published `canvas-mcp` v1.1.0 to npm — `npx canvas-mcp setup` wizard.
+- **Workshop page**: Created `canvas-mcp.illinihunt.org/workshop`. Light theme conversion.
 

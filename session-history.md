@@ -4,6 +4,90 @@ Archived session log entries from canvas-mcp CLAUDE.md.
 
 ## Session Log
 
+### 2026-03-05
+- **Cloudflare Web Analytics**: Added beacon to educator, student, and bulk-grading guide pages (all 5 docs/ HTML pages now covered)
+- **Cloudflare Pages auto-deploy**: Investigated connecting GitHub repo — not possible for Direct Upload projects. Manual deploy via `wrangler pages deploy` for now.
+
+### 2026-03-04
+- **Cloudflare Pages migration**: Moved site from GitHub Pages (blocked by disabled Actions) to Cloudflare Pages
+  - Created Cloudflare Pages project, deployed `docs/` via `wrangler pages deploy`
+  - Added `canvas-mcp.illinihunt.org` custom domain, updated DNS CNAME from `github.io` → `pages.dev` (proxied)
+  - Created Workers route bypass for `canvas-mcp.*` (wildcard Worker was intercepting traffic)
+  - Disabled GitHub Pages via API, deleted `docs/CNAME`
+  - Auto-deploy not yet connected (manual `wrangler pages deploy` for now)
+- **Learning Designer guide page**: Created `docs/learning-designer-guide.html`
+  - Full guide with tools, AI skills (QC, accessibility, builder), workflows, and installation
+  - Updated homepage LD card link from GitHub AGENTS.md to local guide page
+  - Added "Designers" nav link to all guide pages (student, educator, bulk-grading)
+- **HTTP transport & hosted deployment**: Implemented per-request credential system for multi-tenant hosting
+  - New `core/credentials.py`: ContextVar-based per-request credential threading
+  - Modified `core/client.py`: Per-request httpx client when ContextVar is set, falls back to global for stdio
+  - Modified `server.py`: ASGI middleware extracts X-Canvas-Token/X-Canvas-URL headers, CLI args for transport/host/port
+  - Deployed to VPS (76.13.122.44): systemd service, nginx reverse proxy with SSL, Cloudflare DNS + Workers route bypass
+  - Live at `https://mcp.illinihunt.org/mcp` — verified MCP initialize handshake working
+  - Added `tests/test_http_transport.py` (12 tests: ContextVar, middleware, client integration, CLI args)
+  - Updated README (Use Without Installing section), AGENTS.md (remote auth), docs/index.html (hosted quickstart)
+- **MCP token optimization**: Trimmed tool docstrings across all 91 tools (15 files) for ~35% token reduction
+  - Removed Example Usage blocks (biggest savings: rubrics.py, code_execution.py, discussions.py)
+  - Removed Returns/Raises sections from all MCP tool docstrings
+  - Compressed Args descriptions to one-liners (e.g., `course_identifier` pattern)
+  - Preserved first-line summaries and IMPORTANT behavioral notes
+  - Net: -688 lines, +337 lines (351 lines removed). All 275 tests pass.
+- **GitHub Pages audit**: Cross-referenced docs/index.html against codebase, found 7 disconnects
+  - Updated tool count 80+ → 90+ (actual: 91) across 6 places in index.html + 3 in README
+  - Added Cloudflare Web Analytics beacon (was missing per global CLAUDE.md rule)
+  - Updated test count 235+ → 290+ (actual: 294) in README current text
+  - Fixed server.json websiteUrl to match canonical domain (canvas-mcp.illinihunt.org)
+  - Added ChatGPT to Compatibility grid (was in hero text but missing from grid)
+  - Added file management mention to Educator persona card
+  - Added parse_ufixit_violations to README LD tools table (synced with AGENTS.md)
+- **CLAUDE.md audit**: Scored 68/100 → improved to ~85/100 (384 → 263 lines)
+  - Fixed 3 bugs: AGENTS.md link, test mock path (`src.` prefix), test command
+  - Updated repo tree (added skills/, tests/, tools/ dirs)
+  - Removed 3 workflow sections duplicating AGENTS.md
+  - Condensed Documentation Maintenance (50 → 8 lines)
+  - Archived Feb 1/16/20 session logs to session-history.md
+
+### 2026-03-03
+- **skills.sh discovery debugging**: Investigated why `npx skills find canvas-mcp` returned no results
+  - Root cause 1: CLI package is `skills` not `skills.sh` (`npx skills.sh` → 404)
+  - Root cause 2: `find` searches the online leaderboard (populated by install telemetry), not GitHub repos
+  - `npx skills add vishalsachdev/canvas-mcp` works perfectly — detects all 7 skills from repo
+- **Self-installed skills globally**: `npx skills add vishalsachdev/canvas-mcp -g -y` to seed first telemetry event
+  - Installed to 7 agents: Claude Code, Codex, Cursor, Windsurf, Gemini CLI, Antigravity, OpenCode
+  - Removed duplicate `morning-check`/`week-plan` (non-prefixed copies from `.claude/skills/`)
+- **README hero update**: Moved `npx skills add` command above the fold, added skills.sh badge, updated Publishing section
+- **Version sync**: Updated server.json and docs/index.html from v1.0.8 → v1.1.0 (were missed during Feb 28 bump)
+- **Learning Designer features**: Brainstormed, designed, and implemented full LD toolset
+  - New MCP tool: `get_course_structure` (full module→items tree + summary stats, 5 tests)
+  - 3 new skills: `canvas-course-qc`, `canvas-accessibility-auditor`, `canvas-course-builder`
+  - Skills available via skills.sh (40+ agents) and Claude Code slash commands
+  - Updated AGENTS.md, README.md, tools/README.md, docs/index.html (new LD persona card + 3 skill cards)
+  - Codex review: clean (0 issues)
+- **Live QC test on BADM 350 (Spring 2026)**: Ran canvas-course-qc workflow end-to-end
+  - Fixed: GenAI Module 2 Quiz missing due date (set to Mar 13)
+  - Deleted: 2 orphaned duplicate overview pages (Week 2, Week 3)
+  - Renamed: 6 participation assignments for naming consistency
+  - Added: 3 "Semester Project" subheaders to Weeks 5, 6, 8
+  - Investigated: GenAI Fluency nav pages (orphaned, leave unpublished), Yellowdig reminders (Calendar Events don't notify — keep as-is)
+
+### 2026-02-23
+- **PR #75 Review & Merge**: Reviewed Samuel Parks' file download/listing tools PR
+  - Fixed path traversal vulnerability (sanitize_filename on API-provided filenames)
+  - Switched to streaming downloads (aiter_bytes) for large files
+  - Added sort/order parameter validation in list_course_files
+  - Replaced hardcoded `/tmp` with `tempfile.gettempdir()`
+  - Added 17 new tests (50 total file tests), Codex review passed
+  - Cherry-picked fix commits onto main after fork-based merge gap
+- **Article**: "The Moment Your Side Project Stops Being Yours" — OSS contributor stories
+  - Published drafts to Substack, LinkedIn (1,101 subscribers), and X/Twitter
+  - Generated 3 cover images (LinkedIn 1200x628, Substack 1100x220, Twitter 1200x675)
+- **Skill Updates**: Fixed `/publish-to-substack` and `/publish-to-linkedin` skills
+  - Substack: title/subtitle changed from contenteditable divs to `<textarea>` elements
+  - Substack: body editor selector changed to `.tiptap.ProseMirror`
+  - LinkedIn: title also changed to `<textarea>` — native value setter pattern needed
+  - Both skills: updated CSS selectors reference tables and known bugs
+
 ### 2026-02-20
 - **CI cleanup**: Removed auto-update README step from `create-release.yml` (~160 lines deleted)
   - The step created orphaned branches (e.g., `auto-update-readme-v1.0.8`) when branch protection blocked direct pushes
