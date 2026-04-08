@@ -13,8 +13,8 @@ from ..core.logging import log_error
 from ..core.validation import validate_params
 
 
-def register_assignment_tools(mcp: FastMCP):
-    """Register all assignment-related MCP tools."""
+def register_shared_assignment_tools(mcp: FastMCP):
+    """Register assignment tools accessible to both students and educators."""
 
     @mcp.tool()
     @validate_params
@@ -88,6 +88,10 @@ def register_assignment_tools(mcp: FastMCP):
         # Try to get the course code for display
         course_display = await get_course_code(course_id) or course_identifier
         return f"Assignment Details for ID {assignment_id} in course {course_display}:\n\n" + "\n".join(details)
+
+
+def register_educator_assignment_tools(mcp: FastMCP):
+    """Register educator-only assignment tools (grading, analytics, management)."""
 
     @mcp.tool()
     @validate_params
