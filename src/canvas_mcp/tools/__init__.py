@@ -7,7 +7,7 @@ from .courses import register_course_tools
 from .discovery import register_discovery_tools
 from .discussions import register_discussion_tools
 from .files import register_file_tools
-from .messaging import register_messaging_tools
+from .messaging import register_educator_messaging_tools, register_shared_messaging_tools
 from .modules import register_module_tools
 from .other_tools import register_other_tools
 from .pages import register_page_tools
@@ -26,7 +26,8 @@ __all__ = [
     'register_rubric_tools',
     'register_peer_review_tools',
     'register_peer_review_comment_tools',
-    'register_messaging_tools',
+    'register_shared_messaging_tools',
+    'register_educator_messaging_tools',
     'register_student_tools',
     'register_accessibility_tools',
     'register_discovery_tools',
