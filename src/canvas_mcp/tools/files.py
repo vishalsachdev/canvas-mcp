@@ -32,8 +32,143 @@ from ..core.file_validation import (
 from ..core.validation import validate_params
 
 
-def register_file_tools(mcp: FastMCP):
-    """Register all file-related MCP tools."""
+def register_shared_file_tools(mcp: FastMCP):
+    """Register file tools accessible to both students and educators."""
+
+    @mcp.tool()
+    @validate_params
+    async def download_course_file(
+        course_identifier: str | int,
+        file_id: str | int,
+        save_directory: str | None = None,
+    ) -> str:
+        """Download a file from a Canvas course to the local filesystem.
+
+        Use list_course_files or list_module_items to find file IDs.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            file_id: Canvas file ID
+            save_directory: Local directory to save to (default: system temp dir, must exist)
+        """
+        course_id = await get_course_id(course_identifier)
+
+        # Get file metadata from Canvas API
+        file_info = await make_canvas_request(
+            "get",
+            f"/courses/{course_id}/files/{file_id}"
+        )
+
+        if isinstance(file_info, dict) and "error" in file_info:
+            return f"Error getting file info: {file_info['error']}"
+
+        raw_filename = file_info.get("display_name") or file_info.get("filename", f"file_{file_id}")
+        filename = sanitize_filename(raw_filename)
+        download_url = file_info.get("url")
+        content_type = file_info.get("content-type", "unknown")
+
+        if not download_url:
+            return "Error: No download URL available for this file. Check permissions."
+
+        # Determine save path with symlink resolution
+        from pathlib import Path
+        save_dir = Path(save_directory or tempfile.gettempdir()).resolve()
+        if not save_dir.is_dir():
+            return f"Error: Directory does not exist: {save_directory}"
+
+        save_path = (save_dir / filename).resolve()
+        if not save_path.is_relative_to(save_dir):
+            return "Error: Invalid filename - path outside allowed directory"
+
+        # Download the file using streaming to handle large files efficiently
+        client = _get_http_client()
+        try:
+            total_bytes = 0
+            async with client.stream("GET", download_url, follow_redirects=True) as response:
+                response.raise_for_status()
+
+                with open(save_path, 'wb') as f:
+                    async for chunk in response.aiter_bytes(chunk_size=8192):
+                        f.write(chunk)
+                        total_bytes += len(chunk)
+
+            size_str = format_file_size(total_bytes)
+            course_display = await get_course_code(course_id) or course_identifier
+
+            result = f"Downloaded: {filename}\n"
+            result += f"  Path: {save_path}\n"
+            result += f"  Size: {size_str}\n"
+            result += f"  Type: {content_type}\n"
+            result += f"  Course: {course_display}\n"
+            return result
+
+        except Exception as e:
+            return f"Error downloading file: {str(e)}"
+
+    @mcp.tool()
+    @validate_params
+    async def list_course_files(
+        course_identifier: str | int,
+        search_term: str | None = None,
+        sort: str = "updated_at",
+        order: str = "desc",
+    ) -> str:
+        """List files in a Canvas course with optional search.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            search_term: Filter files by name
+            sort: Sort field: name, size, created_at, updated_at, content_type (default: updated_at)
+            order: "asc" or "desc" (default: desc)
+        """
+        # Validate sort and order parameters
+        valid_sort_fields = {"name", "size", "created_at", "updated_at", "content_type"}
+        if sort not in valid_sort_fields:
+            return f"Invalid sort field: '{sort}'. Must be one of: {', '.join(sorted(valid_sort_fields))}"
+
+        if order not in ("asc", "desc"):
+            return f"Invalid order: '{order}'. Must be 'asc' or 'desc'."
+
+        course_id = await get_course_id(course_identifier)
+
+        params = {
+            "per_page": 100,
+            "sort": sort,
+            "order": order,
+        }
+        if search_term:
+            params["search_term"] = search_term
+
+        files = await fetch_all_paginated_results(
+            f"/courses/{course_id}/files",
+            params
+        )
+
+        if isinstance(files, dict) and "error" in files:
+            return f"Error listing files: {files['error']}"
+
+        if not files:
+            msg = "No files found"
+            if search_term:
+                msg += f" matching '{search_term}'"
+            return msg
+
+        course_display = await get_course_code(course_id) or course_identifier
+        result = f"Files in {course_display}:\n\n"
+
+        for f in files:
+            fid = f.get("id", "?")
+            name = f.get("display_name") or f.get("filename", "unknown")
+            size = format_file_size(f.get("size", 0))
+            ctype = f.get("content-type", "unknown")
+            result += f"  ID: {fid} | {name} ({size}, {ctype})\n"
+
+        result += f"\nTotal: {len(files)} file(s)"
+        return result
+
+
+def register_educator_file_tools(mcp: FastMCP):
+    """Register educator-only file tools (upload)."""
 
     @mcp.tool()
     @validate_params
@@ -169,135 +304,4 @@ def register_file_tools(mcp: FastMCP):
         if file_url:
             result += f"  - Direct URL: {file_url}\n"
 
-        return result
-
-    @mcp.tool()
-    @validate_params
-    async def download_course_file(
-        course_identifier: str | int,
-        file_id: str | int,
-        save_directory: str | None = None,
-    ) -> str:
-        """Download a file from a Canvas course to the local filesystem.
-
-        Use list_course_files or list_module_items to find file IDs.
-
-        Args:
-            course_identifier: Course code or Canvas ID
-            file_id: Canvas file ID
-            save_directory: Local directory to save to (default: system temp dir, must exist)
-        """
-        course_id = await get_course_id(course_identifier)
-
-        # Get file metadata from Canvas API
-        file_info = await make_canvas_request(
-            "get",
-            f"/courses/{course_id}/files/{file_id}"
-        )
-
-        if isinstance(file_info, dict) and "error" in file_info:
-            return f"Error getting file info: {file_info['error']}"
-
-        raw_filename = file_info.get("display_name") or file_info.get("filename", f"file_{file_id}")
-        filename = sanitize_filename(raw_filename)
-        download_url = file_info.get("url")
-        content_type = file_info.get("content-type", "unknown")
-
-        if not download_url:
-            return "Error: No download URL available for this file. Check permissions."
-
-        # Determine save path with symlink resolution
-        from pathlib import Path
-        save_dir = Path(save_directory or tempfile.gettempdir()).resolve()
-        if not save_dir.is_dir():
-            return f"Error: Directory does not exist: {save_directory}"
-
-        save_path = (save_dir / filename).resolve()
-        if not save_path.is_relative_to(save_dir):
-            return "Error: Invalid filename - path outside allowed directory"
-
-        # Download the file using streaming to handle large files efficiently
-        client = _get_http_client()
-        try:
-            total_bytes = 0
-            async with client.stream("GET", download_url, follow_redirects=True) as response:
-                response.raise_for_status()
-
-                with open(save_path, 'wb') as f:
-                    async for chunk in response.aiter_bytes(chunk_size=8192):
-                        f.write(chunk)
-                        total_bytes += len(chunk)
-
-            size_str = format_file_size(total_bytes)
-            course_display = await get_course_code(course_id) or course_identifier
-
-            result = f"Downloaded: {filename}\n"
-            result += f"  Path: {save_path}\n"
-            result += f"  Size: {size_str}\n"
-            result += f"  Type: {content_type}\n"
-            result += f"  Course: {course_display}\n"
-            return result
-
-        except Exception as e:
-            return f"Error downloading file: {str(e)}"
-
-    @mcp.tool()
-    @validate_params
-    async def list_course_files(
-        course_identifier: str | int,
-        search_term: str | None = None,
-        sort: str = "updated_at",
-        order: str = "desc",
-    ) -> str:
-        """List files in a Canvas course with optional search.
-
-        Args:
-            course_identifier: Course code or Canvas ID
-            search_term: Filter files by name
-            sort: Sort field: name, size, created_at, updated_at, content_type (default: updated_at)
-            order: "asc" or "desc" (default: desc)
-        """
-        # Validate sort and order parameters
-        valid_sort_fields = {"name", "size", "created_at", "updated_at", "content_type"}
-        if sort not in valid_sort_fields:
-            return f"Invalid sort field: '{sort}'. Must be one of: {', '.join(sorted(valid_sort_fields))}"
-
-        if order not in ("asc", "desc"):
-            return f"Invalid order: '{order}'. Must be 'asc' or 'desc'."
-
-        course_id = await get_course_id(course_identifier)
-
-        params = {
-            "per_page": 100,
-            "sort": sort,
-            "order": order,
-        }
-        if search_term:
-            params["search_term"] = search_term
-
-        files = await fetch_all_paginated_results(
-            f"/courses/{course_id}/files",
-            params
-        )
-
-        if isinstance(files, dict) and "error" in files:
-            return f"Error listing files: {files['error']}"
-
-        if not files:
-            msg = "No files found"
-            if search_term:
-                msg += f" matching '{search_term}'"
-            return msg
-
-        course_display = await get_course_code(course_id) or course_identifier
-        result = f"Files in {course_display}:\n\n"
-
-        for f in files:
-            fid = f.get("id", "?")
-            name = f.get("display_name") or f.get("filename", "unknown")
-            size = format_file_size(f.get("size", 0))
-            ctype = f.get("content-type", "unknown")
-            result += f"  ID: {fid} | {name} ({size}, {ctype})\n"
-
-        result += f"\nTotal: {len(files)} file(s)"
         return result
