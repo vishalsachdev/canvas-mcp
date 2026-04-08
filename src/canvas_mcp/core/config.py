@@ -75,6 +75,9 @@ class Config:
         self.institution_name = os.getenv("INSTITUTION_NAME", "")
         self.timezone = os.getenv("TIMEZONE", "UTC")
 
+        # Role-based tool filtering
+        self.canvas_role = os.getenv("CANVAS_ROLE", "all").lower()
+
     @property
     def api_base_url(self) -> str:
         """Legacy compatibility for API_BASE_URL."""
@@ -136,6 +139,13 @@ def validate_config() -> bool:
         log_warning(
             "TS_SANDBOX_MODE should be one of auto, local, container; "
             f"defaulting to 'auto' (got '{config.ts_sandbox_mode}')"
+        )
+
+    valid_roles = ("student", "educator", "all")
+    if config.canvas_role not in valid_roles:
+        log_warning(
+            f"CANVAS_ROLE should be one of {', '.join(valid_roles)}; "
+            f"defaulting to 'all' (got '{config.canvas_role}')"
         )
 
     for env_name, env_value in _INVALID_INT_ENV_VARS.items():
