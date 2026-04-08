@@ -92,7 +92,7 @@ def create_server(
     return mcp
 
 
-def register_all_tools(mcp: FastMCP) -> None:
+def register_all_tools(mcp: FastMCP, role: str = "all") -> None:
     """Register all MCP tools, resources, and prompts."""
     log_info("Registering Canvas MCP tools...")
 
@@ -191,6 +191,12 @@ def main() -> None:
         default=8819,
         help="Port for HTTP server (default: 8819)"
     )
+    parser.add_argument(
+        "--role",
+        choices=["student", "educator", "all"],
+        default=None,
+        help="Tool profile: student (~31 tools), educator (~86 tools), all (default: all)"
+    )
 
     args = parser.parse_args()
     is_http = args.transport == "streamable-http"
@@ -209,6 +215,7 @@ def main() -> None:
         print("Canvas MCP Server Configuration:", file=sys.stderr)
         print(f"  Server Name: {config.mcp_server_name}", file=sys.stderr)
         print(f"  Transport: {args.transport}", file=sys.stderr)
+        print(f"  Tool Profile: {config.canvas_role}", file=sys.stderr)
         if is_http:
             print(f"  Host: {args.host}", file=sys.stderr)
             print(f"  Port: {args.port}", file=sys.stderr)
@@ -295,7 +302,13 @@ def main() -> None:
     mcp = create_server(
         host=args.host, port=args.port, transport=args.transport
     )
-    register_all_tools(mcp)
+    # Resolve role: CLI flag > env var > default
+    role = args.role or config.canvas_role
+    if role not in ("student", "educator", "all"):
+        log_warning(f"Unknown role '{role}', defaulting to 'all'")
+        role = "all"
+    log_info(f"Tool profile: {role}")
+    register_all_tools(mcp, role=role)
 
     try:
         if is_http:
