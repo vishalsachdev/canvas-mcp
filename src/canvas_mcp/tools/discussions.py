@@ -13,8 +13,8 @@ from ..core.logging import log_error, log_warning
 from ..core.validation import validate_params
 
 
-def register_discussion_tools(mcp: FastMCP):
-    """Register all discussion and announcement MCP tools."""
+def register_shared_discussion_tools(mcp: FastMCP):
+    """Register discussion tools accessible to both students and educators."""
 
     # ===== DISCUSSION TOOLS =====
 
@@ -754,6 +754,10 @@ def register_discussion_tools(mcp: FastMCP):
                f"Original Entry ID: {entry_id}\n" + \
                f"Reply ID: {reply_id}\n" + \
                f"Message: {truncate_text(message, 200)}"
+
+
+def register_educator_discussion_tools(mcp: FastMCP):
+    """Register educator-only discussion and announcement tools."""
 
     @mcp.tool()
     @validate_params
