@@ -15,6 +15,7 @@ This module handles all three steps transparently.
 import tempfile
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import (
@@ -35,7 +36,7 @@ from ..core.validation import validate_params
 def register_shared_file_tools(mcp: FastMCP):
     """Register file tools accessible to both students and educators."""
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def download_course_file(
         course_identifier: str | int,
@@ -105,7 +106,7 @@ def register_shared_file_tools(mcp: FastMCP):
         except Exception as e:
             return f"Error downloading file: {str(e)}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def list_course_files(
         course_identifier: str | int,

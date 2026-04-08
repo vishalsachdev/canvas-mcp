@@ -6,6 +6,7 @@ and module items. Modules are the primary content organization system in Canvas.
 
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
@@ -16,7 +17,7 @@ from ..core.validation import validate_params
 def register_shared_module_tools(mcp: FastMCP):
     """Register module tools accessible to both students and educators."""
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def list_modules(
         course_identifier: str | int,
@@ -91,7 +92,7 @@ def register_shared_module_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_course_structure(
         course_identifier: str | int,
@@ -374,7 +375,7 @@ def register_educator_module_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
     @validate_params
     async def delete_module(
         course_identifier: str | int,
@@ -677,7 +678,7 @@ def register_educator_module_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
     @validate_params
     async def delete_module_item(
         course_identifier: str | int,

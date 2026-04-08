@@ -4,6 +4,7 @@ import json
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from ..core.anonymization import anonymize_response_data
 from ..core.cache import get_course_code, get_course_id
@@ -294,7 +295,7 @@ def build_rubric_assessment_form_data(
 def register_rubric_tools(mcp: FastMCP) -> None:
     """Register all rubric-related MCP tools."""
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def list_assignment_rubrics(course_identifier: str | int,
                                     assignment_id: str | int) -> str:
@@ -375,7 +376,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_assignment_rubric_details(course_identifier: str | int,
                                           assignment_id: str | int) -> str:
@@ -469,7 +470,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_rubric_details(course_identifier: str | int,
                                rubric_id: str | int) -> str:
@@ -546,7 +547,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_submission_rubric_assessment(course_identifier: str | int,
                                              assignment_id: str | int,
@@ -758,7 +759,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def list_all_rubrics(course_identifier: str | int,
                               include_criteria: bool = True) -> str:
@@ -955,7 +956,7 @@ WORKING ALTERNATIVES:
         # See git history (commit c01dc7d) for the full implementation
         # to restore when Canvas fixes their rubric update API.
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
     @validate_params
     async def delete_rubric(course_identifier: str | int,
                           rubric_id: str | int) -> str:

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Literal
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from ..core.validation import validate_params
 
@@ -18,7 +19,7 @@ DetailLevel = Literal["names", "signatures", "full"]
 def register_discovery_tools(mcp: FastMCP) -> None:
     """Register tool discovery tools."""
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def search_canvas_tools(
         query: str = "",

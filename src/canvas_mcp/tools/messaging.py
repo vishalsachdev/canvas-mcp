@@ -4,6 +4,7 @@ import sys
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from ..core.client import make_canvas_request
 from ..core.validation import validate_params
@@ -12,7 +13,7 @@ from ..core.validation import validate_params
 def register_shared_messaging_tools(mcp: FastMCP) -> None:
     """Register messaging tools accessible to both students and educators."""
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def list_conversations(
         scope: str = "unread",
@@ -62,7 +63,7 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
             print(f"Error listing conversations: {str(e)}", file=sys.stderr)
             return {"error": f"Failed to list conversations: {str(e)}"}
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_conversation_details(
         conversation_id: str | int,
@@ -102,7 +103,7 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
             print(f"Error getting conversation details: {str(e)}", file=sys.stderr)
             return {"error": f"Failed to get conversation details: {str(e)}"}
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def get_unread_count() -> dict[str, Any]:
         """Get number of unread conversations."""
 

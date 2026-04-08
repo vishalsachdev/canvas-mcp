@@ -7,6 +7,7 @@ to access only the student's own data across their enrolled courses.
 from datetime import datetime, timedelta, timezone
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
@@ -17,7 +18,7 @@ from ..core.validation import validate_params
 def register_student_tools(mcp: FastMCP):
     """Register student-specific MCP tools."""
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_my_upcoming_assignments(days: int = 7) -> str:
         """Get your upcoming assignments across all courses.
@@ -93,7 +94,7 @@ def register_student_tools(mcp: FastMCP):
 
         return "\n".join(output_lines)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_my_submission_status(course_identifier: str | int | None = None) -> str:
         """Get your submission status for assignments.
@@ -201,7 +202,7 @@ def register_student_tools(mcp: FastMCP):
 
         return "\n".join(output_lines)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def get_my_course_grades() -> str:
         """Get your current grades across all enrolled courses."""
         courses = await fetch_all_paginated_results(
@@ -255,7 +256,7 @@ def register_student_tools(mcp: FastMCP):
 
         return "\n".join(output_lines)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def get_my_todo_items() -> str:
         """Get your Canvas TODO list."""
         todos = await fetch_all_paginated_results(
@@ -290,7 +291,7 @@ def register_student_tools(mcp: FastMCP):
 
         return "\n".join(output_lines)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_my_peer_reviews_todo(course_identifier: str | int | None = None) -> str:
         """Get peer reviews you need to complete.

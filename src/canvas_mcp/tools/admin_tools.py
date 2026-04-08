@@ -2,6 +2,7 @@
 
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from ..core.anonymization import anonymize_response_data
 from ..core.cache import get_course_code, get_course_id
@@ -13,7 +14,7 @@ from ..core.validation import validate_params
 def register_admin_tools(mcp: FastMCP):
     """Register admin/developer MCP tools."""
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def get_anonymization_status() -> str:
         """Get current data anonymization status and statistics."""
         from ..core.anonymization import get_anonymization_stats
@@ -51,7 +52,7 @@ def register_admin_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def list_groups(course_identifier: str | int) -> str:
         """List all groups and their members for a specific course.
@@ -114,7 +115,7 @@ def register_admin_tools(mcp: FastMCP):
 
         return output
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def list_users(course_identifier: str) -> str:
         """List users enrolled in a specific course.
@@ -162,7 +163,7 @@ def register_admin_tools(mcp: FastMCP):
         course_display = await get_course_code(course_id) or course_identifier
         return f"Users in Course {course_display}:\n\n" + "\n".join(users_info)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_student_analytics(course_identifier: str,
                                   current_only: bool = True,

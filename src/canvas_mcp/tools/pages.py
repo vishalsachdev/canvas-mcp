@@ -6,6 +6,7 @@ editing roles) separate from content editing.
 
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import make_canvas_request
@@ -284,7 +285,7 @@ def register_educator_page_crud_tools(mcp: FastMCP):
 
         return f"Successfully updated page '{page_title}' in course {course_display}. Last updated: {updated_at}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
     @validate_params
     async def delete_page(
         course_identifier: str | int,
