@@ -371,6 +371,8 @@ def _check_content_accessibility(
         r'<a[^>]*>here</a>',
         r'<a[^>]*>read more</a>',
         r'<a[^>]*>more</a>',
+        r'<a[^>]*>link</a>',
+        r'<a[^>]*>this</a>',
     ]
     for pattern in bad_link_patterns:
         for _match in re.finditer(pattern, html_content, re.IGNORECASE):
@@ -384,6 +386,284 @@ def _check_content_accessibility(
                 "content_title": content_title,
                 "description": "Link text is not descriptive",
                 "remediation": "Use descriptive link text that explains the destination",
+                "auto_fixable": False
+            })
+
+    # Check for empty links
+    empty_link_pattern = r'<a[^>]*>\s*</a>'
+    for _match in re.finditer(empty_link_pattern, html_content, re.IGNORECASE):
+        issues.append({
+            "type": "empty_link",
+            "wcag_criterion": "2.4.4",
+            "wcag_level": "A",
+            "severity": "serious",
+            "content_type": content_type,
+            "content_id": content_id,
+            "content_title": content_title,
+            "description": "Link has no text content",
+            "remediation": "Add descriptive text or remove the empty link",
+            "auto_fixable": False
+        })
+
+    # Check for URL-as-link-text
+    url_link_pattern = r'<a[^>]*>\s*https?://[^\s<]+\s*</a>'
+    for _match in re.finditer(url_link_pattern, html_content, re.IGNORECASE):
+        issues.append({
+            "type": "url_as_link_text",
+            "wcag_criterion": "2.4.4",
+            "wcag_level": "A",
+            "severity": "moderate",
+            "content_type": content_type,
+            "content_id": content_id,
+            "content_title": content_title,
+            "description": "Raw URL used as link text instead of descriptive text",
+            "remediation": "Replace URL with descriptive text explaining the destination",
+            "auto_fixable": False
+        })
+
+    # Check for <th> without scope attribute
+    th_without_scope = r'<th(?![^>]*\bscope\b)[^>]*>'
+    for _match in re.finditer(th_without_scope, html_content, re.IGNORECASE):
+        issues.append({
+            "type": "th_missing_scope",
+            "wcag_criterion": "1.3.1",
+            "wcag_level": "A",
+            "severity": "serious",
+            "content_type": content_type,
+            "content_id": content_id,
+            "content_title": content_title,
+            "description": "Table header <th> missing scope attribute",
+            "remediation": "Add scope=\"col\" or scope=\"row\" to all <th> elements",
+            "auto_fixable": True
+        })
+
+    # Check heading hierarchy (skipped levels)
+    heading_levels = [
+        int(m.group(1))
+        for m in re.finditer(r'<h([1-6])[^>]*>', html_content, re.IGNORECASE)
+    ]
+    for i in range(1, len(heading_levels)):
+        if heading_levels[i] > heading_levels[i - 1] + 1:
+            issues.append({
+                "type": "heading_skip",
+                "wcag_criterion": "1.3.1",
+                "wcag_level": "A",
+                "severity": "moderate",
+                "content_type": content_type,
+                "content_id": content_id,
+                "content_title": content_title,
+                "description": f"Heading level skipped: H{heading_levels[i-1]} to H{heading_levels[i]}",
+                "remediation": "Use sequential heading levels without skipping (H2 → H3, not H2 → H4)",
+                "auto_fixable": False
+            })
+
+    # Check for low-contrast text on colored backgrounds
+    # Specifically: white/light text on #ff5f05 (Illinois orange) — 3.1:1, fails AA
+    orange_white_pattern = r'style="[^"]*background-color:\s*#ff5f05[^"]*color:\s*(?:white|#fff(?:fff)?)\b[^"]*"'
+    for _match in re.finditer(orange_white_pattern, html_content, re.IGNORECASE):
+        issues.append({
+            "type": "low_contrast",
+            "wcag_criterion": "1.4.3",
+            "wcag_level": "AA",
+            "severity": "serious",
+            "content_type": content_type,
+            "content_id": content_id,
+            "content_title": content_title,
+            "description": "White text on #ff5f05 orange background (~3.1:1 contrast, needs 4.5:1)",
+            "remediation": "Change text color to #000000 (black) for 6.77:1 contrast on orange",
+            "auto_fixable": True
+        })
+
+    # Check for legacy DesignPLUS kl_ classes (should be migrated to dp-)
+    if re.search(r'\bkl_\w+', html_content):
+        kl_classes = set(re.findall(r'\b(kl_\w+)', html_content))
+        issues.append({
+            "type": "legacy_designplus",
+            "wcag_criterion": "N/A",
+            "wcag_level": "N/A",
+            "severity": "minor",
+            "content_type": content_type,
+            "content_id": content_id,
+            "content_title": content_title,
+            "description": f"Legacy DesignPLUS kl_ classes found: {', '.join(sorted(kl_classes)[:5])}",
+            "remediation": "Migrate kl_ classes to dp- equivalents for new DesignPLUS sidebar",
+            "auto_fixable": True
+        })
+
+    # Check for images with alt text that looks like a filename
+    filename_alt_pattern = r'<img[^>]*alt="[^"]*\.(jpg|jpeg|png|gif|svg|webp|bmp)[^"]*"[^>]*>'
+    for _match in re.finditer(filename_alt_pattern, html_content, re.IGNORECASE):
+        issues.append({
+            "type": "filename_alt_text",
+            "wcag_criterion": "1.1.1",
+            "wcag_level": "A",
+            "severity": "moderate",
+            "content_type": content_type,
+            "content_id": content_id,
+            "content_title": content_title,
+            "description": "Image alt text appears to be a filename",
+            "remediation": "Replace filename with descriptive alt text",
+            "auto_fixable": False
+        })
+
+    # Check for images with alt text starting with "image of" or "graphic of"
+    redundant_alt_pattern = r'<img[^>]*alt="(?:image|graphic|picture|photo|icon)\s+(?:of|showing)\s'
+    for _match in re.finditer(redundant_alt_pattern, html_content, re.IGNORECASE):
+        issues.append({
+            "type": "redundant_alt_prefix",
+            "wcag_criterion": "1.1.1",
+            "wcag_level": "A",
+            "severity": "minor",
+            "content_type": content_type,
+            "content_id": content_id,
+            "content_title": content_title,
+            "description": "Alt text starts with redundant 'image of' / 'graphic of' prefix",
+            "remediation": "Remove the prefix — screen readers already announce it as an image",
+            "auto_fixable": True
+        })
+
+    # Check for very short alt text (likely insufficient)
+    for m in re.finditer(r'<img[^>]*alt="([^"]{1,4})"[^>]*>', html_content, re.IGNORECASE):
+        alt = m.group(1).strip()
+        # Skip empty alt (decorative) and common short valid alts
+        if alt and alt != "&nbsp;" and alt not in ("—", "-", "•", "*", "x", "X"):
+            issues.append({
+                "type": "short_alt_text",
+                "wcag_criterion": "1.1.1",
+                "wcag_level": "A",
+                "severity": "moderate",
+                "content_type": content_type,
+                "content_id": content_id,
+                "content_title": content_title,
+                "description": f"Alt text is very short ({len(alt)} chars): \"{alt}\"",
+                "remediation": "Alt text should describe the image content and function",
+                "auto_fixable": False
+            })
+
+    # Check for very long alt text (should use long description instead)
+    for m in re.finditer(r'<img[^>]*alt="([^"]{100,})"[^>]*>', html_content, re.IGNORECASE):
+        issues.append({
+            "type": "long_alt_text",
+            "wcag_criterion": "1.1.1",
+            "wcag_level": "A",
+            "severity": "minor",
+            "content_type": content_type,
+            "content_id": content_id,
+            "content_title": content_title,
+            "description": f"Alt text is very long ({len(m.group(1))} chars) — consider a long description link",
+            "remediation": "Shorten alt text and provide a linked long description for complex images",
+            "auto_fixable": False
+        })
+
+    # Check for links to documents without file type indicator
+    doc_link_pattern = r'<a[^>]*href="[^"]*\.(pdf|docx?|xlsx?|pptx?|csv)"[^>]*>(.*?)</a>'
+    for m in re.finditer(doc_link_pattern, html_content, re.IGNORECASE | re.DOTALL):
+        ext = m.group(1).lower()
+        link_text = re.sub(r'<[^>]+>', '', m.group(2)).strip()
+        ext_names = {"pdf": "PDF", "doc": "Word", "docx": "Word",
+                     "xls": "Excel", "xlsx": "Excel",
+                     "ppt": "PowerPoint", "pptx": "PowerPoint", "csv": "CSV"}
+        label = ext_names.get(ext, ext.upper())
+        if label.lower() not in link_text.lower() and ext not in link_text.lower():
+            issues.append({
+                "type": "doc_link_no_type",
+                "wcag_criterion": "2.4.4",
+                "wcag_level": "A",
+                "severity": "minor",
+                "content_type": content_type,
+                "content_id": content_id,
+                "content_title": content_title,
+                "description": f"Link to .{ext} file doesn't indicate file type: \"{link_text[:50]}\"",
+                "remediation": f"Add [{label}] to the link text so users know the file type",
+                "auto_fixable": False
+            })
+
+    # Check for videos/iframes without caption indicators
+    iframe_pattern = r'<iframe[^>]*src="([^"]*)"[^>]*>'
+    for m in re.finditer(iframe_pattern, html_content, re.IGNORECASE):
+        src = m.group(1)
+        # Detect video platforms
+        if any(p in src for p in ("youtube.com", "youtu.be", "kaltura.com",
+                                   "vimeo.com", "mediaspace")):
+            issues.append({
+                "type": "video_caption_check",
+                "wcag_criterion": "1.2.2",
+                "wcag_level": "A",
+                "severity": "moderate",
+                "content_type": content_type,
+                "content_id": content_id,
+                "content_title": content_title,
+                "description": "Embedded video — verify captions are present and accurate",
+                "remediation": "Ensure synchronized captions exist; auto-generated captions should be reviewed",
+                "auto_fixable": False
+            })
+
+    # Check for underlined non-link text (confuses users)
+    underline_pattern = r'<(?:span|p|strong|em|div)[^>]*style="[^"]*text-decoration:\s*underline[^"]*"[^>]*>'
+    for _match in re.finditer(underline_pattern, html_content, re.IGNORECASE):
+        issues.append({
+            "type": "underline_not_link",
+            "wcag_criterion": "1.3.1",
+            "wcag_level": "A",
+            "severity": "minor",
+            "content_type": content_type,
+            "content_id": content_id,
+            "content_title": content_title,
+            "description": "Underlined text that is not a link — underlines signal hyperlinks",
+            "remediation": "Use bold or italics for emphasis instead of underline",
+            "auto_fixable": False
+        })
+
+    # Check for small inline font sizes
+    small_font_pattern = r'style="[^"]*font-size:\s*(\d+)\s*px[^"]*"'
+    for m in re.finditer(small_font_pattern, html_content, re.IGNORECASE):
+        size = int(m.group(1))
+        if size < 10:
+            issues.append({
+                "type": "small_font_size",
+                "wcag_criterion": "1.4.4",
+                "wcag_level": "AA",
+                "severity": "moderate",
+                "content_type": content_type,
+                "content_id": content_id,
+                "content_title": content_title,
+                "description": f"Inline font-size: {size}px is below readable threshold",
+                "remediation": "Use at least 12px or remove inline font-size styling",
+                "auto_fixable": False
+            })
+
+    # Check for manual bullet characters instead of proper lists
+    manual_bullet_pattern = r'(?:<p[^>]*>|<br\s*/?>)\s*[•●○◦►▸▹–—\-\*]\s+\w'
+    if re.search(manual_bullet_pattern, html_content):
+        issues.append({
+            "type": "manual_bullets",
+            "wcag_criterion": "1.3.1",
+            "wcag_level": "A",
+            "severity": "minor",
+            "content_type": content_type,
+            "content_id": content_id,
+            "content_title": content_title,
+            "description": "Text uses manual bullet characters instead of <ul>/<ol> list elements",
+            "remediation": "Convert to proper HTML lists for screen reader navigation",
+            "auto_fixable": False
+        })
+
+    # Check for color used as sole indicator (inline color styles without bold/italic)
+    color_only_pattern = r'<span[^>]*style="[^"]*(?<![a-z-])color:\s*(?!inherit|initial|unset|currentcolor)[^;"]+[^"]*"[^>]*>(?:(?!<strong|<em|<b>|<i>).){5,}</span>'
+    for _match in re.finditer(color_only_pattern, html_content, re.IGNORECASE):
+        tag = _match.group(0)
+        # Skip if it also has bold/italic styling
+        if 'font-weight' not in tag and 'font-style' not in tag:
+            issues.append({
+                "type": "color_only_meaning",
+                "wcag_criterion": "1.4.1",
+                "wcag_level": "A",
+                "severity": "minor",
+                "content_type": content_type,
+                "content_id": content_id,
+                "content_title": content_title,
+                "description": "Colored text without additional visual indicator (bold/italic)",
+                "remediation": "Add bold or italic alongside color so meaning isn't conveyed by color alone",
                 "auto_fixable": False
             })
 
