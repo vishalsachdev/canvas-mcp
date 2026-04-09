@@ -237,6 +237,300 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
             "scanned_types": types
         })
 
+    @mcp.tool()
+    @validate_params
+    async def fix_accessibility_issues(
+        course_identifier: str | int,
+        fix_types: str = "th_scope,low_contrast,legacy_designplus,redundant_alt_prefix",
+        content_types: str = "pages",
+        dry_run: bool = True
+    ) -> str:
+        """Auto-fix accessibility issues in Canvas course content.
+
+        Applies automated fixes for issues flagged as auto_fixable by the scanner.
+        Run scan_course_content_accessibility first to see what will be fixed.
+        Default is dry_run=True (preview only). Set dry_run=False to apply changes.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            fix_types: Comma-separated fix types to apply:
+                th_scope - Add scope="col" to <th> without scope
+                low_contrast - Fix white text on #ff5f05 orange backgrounds
+                legacy_designplus - Migrate kl_ classes to dp- equivalents
+                redundant_alt_prefix - Remove "image of" prefix from alt text
+            content_types: Comma-separated types to fix: pages, assignments
+            dry_run: If True, preview changes without applying. Set False to apply.
+        """
+        course_id = await get_course_id(course_identifier)
+        types = [t.strip() for t in fix_types.split(",")]
+        content = [t.strip() for t in content_types.split(",")]
+
+        results: list[dict[str, Any]] = []
+
+        # Collect content items to process
+        items: list[dict[str, Any]] = []
+
+        if "pages" in content:
+            pages = await fetch_all_paginated_results(
+                f"/courses/{course_id}/pages", {"per_page": 100}
+            )
+            if isinstance(pages, list):
+                for page in pages:
+                    slug = page.get("url")
+                    if not slug:
+                        continue
+                    full = await make_canvas_request(
+                        "get", f"/courses/{course_id}/pages/{slug}"
+                    )
+                    body = full.get("body", "") if isinstance(full, dict) else ""
+                    if body:
+                        items.append({
+                            "type": "page",
+                            "id": slug,
+                            "title": page.get("title", slug),
+                            "body": body,
+                            "endpoint": f"/courses/{course_id}/pages/{slug}",
+                            "body_field": "wiki_page[body]"
+                        })
+
+        if "assignments" in content:
+            assignments = await fetch_all_paginated_results(
+                f"/courses/{course_id}/assignments", {"per_page": 100}
+            )
+            if isinstance(assignments, list):
+                for asgn in assignments:
+                    desc = asgn.get("description", "")
+                    if desc:
+                        items.append({
+                            "type": "assignment",
+                            "id": asgn.get("id"),
+                            "title": asgn.get("name", ""),
+                            "body": desc,
+                            "endpoint": f"/courses/{course_id}/assignments/{asgn['id']}",
+                            "body_field": "assignment[description]"
+                        })
+
+        for item in items:
+            html = item["body"]
+            original = html
+            changes: list[str] = []
+
+            if "th_scope" in types:
+                html, count = _fix_th_scope(html)
+                if count:
+                    changes.append(f"th_scope: {count} <th> elements fixed")
+
+            if "low_contrast" in types:
+                html, count = _fix_orange_contrast(html)
+                if count:
+                    changes.append(f"low_contrast: {count} header(s) fixed")
+
+            if "legacy_designplus" in types:
+                html, count = _fix_legacy_designplus(html)
+                if count:
+                    changes.append(f"legacy_designplus: {count} class(es) migrated")
+
+            if "redundant_alt_prefix" in types:
+                html, count = _fix_redundant_alt_prefix(html)
+                if count:
+                    changes.append(f"redundant_alt_prefix: {count} alt text(s) fixed")
+
+            if changes and html != original:
+                if not dry_run:
+                    await make_canvas_request(
+                        "put",
+                        item["endpoint"],
+                        data={item["body_field"]: html},
+                        use_form_data=True
+                    )
+                results.append({
+                    "title": item["title"],
+                    "type": item["type"],
+                    "changes": changes,
+                    "applied": not dry_run
+                })
+
+        summary = {
+            "course_id": course_id,
+            "dry_run": dry_run,
+            "items_scanned": len(items),
+            "items_with_fixes": len(results),
+            "fix_types_applied": types,
+        }
+
+        return json.dumps({"summary": summary, "results": results})
+
+
+def _fix_th_scope(html: str) -> tuple[str, int]:
+    """Add scope='col' to <th> elements missing it."""
+    count = 0
+
+    def _replacer(match: re.Match[str]) -> str:
+        nonlocal count
+        count += 1
+        return match.group(0).replace("<th", '<th scope="col"', 1)
+
+    # Use \b to avoid matching <thead, <thtml, etc.
+    modified = re.sub(r"<th\b(?![^>]*\bscope\b)", _replacer, html, flags=re.IGNORECASE)
+    return modified, count
+
+
+def _fix_orange_contrast(html: str) -> tuple[str, int]:
+    """Fix white text on #ff5f05 orange backgrounds (3.1:1 → 6.77:1)."""
+    count = 0
+
+    def _replacer(match: re.Match[str]) -> str:
+        nonlocal count
+        original = match.group(0)
+        fixed = re.sub(
+            r"color:\s*(?:white|#fff(?:fff)?)\b",
+            "color: #000000",
+            original,
+            flags=re.IGNORECASE,
+        )
+        if fixed != original:
+            count += 1
+        return fixed
+
+    modified = re.sub(
+        r'style="[^"]*background-color:\s*#ff5f05[^"]*color:\s*(?:white|#fff(?:fff)?)[^"]*"',
+        _replacer,
+        html,
+        flags=re.IGNORECASE,
+    )
+    modified = re.sub(
+        r'style="[^"]*color:\s*(?:white|#fff(?:fff)?)[^"]*background-color:\s*#ff5f05[^"]*"',
+        _replacer,
+        modified,
+        flags=re.IGNORECASE,
+    )
+    return modified, count
+
+
+# CidiLabs DesignPLUS kl_ → dp- class mapping
+# Source: https://support.cidilabs.com/knowledgebase/designplus-css-class-and-id-list
+_KL_CLASS_MAP: dict[str, str] = {
+    "kl_wrapper": "dp-wrapper",
+    "kl_flat_sections": "dp-flat-sections",
+    "kl_flat_sections_main": "dp-flat-sections-main",
+    "variation_2": "variation-2",
+    "kl_mod_text": "dp-header-pre-1",
+    "kl_mod_num": "dp-header-pre-2",
+    "kl_subtitle": "dp-header-subtitle",
+    "kl_ignore": "dp-ignore",
+    "kl_locked": "dp-locked",
+    "kl_instructions": "dp-action-item",
+    "kl_progress_icons": "dp-progress-icons",
+    "kl_complete": "dp-complete",
+    "kl_colored_bar": "dp-colored-bar",
+    "kl_current": "dp-current",
+    "kl_pending": "dp-pending",
+    "kl_apple": "dp-apple",
+    "kl_basic_bar": "dp-basic-bar",
+    "kl_basic_color": "dp-basic-color",
+    "kl_bookmark": "dp-bookmark",
+    "kl_box_left": "dp-box-left",
+    "kl_circle_left": "dp-circle-left",
+    "kl_emta": "dp-emta",
+    "kl_badge": "dp-badge",
+    "kl_generic": "dp-generic",
+    "kl_ribbons_main": "dp-ribbons-main",
+    "kl_rounded_inset": "dp-rounded-inset",
+    "kl_square_right": "dp-square-right",
+    "kl_colored_headings_box_left": "dp-colored-headings-box-left",
+    "kl_basic_color_panel_nav": "dp-basic-color-panel-nav",
+}
+
+_KL_ID_TO_CLASS: dict[str, str] = {
+    "kl_wrapper_3": "dp-wrapper",
+    "kl_banner": "dp-header",
+    "kl_banner_left": "dp-header-pre",
+    "kl_banner_right": "dp-header-title",
+    "kl_description": "dp-header-description",
+    "kl_introduction": "dp-content-block",
+    "kl_objectives": "dp-content-block",
+    "kl_readings": "dp-content-block",
+    "kl_lectures": "dp-content-block",
+    "kl_activities": "dp-content-block",
+    "kl_assignments": "dp-content-block",
+}
+
+_KL_ID_PATTERNS: list[tuple[str, str]] = [
+    (r"kl_custom_block_\d+", "dp-content-block"),
+    (r"kl_content_block_\d+", "dp-content-block"),
+    (r"kl_objectives\d+", "dp-content-block"),
+    (r"kl_readings\d+", "dp-content-block"),
+]
+
+
+def _fix_legacy_designplus(html: str) -> tuple[str, int]:
+    """Migrate kl_ classes/IDs to dp- equivalents."""
+    count = 0
+
+    def _replace_classes(match: re.Match[str]) -> str:
+        nonlocal count
+        prefix = match.group(1)
+        classes = match.group(2)
+        new_classes = classes
+        for old, new in _KL_CLASS_MAP.items():
+            pattern = r"\b" + re.escape(old) + r"\b"
+            new_classes = re.sub(pattern, new, new_classes)
+        if new_classes != classes:
+            count += 1
+        return f'{prefix}{new_classes}"'
+
+    html = re.sub(r'(class=")([^"]*)"', _replace_classes, html)
+
+    def _add_dp_class(match: re.Match[str]) -> str:
+        nonlocal count
+        full = match.group(0)
+        id_val = match.group(1)
+        dp_class = _KL_ID_TO_CLASS.get(id_val)
+        if not dp_class:
+            for pattern, cls in _KL_ID_PATTERNS:
+                if re.fullmatch(pattern, id_val):
+                    dp_class = cls
+                    break
+        if not dp_class:
+            return full
+        class_match = re.search(r'class="([^"]*)"', full)
+        if class_match:
+            existing = class_match.group(1)
+            if dp_class in existing:
+                return full
+            new_cls = f"{existing} {dp_class}".strip()
+            count += 1
+            return full.replace(f'class="{existing}"', f'class="{new_cls}"')
+        count += 1
+        return full.replace(f'id="{id_val}"', f'id="{id_val}" class="{dp_class}"')
+
+    html = re.sub(
+        r'<[a-z]+\s[^>]*?id="(kl_[^"]+)"[^>]*?>',
+        _add_dp_class,
+        html,
+        flags=re.IGNORECASE,
+    )
+    return html, count
+
+
+def _fix_redundant_alt_prefix(html: str) -> tuple[str, int]:
+    """Remove 'image of', 'graphic of', etc. prefixes from alt text."""
+    count = 0
+
+    def _replacer(match: re.Match[str]) -> str:
+        nonlocal count
+        count += 1
+        prefix_pattern = r'alt="(?:image|graphic|picture|photo|icon)\s+(?:of|showing)\s+'
+        return re.sub(prefix_pattern, 'alt="', match.group(0), flags=re.IGNORECASE)
+
+    modified = re.sub(
+        r'<img[^>]*alt="(?:image|graphic|picture|photo|icon)\s+(?:of|showing)\s+[^"]*"[^>]*>',
+        _replacer,
+        html,
+        flags=re.IGNORECASE,
+    )
+    return modified, count
+
 
 def _extract_violations_from_html(html_content: str) -> list[dict[str, Any]]:
     """Extract accessibility violations from UFIXIT report HTML.
@@ -421,8 +715,8 @@ def _check_content_accessibility(
             "auto_fixable": False
         })
 
-    # Check for <th> without scope attribute
-    th_without_scope = r'<th(?![^>]*\bscope\b)[^>]*>'
+    # Check for <th> without scope attribute (\b prevents matching <thead>)
+    th_without_scope = r'<th\b(?![^>]*\bscope\b)[^>]*>'
     for _match in re.finditer(th_without_scope, html_content, re.IGNORECASE):
         issues.append({
             "type": "th_missing_scope",
