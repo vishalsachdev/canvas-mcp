@@ -125,20 +125,20 @@ Canvas MCP provides **90+ tools** for interacting with Canvas LMS. Tools are org
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data through any MCP-compatible client.
 
-## Latest Release: v1.1.0
+## Latest Release: v1.2.0
 
-**Released:** March 4, 2026 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.1.0)**
+**Released:** April 2026 | **[View All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
 
-- **Hosted Server** — Use without installing: connect via `https://mcp.illinihunt.org/mcp` with your Canvas credentials as HTTP headers
-- **Learning Designer Tools** — New `get_course_structure` tool + 3 skills for course QC, accessibility auditing, and course scaffolding
-- **Agent Skills** — 8 workflow skills for 40+ coding agents via [skills.sh](https://skills.sh)
-- **File Management** — `download_course_file` and `list_course_files` tools (community PR #75)
-- **Token Optimization** — Trimmed tool docstrings ~35% for faster MCP context loading
-- **Generic Distribution** — Removed institution-specific defaults for universal use
-- **Codebase Refactor** — Type dispatch, structured logging, Python 3.14 fix
+- **Role-Based Tool Filtering** — Set `CANVAS_ROLE` to `student`, `educator`, or `admin` to see only relevant tools ([@Promithius-DR](https://github.com/Promithius-DR), PR #84)
+- **Accessibility Remediation** — New `fix_accessibility_issues` tool for automated WCAG fixes, scanner expanded from 4 to 20 checks
+- **Security Hardening** — Path traversal and symlink protections across all file I/O operations
+- **Windows Support** — Fixed `execute_typescript` compatibility on Windows (PR #85)
+- **CI Improvements** — Consolidated workflows (11 → 8 checks), fork-aware pipelines
 
 <details>
 <summary>Previous releases</summary>
+
+**v1.1.0** — Hosted Server (`mcp.illinihunt.org`), Learning Designer tools + 3 skills, Agent Skills on skills.sh, File Management ([@Metzpapa](https://github.com/Metzpapa), PR #75), Token Optimization, Generic Distribution
 
 **v1.0.8** — Security Hardening (PII sanitization, audit logging, sandbox-by-default), Ruff linting, 235+ tests
 
@@ -602,6 +602,14 @@ Contributions are welcome! Feel free to:
 - Submit issues for bugs or feature requests
 - Create pull requests with improvements
 - Share your use cases and feedback
+
+## Contributors
+
+Thanks to everyone who has contributed to Canvas MCP:
+
+- **[@Promithius-DR](https://github.com/Promithius-DR)** — Role-based tool filtering and tool annotations (#84)
+- **[@Metzpapa](https://github.com/Metzpapa)** — File download and listing tools (#75)
+- **[@JCSnap](https://github.com/JCSnap)** — Student tool bug fixes (#72, #73)
 
 ## License
 
