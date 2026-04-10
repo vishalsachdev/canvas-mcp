@@ -214,25 +214,30 @@ if (typeof globalThis.fetch === 'function') {{
 
 
 def _find_tsx_cli_windows() -> str | None:
-    """Locate the tsx CLI entry point on Windows.
+    """Locate the tsx CLI entry point (tsx/dist/cli.mjs) on Windows.
 
     tsx installs as tsx.cmd (a batch wrapper) which cannot be invoked directly
     via asyncio.create_subprocess_exec without shell=True. This function finds
-    the underlying node module entry point (tsx/dist/cli.mjs) instead.
+    the underlying node module entry point instead.
+
+    Requires tsx v4+ (which uses dist/cli.mjs as its entry point).
 
     Returns the absolute path to cli.mjs if found, else None.
     """
-    # Primary: standard global npm install location (%APPDATA%\npm\node_modules\tsx)
-    appdata = os.environ.get('APPDATA', '')
-    if appdata:
-        candidate = os.path.join(appdata, 'npm', 'node_modules', 'tsx', 'dist', 'cli.mjs')
+    # 1. Resolve via tsx.cmd on PATH — handles project-local (.bin), nvm, and
+    #    standard global installs. Preferred because it respects the user's
+    #    active environment over a potentially stale global install.
+    tsx_cmd = shutil.which('tsx')
+    if tsx_cmd:
+        tsx_cmd_dir = os.path.dirname(os.path.realpath(tsx_cmd))
+        candidate = os.path.join(tsx_cmd_dir, 'node_modules', 'tsx', 'dist', 'cli.mjs')
         if os.path.exists(candidate):
             return candidate
 
-    # Secondary: resolve relative to tsx.cmd discovered on PATH (covers nvm, etc.)
-    tsx_cmd = shutil.which('tsx')
-    if tsx_cmd:
-        candidate = os.path.join(os.path.dirname(tsx_cmd), 'node_modules', 'tsx', 'dist', 'cli.mjs')
+    # 2. Fallback: standard global npm install (%APPDATA%\npm\node_modules\tsx)
+    appdata = os.environ.get('APPDATA', '')
+    if appdata:
+        candidate = os.path.join(appdata, 'npm', 'node_modules', 'tsx', 'dist', 'cli.mjs')
         if os.path.exists(candidate):
             return candidate
 
@@ -254,8 +259,10 @@ def _build_local_tsx_command(temp_file_path: str) -> list[str]:
     if tsx_cli:
         return [node_path, tsx_cli, temp_file_path]
 
-    # tsx not found via known paths; fall back to npx (will surface a helpful error)
-    return ['npx', 'tsx', temp_file_path]
+    # tsx not found — return an error command instead of falling back to npx
+    # which would just re-trigger the same .cmd resolution failure (issue #83)
+    return [node_path, '-e',
+            'console.error("Error: tsx not found. Install globally: npm install -g tsx"); process.exit(1)']
 
 
 def _detect_container_runtime() -> str | None:
