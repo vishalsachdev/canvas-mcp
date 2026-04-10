@@ -207,12 +207,12 @@ class TestRubricTools:
         assert "rubric_id" in output
         assert "assignment_id" in output
 
-    def test_list_rubrics_not_registered(self, mcp):
-        """Verify list_rubrics is NOT registered (still list_all_rubrics at this point)."""
+    def test_list_rubrics_registered(self, mcp):
+        """Verify list_rubrics is registered (renamed from list_all_rubrics)."""
         register_rubric_tools(mcp)
         tool_names = [t.name for t in mcp._tool_manager.list_tools()]
-        assert "list_rubrics" not in tool_names
-        assert "list_all_rubrics" in tool_names
+        assert "list_rubrics" in tool_names
+        assert "list_all_rubrics" not in tool_names
 
 
 if __name__ == "__main__":

@@ -316,7 +316,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                 "Usage:\n"
                 "  - get_rubric(course, rubric_id=123) — look up rubric directly\n"
                 "  - get_rubric(course, assignment_id=456) — get rubric attached to an assignment\n"
-                "\nUse list_all_rubrics to find rubric IDs for a course."
+                "\nUse list_rubrics to find rubric IDs for a course."
             )
 
         course_id = await get_course_id(course_identifier)
@@ -454,7 +454,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
-    async def get_submission_rubric_assessment(course_identifier: str | int,
+    async def get_rubric_assessment(course_identifier: str | int,
                                              assignment_id: str | int,
                                              user_id: str | int) -> str:
         """Get rubric assessment scores for a specific submission.
@@ -606,7 +606,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                     "Grades will NOT be saved to the gradebook.\n\n"
                     "To fix this:\n"
                     "1. Use get_rubric to verify rubric settings\n"
-                    "2. Use associate_rubric_with_assignment with use_for_grading=True\n"
+                    "2. Use associate_rubric with use_for_grading=True\n"
                     "3. Or configure the rubric in Canvas UI: Assignment Settings → Rubric → Use for Grading\n\n"
                     f"Assignment: {assignment_check.get('name', 'Unknown')}\n"
                     f"Course ID: {course_id}\n"
@@ -666,7 +666,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
-    async def list_all_rubrics(course_identifier: str | int,
+    async def list_rubrics(course_identifier: str | int,
                               include_criteria: bool = True) -> str:
         """List all rubrics in a specific course with optional detailed criteria.
 
@@ -760,7 +760,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     @validate_params
-    async def associate_rubric_with_assignment(course_identifier: str | int,
+    async def associate_rubric(course_identifier: str | int,
                                              rubric_id: str | int,
                                              assignment_id: str | int,
                                              use_for_grading: bool = False,
@@ -872,7 +872,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                         "Grades will NOT be saved to the gradebook.\n\n"
                         "To fix this:\n"
                         "1. Use get_rubric to verify rubric settings\n"
-                        "2. Use associate_rubric_with_assignment with use_for_grading=True\n"
+                        "2. Use associate_rubric with use_for_grading=True\n"
                         "3. Or set dry_run=True to test without submitting\n"
                     )
 
