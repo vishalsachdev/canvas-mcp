@@ -1,6 +1,6 @@
 """File-related MCP tools for Canvas API.
 
-Provides tools for uploading, downloading, and listing files in Canvas courses.
+Provides tools for uploading, downloading, reading, and listing files in Canvas courses.
 Uploaded files can be used with other tools like add_module_item (for adding
 files to modules) and send_conversation (for attaching files to messages).
 
@@ -12,6 +12,7 @@ The Canvas file upload process uses a 3-step protocol:
 This module handles all three steps transparently.
 """
 
+import base64
 import tempfile
 
 from mcp.server.fastmcp import FastMCP
@@ -105,6 +106,89 @@ def register_shared_file_tools(mcp: FastMCP):
 
         except Exception as e:
             return f"Error downloading file: {str(e)}"
+
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @validate_params
+    async def read_course_file(
+        course_identifier: str | int,
+        file_id: str | int,
+        max_size_mb: float = 25.0,
+    ) -> str:
+        """Read a file from a Canvas course and return its content as base64.
+
+        Unlike download_course_file which saves to the server's local filesystem,
+        this tool returns the file content directly in the response. This is useful
+        when the MCP server runs on a different machine than the client.
+
+        Use list_course_files or list_module_items to find file IDs.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            file_id: Canvas file ID
+            max_size_mb: Maximum file size in MB to read (default: 25). Files larger than this will be rejected to avoid excessive memory usage.
+        """
+        course_id = await get_course_id(course_identifier)
+
+        # Get file metadata from Canvas API
+        file_info = await make_canvas_request(
+            "get",
+            f"/courses/{course_id}/files/{file_id}"
+        )
+
+        if isinstance(file_info, dict) and "error" in file_info:
+            return f"Error getting file info: {file_info['error']}"
+
+        raw_filename = file_info.get("display_name") or file_info.get("filename", f"file_{file_id}")
+        filename = sanitize_filename(raw_filename)
+        download_url = file_info.get("url")
+        content_type = file_info.get("content-type", "unknown")
+        reported_size = file_info.get("size", 0)
+
+        if not download_url:
+            return "Error: No download URL available for this file. Check permissions."
+
+        # Check reported file size before downloading
+        max_size_bytes = int(max_size_mb * 1024 * 1024)
+        if reported_size and reported_size > max_size_bytes:
+            return (
+                f"Error: File '{filename}' is {format_file_size(reported_size)}, "
+                f"which exceeds the {max_size_mb} MB limit. "
+                f"Use download_course_file instead for large files."
+            )
+
+        # Download the file content into memory
+        client = _get_http_client()
+        try:
+            chunks = []
+            total_bytes = 0
+            async with client.stream("GET", download_url, follow_redirects=True) as response:
+                response.raise_for_status()
+
+                async for chunk in response.aiter_bytes(chunk_size=8192):
+                    total_bytes += len(chunk)
+                    if total_bytes > max_size_bytes:
+                        return (
+                            f"Error: File '{filename}' exceeds the {max_size_mb} MB limit "
+                            f"during download. Use download_course_file instead for large files."
+                        )
+                    chunks.append(chunk)
+
+            file_bytes = b"".join(chunks)
+            base64_content = base64.b64encode(file_bytes).decode("ascii")
+
+            size_str = format_file_size(total_bytes)
+            course_display = await get_course_code(course_id) or course_identifier
+
+            result = f"Read: {filename}\n"
+            result += f"  Size: {size_str}\n"
+            result += f"  Type: {content_type}\n"
+            result += f"  Course: {course_display}\n"
+            result += "  Encoding: base64\n"
+            result += f"  Content:\n{base64_content}\n"
+            return result
+
+        except Exception as e:
+            return f"Error reading file: {str(e)}"
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
