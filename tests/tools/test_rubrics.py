@@ -6,9 +6,11 @@ import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from mcp.server.fastmcp import FastMCP
 
 from canvas_mcp.tools.rubrics import (
     preprocess_criteria_string,
+    register_rubric_tools,
     validate_rubric_criteria,
 )
 
@@ -83,46 +85,134 @@ class TestRubricValidation:
 
 
 class TestRubricTools:
-    """Test rubric tool functions."""
+    """Test rubric tool registration and invocation."""
+
+    @pytest.fixture
+    def mcp(self):
+        return FastMCP("test-rubrics")
+
+    @pytest.fixture
+    def mock_canvas_request(self):
+        with patch('canvas_mcp.tools.rubrics.make_canvas_request', new_callable=AsyncMock) as mock:
+            yield mock
+
+    @pytest.fixture
+    def mock_course_id(self):
+        with patch('canvas_mcp.tools.rubrics.get_course_id', new_callable=AsyncMock) as mock:
+            mock.return_value = 12345
+            yield mock
+
+    @pytest.fixture
+    def mock_course_code(self):
+        with patch('canvas_mcp.tools.rubrics.get_course_code', new_callable=AsyncMock) as mock:
+            mock.return_value = "TEST101"
+            yield mock
+
+    @pytest.fixture
+    def mock_fetch_all(self):
+        with patch('canvas_mcp.tools.rubrics.fetch_all_paginated_results', new_callable=AsyncMock) as mock:
+            yield mock
+
+    def test_get_rubric_registered(self, mcp):
+        """Verify get_rubric is registered after calling register_rubric_tools."""
+        register_rubric_tools(mcp)
+        tool_names = [t.name for t in mcp._tool_manager.list_tools()]
+        assert "get_rubric" in tool_names
 
     @pytest.mark.asyncio
-    async def test_list_rubrics(self):
-        """Test listing rubrics."""
-        mock_rubrics = [
-            {"id": 1, "title": "Rubric 1", "points_possible": 100},
-            {"id": 2, "title": "Rubric 2", "points_possible": 50}
-        ]
-
-        with patch('canvas_mcp.core.client.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
-            mock_fetch.return_value = mock_rubrics
-
-            from canvas_mcp.core.client import fetch_all_paginated_results
-
-            result = await fetch_all_paginated_results("/courses/12345/rubrics", {})
-
-            assert len(result) == 2
-            assert result[0]["title"] == "Rubric 1"
-
-    @pytest.mark.asyncio
-    async def test_get_rubric_details(self):
-        """Test getting rubric details."""
-        mock_rubric = {
-            "id": 123,
-            "title": "Test Rubric",
-            "criteria": [
-                {"id": "crit1", "description": "Quality", "points": 40}
+    async def test_get_rubric_by_rubric_id(self, mcp, mock_canvas_request, mock_course_id, mock_course_code):
+        """Test get_rubric with rubric_id returns criteria and rating IDs."""
+        mock_canvas_request.return_value = {
+            "title": "Essay Rubric",
+            "points_possible": 100,
+            "reusable": True,
+            "read_only": False,
+            "data": [
+                {
+                    "id": "_crit1",
+                    "description": "Thesis Quality",
+                    "long_description": "Evaluate the strength of the thesis statement",
+                    "points": 40,
+                    "ratings": [
+                        {"id": "_r1", "description": "Excellent", "points": 40, "long_description": ""},
+                        {"id": "_r2", "description": "Good", "points": 30, "long_description": ""},
+                        {"id": "_r3", "description": "Poor", "points": 10, "long_description": ""},
+                    ]
+                }
             ]
         }
 
-        with patch('canvas_mcp.core.client.make_canvas_request', new_callable=AsyncMock) as mock_request:
-            mock_request.return_value = mock_rubric
+        register_rubric_tools(mcp)
+        result = await mcp.call_tool("get_rubric", {
+            "course_identifier": "TEST101",
+            "rubric_id": 999
+        })
 
-            from canvas_mcp.core.client import make_canvas_request
+        output = result[0][0].text
+        assert "Essay Rubric" in output
+        assert "_crit1" in output
+        assert "_r1" in output
+        assert "Thesis Quality" in output
+        assert "40 pts" in output
 
-            result = await make_canvas_request("get", "/courses/12345/rubrics/123")
+    @pytest.mark.asyncio
+    async def test_get_rubric_by_assignment_id(self, mcp, mock_canvas_request, mock_course_id, mock_course_code):
+        """Test get_rubric with assignment_id returns grading config."""
+        mock_canvas_request.return_value = {
+            "name": "Final Essay",
+            "use_rubric_for_grading": True,
+            "rubric_settings": {"points_possible": 50},
+            "rubric": [
+                {
+                    "id": "_c1",
+                    "description": "Content",
+                    "points": 25,
+                    "ratings": [
+                        {"id": "_ra", "description": "Full marks", "points": 25},
+                        {"id": "_rb", "description": "Half marks", "points": 12},
+                    ]
+                },
+                {
+                    "id": "_c2",
+                    "description": "Style",
+                    "points": 25,
+                    "ratings": []
+                }
+            ]
+        }
 
-            assert result["title"] == "Test Rubric"
-            assert len(result["criteria"]) == 1
+        register_rubric_tools(mcp)
+        result = await mcp.call_tool("get_rubric", {
+            "course_identifier": "TEST101",
+            "assignment_id": 456
+        })
+
+        output = result[0][0].text
+        assert "Final Essay" in output
+        assert "Used for Grading: Yes" in output
+        assert "Points Possible: 50" in output
+        assert "_c1" in output
+        assert "_ra" in output
+
+    @pytest.mark.asyncio
+    async def test_get_rubric_neither_id(self, mcp, mock_course_id, mock_course_code):
+        """Test get_rubric with neither ID returns error with usage guidance."""
+        register_rubric_tools(mcp)
+        result = await mcp.call_tool("get_rubric", {
+            "course_identifier": "TEST101"
+        })
+
+        output = result[0][0].text
+        assert "Error" in output
+        assert "rubric_id" in output
+        assert "assignment_id" in output
+
+    def test_list_rubrics_not_registered(self, mcp):
+        """Verify list_rubrics is NOT registered (still list_all_rubrics at this point)."""
+        register_rubric_tools(mcp)
+        tool_names = [t.name for t in mcp._tool_manager.list_tools()]
+        assert "list_rubrics" not in tool_names
+        assert "list_all_rubrics" in tool_names
 
 
 if __name__ == "__main__":

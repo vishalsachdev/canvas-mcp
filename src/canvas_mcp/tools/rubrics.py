@@ -297,18 +297,96 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
-    async def list_assignment_rubrics(course_identifier: str | int,
-                                    assignment_id: str | int) -> str:
-        """Get rubrics attached to a specific assignment.
+    async def get_rubric(course_identifier: str | int,
+                         rubric_id: str | int | None = None,
+                         assignment_id: str | int | None = None) -> str:
+        """Get detailed rubric criteria, ratings, and points.
+
+        Accepts either rubric_id or assignment_id (at least one required).
+        If both provided, uses rubric_id (more specific).
 
         Args:
             course_identifier: Course code or Canvas ID
-            assignment_id: Canvas assignment ID
+            rubric_id: Canvas rubric ID (direct lookup)
+            assignment_id: Canvas assignment ID (get rubric attached to assignment)
         """
+        if rubric_id is None and assignment_id is None:
+            return (
+                "Error: You must provide either rubric_id or assignment_id.\n\n"
+                "Usage:\n"
+                "  - get_rubric(course, rubric_id=123) — look up rubric directly\n"
+                "  - get_rubric(course, assignment_id=456) — get rubric attached to an assignment\n"
+                "\nUse list_all_rubrics to find rubric IDs for a course."
+            )
+
         course_id = await get_course_id(course_identifier)
+        course_display = await get_course_code(course_id) or course_identifier
+
+        # Path 1: Look up by rubric_id (preferred when both provided)
+        if rubric_id is not None:
+            rubric_id_str = str(rubric_id)
+
+            response = await make_canvas_request(
+                "get",
+                f"/courses/{course_id}/rubrics/{rubric_id_str}",
+                params={"include[]": ["assessments", "associations"]}
+            )
+
+            if "error" in response:
+                return f"Error fetching rubric: {response['error']}"
+
+            title = response.get("title", "Untitled Rubric")
+            points_possible = response.get("points_possible", 0)
+            reusable = response.get("reusable", False)
+            read_only = response.get("read_only", False)
+            data = response.get("data", [])
+
+            result = f"Rubric '{title}' in Course {course_display}:\n\n"
+            result += f"Rubric ID: {rubric_id}\n"
+            result += f"Total Points: {points_possible}\n"
+            result += f"Reusable: {'Yes' if reusable else 'No'}\n"
+            result += f"Read Only: {'Yes' if read_only else 'No'}\n"
+
+            if data:
+                result += f"Number of Criteria: {len(data)}\n\n"
+                result += "Criteria and Ratings:\n"
+                result += "=" * 50 + "\n"
+
+                for i, criterion in enumerate(data, 1):
+                    criterion_id = criterion.get("id", "N/A")
+                    description = criterion.get("description", "No description")
+                    long_description = criterion.get("long_description", "")
+                    points = criterion.get("points", 0)
+                    ratings = criterion.get("ratings", [])
+
+                    result += f"\nCriterion #{i}: {description}\n"
+                    result += f"  ID: {criterion_id}\n"
+                    result += f"  Points: {points}\n"
+
+                    if long_description and long_description != description:
+                        result += f"  Description: {truncate_text(long_description, 200)}\n"
+
+                    if ratings:
+                        sorted_ratings = sorted(ratings, key=lambda x: x.get("points", 0), reverse=True)
+                        for rating in sorted_ratings:
+                            rating_desc = rating.get("description", "No description")
+                            rating_points = rating.get("points", 0)
+                            rating_id = rating.get("id", "N/A")
+                            result += f"  - {rating_points} pts: {rating_desc} [ID: {rating_id}]\n"
+
+                            rating_long_desc = rating.get("long_description", "")
+                            if rating_long_desc and rating_long_desc != rating_desc:
+                                result += f"    {truncate_text(rating_long_desc, 100)}\n"
+
+                    result += "\n"
+            else:
+                result += "\nNo criteria defined for this rubric.\n"
+
+            return result
+
+        # Path 2: Look up via assignment_id
         assignment_id_str = str(assignment_id)
 
-        # Get assignment details with rubric information
         response = await make_canvas_request(
             "get",
             f"/courses/{course_id}/assignments/{assignment_id_str}",
@@ -316,114 +394,29 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         )
 
         if "error" in response:
-            return f"Error fetching assignment rubrics: {response['error']}"
+            return f"Error fetching rubric: {response['error']}"
 
-        # Check if assignment has rubric
         rubric = response.get("rubric")
-        rubric_settings = response.get("rubric_settings", {})
-        use_rubric_for_grading = response.get("use_rubric_for_grading", False)
-
         if not rubric:
             assignment_name = response.get("name", "Unknown Assignment")
-            course_display = await get_course_code(course_id) or course_identifier
             return f"No rubric found for assignment '{assignment_name}' in course {course_display}."
 
-        # Format rubric information
         assignment_name = response.get("name", "Unknown Assignment")
-        course_display = await get_course_code(course_id) or course_identifier
+        rubric_settings = response.get("rubric_settings", {})
+        use_rubric_for_grading = response.get("use_rubric_for_grading", False)
 
         result = f"Rubric for Assignment '{assignment_name}' in Course {course_display}:\n\n"
 
-        # Rubric settings
+        # Grading config (only available via assignment path)
+        result += "Grading Config:\n"
+        result += f"  Used for Grading: {'Yes' if use_rubric_for_grading else 'No'}\n"
         if rubric_settings:
-            result += "Rubric Settings:\n"
-            result += f"  Used for Grading: {'Yes' if use_rubric_for_grading else 'No'}\n"
             result += f"  Points Possible: {rubric_settings.get('points_possible', 'N/A')}\n"
-            result += f"  Hide Score Total: {'Yes' if rubric_settings.get('hide_score_total') else 'No'}\n"
-            result += f"  Hide Points: {'Yes' if rubric_settings.get('hide_points') else 'No'}\n\n"
-
-        # Rubric criteria summary
-        result += "Criteria Overview:\n"
-        total_points = 0
-
-        for i, criterion in enumerate(rubric, 1):
-            criterion_description = criterion.get("description", "No description")
-            criterion_points = criterion.get("points", 0)
-            ratings_count = len(criterion.get("ratings", []))
-
-            result += f"{i}. {criterion_description}\n"
-            result += f"   Points: {criterion_points}\n"
-            result += f"   Rating Levels: {ratings_count}\n"
-
-            total_points += criterion_points
-
-        result += f"\nTotal Possible Points: {total_points}\n"
-        result += f"Number of Criteria: {len(rubric)}\n"
-
-        # Extract rubric ID for use with get_rubric_details
-        rubric_id = None
-        if rubric and len(rubric) > 0:
-            # The rubric ID might be in the first criterion or in rubric_settings
-            if rubric_settings and "id" in rubric_settings:
-                rubric_id = rubric_settings["id"]
-            elif "id" in rubric[0]:
-                # Sometimes the rubric ID is embedded in the criteria
-                rubric_id = rubric[0].get("id")
-
-        if rubric_id:
-            result += f"Rubric ID: {rubric_id}\n"
-            result += f"\nTo get detailed criteria descriptions, use: get_assignment_rubric_details with assignment_id {assignment_id}"
-
-        return result
-
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
-    @validate_params
-    async def get_assignment_rubric_details(course_identifier: str | int,
-                                          assignment_id: str | int) -> str:
-        """Get detailed rubric criteria and rating descriptions for an assignment.
-
-        Args:
-            course_identifier: Course code or Canvas ID
-            assignment_id: Canvas assignment ID
-        """
-        course_id = await get_course_id(course_identifier)
-        assignment_id_str = str(assignment_id)
-
-        # Get assignment details with full rubric information
-        response = await make_canvas_request(
-            "get",
-            f"/courses/{course_id}/assignments/{assignment_id_str}",
-            params={"include[]": ["rubric", "rubric_settings"]}
-        )
-
-        if "error" in response:
-            return f"Error fetching assignment rubric details: {response['error']}"
-
-        # Check if assignment has rubric
-        rubric = response.get("rubric")
-        if not rubric:
-            assignment_name = response.get("name", "Unknown Assignment")
-            course_display = await get_course_code(course_id) or course_identifier
-            return f"No rubric found for assignment '{assignment_name}' in course {course_display}."
-
-        # Format detailed rubric information
-        assignment_name = response.get("name", "Unknown Assignment")
-        course_display = await get_course_code(course_id) or course_identifier
-        rubric_settings = response.get("rubric_settings", {})
-        use_rubric_for_grading = response.get("use_rubric_for_grading", False)
-
-        result = f"Detailed Rubric for Assignment '{assignment_name}' in Course {course_display}:\n\n"
-
-        # Rubric metadata
-        result += f"Assignment ID: {assignment_id}\n"
-        result += f"Used for Grading: {'Yes' if use_rubric_for_grading else 'No'}\n"
-        if rubric_settings:
-            result += f"Total Points Possible: {rubric_settings.get('points_possible', 'N/A')}\n"
         result += f"Number of Criteria: {len(rubric)}\n\n"
 
-        # Detailed criteria and ratings
-        result += "Detailed Criteria and Rating Scales:\n"
-        result += "=" * 60 + "\n"
+        # Criteria and ratings
+        result += "Criteria and Ratings:\n"
+        result += "=" * 50 + "\n"
 
         total_points = 0
         for i, criterion in enumerate(rubric, 1):
@@ -434,116 +427,28 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             ratings = criterion.get("ratings", [])
 
             result += f"\nCriterion #{i}: {description}\n"
-            result += f"Criterion ID: {criterion_id}\n"
-            result += f"Maximum Points: {points}\n"
+            result += f"  ID: {criterion_id}\n"
+            result += f"  Points: {points}\n"
 
             if long_description and long_description != description:
-                result += f"Full Description: {long_description}\n"
+                result += f"  Description: {truncate_text(long_description, 200)}\n"
 
             if ratings:
-                result += f"\nRating Scale ({len(ratings)} levels):\n"
-                # Sort ratings by points (highest to lowest)
                 sorted_ratings = sorted(ratings, key=lambda x: x.get("points", 0), reverse=True)
-
-                for _, rating in enumerate(sorted_ratings):
-                    rating_description = rating.get("description", "No description")
+                for rating in sorted_ratings:
+                    rating_desc = rating.get("description", "No description")
                     rating_points = rating.get("points", 0)
                     rating_id = rating.get("id", "N/A")
-                    long_desc = rating.get("long_description", "")
+                    result += f"  - {rating_points} pts: {rating_desc} [ID: {rating_id}]\n"
 
-                    result += f"  {rating_points} pts: {rating_description}"
-                    if rating_id != "N/A":
-                        result += f" [ID: {rating_id}]"
-                    result += "\n"
-
-                    if long_desc and long_desc != rating_description:
-                        # Format long description nicely
-                        formatted_desc = long_desc.replace("\\n", "\n    ")
-                        result += f"    Details: {formatted_desc}\n"
-            else:
-                result += "No rating scale defined for this criterion.\n"
+                    rating_long_desc = rating.get("long_description", "")
+                    if rating_long_desc and rating_long_desc != rating_desc:
+                        result += f"    {truncate_text(rating_long_desc, 100)}\n"
 
             total_points += points
-            result += "\n" + "-" * 40 + "\n"
+            result += "\n"
 
-        result += f"\nTotal Rubric Points: {total_points}"
-
-        return result
-
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
-    @validate_params
-    async def get_rubric_details(course_identifier: str | int,
-                               rubric_id: str | int) -> str:
-        """Get detailed rubric criteria and scoring information.
-
-        Args:
-            course_identifier: Course code or Canvas ID
-            rubric_id: Canvas rubric ID
-        """
-        course_id = await get_course_id(course_identifier)
-        rubric_id_str = str(rubric_id)
-
-        # Get detailed rubric information
-        response = await make_canvas_request(
-            "get",
-            f"/courses/{course_id}/rubrics/{rubric_id_str}",
-            params={"include[]": ["assessments", "associations"]}
-        )
-
-        if "error" in response:
-            return f"Error fetching rubric details: {response['error']}"
-
-        # Extract rubric details
-        title = response.get("title", "Untitled Rubric")
-        context_code = response.get("context_code", "")
-        context_type = response.get("context_type", "")
-        points_possible = response.get("points_possible", 0)
-        reusable = response.get("reusable", False)
-        read_only = response.get("read_only", False)
-        data = response.get("data", [])
-
-        course_display = await get_course_code(course_id) or course_identifier
-
-        result = f"Detailed Rubric Information for Course {course_display}:\n\n"
-        result += f"Title: {title}\n"
-        result += f"Rubric ID: {rubric_id}\n"
-        result += f"Context: {context_type} ({context_code})\n"
-        result += f"Total Points: {points_possible}\n"
-        result += f"Reusable: {'Yes' if reusable else 'No'}\n"
-        result += f"Read Only: {'Yes' if read_only else 'No'}\n\n"
-
-        # Detailed criteria and ratings
-        if data:
-            result += "Detailed Criteria and Ratings:\n"
-            result += "=" * 50 + "\n"
-
-            for i, criterion in enumerate(data, 1):
-                criterion_id = criterion.get("id", "N/A")
-                description = criterion.get("description", "No description")
-                long_description = criterion.get("long_description", "")
-                points = criterion.get("points", 0)
-                ratings = criterion.get("ratings", [])
-
-                result += f"\nCriterion #{i}: {description}\n"
-                result += f"ID: {criterion_id}\n"
-                result += f"Points: {points}\n"
-
-                if long_description:
-                    result += f"Description: {truncate_text(long_description, 200)}\n"
-
-                if ratings:
-                    result += f"Rating Levels ({len(ratings)}):\n"
-                    for j, rating in enumerate(ratings):
-                        rating_description = rating.get("description", "No description")
-                        rating_points = rating.get("points", 0)
-                        rating_id = rating.get("id", "N/A")
-
-                        result += f"  {j+1}. {rating_description} ({rating_points} pts) [ID: {rating_id}]\n"
-
-                        if rating.get("long_description"):
-                            result += f"     {truncate_text(rating.get('long_description'), 100)}\n"
-
-                result += "\n"
+        result += f"Total Rubric Points: {total_points}"
 
         return result
 
@@ -671,7 +576,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         """Submit grades using rubric criteria.
 
         IMPORTANT: Criterion IDs often start with underscore (e.g., "_8027").
-        Use list_assignment_rubrics or get_rubric_details to find criterion/rating IDs.
+        Use get_rubric to find criterion/rating IDs.
         The rubric must be attached to the assignment and configured for grading (use_for_grading=true).
 
         Args:
@@ -700,7 +605,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                     "The rubric exists but 'use_for_grading' is set to FALSE.\n"
                     "Grades will NOT be saved to the gradebook.\n\n"
                     "To fix this:\n"
-                    "1. Use list_assignment_rubrics to verify rubric settings\n"
+                    "1. Use get_rubric to verify rubric settings\n"
                     "2. Use associate_rubric_with_assignment with use_for_grading=True\n"
                     "3. Or configure the rubric in Canvas UI: Assignment Settings → Rubric → Use for Grading\n\n"
                     f"Assignment: {assignment_check.get('name', 'Unknown')}\n"
@@ -966,7 +871,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                         "The rubric exists but 'use_for_grading' is set to FALSE.\n"
                         "Grades will NOT be saved to the gradebook.\n\n"
                         "To fix this:\n"
-                        "1. Use list_assignment_rubrics to verify rubric settings\n"
+                        "1. Use get_rubric to verify rubric settings\n"
                         "2. Use associate_rubric_with_assignment with use_for_grading=True\n"
                         "3. Or set dry_run=True to test without submitting\n"
                     )
