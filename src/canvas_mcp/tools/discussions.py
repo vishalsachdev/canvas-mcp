@@ -4,6 +4,7 @@ import json
 import re
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from ..core.anonymization import anonymize_response_data
 from ..core.cache import get_course_code, get_course_id
@@ -13,12 +14,12 @@ from ..core.logging import log_error, log_warning
 from ..core.validation import validate_params
 
 
-def register_discussion_tools(mcp: FastMCP):
-    """Register all discussion and announcement MCP tools."""
+def register_shared_discussion_tools(mcp: FastMCP):
+    """Register discussion tools accessible to both students and educators."""
 
     # ===== DISCUSSION TOOLS =====
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def list_discussion_topics(course_identifier: str | int,
                                    include_announcements: bool = False) -> str:
@@ -61,7 +62,7 @@ def register_discussion_tools(mcp: FastMCP):
         course_display = await get_course_code(course_id) or course_identifier
         return f"Discussion Topics for Course {course_display}:\n\n" + "\n".join(topics_info)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_discussion_topic_details(course_identifier: str | int,
                                          topic_id: str | int) -> str:
@@ -130,7 +131,7 @@ def register_discussion_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def list_discussion_entries(course_identifier: str | int,
                                     topic_id: str | int,
@@ -365,7 +366,7 @@ def register_discussion_tools(mcp: FastMCP):
 
         return f"Discussion Entries for '{topic_title}' in Course {course_display}:\n\n" + "\n".join(entries_info) + footer
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_discussion_entry_details(course_identifier: str | int,
                                          topic_id: str | int,
@@ -531,7 +532,7 @@ def register_discussion_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_discussion_with_replies(course_identifier: str | int,
                                         topic_id: str | int,
@@ -755,6 +756,10 @@ def register_discussion_tools(mcp: FastMCP):
                f"Reply ID: {reply_id}\n" + \
                f"Message: {truncate_text(message, 200)}"
 
+
+def register_educator_discussion_tools(mcp: FastMCP):
+    """Register educator-only discussion and announcement tools."""
+
     @mcp.tool()
     @validate_params
     async def create_discussion_topic(course_identifier: str | int,
@@ -810,7 +815,7 @@ def register_discussion_tools(mcp: FastMCP):
 
     # ===== ANNOUNCEMENT TOOLS =====
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def list_announcements(course_identifier: str) -> str:
         """List announcements for a specific course.
@@ -897,7 +902,7 @@ def register_discussion_tools(mcp: FastMCP):
 
     # ===== ANNOUNCEMENT DELETION TOOLS =====
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
     @validate_params
     async def delete_announcement(
         course_identifier: str | int,
@@ -936,7 +941,7 @@ def register_discussion_tools(mcp: FastMCP):
                "Status: deleted\n" + \
                "Message: Announcement deleted successfully"
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
     @validate_params
     async def bulk_delete_announcements(
         course_identifier: str | int,
@@ -1028,7 +1033,7 @@ def register_discussion_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
     @validate_params
     async def delete_announcement_with_confirmation(
         course_identifier: str | int,
@@ -1094,7 +1099,7 @@ def register_discussion_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
     @validate_params
     async def delete_announcements_by_criteria(
         course_identifier: str | int,

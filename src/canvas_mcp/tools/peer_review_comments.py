@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_id
 from ..core.client import make_canvas_request
@@ -19,7 +20,7 @@ from ..core.validation import validate_params
 def register_peer_review_comment_tools(mcp: FastMCP):
     """Register all peer review comment analysis MCP tools."""
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_peer_review_comments(
         course_identifier: str | int,
@@ -60,7 +61,7 @@ def register_peer_review_comment_tools(mcp: FastMCP):
         except Exception as e:
             return f"Error in get_peer_review_comments: {str(e)}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def analyze_peer_review_quality(
         course_identifier: str | int,
@@ -103,7 +104,7 @@ def register_peer_review_comment_tools(mcp: FastMCP):
         except Exception as e:
             return f"Error in analyze_peer_review_quality: {str(e)}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def identify_problematic_peer_reviews(
         course_identifier: str | int,
@@ -143,7 +144,7 @@ def register_peer_review_comment_tools(mcp: FastMCP):
         except Exception as e:
             return f"Error in identify_problematic_peer_reviews: {str(e)}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def extract_peer_review_dataset(
         course_identifier: str | int,
@@ -273,7 +274,7 @@ def register_peer_review_comment_tools(mcp: FastMCP):
         except Exception as e:
             return f"Error in extract_peer_review_dataset: {str(e)}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def generate_peer_review_feedback_report(
         course_identifier: str | int,

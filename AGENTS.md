@@ -37,6 +37,18 @@ CANVAS_API_URL=https://your-institution.instructure.com/api/v1
 
 Students and educators use the same server but have access to different tools based on Canvas API permissions.
 
+### Tool Profile (Optional)
+Reduce tool overhead by setting a role-based profile. Only tools relevant to the selected role are registered:
+
+```
+# In .env:
+CANVAS_ROLE=student    # ~31 tools (student + shared)
+CANVAS_ROLE=educator   # ~86 tools (educator + shared)
+CANVAS_ROLE=all        # All 91 tools (default)
+```
+
+Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
+
 ## Tool Categories
 
 ### Student Tools

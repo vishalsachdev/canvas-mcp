@@ -3,6 +3,7 @@
 import re
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from ..core.cache import (
     course_code_to_id_cache,
@@ -40,7 +41,7 @@ def strip_html_tags(html_content: str) -> str:
 def register_course_tools(mcp: FastMCP):
     """Register all course-related MCP tools."""
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def list_courses(include_concluded: bool = False, include_all: bool = False) -> str:
         """List courses for the authenticated user."""
@@ -86,7 +87,7 @@ def register_course_tools(mcp: FastMCP):
 
         return "Courses:\n\n" + "\n".join(courses_info)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_course_details(course_identifier: str | int) -> str:
         """Get detailed information about a specific course.
@@ -121,7 +122,7 @@ def register_course_tools(mcp: FastMCP):
         course_display = response.get("course_code", course_identifier)
         return f"Course Details for {course_display}:\n\n" + "\n".join(details)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_course_content_overview(course_identifier: str | int,
                                         include_pages: bool = True,
@@ -250,5 +251,246 @@ def register_course_tools(mcp: FastMCP):
         # Try to get the course code for display
         course_display = await get_course_code(course_id) or course_identifier
         result = f"Content Overview for Course {course_display}:" + "\n".join(overview_sections)
+
+        return result
+
+
+def register_shared_content_tools(mcp: FastMCP):
+    """Register shared content tools (pages, module items) for both students and educators."""
+
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @validate_params
+    async def list_pages(course_identifier: str | int,
+                        sort: str | None = "title",
+                        order: str | None = "asc",
+                        search_term: str | None = None,
+                        published: bool | None = None) -> str:
+        """List pages for a specific course.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            sort: Sort by 'title', 'created_at', or 'updated_at'
+            order: 'asc' or 'desc'
+            search_term: Filter pages containing this term
+            published: Filter by published status (None for all)
+        """
+        course_id = await get_course_id(course_identifier)
+
+        params = {"per_page": 100}
+
+        if sort:
+            params["sort"] = sort
+        if order:
+            params["order"] = order
+        if search_term:
+            params["search_term"] = search_term
+        if published is not None:
+            params["published"] = published
+
+        pages = await fetch_all_paginated_results(f"/courses/{course_id}/pages", params)
+
+        if isinstance(pages, dict) and "error" in pages:
+            return f"Error fetching pages: {pages['error']}"
+
+        if not pages:
+            return f"No pages found for course {course_identifier}."
+
+        pages_info = []
+        for page in pages:
+            url = page.get("url", "No URL")
+            title = page.get("title", "Untitled page")
+            published_status = "Published" if page.get("published", False) else "Unpublished"
+            is_front_page = page.get("front_page", False)
+            updated_at = format_date(page.get("updated_at"))
+
+            front_page_indicator = " (Front Page)" if is_front_page else ""
+
+            pages_info.append(
+                f"URL: {url}\nTitle: {title}{front_page_indicator}\nStatus: {published_status}\nUpdated: {updated_at}\n"
+            )
+
+        course_display = await get_course_code(course_id) or course_identifier
+        return f"Pages for Course {course_display}:\n\n" + "\n".join(pages_info)
+
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @validate_params
+    async def get_page_content(course_identifier: str | int, page_url_or_id: str) -> str:
+        """Get the full content body of a specific page.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            page_url_or_id: Page URL slug or page ID
+        """
+        course_id = await get_course_id(course_identifier)
+
+        response = await make_canvas_request("get", f"/courses/{course_id}/pages/{page_url_or_id}")
+
+        if "error" in response:
+            return f"Error fetching page content: {response['error']}"
+
+        title = response.get("title", "Untitled")
+        body = response.get("body", "")
+        published = response.get("published", False)
+
+        if not body:
+            return f"Page '{title}' has no content."
+
+        course_display = await get_course_code(course_id) or course_identifier
+        status = "Published" if published else "Unpublished"
+
+        return f"Page Content for '{title}' in Course {course_display} ({status}):\n\n{body}"
+
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @validate_params
+    async def get_page_details(course_identifier: str | int, page_url_or_id: str) -> str:
+        """Get detailed information about a specific page.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            page_url_or_id: Page URL slug or page ID
+        """
+        course_id = await get_course_id(course_identifier)
+
+        response = await make_canvas_request("get", f"/courses/{course_id}/pages/{page_url_or_id}")
+
+        if "error" in response:
+            return f"Error fetching page details: {response['error']}"
+
+        title = response.get("title", "Untitled")
+        url = response.get("url", "N/A")
+        body = response.get("body", "")
+        created_at = format_date(response.get("created_at"))
+        updated_at = format_date(response.get("updated_at"))
+        published = response.get("published", False)
+        front_page = response.get("front_page", False)
+        locked_for_user = response.get("locked_for_user", False)
+        editing_roles = response.get("editing_roles", "")
+
+        # Handle last edited by user info
+        last_edited_by = response.get("last_edited_by", {})
+        editor_name = last_edited_by.get("display_name", "Unknown") if last_edited_by else "Unknown"
+
+        # Clean up body text for display
+        if body:
+            # Remove HTML tags for cleaner display
+            import re
+            body_clean = re.sub(r'<[^>]+>', '', body)
+            body_clean = body_clean.strip()
+            if len(body_clean) > 500:
+                body_clean = body_clean[:500] + "..."
+        else:
+            body_clean = "No content"
+
+        status_info = []
+        if published:
+            status_info.append("Published")
+        else:
+            status_info.append("Unpublished")
+
+        if front_page:
+            status_info.append("Front Page")
+
+        if locked_for_user:
+            status_info.append("Locked")
+
+        course_display = await get_course_code(course_id) or course_identifier
+
+        result = f"Page Details for Course {course_display}:\n\n"
+        result += f"Title: {title}\n"
+        result += f"URL: {url}\n"
+        result += f"Status: {', '.join(status_info)}\n"
+        result += f"Created: {created_at}\n"
+        result += f"Updated: {updated_at}\n"
+        result += f"Last Edited By: {editor_name}\n"
+        result += f"Editing Roles: {editing_roles or 'Not specified'}\n"
+        result += f"\nContent Preview:\n{body_clean}"
+
+        return result
+
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @validate_params
+    async def get_front_page(course_identifier: str | int) -> str:
+        """Get the front page content for a course.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+        """
+        course_id = await get_course_id(course_identifier)
+
+        response = await make_canvas_request("get", f"/courses/{course_id}/front_page")
+
+        if "error" in response:
+            return f"Error fetching front page: {response['error']}"
+
+        title = response.get("title", "Untitled")
+        body = response.get("body", "")
+        updated_at = format_date(response.get("updated_at"))
+
+        if not body:
+            return f"Course front page '{title}' has no content."
+
+        # Try to get the course code for display
+        course_display = await get_course_code(course_id) or course_identifier
+        return f"Front Page '{title}' for Course {course_display} (Updated: {updated_at}):\n\n{body}"
+
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @validate_params
+    async def list_module_items(course_identifier: str | int,
+                               module_id: str | int,
+                               include_content_details: bool = True) -> str:
+        """List items within a specific module, including pages.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            module_id: The module ID
+            include_content_details: Include additional content details (default: True)
+        """
+        course_id = await get_course_id(course_identifier)
+
+        params = {"per_page": 100}
+        if include_content_details:
+            params["include[]"] = ["content_details"]
+
+        items = await fetch_all_paginated_results(
+            f"/courses/{course_id}/modules/{module_id}/items", params
+        )
+
+        if isinstance(items, dict) and "error" in items:
+            return f"Error fetching module items: {items['error']}"
+
+        if not items:
+            return f"No items found in module {module_id}."
+
+        # Get module details for context
+        module_response = await make_canvas_request(
+            "get", f"/courses/{course_id}/modules/{module_id}"
+        )
+
+        module_name = "Unknown Module"
+        if "error" not in module_response:
+            module_name = module_response.get("name", "Unknown Module")
+
+        course_display = await get_course_code(course_id) or course_identifier
+        result = f"Module Items for '{module_name}' in Course {course_display}:\n\n"
+
+        for item in items:
+            item_id = item.get("id")
+            title = item.get("title", "Untitled")
+            item_type = item.get("type", "Unknown")
+            content_id = item.get("content_id")
+            url = item.get("url", "")
+            external_url = item.get("external_url", "")
+            published = item.get("published", False)
+
+            result += f"Item: {title}\n"
+            result += f"Type: {item_type}\n"
+            result += f"ID: {item_id}\n"
+            if content_id:
+                result += f"Content ID: {content_id}\n"
+            if url:
+                result += f"URL: {url}\n"
+            if external_url:
+                result += f"External URL: {external_url}\n"
+            result += f"Published: {'Yes' if published else 'No'}\n\n"
 
         return result

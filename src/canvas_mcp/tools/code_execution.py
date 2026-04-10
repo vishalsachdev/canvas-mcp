@@ -13,6 +13,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from ..core.config import get_config
 from ..core.logging import log_warning
@@ -551,7 +552,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
             except Exception:
                 pass  # Ignore cleanup errors
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def list_code_api_modules() -> str:
         """List all available TypeScript modules in the code execution API.

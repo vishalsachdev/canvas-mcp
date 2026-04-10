@@ -6,6 +6,7 @@ editing roles) separate from content editing.
 
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import make_canvas_request
@@ -184,3 +185,155 @@ def register_page_tools(mcp: FastMCP):
                 result += f"- ... and {len(failed_pages) - 5} more errors\n"
 
         return result
+
+
+def register_educator_page_crud_tools(mcp: FastMCP):
+    """Register educator-only page CRUD tools."""
+
+    @mcp.tool()
+    @validate_params
+    async def create_page(course_identifier: str | int,
+                         title: str,
+                         body: str,
+                         published: bool = True,
+                         front_page: bool = False,
+                         editing_roles: str = "teachers") -> str:
+        """Create a new page in a Canvas course.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            title: Page title
+            body: HTML content for the page
+            published: Whether to publish (default: True)
+            front_page: Whether to set as front page (default: False)
+            editing_roles: Who can edit (default: "teachers")
+        """
+        course_id = await get_course_id(course_identifier)
+
+        data = {
+            "wiki_page": {
+                "title": title,
+                "body": body,
+                "published": published,
+                "front_page": front_page,
+                "editing_roles": editing_roles
+            }
+        }
+
+        response = await make_canvas_request("post", f"/courses/{course_id}/pages", data=data)
+
+        if "error" in response:
+            return f"Error creating page: {response['error']}"
+
+        page_url = response.get("url", "")
+        page_title = response.get("title", title)
+        created_at = format_date(response.get("created_at"))
+        published_status = "Published" if response.get("published", False) else "Unpublished"
+
+        course_display = await get_course_code(course_id) or course_identifier
+
+        result = f"Successfully created page in Course {course_display}:\n\n"
+        result += f"Title: {page_title}\n"
+        result += f"URL: {page_url}\n"
+        result += f"Status: {published_status}\n"
+        result += f"Created: {created_at}\n"
+
+        if front_page:
+            result += "Set as front page: Yes\n"
+
+        return result
+
+    @mcp.tool()
+    @validate_params
+    async def edit_page_content(course_identifier: str | int,
+                               page_url_or_id: str,
+                               new_content: str,
+                               title: str | None = None) -> str:
+        """Edit the content of a specific page.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            page_url_or_id: Page URL slug or page ID
+            new_content: New HTML content for the page
+            title: Optional new title for the page
+        """
+        course_id = await get_course_id(course_identifier)
+
+        # Prepare the data for updating the page
+        update_data = {
+            "wiki_page": {
+                "body": new_content
+            }
+        }
+
+        if title:
+            update_data["wiki_page"]["title"] = title
+
+        # Update the page
+        response = await make_canvas_request(
+            "put",
+            f"/courses/{course_id}/pages/{page_url_or_id}",
+            data=update_data
+        )
+
+        if "error" in response:
+            return f"Error updating page: {response['error']}"
+
+        page_title = response.get("title", "Unknown page")
+        updated_at = format_date(response.get("updated_at"))
+        course_display = await get_course_code(course_id) or course_identifier
+
+        return f"Successfully updated page '{page_title}' in course {course_display}. Last updated: {updated_at}"
+
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
+    @validate_params
+    async def delete_page(
+        course_identifier: str | int,
+        page_url_or_id: str,
+        require_title_match: str | None = None
+    ) -> str:
+        """Delete a page from a Canvas course.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            page_url_or_id: Page URL slug or page ID to delete
+            require_title_match: Safety check — only delete if page title matches exactly
+        """
+        course_id = await get_course_id(course_identifier)
+
+        # Fetch page details first for confirmation and safety check
+        page = await make_canvas_request(
+            "get", f"/courses/{course_id}/pages/{page_url_or_id}"
+        )
+
+        if "error" in page:
+            return f"Error fetching page details: {page['error']}"
+
+        page_title = page.get("title", "Unknown Title")
+        page_url = page.get("url", page_url_or_id)
+
+        # Safety check: verify title match if requested
+        if require_title_match and page_title != require_title_match:
+            return (
+                f"❌ Title mismatch — deletion aborted.\n\n"
+                f"  Expected: {require_title_match}\n"
+                f"  Actual:   {page_title}\n\n"
+                f"  Page URL: {page_url}"
+            )
+
+        # Proceed with deletion
+        response = await make_canvas_request(
+            "delete", f"/courses/{course_id}/pages/{page_url_or_id}"
+        )
+
+        if "error" in response:
+            return f"Error deleting page '{page_title}': {response['error']}"
+
+        course_display = await get_course_code(course_id) or course_identifier
+        return (
+            f"✅ Page deleted successfully!\n\n"
+            f"  **{page_title}**\n"
+            f"  Course: {course_display}\n"
+            f"  URL slug: {page_url}\n"
+            f"  Status: deleted"
+        )

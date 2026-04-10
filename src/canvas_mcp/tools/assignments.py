@@ -4,6 +4,7 @@ import datetime
 from statistics import StatisticsError, mean, median, stdev
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from ..core.anonymization import anonymize_response_data
 from ..core.cache import get_course_code, get_course_id
@@ -13,10 +14,10 @@ from ..core.logging import log_error
 from ..core.validation import validate_params
 
 
-def register_assignment_tools(mcp: FastMCP):
-    """Register all assignment-related MCP tools."""
+def register_shared_assignment_tools(mcp: FastMCP):
+    """Register assignment tools accessible to both students and educators."""
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def list_assignments(course_identifier: str | int) -> str:
         """List assignments for a specific course.
@@ -54,7 +55,7 @@ def register_assignment_tools(mcp: FastMCP):
         course_display = await get_course_code(course_id) or course_identifier
         return f"Assignments for Course {course_display}:\n\n" + "\n".join(assignments_info)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_assignment_details(course_identifier: str | int, assignment_id: str | int) -> str:
         """Get detailed information about a specific assignment.
@@ -88,6 +89,10 @@ def register_assignment_tools(mcp: FastMCP):
         # Try to get the course code for display
         course_display = await get_course_code(course_id) or course_identifier
         return f"Assignment Details for ID {assignment_id} in course {course_display}:\n\n" + "\n".join(details)
+
+
+def register_educator_assignment_tools(mcp: FastMCP):
+    """Register educator-only assignment tools (grading, analytics, management)."""
 
     @mcp.tool()
     @validate_params
@@ -166,7 +171,7 @@ def register_assignment_tools(mcp: FastMCP):
                f"Reviewee ID: {reviewee_id}\n" + \
                f"Submission ID: {submission_id}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def list_peer_reviews(course_identifier: str, assignment_id: str) -> str:
         """List all peer review assignments for a specific assignment.
@@ -292,7 +297,7 @@ def register_assignment_tools(mcp: FastMCP):
 
         return output
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def list_submissions(course_identifier: str | int, assignment_id: str | int) -> str:
         """List submissions for a specific assignment.
@@ -347,7 +352,7 @@ def register_assignment_tools(mcp: FastMCP):
         course_display = await get_course_code(course_id) or course_identifier
         return f"Submissions for Assignment {assignment_id} in course {course_display}:\n\n" + "\n".join(submissions_info)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_assignment_analytics(course_identifier: str | int, assignment_id: str | int) -> str:
         """Get detailed analytics about student performance on a specific assignment.

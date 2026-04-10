@@ -70,7 +70,10 @@ def get_tool_function(tool_name: str):
     """Get a tool function by name from the registered tools."""
     from mcp.server.fastmcp import FastMCP
 
-    from canvas_mcp.tools.files import register_file_tools
+    from canvas_mcp.tools.files import (
+        register_educator_file_tools,
+        register_shared_file_tools,
+    )
 
     # Create a mock MCP server and register tools
     mcp = FastMCP("test")
@@ -89,7 +92,8 @@ def get_tool_function(tool_name: str):
         return wrapper
 
     mcp.tool = capturing_tool
-    register_file_tools(mcp)
+    register_shared_file_tools(mcp)
+    register_educator_file_tools(mcp)
 
     return captured_functions.get(tool_name)
 
