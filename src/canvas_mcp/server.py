@@ -240,7 +240,8 @@ def main() -> None:
         print("Canvas MCP Server Configuration:", file=sys.stderr)
         print(f"  Server Name: {config.mcp_server_name}", file=sys.stderr)
         print(f"  Transport: {args.transport}", file=sys.stderr)
-        print(f"  Tool Profile: {config.canvas_role}", file=sys.stderr)
+        resolved_role = args.role or config.canvas_role
+        print(f"  Tool Profile: {resolved_role}", file=sys.stderr)
         if is_http:
             print(f"  Host: {args.host}", file=sys.stderr)
             print(f"  Port: {args.port}", file=sys.stderr)
