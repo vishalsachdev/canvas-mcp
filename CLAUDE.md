@@ -218,9 +218,8 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 > Full history: [session-history.md](./session-history.md)
 
 ### 2026-04-10
-- **Released v1.2.0**: Bumped version across all 5 checklist files, created git tag, pushed to trigger PyPI/GitHub Release CI.
-- **Contributors section**: Added @Promithius-DR (#84), @Metzpapa (#75), @JCSnap (#72, #73) to README.
-- **Coherence audit**: Fixed tool count (90+ → 92), test count (290+ → 328) across README, AGENTS.md, CLAUDE.md, docs/index.html, cli/README.md.
-- **Website updated**: Role-based filtering feature card, version badge, meta descriptions. Deployed to Cloudflare Pages.
-- Next: Backlog triage. Update tools/TOOL_MANIFEST.json for role-based filtering. Check CLAUDE_CODE_OAUTH_TOKEN secret is set. Fix Cloudflare API token permissions (CF_API_TOKEN → CLOUDFLARE_API_TOKEN with Pages:Edit).
+- **Rubric tool rationalization** (PR #86): Reduced rubric tools 11 → 6 (total 92 → 87). Deleted 3 broken/unused tools, merged 3 overlapping reads into `get_rubric`, renamed 3 for clarity, moved `bulk_grade_submissions` to assignments.py. Net -540 lines from rubrics.py.
+- **Stale markdown cleanup** (PR #87): Deleted 11 fully-implemented plans, satisfied specs, and dead artifacts. -4,766 lines.
+- **Codebase health audit**: Analyzed all 92 tools against session history — ~50 had no evidence of use. Rubric tools were worst case (2 disabled, 3 undocumented, 3 overlapping).
+- Next: Consider rationalizing peer review tools (9 tools, similar pattern). Deploy docs to Cloudflare Pages (tool count 87). Backlog triage.
 
