@@ -229,38 +229,46 @@ Update an existing assignment in a course.
 
 ### Grading & Rubrics
 
-> **Note:** Due to Canvas API limitations, `create_rubric` and `update_rubric` are currently disabled.
-> Create and edit rubrics via the Canvas web UI, then use `associate_rubric_with_assignment` to link them.
+> **Note:** Due to Canvas API limitations, `create_rubric` and `update_rubric` are not available.
+> Create and edit rubrics via the Canvas web UI, then use `associate_rubric` to link them.
 > See [Known API Limitations](#known-api-limitations) for details.
 
-#### `create_rubric` ⚠️ DISABLED
-~~Create a new grading rubric.~~ *Disabled due to Canvas API 500 error.*
-
-**Workaround:** Create rubrics in Canvas UI:
-1. Go to Course → Assignments → Edit Assignment
-2. Click "+ Rubric" to create a new rubric
-3. Use "Find a Rubric" to copy from other courses
-
----
-
-#### `update_rubric` ⚠️ DISABLED
-~~Update an existing rubric.~~ *Disabled - causes data loss (full replacement instead of patch).*
-
-**Workaround:** Edit rubrics directly in Canvas UI.
-
----
-
-#### `get_rubric_details`
-View rubric criteria and point values.
+#### `list_rubrics`
+List all rubrics in a course.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
-- `rubric_id`: Rubric ID
+
+**Example:**
+```
+"Show me all rubrics in CS101"
+```
+
+---
+
+#### `get_rubric`
+View rubric criteria and point values. Accepts either a rubric ID or an assignment ID.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `rubric_id` (optional): Rubric ID
+- `assignment_id` (optional): Assignment ID (fetches the rubric attached to this assignment)
 
 **Example:**
 ```
 "Show me the rubric for Assignment 4"
+"What rubric criteria are in rubric 789?"
 ```
+
+---
+
+#### `get_rubric_assessment`
+View the rubric assessment submitted for a student's submission.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `assignment_id`: Assignment ID
+- `student_id`: Student user ID
 
 ---
 
@@ -275,7 +283,7 @@ Link a rubric to an assignment.
 
 ---
 
-#### `grade_submission_with_rubric`
+#### `grade_with_rubric`
 Grade a student submission using a rubric.
 
 **Parameters:**
@@ -1045,22 +1053,22 @@ Some Canvas API endpoints have bugs or design issues that prevent certain operat
 
 | Tool | Status | Issue | Reference |
 |------|--------|-------|-----------|
-| `create_rubric` | ⚠️ DISABLED | Canvas API returns 500 Internal Server Error | [Canvas Community](https://community.canvaslms.com/t5/Canvas-Question-Forum/Uploading-rubric-from-CSV-sheet/m-p/602222) |
-| `update_rubric` | ⚠️ DISABLED | API does full replacement instead of PATCH (causes data loss) | Internal testing |
+| `create_rubric` | Removed | Canvas API returns 500 Internal Server Error | [Canvas Community](https://community.canvaslms.com/t5/Canvas-Question-Forum/Uploading-rubric-from-CSV-sheet/m-p/602222) |
+| `update_rubric` | Removed | API does full replacement instead of PATCH (causes data loss) | Internal testing |
 
 **Workaround for Rubrics:**
 1. **Create rubrics** in Canvas web UI: Assignments → Edit → + Rubric
 2. **Copy rubrics** between courses: Use "Find a Rubric" in the rubric editor
-3. **Associate rubrics** programmatically: Use `associate_rubric_with_assignment` tool
+3. **Associate rubrics** programmatically: Use `associate_rubric` tool
 4. **Grade with rubrics**: Use `grade_with_rubric` or `bulk_grade_submissions`
 
 **Working Rubric Tools:**
-- `list_all_rubrics` - List rubrics in a course
-- `get_rubric_details` - View rubric criteria and points
-- `associate_rubric_with_assignment` - Link rubric to assignment
+- `list_rubrics` - List rubrics in a course
+- `get_rubric` - View rubric criteria and points (by rubric_id or assignment_id)
+- `get_rubric_assessment` - View a student's rubric assessment
+- `associate_rubric` - Link rubric to assignment
 - `grade_with_rubric` - Grade single submission
 - `bulk_grade_submissions` - Efficient batch grading
-- `delete_rubric` - Remove a rubric
 
 ---
 
