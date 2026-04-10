@@ -989,6 +989,10 @@ await bulkGrade({
 
 **Returns:** Combined stdout and stderr from execution, or error message if failed.
 
+**Platform Support:**
+- **macOS/Linux**: Uses `npx tsx` directly
+- **Windows**: Automatically locates the tsx CLI entry point via `shutil.which` or `%APPDATA%\npm\node_modules\tsx\dist\cli.mjs`, then invokes it via `node` to avoid `.cmd` batch wrapper limitations
+
 **Security:**
 - Code runs in a temporary file that is deleted after execution
 - Inherits Canvas API credentials from server environment

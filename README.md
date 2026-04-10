@@ -511,7 +511,7 @@ For bulk operations (30+ items), Canvas MCP supports **TypeScript code execution
 | `bulk_grade_submissions` | Batch grading 10-29 items | Low |
 | `execute_typescript` | 30+ items, custom logic | **99.7% less** |
 
-Use `search_canvas_tools` to discover available operations, then `execute_typescript` to run them locally. Code runs in a **secure sandbox by default** (network blocked, env filtered, resource limits).
+Use `search_canvas_tools` to discover available operations, then `execute_typescript` to run them locally. Code runs in a **secure sandbox by default** (network blocked, env filtered, resource limits). Works on macOS, Linux, and Windows.
 
 <details>
 <summary>Code execution examples and security details</summary>
