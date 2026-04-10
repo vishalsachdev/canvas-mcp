@@ -188,43 +188,21 @@ jobs:
       security-events: write
       actions: read
       contents: read
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2
         with:
           languages: python
           queries: security-and-quality
-      
+
       - name: Autobuild
         uses: github/codeql-action/autobuild@v2
-      
+
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v2
         with:
           category: "/language:python"
-
-  security-summary:
-    name: Security Test Summary
-    needs: [security-tests, sast-scan, dependency-scan, secret-scan]
-    runs-on: ubuntu-latest
-    if: always()
-    
-    steps:
-      - name: Generate overall summary
-        run: |
-          echo "## 🛡️ Security Testing Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "All security testing jobs completed. Please review individual job results and artifacts." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Test Coverage" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Security test suite" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Static analysis (SAST)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Dependency scanning" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Secret detection" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ CodeQL analysis" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Review the **Actions** tab artifacts for detailed reports." >> $GITHUB_STEP_SUMMARY
