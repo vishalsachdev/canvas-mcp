@@ -4,6 +4,13 @@ Archived session log entries from canvas-mcp CLAUDE.md.
 
 ## Session Log
 
+### 2026-04-09 (late session)
+- **PR #84 merged**: Role-based tool filtering from external contributor (Promithius-DR). Code reviewed, found 2 bugs (validate_config not resetting invalid role, --config showing wrong role), fixed and merged with --admin.
+- **PR #85 merged**: Windows tsx fix (issue #83). Reviewed Claude + Codex feedback, addressed P1 (npx fallback re-introduces bug) and P2 (global before local resolution order), merged.
+- **CI consolidation**: Merged auto-update-docs into claude-code-review (1 Claude call instead of 2), removed security-summary job. 11 → 8 checks per PR.
+- **GitHub Actions re-enabled**: Fixed fork-aware checkout in workflows, added OAuth token check.
+- **Cleaned up**: Deleted stale github-pages deployment environment.
+
 ### 2026-04-09 (earlier session)
 - **Accessibility scanner expanded (4 → 20 checks)**: Upgraded `_check_content_accessibility()` based on DesignPLUS/Pope Tech/WAVE checklist. 20 checks run on every scan.
 - **BADM 350 remediation**: Applied fixes to course 68238 — `scope="col"` to 118 `<th>` elements, contrast fixes, `kl_` → `dp-` class migration.

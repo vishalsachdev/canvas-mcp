@@ -193,6 +193,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 ## Current Focus
 - [x] Re-enable GitHub Actions (account-level billing toggle)
 - [x] Create v1.1.0 GitHub Release (created manually via `gh release create`)
+- [x] Release v1.2.0 — role-based filtering, accessibility, security hardening, contributor acknowledgements
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
 
 ## Roadmap
@@ -202,6 +203,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] MCP token optimization — trimmed tool docstrings ~35% (350 lines removed across 15 files)
 - [x] HTTP transport & hosted server — per-request credentials via ContextVar, deployed to VPS at mcp.illinihunt.org
 - [x] Cloudflare Pages migration — site moved from GitHub Pages (blocked by Actions) to Cloudflare Pages
+- [x] Release v1.2.0 — role-based filtering, accessibility remediation, security hardening, contributor acknowledgements
 
 ## Backlog
 - [x] Impact tracker: automated weekly stats collection + website section
@@ -215,11 +217,10 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 ## Session Log
 > Full history: [session-history.md](./session-history.md)
 
-### 2026-04-09 (late session)
-- **PR #84 merged**: Role-based tool filtering from external contributor (Promithius-DR). Code reviewed, found 2 bugs (validate_config not resetting invalid role, --config showing wrong role), fixed and merged with --admin.
-- **PR #85 merged**: Windows tsx fix (issue #83). Reviewed Claude + Codex feedback, addressed P1 (npx fallback re-introduces bug) and P2 (global before local resolution order), merged.
-- **CI consolidation**: Merged auto-update-docs into claude-code-review (1 Claude call instead of 2), removed security-summary job. 11 → 8 checks per PR.
-- **GitHub Actions re-enabled**: Fixed fork-aware checkout in workflows, added OAuth token check.
-- **Cleaned up**: Deleted stale github-pages deployment environment.
-- Next: Backlog triage. Update docs/index.html + tools/TOOL_MANIFEST.json for role-based filtering. Check CLAUDE_CODE_OAUTH_TOKEN secret is set.
+### 2026-04-10
+- **Released v1.2.0**: Bumped version across all 5 checklist files, created git tag, pushed to trigger PyPI/GitHub Release CI.
+- **Contributors section**: Added @Promithius-DR (#84), @Metzpapa (#75), @JCSnap (#72, #73) to README.
+- **Coherence audit**: Fixed tool count (90+ → 92), test count (290+ → 328) across README, AGENTS.md, CLAUDE.md, docs/index.html, cli/README.md.
+- **Website updated**: Role-based filtering feature card, version badge, meta descriptions. Deployed to Cloudflare Pages.
+- Next: Backlog triage. Update tools/TOOL_MANIFEST.json for role-based filtering. Check CLAUDE_CODE_OAUTH_TOKEN secret is set. Fix Cloudflare API token permissions (CF_API_TOKEN → CLOUDFLARE_API_TOKEN with Pages:Edit).
 
