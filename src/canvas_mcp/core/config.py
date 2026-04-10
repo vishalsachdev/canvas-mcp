@@ -147,6 +147,7 @@ def validate_config() -> bool:
             f"CANVAS_ROLE should be one of {', '.join(valid_roles)}; "
             f"defaulting to 'all' (got '{config.canvas_role}')"
         )
+        config.canvas_role = "all"
 
     for env_name, env_value in _INVALID_INT_ENV_VARS.items():
         log_warning(
