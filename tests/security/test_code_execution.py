@@ -258,5 +258,80 @@ class TestCodeExecutionIsolation:
             assert "PGPASSWORD" not in env
 
 
+class TestWindowsTsxCommand:
+    """Tests for Windows-compatible tsx command building (issue #83)."""
+
+    def test_non_windows_uses_npx(self):
+        """On non-Windows platforms, _build_local_tsx_command returns npx tsx."""
+        from canvas_mcp.tools.code_execution import _build_local_tsx_command
+        with patch('canvas_mcp.tools.code_execution.sys') as mock_sys:
+            mock_sys.platform = 'linux'
+            cmd = _build_local_tsx_command('/tmp/test.ts')
+        assert cmd == ['npx', 'tsx', '/tmp/test.ts']
+
+    def test_windows_uses_node_with_tsx_cli_via_appdata(self, tmp_path):
+        """On Windows, uses node + tsx cli.mjs found in APPDATA npm directory."""
+        from canvas_mcp.tools.code_execution import _build_local_tsx_command
+        tsx_cli = tmp_path / 'npm' / 'node_modules' / 'tsx' / 'dist' / 'cli.mjs'
+        tsx_cli.parent.mkdir(parents=True)
+        tsx_cli.touch()
+
+        with patch('canvas_mcp.tools.code_execution.sys') as mock_sys, \
+             patch('canvas_mcp.tools.code_execution.shutil.which', return_value='/usr/bin/node'), \
+             patch.dict(os.environ, {'APPDATA': str(tmp_path)}):
+            mock_sys.platform = 'win32'
+            cmd = _build_local_tsx_command('/tmp/test.ts')
+
+        assert cmd[0] == '/usr/bin/node'
+        assert cmd[1] == str(tsx_cli)
+        assert cmd[2] == '/tmp/test.ts'
+
+    def test_windows_uses_node_with_tsx_cli_via_which(self, tmp_path):
+        """On Windows, finds tsx cli.mjs relative to tsx.cmd discovered via PATH."""
+        from canvas_mcp.tools.code_execution import _build_local_tsx_command
+        # Simulate tsx.cmd in a directory alongside node_modules/tsx
+        tsx_cmd_dir = tmp_path / 'npm'
+        tsx_cmd_dir.mkdir()
+        (tsx_cmd_dir / 'tsx.cmd').touch()
+        tsx_cli = tsx_cmd_dir / 'node_modules' / 'tsx' / 'dist' / 'cli.mjs'
+        tsx_cli.parent.mkdir(parents=True)
+        tsx_cli.touch()
+
+        def mock_which(name):
+            if name == 'node':
+                return '/usr/bin/node'
+            if name == 'tsx':
+                return str(tsx_cmd_dir / 'tsx.cmd')
+            return None
+
+        with patch('canvas_mcp.tools.code_execution.sys') as mock_sys, \
+             patch('canvas_mcp.tools.code_execution.shutil.which', side_effect=mock_which), \
+             patch.dict(os.environ, {'APPDATA': str(tmp_path / 'nonexistent')}):
+            mock_sys.platform = 'win32'
+            cmd = _build_local_tsx_command('/tmp/test.ts')
+
+        assert cmd[0] == '/usr/bin/node'
+        assert cmd[1] == str(tsx_cli)
+        assert cmd[2] == '/tmp/test.ts'
+
+    def test_windows_fallback_to_npx_when_tsx_not_found(self):
+        """On Windows, falls back to npx tsx when tsx CLI module cannot be located."""
+        from canvas_mcp.tools.code_execution import _build_local_tsx_command
+        with patch('canvas_mcp.tools.code_execution.sys') as mock_sys, \
+             patch('canvas_mcp.tools.code_execution.shutil.which', return_value=None), \
+             patch.dict(os.environ, {'APPDATA': '/nonexistent_appdata_path'}):
+            mock_sys.platform = 'win32'
+            cmd = _build_local_tsx_command('/tmp/test.ts')
+        assert cmd == ['npx', 'tsx', '/tmp/test.ts']
+
+    def test_find_tsx_cli_windows_returns_none_when_not_found(self):
+        """_find_tsx_cli_windows returns None when tsx is not installed."""
+        from canvas_mcp.tools.code_execution import _find_tsx_cli_windows
+        with patch('canvas_mcp.tools.code_execution.shutil.which', return_value=None), \
+             patch.dict(os.environ, {'APPDATA': '/nonexistent_path_xyz'}):
+            result = _find_tsx_cli_windows()
+        assert result is None
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
