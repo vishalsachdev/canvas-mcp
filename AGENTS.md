@@ -44,7 +44,7 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 # In .env:
 CANVAS_ROLE=student    # ~31 tools (student + shared)
 CANVAS_ROLE=educator   # ~86 tools (educator + shared)
-CANVAS_ROLE=all        # All 92 tools (default)
+CANVAS_ROLE=all        # All 87 tools (default)
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
@@ -74,8 +74,10 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `create_assignment` | Create new assignment with due date, submission types, peer reviews |
 | `update_assignment` | Update existing assignment (name, due date, points, published, etc.) |
 | `get_student_analytics` | Individual student performance |
-| `create_rubric` | ⚠️ DISABLED - Canvas API returns 500 errors |
-| `grade_submission_with_rubric` | Grade single submission |
+| `list_rubrics` | List rubrics in a course |
+| `get_rubric` | View rubric details (by rubric_id or assignment_id) |
+| `get_rubric_assessment` | View rubric assessment for a student submission |
+| `grade_with_rubric` | Grade single submission with rubric |
 | `bulk_grade_submissions` | Grade multiple submissions efficiently |
 | `send_conversation` | Message students |
 | `send_peer_review_reminders` | Automated reminder workflow |
@@ -131,7 +133,7 @@ Advanced tools for bulk operations and custom logic.
 |----------|---------------------|-----|
 | Single query ("Show my grades") | Traditional MCP tools | Simple, direct |
 | List request ("Show assignments") | Traditional MCP tools | Low token cost |
-| Grade 1-9 submissions | `grade_submission_with_rubric` | Straightforward |
+| Grade 1-9 submissions | `grade_with_rubric` | Straightforward |
 | Grade 10+ submissions | `bulk_grade_submissions` | Concurrent processing |
 | Grade 30+ with custom logic | `execute_typescript` | 99.7% token savings |
 | Complex data processing | `execute_typescript` | Data stays local |
@@ -177,7 +179,7 @@ Is it a simple query?
 ### Educator: Bulk Grading
 ```
 1. "What's the rubric for Assignment 5?"
-   → get_rubric_details(course_id, rubric_id)
+   → get_rubric(course_id, rubric_id=...)
 
 2. "Grade these 50 submissions using the rubric"
    → bulk_grade_submissions(course_id, assignment_id, grades)
@@ -225,9 +227,9 @@ Some Canvas API endpoints have bugs or limitations that prevent certain operatio
 | `create_rubric` | Canvas API returns 500 error | Create rubrics via Canvas web UI |
 | `update_rubric` | Partial updates wipe all criteria (full replacement, not PATCH) | Edit rubrics via Canvas web UI |
 
-**Working rubric tools:** `list_all_rubrics`, `get_rubric_details`, `associate_rubric_with_assignment`, `grade_with_rubric`, `bulk_grade_submissions`, `delete_rubric`
+**Working rubric tools:** `list_rubrics`, `get_rubric`, `get_rubric_assessment`, `associate_rubric`, `grade_with_rubric`, `bulk_grade_submissions`
 
-**Rubric workaround:** Create/edit rubrics in Canvas UI, then use `associate_rubric_with_assignment` to link them to assignments. Use "Find a Rubric" feature in Canvas to copy rubrics between courses.
+**Rubric workaround:** Create/edit rubrics in Canvas UI, then use `associate_rubric` to link them to assignments. Use "Find a Rubric" feature in Canvas to copy rubrics between courses.
 
 ### Data Access Rules
 | User Type | Can Access |
