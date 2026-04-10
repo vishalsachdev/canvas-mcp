@@ -4,6 +4,26 @@ Archived session log entries from canvas-mcp CLAUDE.md.
 
 ## Session Log
 
+### 2026-04-09 (earlier session)
+- **Accessibility scanner expanded (4 → 20 checks)**: Upgraded `_check_content_accessibility()` based on DesignPLUS/Pope Tech/WAVE checklist. 20 checks run on every scan.
+- **BADM 350 remediation**: Applied fixes to course 68238 — `scope="col"` to 118 `<th>` elements, contrast fixes, `kl_` → `dp-` class migration.
+
+### 2026-04-06
+- **Security: PR #81 review & merge**: CWE-22 path traversal fix + codebase-wide file I/O hardening (4 additional sites).
+- **Housekeeping**: Archived 6 stale session log entries, deleted 2 completed plans.
+
+### 2026-03-20
+- **InstructureCon 2026 proposal**: Drafted CFP for InstructureCon26 (Louisville, July 21-23).
+- **Impact tracker implemented**: `scripts/collect-impact-stats.sh`, live website section, launchd plist.
+
+### 2026-03-13
+- **Event loop bug fix**: Fixed "Event loop is closed" on first MCP tool call.
+- **Concurrency limiter**: `asyncio.Semaphore` in `make_canvas_request()` (default 10).
+
+### 2026-03-12
+- **CLI npm package**: Published `canvas-mcp` v1.1.0 to npm — `npx canvas-mcp setup` wizard.
+- **Workshop page**: Created `canvas-mcp.illinihunt.org/workshop`.
+
 ### 2026-03-05
 - **Cloudflare Web Analytics**: Added beacon to educator, student, and bulk-grading guide pages (all 5 docs/ HTML pages now covered)
 - **Cloudflare Pages auto-deploy**: Investigated connecting GitHub repo — not possible for Direct Upload projects. Manual deploy via `wrangler pages deploy` for now.

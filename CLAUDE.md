@@ -191,7 +191,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 **When adding a new tool**, update: `tools/README.md` → `AGENTS.md` → `TOOL_MANIFEST.json`. Do NOT update `README.md` unless it's a major feature. Do NOT duplicate tool usage docs in `CLAUDE.md` (architecture only).
 
 ## Current Focus
-- [ ] Re-enable GitHub Actions (account-level billing toggle)
+- [x] Re-enable GitHub Actions (account-level billing toggle)
 - [x] Create v1.1.0 GitHub Release (created manually via `gh release create`)
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
 
@@ -215,32 +215,11 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 ## Session Log
 > Full history: [session-history.md](./session-history.md)
 
-### 2026-04-09
-- **Accessibility scanner expanded (4 → 20 checks)**: Upgraded `_check_content_accessibility()` in `tools/accessibility.py` based on comprehensive DesignPLUS/Pope Tech/WAVE checklist. New checks: `<th>` missing scope, heading hierarchy skips, orange-on-white contrast, empty links, URL-as-link-text, doc links without file type, video caption flags, underlined non-links, small font sizes, manual bullets, color-only meaning, short/long alt text, filename alt text, redundant alt prefix, legacy `kl_` class detection. All 20 checks run on every `scan_course_content_accessibility` call.
-- **BADM 350 remediation**: Applied fixes to course 68238 via Canvas API scripts — added `scope="col"` to 118 `<th>` elements (22 pages), fixed white-on-orange contrast on front page (5 headers), migrated `kl_` → `dp-` classes on 30 pages per CidiLabs mapping spreadsheet.
-- **README updated**: Expanded accessibility tool description and learning designer section.
-
-### 2026-04-06
-- **Security: PR #81 review & merge**: Reviewed Copilot-generated PR fixing CWE-22 path traversal in `generate_peer_review_report`. Verified fix (basename extraction + directory confinement + symlink guard), ran 292 tests, admin-merged.
-- **Security: codebase-wide file I/O hardening**: Integrated `sanitize_filename()` into PR #81's fix. Ran security audit that found 4 additional CWE-22 sites — applied consistent defense-in-depth pattern:
-  - `peer_review_comments.py`: unsanitized filename → confine to `./exports/`, sanitize + `is_relative_to()`
-  - `files.py`: `save_directory` not resolved → `Path.resolve()` + `is_relative_to()`
-  - `other_tools.py`: PII CSV in relative CWD → resolve `local_maps/` + symlink check
-  - `resources.py`: `str.startswith()` bypass → replaced with `is_relative_to()`
-- **Housekeeping**: Archived 6 stale session log entries (Feb 23 – Mar 5) to session-history.md. Deleted 2 completed plans (impact-tracker, learning-designer-skill).
-- Next: Re-enable GitHub Actions. Backlog triage.
-
-### 2026-03-20
-- **InstructureCon 2026 proposal**: Drafted CFP submission for InstructureCon26 (Louisville, July 21-23). Breakout session format.
-- **Impact tracker implemented**: Built `scripts/collect-impact-stats.sh`, live website section, launchd plist, `/impact-stats` skill.
-- **Impact metrics audit**: Real human PyPI installs ~15/day (50K of 57K were bot traffic).
-
-### 2026-03-13
-- **Event loop bug fix**: Fixed "Event loop is closed" on first MCP tool call. Added `is_closed` check in `_get_http_client()`.
-- **Concurrency limiter**: `asyncio.Semaphore` in `make_canvas_request()` (default 10).
-- **Workshop support**: Enhanced workshop page, configured Canvas course 68866.
-
-### 2026-03-12
-- **CLI npm package**: Published `canvas-mcp` v1.1.0 to npm — `npx canvas-mcp setup` wizard.
-- **Workshop page**: Created `canvas-mcp.illinihunt.org/workshop`. Light theme conversion.
+### 2026-04-09 (late session)
+- **PR #84 merged**: Role-based tool filtering from external contributor (Promithius-DR). Code reviewed, found 2 bugs (validate_config not resetting invalid role, --config showing wrong role), fixed and merged with --admin.
+- **PR #85 merged**: Windows tsx fix (issue #83). Reviewed Claude + Codex feedback, addressed P1 (npx fallback re-introduces bug) and P2 (global before local resolution order), merged.
+- **CI consolidation**: Merged auto-update-docs into claude-code-review (1 Claude call instead of 2), removed security-summary job. 11 → 8 checks per PR.
+- **GitHub Actions re-enabled**: Fixed fork-aware checkout in workflows, added OAuth token check.
+- **Cleaned up**: Deleted stale github-pages deployment environment.
+- Next: Backlog triage. Update docs/index.html + tools/TOOL_MANIFEST.json for role-based filtering. Check CLAUDE_CODE_OAUTH_TOKEN secret is set.
 
