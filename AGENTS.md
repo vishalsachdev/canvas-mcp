@@ -44,7 +44,7 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 # In .env:
 CANVAS_ROLE=student    # ~31 tools (student + shared)
 CANVAS_ROLE=educator   # ~86 tools (educator + shared)
-CANVAS_ROLE=all        # All 91 tools (default)
+CANVAS_ROLE=all        # All 92 tools (default)
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).

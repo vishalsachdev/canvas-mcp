@@ -23,11 +23,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 canvas-mcp/
 ├── src/canvas_mcp/        # Main application code
 │   ├── core/             # Core utilities (client, config, validation)
-│   ├── tools/            # MCP tool implementations (91 tools across 15 files)
+│   ├── tools/            # MCP tool implementations (92 tools across 15 files)
 │   ├── resources/        # MCP resources and prompts
 │   └── server.py         # FastMCP server entry point
 ├── skills/               # Agent skills for skills.sh (8 skills)
-├── tests/                # 290+ tests (pytest + pytest-asyncio)
+├── tests/                # 328 tests (pytest + pytest-asyncio)
 ├── docs/                 # GitHub Pages site + guides
 ├── tools/                # Tool documentation (README.md, TOOL_MANIFEST.json)
 ├── archive/              # Legacy code (git-ignored)
