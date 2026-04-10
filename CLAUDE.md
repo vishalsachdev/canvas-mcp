@@ -215,6 +215,11 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 ## Session Log
 > Full history: [session-history.md](./session-history.md)
 
+### 2026-04-09
+- **Accessibility scanner expanded (4 → 20 checks)**: Upgraded `_check_content_accessibility()` in `tools/accessibility.py` based on comprehensive DesignPLUS/Pope Tech/WAVE checklist. New checks: `<th>` missing scope, heading hierarchy skips, orange-on-white contrast, empty links, URL-as-link-text, doc links without file type, video caption flags, underlined non-links, small font sizes, manual bullets, color-only meaning, short/long alt text, filename alt text, redundant alt prefix, legacy `kl_` class detection. All 20 checks run on every `scan_course_content_accessibility` call.
+- **BADM 350 remediation**: Applied fixes to course 68238 via Canvas API scripts — added `scope="col"` to 118 `<th>` elements (22 pages), fixed white-on-orange contrast on front page (5 headers), migrated `kl_` → `dp-` classes on 30 pages per CidiLabs mapping spreadsheet.
+- **README updated**: Expanded accessibility tool description and learning designer section.
+
 ### 2026-04-06
 - **Security: PR #81 review & merge**: Reviewed Copilot-generated PR fixing CWE-22 path traversal in `generate_peer_review_report`. Verified fix (basename extraction + directory confinement + symlink guard), ran 292 tests, admin-merged.
 - **Security: codebase-wide file I/O hardening**: Integrated `sanitize_filename()` into PR #81's fix. Ran security audit that found 4 additional CWE-22 sites — applied consistent defense-in-depth pattern:

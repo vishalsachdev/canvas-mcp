@@ -90,7 +90,7 @@ Canvas MCP provides **90+ tools** for interacting with Canvas LMS. Tools are org
 | Tool | Purpose | Example Prompt |
 |------|---------|----------------|
 | `get_course_structure` | Full module→items tree as JSON | "Show me the structure of CS 101" |
-| `scan_course_content_accessibility` | WCAG violation scanner | "Audit accessibility for BADM 350" |
+| `scan_course_content_accessibility` | WCAG violation scanner (20 checks: headings, tables, links, contrast, alt text, captions, DesignPLUS) | "Audit accessibility for BADM 350" |
 | `fetch_ufixit_report` | Institutional accessibility report | "Pull the UFIXIT report for this course" |
 | `parse_ufixit_violations` | Extract structured violations | "Parse the UFIXIT violations" |
 | `format_accessibility_summary` | Readable violation report | "Summarize the accessibility issues" |
@@ -176,7 +176,7 @@ Enhance your teaching with:
 AI-powered course design and quality assurance:
 - **Course scaffolding** — Build entire course structures from specs, templates, or by cloning existing courses
 - **Quality audits** — Pre-semester QC checks for structure, content, publishing, and completeness
-- **Accessibility compliance** — WCAG scanning, prioritized reports, guided remediation, and verification
+- **Accessibility compliance** — 20-check WCAG scanner (headings, tables, scope, contrast, alt text, links, captions, DesignPLUS migration), prioritized reports, guided remediation, and verification
 - **Course structure analysis** — Full module→items tree in a single call for rapid course review
 
 3 dedicated skills (`canvas-course-qc`, `canvas-accessibility-auditor`, `canvas-course-builder`) plus the `get_course_structure` tool.
