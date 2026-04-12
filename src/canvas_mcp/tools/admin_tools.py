@@ -7,7 +7,6 @@ from mcp.types import ToolAnnotations
 from ..core.anonymization import anonymize_response_data
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
-from ..core.dates import format_date
 from ..core.validation import validate_params
 
 
@@ -166,71 +165,132 @@ def register_admin_tools(mcp: FastMCP):
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_student_analytics(course_identifier: str,
-                                  current_only: bool = True,
                                   include_participation: bool = True,
                                   include_assignment_stats: bool = True,
-                                  include_access_stats: bool = True) -> str:
-        """Get detailed analytics about student activity, participation, and progress in a course.
+                                  include_access_stats: bool = True,
+                                  sort_by: str = "engagement_score") -> str:
+        """Get per-student engagement analytics: page views, participations, and on-time/late/missing assignment counts.
+
+        Uses Canvas's /analytics/student_summaries endpoint to return a ranked table of every
+        student in the course with an engagement score (0-100) useful for identifying disengaged
+        students in participation/presentation-driven courses.
 
         Args:
             course_identifier: Course code or Canvas ID
-            current_only: Only assignments due on or before today (default: True)
-            include_participation: Include participation data (default: True)
-            include_assignment_stats: Include assignment completion stats (default: True)
-            include_access_stats: Include course access stats (default: True)
+            include_participation: Include participation counts (default: True)
+            include_assignment_stats: Include on-time/late/missing counts (default: True)
+            include_access_stats: Include page view counts (default: True)
+            sort_by: Sort order — "engagement_score" (default, ascending), "page_views", "participations", or "name"
         """
         course_id = await get_course_id(course_identifier)
 
-        # Get basic course info
         course_response = await make_canvas_request("get", f"/courses/{course_id}")
         if "error" in course_response:
             return f"Error fetching course: {course_response['error']}"
-
         course_name = course_response.get("name", "Unknown Course")
 
-        # Get students
+        # Real per-student analytics endpoint
+        summaries = await fetch_all_paginated_results(
+            f"/courses/{course_id}/analytics/student_summaries",
+            {"per_page": 100}
+        )
+        if isinstance(summaries, dict) and "error" in summaries:
+            return f"Error fetching student summaries: {summaries['error']}"
+
+        # Student roster for names
         students = await fetch_all_paginated_results(
             f"/courses/{course_id}/users",
             {"enrollment_type[]": "student", "per_page": 100}
         )
-
         if isinstance(students, dict) and "error" in students:
-            return f"Error fetching students: {students['error']}"
+            students = []
 
-        # Anonymize student data to protect privacy
         try:
             students = anonymize_response_data(students, data_type="users")
         except Exception as e:
             print(f"Warning: Failed to anonymize student analytics data: {str(e)}")
-            # Continue with original data for functionality
 
-        # Get assignments
-        assignments = await fetch_all_paginated_results(
-            f"/courses/{course_id}/assignments",
-            {"per_page": 100}
-        )
+        by_id = {u.get("id"): u for u in students}
 
-        if isinstance(assignments, dict) and "error" in assignments:
-            assignments = []
+        rows = []
+        for s in summaries:
+            uid = s.get("id")
+            u = by_id.get(uid, {})
+            tb = s.get("tardiness_breakdown") or {}
+            pv = s.get("page_views") or 0
+            max_pv = s.get("max_page_views") or 0
+            part = s.get("participations") or 0
+            max_part = s.get("max_participations") or 0
+            on_time = tb.get("on_time", 0)
+            late = tb.get("late", 0)
+            missing = tb.get("missing", 0)
+            total = tb.get("total", 0) or 0
+            submitted = on_time + late
+
+            pv_pct = round((pv / max_pv) * 100) if max_pv else 0
+            part_pct = round((part / max_part) * 100) if max_part else 0
+            submit_rate = round((submitted / total) * 100) if total else 0
+            score = round(0.4 * pv_pct + 0.4 * part_pct + 0.2 * submit_rate)
+
+            rows.append({
+                "name": u.get("sortable_name") or u.get("name") or f"user_{uid}",
+                "user_id": uid,
+                "page_views": pv,
+                "page_views_pct_of_max": pv_pct,
+                "participations": part,
+                "participations_pct_of_max": part_pct,
+                "on_time": on_time,
+                "late": late,
+                "missing": missing,
+                "total_assignments": total,
+                "submit_rate_pct": submit_rate,
+                "engagement_score": score,
+            })
+
+        if sort_by == "page_views":
+            rows.sort(key=lambda r: r["page_views"])
+        elif sort_by == "participations":
+            rows.sort(key=lambda r: r["participations"])
+        elif sort_by == "name":
+            rows.sort(key=lambda r: r["name"].lower())
+        else:
+            rows.sort(key=lambda r: r["engagement_score"])
 
         course_display = await get_course_code(course_id) or course_identifier
-        output = f"Student Analytics for Course {course_display} ({course_name})\n\n"
+        lines = [
+            f"Student Engagement Analytics — {course_display} ({course_name})",
+            f"Students: {len(rows)} | Sorted by: {sort_by}",
+            "",
+            "Engagement score = 0.4 * page_views_%_of_max + 0.4 * participations_%_of_max + 0.2 * submit_rate_%",
+            "",
+        ]
 
-        output += f"Total Students: {len(students)}\n"
-        output += f"Total Assignments: {len(assignments)}\n\n"
+        header_parts = ["Name", "Score"]
+        if include_access_stats:
+            header_parts += ["PageViews", "PV%"]
+        if include_participation:
+            header_parts += ["Parts", "Part%"]
+        if include_assignment_stats:
+            header_parts += ["OnTime", "Late", "Missing", "Total"]
+        lines.append(" | ".join(header_parts))
+        lines.append("-" * 100)
 
-        if include_assignment_stats and assignments:
-            # Calculate assignment completion stats
-            published_assignments = [a for a in assignments if a.get("published", False)]
-            total_points = sum(a.get("points_possible", 0) for a in published_assignments)
+        for r in rows:
+            parts = [r["name"][:30].ljust(30), str(r["engagement_score"]).rjust(3)]
+            if include_access_stats:
+                parts += [str(r["page_views"]).rjust(5), f"{r['page_views_pct_of_max']}%".rjust(4)]
+            if include_participation:
+                parts += [str(r["participations"]).rjust(4), f"{r['participations_pct_of_max']}%".rjust(4)]
+            if include_assignment_stats:
+                parts += [
+                    str(r["on_time"]).rjust(3),
+                    str(r["late"]).rjust(3),
+                    str(r["missing"]).rjust(3),
+                    str(r["total_assignments"]).rjust(3),
+                ]
+            lines.append(" | ".join(parts))
 
-            output += f"Published Assignments: {len(published_assignments)}\n"
-            output += f"Total Points Available: {total_points}\n\n"
-
-        output += "This analytics feature provides basic course statistics.\n"
-        output += "For detailed individual student analytics, use specific assignment analytics tools."
-
-        return output
+        return "\n".join(lines)
 
     @mcp.tool()
     @validate_params
