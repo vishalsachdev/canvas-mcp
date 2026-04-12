@@ -8,7 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![skills.sh](https://img.shields.io/badge/skills.sh-canvas--mcp-blue)](https://skills.sh)
 
-MCP server for Canvas LMS with **92 tools** and **8 agent skills**. Works with Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh).
+MCP server for Canvas LMS with **87 tools** and **8 agent skills**. Works with Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh).
 
 ```bash
 npx skills add vishalsachdev/canvas-mcp
@@ -23,7 +23,7 @@ npx skills add vishalsachdev/canvas-mcp
   See CLAUDE.md "Documentation Maintenance" for full guidelines.
 -->
 
-Canvas MCP provides **92 tools** for interacting with Canvas LMS. Tools are organized by user type:
+Canvas MCP provides **87 tools** for interacting with Canvas LMS. Tools are organized by user type:
 
 <details>
 <summary><strong>Student Tools</strong> (click to expand)</summary>
@@ -291,7 +291,7 @@ claude mcp add canvas \
 
 > **Find your Canvas URL:** It's your institution's Canvas domain with `/api/v1` appended (e.g., `https://canvas.illinois.edu/api/v1`). Check the URL bar when you log into Canvas.
 
-Your credentials are sent as HTTP headers with each request — they are never stored on the server. All 92 tools work the same as local installation.
+Your credentials are sent as HTTP headers with each request — they are never stored on the server. All 87 tools work the same as local installation.
 
 > **Privacy note:** The hosted server does not store or log credentials or Canvas data. However, data passes through a third-party VPS in transit. **Educators handling FERPA-protected student data should use the [local installation](#local-installation) instead.** The hosted server is ideal for students (who only access their own data) and for trying out Canvas MCP before installing locally.
 
@@ -557,7 +557,7 @@ Quick start guides: [Student](examples/student_quickstart.md) | [Educator](examp
 
 ## Documentation
 
-- **[Tool Documentation](tools/README.md)** — Complete reference for all 92 tools
+- **[Tool Documentation](tools/README.md)** — Complete reference for all 87 tools
 - **[Student Guide](docs/STUDENT_GUIDE.md)** — Getting started as a student
 - **[Educator Guide](docs/EDUCATOR_GUIDE.md)** — FERPA compliance and educator workflows
 - **[Bulk Grading Example](examples/bulk_grading_example.md)** — Token-efficient batch grading walkthrough

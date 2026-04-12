@@ -4,6 +4,7 @@ Allows Claude to search and explore available TypeScript tools.
 """
 
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Literal
@@ -64,7 +65,8 @@ def register_discovery_tools(mcp: FastMCP) -> None:
                         content = ts_file.read_text()
                         if query_lower not in content.lower():
                             continue
-                    except Exception:
+                    except Exception as e:
+                        logging.debug("Skipping file %s: %s", ts_file, e)
                         continue
 
                 relative_path = str(ts_file.relative_to(code_api_path))

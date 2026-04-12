@@ -246,10 +246,13 @@ class TestDevelopmentDependencies:
         if pyproject.exists():
             content = pyproject.read_text()
 
-            # Dev tools should be in optional-dependencies
+            # Dev tools should be in optional-dependencies or dependency-groups (PEP 735)
             if "pytest" in content:
-                # Should be in dev section
-                assert "[project.optional-dependencies]" in content
+                # Should be in dev section (either legacy or modern PEP 735 format)
+                assert (
+                    "[project.optional-dependencies]" in content
+                    or "[dependency-groups]" in content
+                )
 
 
 class TestSecurityAdvisories:
