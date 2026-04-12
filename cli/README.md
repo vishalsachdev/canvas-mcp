@@ -35,7 +35,7 @@ Restart your client and try: **"What courses am I enrolled in?"**
 
 ## Learn More
 
-- [Canvas MCP on GitHub](https://github.com/vishalsachdev/canvas-mcp) — 92 tools for students and educators
+- [Canvas MCP on GitHub](https://github.com/vishalsachdev/canvas-mcp) — 87 tools for students and educators
 - [Canvas MCP on PyPI](https://pypi.org/project/canvas-mcp/) — for local installation
 
 ## License
