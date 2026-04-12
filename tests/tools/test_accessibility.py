@@ -301,7 +301,7 @@ class TestFixAccessibilityIssues:
         fn = get_tool_function('fix_accessibility_issues')
         assert fn is not None
 
-        result = await fn("badm_350_120251", dry_run=True, content_types="pages")
+        await fn("badm_350_120251", dry_run=True, content_types="pages")
 
         # dry_run should never call PUT/POST
         for call in mock_canvas_api['make_canvas_request'].call_args_list:
