@@ -9,7 +9,6 @@ Covers:
 - create_student_anonymization_map
 """
 
-import json
 from unittest.mock import patch
 
 import pytest
