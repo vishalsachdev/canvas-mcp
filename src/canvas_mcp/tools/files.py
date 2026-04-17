@@ -25,6 +25,7 @@ from ..core.client import (
     make_canvas_request,
     upload_file_to_storage,
 )
+from ..core.config import get_config
 from ..core.file_validation import (
     FileValidationResult,
     format_file_size,
@@ -125,8 +126,20 @@ def register_shared_file_tools(mcp: FastMCP):
         Args:
             course_identifier: Course code or Canvas ID
             file_id: Canvas file ID
-            max_size_mb: Maximum file size in MB to read (default: 25). Files larger than this will be rejected to avoid excessive memory usage.
+            max_size_mb: Maximum file size in MB to read (default: 25). Clamped server-side to
+                READ_FILE_MAX_SIZE_MB (default 100). Files larger than the effective limit are
+                rejected to avoid excessive memory usage.
         """
+        if max_size_mb <= 0:
+            return (
+                f"Error: max_size_mb must be positive (got {max_size_mb}). "
+                f"Pass a value like 25 for a 25 MB limit."
+            )
+
+        server_max_mb = get_config().read_file_max_size_mb
+        effective_max_mb = min(float(max_size_mb), server_max_mb)
+        max_size_bytes = int(effective_max_mb * 1024 * 1024)
+
         course_id = await get_course_id(course_identifier)
 
         # Get file metadata from Canvas API
@@ -148,35 +161,31 @@ def register_shared_file_tools(mcp: FastMCP):
             return "Error: No download URL available for this file. Check permissions."
 
         # Check reported file size before downloading
-        max_size_bytes = int(max_size_mb * 1024 * 1024)
         if reported_size and reported_size > max_size_bytes:
             return (
                 f"Error: File '{filename}' is {format_file_size(reported_size)}, "
-                f"which exceeds the {max_size_mb} MB limit. "
+                f"which exceeds the {effective_max_mb} MB limit. "
                 f"Use download_course_file instead for large files."
             )
 
         # Download the file content into memory
         client = _get_http_client()
         try:
-            chunks = []
-            total_bytes = 0
+            buffer = bytearray()
             async with client.stream("GET", download_url, follow_redirects=True) as response:
                 response.raise_for_status()
 
                 async for chunk in response.aiter_bytes(chunk_size=8192):
-                    total_bytes += len(chunk)
-                    if total_bytes > max_size_bytes:
+                    if len(buffer) + len(chunk) > max_size_bytes:
                         return (
-                            f"Error: File '{filename}' exceeds the {max_size_mb} MB limit "
+                            f"Error: File '{filename}' exceeds the {effective_max_mb} MB limit "
                             f"during download. Use download_course_file instead for large files."
                         )
-                    chunks.append(chunk)
+                    buffer.extend(chunk)
 
-            file_bytes = b"".join(chunks)
-            base64_content = base64.b64encode(file_bytes).decode("ascii")
+            base64_content = base64.b64encode(buffer).decode("ascii")
 
-            size_str = format_file_size(total_bytes)
+            size_str = format_file_size(len(buffer))
             course_display = await get_course_code(course_id) or course_identifier
 
             result = f"Read: {filename}\n"

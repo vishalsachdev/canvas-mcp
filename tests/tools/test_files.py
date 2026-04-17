@@ -1046,6 +1046,73 @@ class TestReadCourseFile:
 
         assert "Read: backup_name.pdf" in result
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("bad_value", [0, 0.0, -1, -25.0])
+    async def test_read_rejects_non_positive_max_size(self, mock_read_api, bad_value):
+        """Test non-positive max_size_mb is rejected before any Canvas request."""
+        read_fn = get_tool_function('read_course_file')
+        result = await read_fn("60366", 12345, max_size_mb=bad_value)
+
+        assert "error" in result.lower()
+        assert "must be positive" in result.lower()
+        # Should short-circuit before making any Canvas API call
+        mock_read_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_read_clamps_to_server_hard_max(self, mock_read_api):
+        """Caller-requested max_size_mb is clamped to the server-side hard max."""
+        from unittest.mock import MagicMock, patch
+
+        # Pretend the server operator set a 10 MB hard cap.
+        fake_config = MagicMock()
+        fake_config.read_file_max_size_mb = 10.0
+
+        # File is 50 MB; caller naively asks for 1000 MB. After clamping,
+        # the effective limit is 10 MB and the file should be rejected.
+        mock_read_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "display_name": "huge.bin",
+            "url": "https://canvas.example.com/files/12345/download",
+            "size": 50 * 1024 * 1024,
+            "content-type": "application/octet-stream",
+        }
+
+        with patch('canvas_mcp.tools.files.get_config', return_value=fake_config):
+            read_fn = get_tool_function('read_course_file')
+            result = await read_fn("60366", 12345, max_size_mb=1000.0)
+
+        assert "error" in result.lower()
+        assert "exceeds" in result.lower()
+        # The message should reflect the clamped effective limit, not 1000.
+        assert "10" in result
+        assert "1000" not in result
+
+    @pytest.mark.asyncio
+    async def test_read_clamp_allows_file_within_server_max(self, mock_read_api):
+        """Clamping does not reject files that fit inside the server-side hard max."""
+        from unittest.mock import MagicMock, patch
+
+        fake_config = MagicMock()
+        fake_config.read_file_max_size_mb = 10.0
+
+        small_content = b"hello world"
+        mock_read_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "display_name": "small.txt",
+            "url": "https://canvas.example.com/files/12345/download",
+            "size": len(small_content),
+            "content-type": "text/plain",
+        }
+        self._setup_mock_stream(mock_read_api['_get_http_client'], small_content)
+
+        # Caller asks for way more than the server max — it should clamp silently
+        # and still succeed because the file itself is tiny.
+        with patch('canvas_mcp.tools.files.get_config', return_value=fake_config):
+            read_fn = get_tool_function('read_course_file')
+            result = await read_fn("60366", 12345, max_size_mb=1000.0)
+
+        assert "Read: small.txt" in result
+
 
 class TestListCourseFiles:
     """Tests for list_course_files tool."""
