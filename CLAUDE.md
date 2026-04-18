@@ -215,7 +215,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [ ] Page content versioning/history tools
 
 ## Session Log
-> Full history: [session-history.md](./session-history.md)
+> Full history: [docs/session-history.md](./docs/session-history.md)
 
 ### 2026-04-10
 - **Rubric tool rationalization** (PR #86): Reduced rubric tools 11 → 6 (total 92 → 87). Deleted 3 broken/unused tools, merged 3 overlapping reads into `get_rubric`, renamed 3 for clarity, moved `bulk_grade_submissions` to assignments.py. Net -540 lines from rubrics.py.
