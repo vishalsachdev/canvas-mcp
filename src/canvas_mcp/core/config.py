@@ -10,6 +10,7 @@ from .logging import log_error, log_warning
 load_dotenv()
 
 _INVALID_INT_ENV_VARS: dict[str, str] = {}
+_INVALID_FLOAT_ENV_VARS: dict[str, str] = {}
 
 VALID_SANDBOX_MODES = frozenset({"auto", "local", "container"})
 
@@ -32,6 +33,21 @@ def _int_env(name: str, default: int) -> int:
         return default
 
 
+def _float_env(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None or value.strip() == "":
+        return default
+    try:
+        parsed = float(value)
+    except ValueError:
+        _INVALID_FLOAT_ENV_VARS[name] = value
+        return default
+    if parsed <= 0:
+        _INVALID_FLOAT_ENV_VARS[name] = value
+        return default
+    return parsed
+
+
 class Config:
     """Configuration class for Canvas MCP server."""
 
@@ -46,6 +62,7 @@ class Config:
         self.api_timeout = _int_env("API_TIMEOUT", 30)
         self.cache_ttl = _int_env("CACHE_TTL", 300)
         self.max_concurrent_requests = _int_env("MAX_CONCURRENT_REQUESTS", 10)
+        self.read_file_max_size_mb = _float_env("READ_FILE_MAX_SIZE_MB", 100.0)
 
         # Development configuration
         self.log_level = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -152,6 +169,12 @@ def validate_config() -> bool:
     for env_name, env_value in _INVALID_INT_ENV_VARS.items():
         log_warning(
             f"{env_name} expects an integer; using default value "
+            f"(got '{env_value}')"
+        )
+
+    for env_name, env_value in _INVALID_FLOAT_ENV_VARS.items():
+        log_warning(
+            f"{env_name} expects a positive number; using default value "
             f"(got '{env_value}')"
         )
 

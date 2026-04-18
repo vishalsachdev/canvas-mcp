@@ -842,6 +842,278 @@ class TestDownloadCourseFile:
         assert "error" in result.lower()
 
 
+class TestReadCourseFile:
+    """Tests for read_course_file tool."""
+
+    @pytest.fixture
+    def mock_read_api(self):
+        """Fixture to mock APIs needed for read_course_file."""
+        with patch('canvas_mcp.tools.files.get_course_id') as mock_get_id, \
+             patch('canvas_mcp.tools.files.get_course_code') as mock_get_code, \
+             patch('canvas_mcp.tools.files.make_canvas_request') as mock_request, \
+             patch('canvas_mcp.tools.files._get_http_client') as mock_client:
+
+            mock_get_id.return_value = "60366"
+            mock_get_code.return_value = "badm_350_120251"
+
+            yield {
+                'get_course_id': mock_get_id,
+                'get_course_code': mock_get_code,
+                'make_canvas_request': mock_request,
+                '_get_http_client': mock_client,
+            }
+
+    def _setup_mock_stream(self, mock_client, content=b"file content here"):
+        """Helper to set up a mock streaming response."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_response = AsyncMock()
+        mock_response.raise_for_status = MagicMock()
+
+        async def aiter_bytes(chunk_size=8192):
+            yield content
+
+        mock_response.aiter_bytes = aiter_bytes
+
+        mock_stream_cm = AsyncMock()
+        mock_stream_cm.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_stream_cm.__aexit__ = AsyncMock(return_value=False)
+
+        mock_http = AsyncMock()
+        mock_http.stream = MagicMock(return_value=mock_stream_cm)
+        mock_client.return_value = mock_http
+
+        return mock_http
+
+    @pytest.mark.asyncio
+    async def test_read_success(self, mock_read_api):
+        """Test successful file read returns base64 content."""
+        import base64
+
+        file_content = b"Hello, this is a test PDF content"
+        expected_b64 = base64.b64encode(file_content).decode("ascii")
+
+        mock_read_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "display_name": "syllabus.pdf",
+            "url": "https://canvas.example.com/files/12345/download",
+            "size": len(file_content),
+            "content-type": "application/pdf",
+        }
+
+        self._setup_mock_stream(mock_read_api['_get_http_client'], file_content)
+
+        read_fn = get_tool_function('read_course_file')
+        result = await read_fn("badm_350_120251", 12345)
+
+        assert "Read: syllabus.pdf" in result
+        assert "application/pdf" in result
+        assert "badm_350_120251" in result
+        assert "base64" in result
+        assert expected_b64 in result
+
+    @pytest.mark.asyncio
+    async def test_read_api_error(self, mock_read_api):
+        """Test handling of Canvas API error."""
+        mock_read_api['make_canvas_request'].return_value = {
+            "error": "File not found"
+        }
+
+        read_fn = get_tool_function('read_course_file')
+        result = await read_fn("60366", 99999)
+
+        assert "error" in result.lower()
+        assert "File not found" in result
+
+    @pytest.mark.asyncio
+    async def test_read_no_url(self, mock_read_api):
+        """Test handling when file has no download URL."""
+        mock_read_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "display_name": "locked.pdf",
+            "size": 1024,
+        }
+
+        read_fn = get_tool_function('read_course_file')
+        result = await read_fn("60366", 12345)
+
+        assert "error" in result.lower()
+        assert "download url" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_read_exceeds_reported_size_limit(self, mock_read_api):
+        """Test rejection when reported file size exceeds the limit."""
+        mock_read_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "display_name": "huge_video.mp4",
+            "url": "https://canvas.example.com/files/12345/download",
+            "size": 50 * 1024 * 1024,  # 50 MB
+            "content-type": "video/mp4",
+        }
+
+        read_fn = get_tool_function('read_course_file')
+        result = await read_fn("60366", 12345, max_size_mb=25.0)
+
+        assert "error" in result.lower()
+        assert "exceeds" in result.lower()
+        assert "download_course_file" in result
+
+    @pytest.mark.asyncio
+    async def test_read_exceeds_size_during_download(self, mock_read_api):
+        """Test rejection when file exceeds size limit during streaming."""
+        mock_read_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "display_name": "test.bin",
+            "url": "https://canvas.example.com/files/12345/download",
+            "size": 0,  # Unknown size
+            "content-type": "application/octet-stream",
+        }
+
+        # Create content larger than 1 MB limit
+        large_content = b"x" * (2 * 1024 * 1024)
+        self._setup_mock_stream(mock_read_api['_get_http_client'], large_content)
+
+        read_fn = get_tool_function('read_course_file')
+        result = await read_fn("60366", 12345, max_size_mb=1.0)
+
+        assert "error" in result.lower()
+        assert "exceeds" in result.lower()
+        assert "download_course_file" in result
+
+    @pytest.mark.asyncio
+    async def test_read_custom_size_limit(self, mock_read_api):
+        """Test that custom max_size_mb is respected."""
+        small_content = b"small file"
+
+        mock_read_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "display_name": "small.txt",
+            "url": "https://canvas.example.com/files/12345/download",
+            "size": len(small_content),
+            "content-type": "text/plain",
+        }
+
+        self._setup_mock_stream(mock_read_api['_get_http_client'], small_content)
+
+        read_fn = get_tool_function('read_course_file')
+        result = await read_fn("60366", 12345, max_size_mb=0.001)
+
+        # 10 bytes is within 0.001 MB (~1 KB), so should succeed
+        assert "Read: small.txt" in result
+
+    @pytest.mark.asyncio
+    async def test_read_http_error(self, mock_read_api):
+        """Test handling of HTTP errors during read."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_read_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "display_name": "test.pdf",
+            "url": "https://canvas.example.com/files/12345/download",
+            "content-type": "application/pdf",
+        }
+
+        mock_response = AsyncMock()
+        mock_response.raise_for_status = MagicMock(side_effect=Exception("403 Forbidden"))
+
+        mock_stream_cm = AsyncMock()
+        mock_stream_cm.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_stream_cm.__aexit__ = AsyncMock(return_value=False)
+
+        mock_http = AsyncMock()
+        mock_http.stream = MagicMock(return_value=mock_stream_cm)
+        mock_read_api['_get_http_client'].return_value = mock_http
+
+        read_fn = get_tool_function('read_course_file')
+        result = await read_fn("60366", 12345)
+
+        assert "error" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_read_uses_filename_fallback(self, mock_read_api):
+        """Test fallback to 'filename' when 'display_name' is missing."""
+        mock_read_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "filename": "backup_name.pdf",
+            "url": "https://canvas.example.com/files/12345/download",
+            "content-type": "application/pdf",
+        }
+
+        self._setup_mock_stream(mock_read_api['_get_http_client'])
+
+        read_fn = get_tool_function('read_course_file')
+        result = await read_fn("60366", 12345)
+
+        assert "Read: backup_name.pdf" in result
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("bad_value", [0, 0.0, -1, -25.0])
+    async def test_read_rejects_non_positive_max_size(self, mock_read_api, bad_value):
+        """Test non-positive max_size_mb is rejected before any Canvas request."""
+        read_fn = get_tool_function('read_course_file')
+        result = await read_fn("60366", 12345, max_size_mb=bad_value)
+
+        assert "error" in result.lower()
+        assert "must be positive" in result.lower()
+        # Should short-circuit before making any Canvas API call
+        mock_read_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_read_clamps_to_server_hard_max(self, mock_read_api):
+        """Caller-requested max_size_mb is clamped to the server-side hard max."""
+        from unittest.mock import MagicMock, patch
+
+        # Pretend the server operator set a 10 MB hard cap.
+        fake_config = MagicMock()
+        fake_config.read_file_max_size_mb = 10.0
+
+        # File is 50 MB; caller naively asks for 1000 MB. After clamping,
+        # the effective limit is 10 MB and the file should be rejected.
+        mock_read_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "display_name": "huge.bin",
+            "url": "https://canvas.example.com/files/12345/download",
+            "size": 50 * 1024 * 1024,
+            "content-type": "application/octet-stream",
+        }
+
+        with patch('canvas_mcp.tools.files.get_config', return_value=fake_config):
+            read_fn = get_tool_function('read_course_file')
+            result = await read_fn("60366", 12345, max_size_mb=1000.0)
+
+        assert "error" in result.lower()
+        assert "exceeds" in result.lower()
+        # The message should reflect the clamped effective limit, not 1000.
+        assert "10" in result
+        assert "1000" not in result
+
+    @pytest.mark.asyncio
+    async def test_read_clamp_allows_file_within_server_max(self, mock_read_api):
+        """Clamping does not reject files that fit inside the server-side hard max."""
+        from unittest.mock import MagicMock, patch
+
+        fake_config = MagicMock()
+        fake_config.read_file_max_size_mb = 10.0
+
+        small_content = b"hello world"
+        mock_read_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "display_name": "small.txt",
+            "url": "https://canvas.example.com/files/12345/download",
+            "size": len(small_content),
+            "content-type": "text/plain",
+        }
+        self._setup_mock_stream(mock_read_api['_get_http_client'], small_content)
+
+        # Caller asks for way more than the server max — it should clamp silently
+        # and still succeed because the file itself is tiny.
+        with patch('canvas_mcp.tools.files.get_config', return_value=fake_config):
+            read_fn = get_tool_function('read_course_file')
+            result = await read_fn("60366", 12345, max_size_mb=1000.0)
+
+        assert "Read: small.txt" in result
+
+
 class TestListCourseFiles:
     """Tests for list_course_files tool."""
 
