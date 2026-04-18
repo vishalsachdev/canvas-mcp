@@ -72,4 +72,14 @@ node_modules/
 .smithery/
 smithery-wrapper/node_modules/
 smithery-wrapper/.smithery/
+
+# Local Claude Code permissions (not for public repo; .claude/plans and .claude/skills are tracked intentionally)
+.claude/settings.local.json
+
+# Cloudflare Wrangler local cache and state
+.wrangler/
+
+# Ephemeral TypeScript execution temp files (from execute_typescript tool)
+src/canvas_mcp/code_api/tmp*.ts
+src/canvas_mcp/code_api/tmp*.cjs
 .mcp.json

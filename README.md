@@ -607,6 +607,7 @@ Contributions are welcome! Feel free to:
 
 Thanks to everyone who has contributed to Canvas MCP:
 
+- **[@DomBarker99](https://github.com/DomBarker99)** — `read_course_file` tool for remote MCP deployments (#90)
 - **[@Promithius-DR](https://github.com/Promithius-DR)** — Role-based tool filtering and tool annotations (#84)
 - **[@Metzpapa](https://github.com/Metzpapa)** — File download and listing tools (#75)
 - **[@JCSnap](https://github.com/JCSnap)** — Student tool bug fixes (#72, #73)
