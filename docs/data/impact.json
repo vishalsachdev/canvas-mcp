@@ -1,49 +1,54 @@
 {
-  "collected_at": "2026-04-06T14:00:08Z",
+  "collected_at": "2026-04-16T02:56:17Z",
   "github": {
-    "stars": 92,
-    "forks": 30,
-    "contributors": 9,
-    "open_issues": 1,
-    "views_14d": 1065,
-    "views_14d_unique": 531,
-    "clones_14d": 478,
-    "clones_14d_unique": 281,
+    "stars": 98,
+    "forks": 32,
+    "contributors": 10,
+    "open_issues": 0,
+    "views_14d": 1538,
+    "views_14d_unique": 591,
+    "clones_14d": 1251,
+    "clones_14d_unique": 489,
     "referrers": [
       {
         "referrer": "Google",
-        "count": 543,
-        "uniques": 302
+        "count": 696,
+        "uniques": 346
       },
       {
         "referrer": "github.com",
-        "count": 117,
-        "uniques": 60
-      },
-      {
-        "referrer": "canvas-mcp.illinihunt.org",
-        "count": 30,
-        "uniques": 14
+        "count": 220,
+        "uniques": 89
       },
       {
         "referrer": "statics.teams.cdn.office.net",
-        "count": 26,
+        "count": 32,
         "uniques": 7
       },
       {
         "referrer": "Bing",
-        "count": 18,
-        "uniques": 13
+        "count": 31,
+        "uniques": 18
       },
       {
         "referrer": "search.brave.com",
-        "count": 17,
-        "uniques": 9
+        "count": 28,
+        "uniques": 11
       },
       {
         "referrer": "DuckDuckGo",
-        "count": 10,
-        "uniques": 5
+        "count": 26,
+        "uniques": 4
+      },
+      {
+        "referrer": "canvas-mcp.illinihunt.org",
+        "count": 24,
+        "uniques": 16
+      },
+      {
+        "referrer": "pypi.org",
+        "count": 21,
+        "uniques": 1
       },
       {
         "referrer": "mcpservers.org",
@@ -52,23 +57,18 @@
       },
       {
         "referrer": "linkedin.com",
-        "count": 5,
+        "count": 8,
         "uniques": 5
-      },
-      {
-        "referrer": "l.facebook.com",
-        "count": 3,
-        "uniques": 3
       }
     ]
   },
   "pypi": {
-    "last_day": 4,
-    "last_week": 71,
-    "last_month": 409
+    "last_day": 6,
+    "last_week": 183,
+    "last_month": 437
   },
   "npm": {
-    "last_month": 159
+    "last_month": 92
   },
   "history": [
     {
@@ -106,6 +106,24 @@
       "npm_month": 159,
       "views_unique": 531,
       "clones_unique": 281
+    },
+    {
+      "date": "2026-04-13",
+      "stars": 96,
+      "forks": 32,
+      "pypi_month": 463,
+      "npm_month": 89,
+      "views_unique": 599,
+      "clones_unique": 494
+    },
+    {
+      "date": "2026-04-15",
+      "stars": 98,
+      "forks": 32,
+      "pypi_month": 437,
+      "npm_month": 92,
+      "views_unique": 591,
+      "clones_unique": 489
     }
   ]
 }

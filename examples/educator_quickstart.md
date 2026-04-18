@@ -157,4 +157,4 @@ Use the bulk grading code API to grade all submissions for Assignment 6
 - Verify `ENABLE_DATA_ANONYMIZATION=true` in your `.env`
 - Restart your MCP client after changing settings
 
-Need help? Check [EDUCATOR_GUIDE.md](../docs/EDUCATOR_GUIDE.md) or [open an issue](https://github.com/vishalsachdev/canvas-mcp/issues).
+Need help? Check the [Educator Guide](https://canvas-mcp.illinihunt.org/educator-guide.html) or [open an issue](https://github.com/vishalsachdev/canvas-mcp/issues).

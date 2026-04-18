@@ -1074,8 +1074,8 @@ Some Canvas API endpoints have bugs or design issues that prevent certain operat
 
 ## Need Help?
 
-- **Student Guide**: [STUDENT_GUIDE.md](../docs/STUDENT_GUIDE.md)
-- **Educator Guide**: [EDUCATOR_GUIDE.md](../docs/EDUCATOR_GUIDE.md)
+- **Student Guide**: https://canvas-mcp.illinihunt.org/student-guide.html
+- **Educator Guide**: https://canvas-mcp.illinihunt.org/educator-guide.html
 - **Main README**: [README.md](../README.md)
 - **Development Guide**: [CLAUDE.md](../CLAUDE.md)
 - **GitHub Issues**: [Report issues](https://github.com/vishalsachdev/canvas-mcp/issues)

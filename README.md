@@ -160,7 +160,7 @@ Get AI-powered assistance with:
 - Accessing course content and discussions
 - Organizing your TODO list
 
-**[→ Get Started as a Student](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/STUDENT_GUIDE.md)**
+**[→ Get Started as a Student](https://canvas-mcp.illinihunt.org/student-guide.html)**
 
 ### For Educators 👨‍🏫
 Enhance your teaching with:
@@ -170,7 +170,7 @@ Enhance your teaching with:
 - **FERPA-compliant** student data handling
 - Bulk messaging and communication tools
 
-**[→ Get Started as an Educator](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/EDUCATOR_GUIDE.md)**
+**[→ Get Started as an Educator](https://canvas-mcp.illinihunt.org/educator-guide.html)**
 
 ### For Learning Designers 🎨
 AI-powered course design and quality assurance:
@@ -238,7 +238,7 @@ Complete FERPA compliance through systematic data anonymization when working wit
 - **FERPA-compliant analytics**: Ask "Which students need support?" without exposing real identities
 - **De-anonymization mapping tool** for faculty to correlate anonymous IDs with real students locally
 
-All student data is anonymized **before** it reaches AI systems. See [Educator Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/EDUCATOR_GUIDE.md) for configuration details.
+All student data is anonymized **before** it reaches AI systems. See [Educator Guide](https://canvas-mcp.illinihunt.org/educator-guide.html) for configuration details.
 
 ### For Students: Your Data Stays Private
 
@@ -558,8 +558,8 @@ Quick start guides: [Student](examples/student_quickstart.md) | [Educator](examp
 ## Documentation
 
 - **[Tool Documentation](tools/README.md)** — Complete reference for all 88 tools
-- **[Student Guide](docs/STUDENT_GUIDE.md)** — Getting started as a student
-- **[Educator Guide](docs/EDUCATOR_GUIDE.md)** — FERPA compliance and educator workflows
+- **[Student Guide](https://canvas-mcp.illinihunt.org/student-guide.html)** — Getting started as a student
+- **[Educator Guide](https://canvas-mcp.illinihunt.org/educator-guide.html)** — FERPA compliance and educator workflows
 - **[Bulk Grading Example](examples/bulk_grading_example.md)** — Token-efficient batch grading walkthrough
 - **[Development Guide](CLAUDE.md)** — Architecture and contributing
 
@@ -590,7 +590,7 @@ Four layers of runtime security, all enabled by default:
 | Structured audit logging | Opt-in: `LOG_ACCESS_EVENTS=true` |
 | Sandboxed code execution | `ENABLE_TS_SANDBOX=true` |
 
-FERPA-compliant anonymization for educators: `ENABLE_DATA_ANONYMIZATION=true`. See [Educator Guide](docs/EDUCATOR_GUIDE.md) for details.
+FERPA-compliant anonymization for educators: `ENABLE_DATA_ANONYMIZATION=true`. See [Educator Guide](https://canvas-mcp.illinihunt.org/educator-guide.html) for details.
 
 ## Publishing
 

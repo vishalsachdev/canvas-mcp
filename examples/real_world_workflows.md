@@ -377,4 +377,4 @@ low grades, low participation). Draft messages offering help.
 - Ask Claude to suggest improvements
 - Share successful workflows with colleagues
 
-Need more ideas? Check out the [Educator Guide](../docs/EDUCATOR_GUIDE.md) or [open a discussion](https://github.com/vishalsachdev/canvas-mcp/discussions) to share your workflows!
+Need more ideas? Check out the [Educator Guide](https://canvas-mcp.illinihunt.org/educator-guide.html) or [open a discussion](https://github.com/vishalsachdev/canvas-mcp/discussions) to share your workflows!

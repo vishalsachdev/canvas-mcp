@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas MCP Meets skills.sh: From MCP Server to Agent Skill Ecosystem</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 680px; margin: 40px auto; padding: 0 20px; line-height: 1.7; color: #1a1a2e; background: #fafafa; }
+        h1 { font-size: 2rem; line-height: 1.2; margin-bottom: 8px; }
+        h2 { font-size: 1.4rem; margin-top: 2rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; }
+        .subtitle { color: #64748b; font-style: italic; font-size: 1.1rem; margin-bottom: 2rem; }
+        hr { border: none; border-top: 1px solid #e2e8f0; margin: 1.5rem 0; }
+        a { color: #0891b2; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+        pre { background: #0f172a; color: #e2e8f0; padding: 16px 20px; border-radius: 8px; overflow-x: auto; font-size: 0.9em; }
+        pre code { background: none; padding: 0; color: inherit; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.95em; }
+        th, td { border: 1px solid #e2e8f0; padding: 10px 14px; text-align: left; }
+        th { background: #f1f5f9; font-weight: 600; }
+        strong { color: #0f172a; }
+        p { margin: 1rem 0; }
+    </style>
+</head>
+<body>
+
+<h1>Canvas MCP Meets skills.sh: From MCP Server to Agent Skill Ecosystem</h1>
+<p class="subtitle">One command. Forty agents. Five workflow recipes that teach AI how to use Canvas.</p>
+<hr>
+
+<p>When I first built Canvas MCP, the distribution story was straightforward: publish to PyPI, register with the MCP Registry, and let MCP-compatible clients discover it. That covered Claude Desktop, Cursor, Zed, and a handful of others. Good reach for an education tool.</p>
+
+<p>But today the agent landscape looks different. There are dozens of coding agents &mdash; Codex, OpenCode, Cline, Continue &mdash; and most of them support some form of reusable instruction sets. The question shifted from &ldquo;how do I distribute my MCP server?&rdquo; to &ldquo;how do I teach <em>any</em> AI agent to use it well?&rdquo;</p>
+
+<p>Enter <a href="https://skills.sh">skills.sh</a>.</p>
+
+<h2>What Are Agent Skills?</h2>
+
+<p>Skills are a layer above MCP tools. If MCP tools are the <em>verbs</em> (grade this, list that, send a message), skills are the <em>playbooks</em> &mdash; structured recipes that tell an agent what sequence of tools to call, what decisions to make along the way, and what safety checks to run.</p>
+
+<p>Think of it this way: <code>bulk_grade_submissions</code> is a tool. &ldquo;Grade Assignment 5 using the rubric, starting with a dry run, routing to single/bulk/code execution based on submission count&rdquo; is a skill.</p>
+
+<p>This is a pattern I&rsquo;ve been <a href="https://chatwithgpt.substack.com/p/building-shareable-learning-design">systematizing across projects</a> &mdash; extracting expert knowledge into reusable, agent-executable formats. The learning design skills I built earlier taught Claude how to apply instructional design principles. These new skills teach <em>any agent</em> how to navigate Canvas workflows.</p>
+
+<h2>Five Skills, One Install</h2>
+
+<pre><code>npx skills add vishalsachdev/canvas-mcp</code></pre>
+
+<p>That single command presents an interactive picker with five workflow recipes:</p>
+
+<table>
+<tr><th>Skill</th><th>Audience</th><th>What It Teaches the Agent</th></tr>
+<tr><td><strong>canvas-week-plan</strong></td><td>Students</td><td>Aggregate due dates, grades, peer reviews into a prioritized weekly plan</td></tr>
+<tr><td><strong>canvas-morning-check</strong></td><td>Educators</td><td>Run a course health dashboard &mdash; submission rates, struggling students, deadlines</td></tr>
+<tr><td><strong>canvas-bulk-grading</strong></td><td>Educators</td><td>Choose the right grading strategy based on volume (1-9, 10-29, 30+) with safety-first dry runs</td></tr>
+<tr><td><strong>canvas-peer-review-manager</strong></td><td>Educators</td><td>Full analytics pipeline from completion tracking to quality analysis to targeted reminders</td></tr>
+<tr><td><strong>canvas-discussion-facilitator</strong></td><td>Both</td><td>Browse, monitor participation, and facilitate discussions across forums</td></tr>
+</table>
+
+<p>Each skill is a <code>SKILL.md</code> file &mdash; pure markdown with YAML frontmatter. No runtime dependencies. No build step. The agent reads it and knows what to do.</p>
+
+<h2>Why This Matters</h2>
+
+<p>The MCP server gives agents <em>capability</em>. Skills give agents <em>competence</em>.</p>
+
+<p>Without the bulk grading skill, an agent with access to Canvas MCP might call <code>grade_with_rubric</code> ninety times in a row, burning tokens and hitting rate limits. With the skill, it knows to check submission count first, use <code>bulk_grade_submissions</code> for medium batches, and drop into <code>execute_typescript</code> for large ones &mdash; saving 99.7% of tokens.</p>
+
+<p>This is compound engineering in action. The <a href="https://chatwithgpt.substack.com/p/three-months-of-canvas-mcp-evolution">three months of Canvas MCP evolution</a> built the tools. The skills.sh integration now makes those tools accessible &mdash; and <em>usable</em> &mdash; across the entire agent ecosystem.</p>
+
+<h2>Try It</h2>
+
+<pre><code>npx skills add vishalsachdev/canvas-mcp</code></pre>
+
+<p>The GitHub repo is at <a href="https://github.com/vishalsachdev/canvas-mcp">vishalsachdev/canvas-mcp</a>, and the landing page at <a href="https://vishalsachdev.github.io/canvas-mcp">vishalsachdev.github.io/canvas-mcp</a> now features the full skills section. Skills appear on the <a href="https://skills.sh">skills.sh leaderboard</a> automatically as people install them.</p>
+
+<p>If you&rsquo;re building MCP servers, consider adding a <code>skills/</code> directory. Your tools are only as useful as agents&rsquo; ability to orchestrate them.</p>
+
+</body>
+</html>

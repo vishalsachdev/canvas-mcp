@@ -313,6 +313,6 @@ No anonymization needed - students only access their own data via Canvas "self" 
 
 - **Tool Documentation:** `/tools/README.md`
 - **Code API Guide:** `/src/canvas_mcp/code_api/README.md`
-- **Student Guide:** `/docs/STUDENT_GUIDE.md`
-- **Educator Guide:** `/docs/EDUCATOR_GUIDE.md`
+- **Student Guide:** https://canvas-mcp.illinihunt.org/student-guide.html
+- **Educator Guide:** https://canvas-mcp.illinihunt.org/educator-guide.html
 - **Development Guide:** `/CLAUDE.md`
