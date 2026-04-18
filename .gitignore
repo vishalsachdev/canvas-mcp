@@ -73,8 +73,9 @@ node_modules/
 smithery-wrapper/node_modules/
 smithery-wrapper/.smithery/
 
-# Local Claude Code permissions (not for public repo; .claude/plans and .claude/skills are tracked intentionally)
-.claude/settings.local.json
+# Claude Code per-project working directory (local-only: permissions, in-flight plans, drafts)
+# Canonical skills live in top-level skills/ for skills.sh distribution.
+.claude/
 
 # Cloudflare Wrangler local cache and state
 .wrangler/
