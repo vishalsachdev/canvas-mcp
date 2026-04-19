@@ -84,3 +84,12 @@ smithery-wrapper/.smithery/
 src/canvas_mcp/code_api/tmp*.ts
 src/canvas_mcp/code_api/tmp*.cjs
 .mcp.json
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Editor swap/backup files
+*.swp
+*.swo
+*~
