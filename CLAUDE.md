@@ -191,9 +191,10 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 **When adding a new tool**, update: `tools/README.md` → `AGENTS.md` → `TOOL_MANIFEST.json`. Do NOT update `README.md` unless it's a major feature. Do NOT duplicate tool usage docs in `CLAUDE.md` (architecture only).
 
 ## Current Focus
-- [x] Re-enable GitHub Actions (account-level billing toggle)
-- [x] Create v1.1.0 GitHub Release (created manually via `gh release create`)
 - [x] Release v1.2.0 — role-based filtering, accessibility, security hardening, contributor acknowledgements
+- [x] Merge PR #90 (`read_course_file` for remote MCP deployments, @DomBarker99) — tool count 87 → 88
+- [x] Repo hygiene audit — -9,260 lines of stale/orphan/duplicate content
+- [ ] Tag v1.3.0 release (read_course_file is MCP-Registry-worthy feature)
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
 
 ## Roadmap
@@ -217,9 +218,9 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 ## Session Log
 > Full history: [docs/session-history.md](./docs/session-history.md)
 
-### 2026-04-10
-- **Rubric tool rationalization** (PR #86): Reduced rubric tools 11 → 6 (total 92 → 87). Deleted 3 broken/unused tools, merged 3 overlapping reads into `get_rubric`, renamed 3 for clarity, moved `bulk_grade_submissions` to assignments.py. Net -540 lines from rubrics.py.
-- **Stale markdown cleanup** (PR #87): Deleted 11 fully-implemented plans, satisfied specs, and dead artifacts. -4,766 lines.
-- **Codebase health audit**: Analyzed all 92 tools against session history — ~50 had no evidence of use. Rubric tools were worst case (2 disabled, 3 undocumented, 3 overlapping).
-- Next: Consider rationalizing peer review tools (9 tools, similar pattern). Deploy docs to Cloudflare Pages (tool count 87). Backlog triage.
+### 2026-04-18
+- **Merged PR #90** (`read_course_file`, external contributor @DomBarker99): Returns Canvas file content as base64 in MCP response — complements `download_course_file` which writes to the server filesystem (useless for remote MCP topologies). Dual size-cap enforcement (reported + mid-stream), server-side `READ_FILE_MAX_SIZE_MB` clamp. 363 tests pass. Added @DomBarker99 to contributors list. Tool count 87 → 88; educator role 86 → 87.
+- **Repo hygiene audit (-9,260 lines across 5 priorities)**: P0 archived legacy code + rubric plans -3,937. P1 orphan docs (SECURITY_*, course_doc_template, impact-metrics-2026-03-20) -2,421. P2 UIUC security cluster (self-referencing island, no user-facing in-links) -914. P3 duplicate student/educator guides (kept HTML on canvas-mcp.illinihunt.org, rewrote 10 links) -842. Untracked `.claude/` (Claude Code per-project working dir) -1,021.
+- **Misc cleanup**: Moved `session-history.md` → `docs/`. Added defensive `.gitignore` entries for `.DS_Store`, `Thumbs.db`, editor swap files. Cloudflare Pages redeployed with tool count 88.
+- Next: Tag v1.3.0 release for `read_course_file`. Publish decision on `articles/2026-03-01-canvas-mcp-meets-skills-sh` (staged locally, untracked). Backlog triage.
 

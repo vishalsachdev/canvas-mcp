@@ -4,6 +4,12 @@ Archived session log entries from canvas-mcp CLAUDE.md.
 
 ## Session Log
 
+### 2026-04-10
+- **Rubric tool rationalization** (PR #86): Reduced rubric tools 11 → 6 (total 92 → 87). Deleted 3 broken/unused tools, merged 3 overlapping reads into `get_rubric`, renamed 3 for clarity, moved `bulk_grade_submissions` to assignments.py. Net -540 lines from rubrics.py.
+- **Stale markdown cleanup** (PR #87): Deleted 11 fully-implemented plans, satisfied specs, and dead artifacts. -4,766 lines.
+- **Codebase health audit**: Analyzed all 92 tools against session history — ~50 had no evidence of use. Rubric tools were worst case (2 disabled, 3 undocumented, 3 overlapping).
+- Next: Consider rationalizing peer review tools (9 tools, similar pattern). Deploy docs to Cloudflare Pages (tool count 87). Backlog triage.
+
 ### 2026-04-09 (late session)
 - **PR #84 merged**: Role-based tool filtering from external contributor (Promithius-DR). Code reviewed, found 2 bugs (validate_config not resetting invalid role, --config showing wrong role), fixed and merged with --admin.
 - **PR #85 merged**: Windows tsx fix (issue #83). Reviewed Claude + Codex feedback, addressed P1 (npx fallback re-introduces bug) and P2 (global before local resolution order), merged.
