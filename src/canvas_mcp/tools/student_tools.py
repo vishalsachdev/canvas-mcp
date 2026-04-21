@@ -28,7 +28,6 @@ def register_student_tools(mcp: FastMCP):
         """
         # Calculate the date range (use timezone-aware datetime)
         end_date = datetime.now(timezone.utc) + timedelta(days=days)
-        end_date.strftime("%Y-%m-%d")
 
         # Get upcoming events for the current user
         events = await fetch_all_paginated_results(
