@@ -41,6 +41,7 @@ Each competency has subject-specific rubrics (English, Science, Math, Art, Desig
 - Install uv package manager: `pip install uv`
 - Install dependencies: `uv pip install -e .`
 - Create `.env` file with `CANVAS_API_TOKEN` and `CANVAS_API_URL`
+- Optional: Set `CANVAS_ALLOW_DELETES=false` to block all DELETE operations (default: `true`)
 - Server installed as CLI command: `canvas-mcp-server`
 
 ## Commands

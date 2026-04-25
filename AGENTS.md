@@ -253,6 +253,15 @@ Canvas MCP accepts multiple identifier formats:
 
 The server automatically resolves identifiers to Canvas IDs.
 
+## Safety Guards
+
+### Delete Protection
+Block all DELETE operations to prevent accidental content destruction:
+```
+CANVAS_ALLOW_DELETES=false
+```
+When disabled, any delete tool returns a clear error instead of reaching Canvas. Default is `true` (deletes allowed). All 16 DELETE call sites are blocked uniformly, including enrollment lifecycle operations.
+
 ## Privacy and Anonymization
 
 ### For Educators
