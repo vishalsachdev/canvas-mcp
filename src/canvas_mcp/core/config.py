@@ -55,6 +55,7 @@ class Config:
         self.enable_data_anonymization = _bool_env("ENABLE_DATA_ANONYMIZATION", False)
         self.anonymization_debug = _bool_env("ANONYMIZATION_DEBUG", False)
         self.log_redact_pii = _bool_env("LOG_REDACT_PII", True)
+        self.allow_deletes = _bool_env("CANVAS_ALLOW_DELETES", True)
 
         # Audit logging configuration
         self.log_access_events = _bool_env("LOG_ACCESS_EVENTS", False)

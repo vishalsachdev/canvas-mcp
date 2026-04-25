@@ -133,6 +133,15 @@ async def make_canvas_request(
     # Construct the full URL
     url = f"{config.api_base_url.rstrip('/')}{endpoint}"
 
+    # Delete guard: block DELETE requests when disabled via CANVAS_ALLOW_DELETES
+    if method.lower() == "delete" and not config.allow_deletes:
+        log_warning(f"DELETE request blocked by CANVAS_ALLOW_DELETES=false: {sanitize_url(endpoint)}")
+        return {
+            "error": f"DELETE operation blocked for endpoint {endpoint}. "
+            f"Deletes are disabled (CANVAS_ALLOW_DELETES=false). "
+            f"Set CANVAS_ALLOW_DELETES=true in your .env file to enable delete operations."
+        }
+
     # Retry loop for rate limiting
     for attempt in range(MAX_RETRIES + 1):
         try:
