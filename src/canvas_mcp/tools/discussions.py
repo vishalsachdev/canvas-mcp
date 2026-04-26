@@ -910,6 +910,8 @@ def register_educator_discussion_tools(mcp: FastMCP):
     ) -> str:
         """Delete an announcement from a Canvas course.
 
+        Permanent — Canvas may retain a recycle-bin copy depending on admin settings.
+
         Args:
             course_identifier: Course code or Canvas ID
             announcement_id: Announcement ID to delete
@@ -946,19 +948,33 @@ def register_educator_discussion_tools(mcp: FastMCP):
     async def bulk_delete_announcements(
         course_identifier: str | int,
         announcement_ids: list[str | int],
-        stop_on_error: bool = False
+        stop_on_error: bool = False,
+        limit: int = 25,
+        dry_run: bool = False
     ) -> str:
         """Delete multiple announcements from a Canvas course.
+
+        Permanent — Canvas may retain a recycle-bin copy depending on admin settings.
 
         Args:
             course_identifier: Course code or Canvas ID
             announcement_ids: List of announcement IDs to delete
             stop_on_error: Stop on first error; if False, continue with remaining (default: False)
+            limit: Max number of announcements to delete in one call (default: 25). Pass a larger value to override.
+            dry_run: Fetch titles and report what would be deleted without deleting (default: False)
         """
         course_id = await get_course_id(course_identifier)
 
+        if len(announcement_ids) > limit:
+            return (
+                f"❌ Refusing to delete {len(announcement_ids)} announcements: exceeds limit of {limit}.\n"
+                f"  Pass limit={len(announcement_ids)} (or higher) to override, "
+                f"or split the list into smaller batches."
+            )
+
         successful = []
         failed = []
+        previewed = []
 
         for announcement_id in announcement_ids:
             try:
@@ -975,6 +991,13 @@ def register_educator_discussion_tools(mcp: FastMCP):
                     })
                     if stop_on_error:
                         break
+                    continue
+
+                if dry_run:
+                    previewed.append({
+                        "id": str(announcement_id),
+                        "title": announcement.get("title", "Unknown Title")
+                    })
                     continue
 
                 # Proceed with deletion
@@ -1007,13 +1030,30 @@ def register_educator_discussion_tools(mcp: FastMCP):
                     break
 
         # Format results
+        course_display = await get_course_code(course_id) or course_identifier
+
+        if dry_run:
+            result = f"DRY RUN — bulk deletion preview for course {course_display}:\n\n"
+            result += f"Summary: {len(previewed)} would be deleted, {len(failed)} unreachable out of {len(announcement_ids)} total\n\n"
+            if previewed:
+                result += "Would delete:\n"
+                for item in previewed:
+                    result += f"  - ID: {item['id']}, Title: {item['title']}\n"
+                result += "\n"
+            if failed:
+                result += "Could not preview (fetch failed):\n"
+                for item in failed:
+                    result += f"  - ID: {item['id']}, Error: {item['error']}\n"
+                result += "\n"
+            result += "Set dry_run=False to perform actual deletions."
+            return result
+
         summary = {
             "total": len(announcement_ids),
             "successful": len(successful),
             "failed": len(failed)
         }
 
-        course_display = await get_course_code(course_id) or course_identifier
         result = f"Bulk deletion results for course {course_display}:\n\n"
         result += f"Summary: {summary['successful']} successful, {summary['failed']} failed out of {summary['total']} total\n\n"
 
@@ -1042,6 +1082,8 @@ def register_educator_discussion_tools(mcp: FastMCP):
         dry_run: bool = False
     ) -> str:
         """Delete an announcement with optional safety checks.
+
+        Permanent — Canvas may retain a recycle-bin copy depending on admin settings.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -1108,6 +1150,8 @@ def register_educator_discussion_tools(mcp: FastMCP):
         dry_run: bool = True
     ) -> str:
         """Delete announcements matching specific criteria.
+
+        Permanent — Canvas may retain a recycle-bin copy depending on admin settings.
 
         Args:
             course_identifier: Course code or Canvas ID
