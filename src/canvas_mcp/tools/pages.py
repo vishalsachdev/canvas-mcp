@@ -294,6 +294,8 @@ def register_educator_page_crud_tools(mcp: FastMCP):
     ) -> str:
         """Delete a page from a Canvas course.
 
+        Permanent — Canvas may retain a recycle-bin copy depending on admin settings.
+
         Args:
             course_identifier: Course code or Canvas ID
             page_url_or_id: Page URL slug or page ID to delete
