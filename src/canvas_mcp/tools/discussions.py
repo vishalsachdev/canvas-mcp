@@ -960,16 +960,16 @@ def register_educator_discussion_tools(mcp: FastMCP):
             course_identifier: Course code or Canvas ID
             announcement_ids: List of announcement IDs to delete
             stop_on_error: Stop on first error; if False, continue with remaining (default: False)
-            limit: Max number of announcements to delete in one call (default: 25). Pass a larger value to override.
+            limit: Max number of announcements to delete in one call (default: 25). Ignored when dry_run=True, so large batches can be previewed safely.
             dry_run: Fetch titles and report what would be deleted without deleting (default: False)
         """
         course_id = await get_course_id(course_identifier)
 
-        if len(announcement_ids) > limit:
+        if not dry_run and len(announcement_ids) > limit:
             return (
                 f"❌ Refusing to delete {len(announcement_ids)} announcements: exceeds limit of {limit}.\n"
                 f"  Pass limit={len(announcement_ids)} (or higher) to override, "
-                f"or split the list into smaller batches."
+                f"or use dry_run=True to preview without deleting."
             )
 
         successful = []
