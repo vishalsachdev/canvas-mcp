@@ -292,6 +292,91 @@ def build_rubric_assessment_form_data(
     return form_data
 
 
+def build_rubric_create_form_data(
+    title: str,
+    criteria: dict[str, Any],
+    assignment_id: str | int | None = None,
+    use_for_grading: bool = False,
+    reusable: bool = False,
+    free_form_criterion_comments: bool = False,
+) -> dict[str, str]:
+    """Build bracket-notation form data for Canvas rubric creation API.
+
+    Canvas POST /courses/:id/rubrics requires bracket-notation form data
+    (not JSON body).  This function produces the flat key/value dict that
+    ``make_canvas_request`` sends when ``use_form_data=True``.
+
+    Args:
+        title: Rubric title
+        criteria: Validated criteria dict (from validate_rubric_criteria)
+        assignment_id: Optional assignment ID to associate the rubric with
+        use_for_grading: Whether the rubric should be used for grade calculation
+        reusable: Whether the rubric is reusable across courses
+        free_form_criterion_comments: Allow free-form comments per criterion
+
+    Returns:
+        Flat dict with Canvas bracket-notation keys, all values as strings.
+
+    Example output keys::
+
+        rubric[title]
+        rubric[criteria][0][description]
+        rubric[criteria][0][points]
+        rubric[criteria][0][ratings][0][description]
+        rubric[criteria][0][ratings][0][points]
+        rubric_association[association_id]        (only when assignment_id given)
+        rubric_association[association_type]      (only when assignment_id given)
+        rubric_association[use_for_grading]       (only when assignment_id given)
+        rubric_association[purpose]               (only when assignment_id given)
+    """
+    form_data: dict[str, str] = {}
+
+    form_data["rubric[title]"] = title
+    form_data["rubric[reusable]"] = "1" if reusable else "0"
+    form_data["rubric[free_form_criterion_comments]"] = "1" if free_form_criterion_comments else "0"
+
+    for crit_idx, (_crit_key, criterion_data) in enumerate(criteria.items()):
+        prefix = f"rubric[criteria][{crit_idx}]"
+
+        form_data[f"{prefix}[description]"] = str(criterion_data["description"])
+        form_data[f"{prefix}[points]"] = str(float(criterion_data["points"]))
+
+        long_desc = criterion_data.get("long_description", "")
+        if long_desc:
+            form_data[f"{prefix}[long_description]"] = str(long_desc)
+
+        ratings = criterion_data.get("ratings", [])
+
+        # Normalise to a list of dicts (criteria support both list and dict formats)
+        if isinstance(ratings, dict):
+            ratings_list = list(ratings.values())
+        else:
+            ratings_list = list(ratings)
+
+        # Sort ratings highest → lowest so Canvas displays them correctly
+        ratings_list = sorted(
+            ratings_list,
+            key=lambda r: float(r.get("points", 0)),
+            reverse=True,
+        )
+
+        for rating_idx, rating_data in enumerate(ratings_list):
+            rprefix = f"{prefix}[ratings][{rating_idx}]"
+            form_data[f"{rprefix}[description]"] = str(rating_data["description"])
+            form_data[f"{rprefix}[points]"] = str(float(rating_data["points"]))
+            rating_long_desc = rating_data.get("long_description", "")
+            if rating_long_desc:
+                form_data[f"{rprefix}[long_description]"] = str(rating_long_desc)
+
+    if assignment_id is not None:
+        form_data["rubric_association[association_id]"] = str(assignment_id)
+        form_data["rubric_association[association_type]"] = "Assignment"
+        form_data["rubric_association[use_for_grading]"] = "1" if use_for_grading else "0"
+        form_data["rubric_association[purpose]"] = "grading"
+
+    return form_data
+
+
 def register_rubric_tools(mcp: FastMCP) -> None:
     """Register all rubric-related MCP tools."""
 
@@ -755,6 +840,108 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             result += "Example: {\"criterion_id\": {\"points\": X, \"comments\": \"...\", \"rating_id\": \"rating_id\"}}\n"
         else:
             result += "\nTo see detailed criteria and ratings, run this command with include_criteria=True.\n"
+
+        return result
+
+    @mcp.tool()
+    @validate_params
+    async def create_rubric(
+        course_identifier: str | int,
+        title: str,
+        criteria: str,
+        assignment_id: str | int | None = None,
+        use_for_grading: bool = False,
+        reusable: bool = False,
+        free_form_criterion_comments: bool = False,
+    ) -> str:
+        """Create a new rubric in a course, optionally associating it with an assignment.
+
+        Uses bracket-notation form-data encoding required by the Canvas rubric API.
+
+        The ``criteria`` parameter is a JSON string mapping arbitrary criterion keys to
+        objects with the following fields:
+
+        - ``description`` (required): Short criterion label shown in the rubric grid
+        - ``points`` (required): Maximum points for this criterion (non-negative number)
+        - ``long_description`` (optional): Detailed criterion description
+        - ``ratings`` (optional): List (or object) of rating levels, each with:
+            - ``description`` (required): Rating label (e.g. "Excellent")
+            - ``points`` (required): Points for this rating (non-negative number)
+            - ``long_description`` (optional): Detailed rating description
+
+        Example ``criteria`` JSON::
+
+            {
+              "c1": {
+                "description": "Content Quality",
+                "points": 10,
+                "ratings": [
+                  {"description": "Excellent", "points": 10},
+                  {"description": "Satisfactory", "points": 7},
+                  {"description": "Needs Work", "points": 3}
+                ]
+              },
+              "c2": {
+                "description": "Grammar",
+                "points": 5,
+                "ratings": [
+                  {"description": "No errors", "points": 5},
+                  {"description": "Minor errors", "points": 3}
+                ]
+              }
+            }
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            title: Rubric title
+            criteria: JSON string defining rubric criteria (see docstring above)
+            assignment_id: Optional assignment ID to immediately associate the rubric with
+            use_for_grading: When associating with an assignment, use rubric for grade
+                             calculation (default: False)
+            reusable: Make rubric reusable across courses (default: False)
+            free_form_criterion_comments: Allow free-form comments per criterion
+                                          instead of rating selection (default: False)
+        """
+        course_id = await get_course_id(course_identifier)
+
+        # Validate and parse criteria JSON
+        try:
+            parsed_criteria = validate_rubric_criteria(criteria)
+        except ValueError as exc:
+            return f"Error: Invalid criteria — {exc}"
+
+        if not parsed_criteria:
+            return "Error: criteria must contain at least one criterion."
+
+        # Build bracket-notation form data Canvas expects
+        form_data = build_rubric_create_form_data(
+            title=title,
+            criteria=parsed_criteria,
+            assignment_id=assignment_id,
+            use_for_grading=use_for_grading,
+            reusable=reusable,
+            free_form_criterion_comments=free_form_criterion_comments,
+        )
+
+        response = await make_canvas_request(
+            "post",
+            f"/courses/{course_id}/rubrics",
+            data=form_data,
+            use_form_data=True,
+        )
+
+        if isinstance(response, dict) and "error" in response:
+            return f"Error creating rubric: {response['error']}"
+
+        course_display = await get_course_code(course_id) or course_identifier
+
+        # Canvas returns {"rubric": {...}, "rubric_association": {...}}
+        result = format_rubric_response(response)
+        result += f"\nCourse: {course_display}\n"
+
+        if assignment_id is not None:
+            result += f"Assignment ID: {assignment_id}\n"
+            result += f"Used for Grading: {'Yes' if use_for_grading else 'No'}\n"
 
         return result
 
