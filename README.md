@@ -125,18 +125,20 @@ Canvas MCP provides **88 tools** for interacting with Canvas LMS. Tools are orga
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data through any MCP-compatible client.
 
-## Latest Release: v1.2.0
+## Latest Release: v1.3.0
 
-**Released:** April 2026 | **[View All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
+**Released:** May 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
 
-- **Role-Based Tool Filtering** — Set `CANVAS_ROLE` to `student`, `educator`, or `admin` to see only relevant tools ([@Promithius-DR](https://github.com/Promithius-DR), PR #84)
-- **Accessibility Remediation** — New `fix_accessibility_issues` tool for automated WCAG fixes, scanner expanded from 4 to 20 checks
-- **Security Hardening** — Path traversal and symlink protections across all file I/O operations
-- **Windows Support** — Fixed `execute_typescript` compatibility on Windows (PR #85)
-- **CI Improvements** — Consolidated workflows (11 → 8 checks), fork-aware pipelines
+- **`create_rubric`** — Programmatic rubric creation with criteria, ratings, and optional assignment association (PR #100)
+- **`read_course_file`** — Read Canvas file content for remote MCP deployments ([@DomBarker99](https://github.com/DomBarker99), PR #90)
+- **Event-loop fix** — Resolves "Event loop is closed" on user-scoped tools (`get_my_todo_items`, `get_my_upcoming_assignments`, etc.) (PR #99)
+- **⚠️ Bulk-delete safety** — `bulk_delete_announcements` now caps at 25 IDs by default; pass `limit=N` to override or `dry_run=True` to preview. **Existing callers passing >25 IDs must add `limit=N` explicitly.** (PR #96)
+- **Maintenance** — Drop unused `fastmcp` dep, pin `mcp>=1.26,<2`, prune ~30 transitive deps (PR #93)
 
 <details>
 <summary>Previous releases</summary>
+
+**v1.2.0** — Role-Based Tool Filtering ([@Promithius-DR](https://github.com/Promithius-DR), PR #84), Accessibility Remediation (`fix_accessibility_issues`, scanner expanded 4→20 checks), Security Hardening (path traversal/symlink protections), Windows Support for `execute_typescript` (PR #85), CI consolidation (11→8 checks)
 
 **v1.1.0** — Hosted Server (`mcp.illinihunt.org`), Learning Designer tools + 3 skills, Agent Skills on skills.sh, File Management ([@Metzpapa](https://github.com/Metzpapa), PR #75), Token Optimization, Generic Distribution
 
