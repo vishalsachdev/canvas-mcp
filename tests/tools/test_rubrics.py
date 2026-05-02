@@ -155,7 +155,7 @@ class TestBuildRubricCreateFormData:
         assert descriptions == {"First", "Second"}
 
     def test_dict_format_ratings(self):
-        """Ratings in object/dict format are normalised to a list."""
+        """Ratings in object/dict format are normalized to a list."""
         criteria = {
             "c1": {
                 "description": "Quality",

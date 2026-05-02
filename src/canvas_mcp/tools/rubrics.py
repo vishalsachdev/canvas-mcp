@@ -347,8 +347,10 @@ def build_rubric_create_form_data(
 
         ratings = criterion_data.get("ratings", [])
 
-        # Normalise to a list of dicts (criteria support both list and dict formats)
+        # Normalize to a list of dicts (criteria support both list and dict formats)
         if isinstance(ratings, dict):
+            # Dict-format ratings use arbitrary user-provided keys that Canvas does not
+            # recognise — only description/points/long_description matter.  Discard keys.
             ratings_list = list(ratings.values())
         else:
             ratings_list = list(ratings)
