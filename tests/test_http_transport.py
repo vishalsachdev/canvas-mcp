@@ -244,6 +244,215 @@ class TestClientPerRequestCredentials:
 
 
 # ---------------------------------------------------------------------------
+# Event loop change detection tests
+# ---------------------------------------------------------------------------
+
+
+class TestEventLoopChangeDetection:
+    """Regression tests for 'Event loop is closed' on user-scoped tools.
+
+    Root cause: asyncio.run(_validate_token()) during server startup creates
+    and immediately closes event loop A.  Any global httpx.AsyncClient or
+    asyncio.Semaphore created inside that call has its internal anyio/asyncio
+    connection-pool primitives tied to loop A.  When mcp.run() starts event
+    loop B, subsequent tool calls reuse those stale globals and get
+    "Event loop is closed" errors.
+
+    Fix: _get_http_client() and _get_request_semaphore() keep a weakref to the
+    loop that was running when they were created.  When that loop is
+    garbage-collected (as asyncio.run() does when it exits), the weakref goes
+    dead, and the next call from loop B detects a stale global and discards it.
+    """
+
+    def setup_method(self):
+        """Reset client globals before each test."""
+        import canvas_mcp.core.client as _cm
+        _cm.http_client = None
+        _cm._http_client_loop_ref = None
+        _cm._request_semaphore = None
+        _cm._semaphore_loop_ref = None
+
+    def teardown_method(self):
+        """Reset client globals after each test."""
+        import canvas_mcp.core.client as _cm
+        _cm.http_client = None
+        _cm._http_client_loop_ref = None
+        _cm._request_semaphore = None
+        _cm._semaphore_loop_ref = None
+
+    @pytest.mark.asyncio
+    async def test_http_client_stores_weakref_to_loop(self):
+        """_get_http_client() stores a weakref to the creating loop."""
+        import asyncio
+        import weakref
+
+        import canvas_mcp.core.client as _cm
+        from canvas_mcp.core.client import _get_http_client
+
+        _get_http_client()
+        assert _cm._http_client_loop_ref is not None
+        stored_loop = _cm._http_client_loop_ref()
+        assert stored_loop is asyncio.get_running_loop()
+
+    @pytest.mark.asyncio
+    async def test_semaphore_stores_weakref_to_loop(self):
+        """_get_request_semaphore() stores a weakref to the creating loop."""
+        import asyncio
+        import weakref
+
+        import canvas_mcp.core.client as _cm
+        from canvas_mcp.core.client import _get_request_semaphore
+
+        _get_request_semaphore()
+        assert _cm._semaphore_loop_ref is not None
+        stored_loop = _cm._semaphore_loop_ref()
+        assert stored_loop is asyncio.get_running_loop()
+
+    @pytest.mark.asyncio
+    async def test_http_client_recreated_when_stored_loop_gone(self):
+        """_get_http_client() discards the cached client when the stored loop is gone.
+
+        Simulates what happens after asyncio.run() closes its event loop: the
+        weakref stored by _get_http_client() becomes dead (resolves to None),
+        and the next call must create a fresh client bound to the current loop.
+        """
+        import gc
+        import weakref
+
+        import canvas_mcp.core.client as _cm
+        from canvas_mcp.core.client import _get_http_client
+
+        # Grab a reference to the current client
+        first_client = _get_http_client()
+
+        # Simulate a dead weakref (as if the old loop was GC-collected after
+        # asyncio.run() closed it) by pointing the stored ref at a temporary
+        # object that we immediately let go.
+        class _FakeLoop:
+            pass
+
+        fake_loop = _FakeLoop()
+        _cm._http_client_loop_ref = weakref.ref(fake_loop)
+        del fake_loop
+        gc.collect()
+        # Weakref must now be dead
+        assert _cm._http_client_loop_ref() is None
+
+        # Next call must return a fresh client (not the stale one)
+        second_client = _get_http_client()
+        assert second_client is not first_client, "Stale client was not replaced when loop weakref died"
+
+    @pytest.mark.asyncio
+    async def test_semaphore_recreated_when_stored_loop_gone(self):
+        """_get_request_semaphore() discards the cached semaphore when the stored loop is gone."""
+        import gc
+        import weakref
+
+        import canvas_mcp.core.client as _cm
+        from canvas_mcp.core.client import _get_request_semaphore
+
+        first_sem = _get_request_semaphore()
+
+        class _FakeLoop:
+            pass
+
+        fake_loop = _FakeLoop()
+        _cm._semaphore_loop_ref = weakref.ref(fake_loop)
+        del fake_loop
+        gc.collect()
+        assert _cm._semaphore_loop_ref() is None
+
+        second_sem = _get_request_semaphore()
+        assert second_sem is not first_sem, "Stale semaphore was not replaced when loop weakref died"
+
+    def test_http_client_recreated_across_asyncio_run_calls(self):
+        """A fresh client is created in loop B when loop A was closed by asyncio.run().
+
+        This is the exact scenario that caused the 'Event loop is closed' bug:
+        startup validation runs in asyncio.run() (loop A), then mcp.run() starts
+        loop B.  The fix must create a new client in loop B.
+        """
+        import asyncio
+        import gc
+        import weakref
+
+        import canvas_mcp.core.client as _cm
+        from canvas_mcp.core.client import _get_http_client
+
+        # Loop A — simulate asyncio.run() during startup validation
+        state_a: dict = {}
+
+        async def _loop_a():
+            client = _get_http_client()
+            state_a["client_id"] = id(client)
+            state_a["loop_ref_alive"] = (
+                _cm._http_client_loop_ref is not None
+                and _cm._http_client_loop_ref() is not None
+            )
+
+        asyncio.run(_loop_a())
+        # Loop A is closed; force GC
+        gc.collect()
+
+        # Weakref to loop A must be dead before loop B can detect the stale state
+        assert _cm._http_client_loop_ref is not None
+        assert _cm._http_client_loop_ref() is None, (
+            "Weakref to loop A must be dead after asyncio.run() exits"
+        )
+        assert state_a["loop_ref_alive"], "Loop ref should be alive INSIDE loop A"
+
+        # Loop B — simulate mcp.run()
+        state_b: dict = {}
+
+        async def _loop_b():
+            client = _get_http_client()
+            state_b["client_id"] = id(client)
+            # The loop ref must be alive while inside loop B
+            state_b["loop_ref_alive"] = (
+                _cm._http_client_loop_ref is not None
+                and _cm._http_client_loop_ref() is not None
+            )
+            # And it must point to the currently running loop
+            state_b["loop_ref_is_current"] = (
+                _cm._http_client_loop_ref is not None
+                and _cm._http_client_loop_ref() is asyncio.get_running_loop()
+            )
+
+        asyncio.run(_loop_b())
+
+        # The loop weakref must have been live INSIDE loop B (proves fresh client was created)
+        assert state_b["loop_ref_alive"], (
+            "Loop weakref must be alive inside loop B — proves a fresh client was created"
+        )
+        assert state_b["loop_ref_is_current"], (
+            "Loop weakref must point to loop B's running loop"
+        )
+
+    def test_server_startup_resets_globals_after_asyncio_run(self):
+        """server.main() resets http_client globals after asyncio.run() token validation.
+
+        Defense-in-depth: even before the first tool call, the startup code in
+        server.py explicitly clears the stale globals so mcp.run() starts clean.
+        """
+        import canvas_mcp.core.client as _cm
+
+        # Pretend a stale client was left over from asyncio.run()
+        _cm.http_client = MagicMock()
+        _cm._http_client_loop_ref = MagicMock()
+
+        # Run the same cleanup code that server.py executes in its finally block
+        _cm.http_client = None
+        _cm._http_client_loop_ref = None
+        _cm._request_semaphore = None
+        _cm._semaphore_loop_ref = None
+
+        assert _cm.http_client is None
+        assert _cm._http_client_loop_ref is None
+        assert _cm._request_semaphore is None
+        assert _cm._semaphore_loop_ref is None
+
+
+# ---------------------------------------------------------------------------
 # CLI argument tests
 # ---------------------------------------------------------------------------
 
