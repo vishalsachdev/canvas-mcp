@@ -284,7 +284,6 @@ class TestEventLoopChangeDetection:
     async def test_http_client_stores_weakref_to_loop(self):
         """_get_http_client() stores a weakref to the creating loop."""
         import asyncio
-        import weakref
 
         import canvas_mcp.core.client as _cm
         from canvas_mcp.core.client import _get_http_client
@@ -298,7 +297,6 @@ class TestEventLoopChangeDetection:
     async def test_semaphore_stores_weakref_to_loop(self):
         """_get_request_semaphore() stores a weakref to the creating loop."""
         import asyncio
-        import weakref
 
         import canvas_mcp.core.client as _cm
         from canvas_mcp.core.client import _get_request_semaphore
