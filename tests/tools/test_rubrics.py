@@ -9,6 +9,7 @@ import pytest
 from mcp.server.fastmcp import FastMCP
 
 from canvas_mcp.tools.rubrics import (
+    build_rubric_create_form_data,
     preprocess_criteria_string,
     register_rubric_tools,
     validate_rubric_criteria,
@@ -84,6 +85,93 @@ class TestRubricValidation:
         assert result.endswith("}")
 
 
+class TestBuildRubricCreateFormData:
+    """Test build_rubric_create_form_data helper."""
+
+    def test_title_field(self):
+        """Rubric title is encoded correctly."""
+        criteria = {"c1": {"description": "Quality", "points": 10.0, "ratings": []}}
+        data = build_rubric_create_form_data("My Rubric", criteria)
+        assert data["rubric[title]"] == "My Rubric"
+
+    def test_reusable_flag(self):
+        """reusable flag is encoded as '1' or '0'."""
+        criteria = {"c1": {"description": "Q", "points": 5.0, "ratings": []}}
+        assert build_rubric_create_form_data("R", criteria, reusable=True)["rubric[reusable]"] == "1"
+        assert build_rubric_create_form_data("R", criteria, reusable=False)["rubric[reusable]"] == "0"
+
+    def test_criterion_fields(self):
+        """Criterion description and points are indexed correctly."""
+        criteria = {
+            "c1": {"description": "Content", "points": 10.0, "ratings": []},
+        }
+        data = build_rubric_create_form_data("R", criteria)
+        assert data["rubric[criteria][0][description]"] == "Content"
+        assert data["rubric[criteria][0][points]"] == "10.0"
+
+    def test_ratings_sorted_highest_first(self):
+        """Ratings are sorted from highest to lowest points."""
+        criteria = {
+            "c1": {
+                "description": "Quality",
+                "points": 10.0,
+                "ratings": [
+                    {"description": "Poor", "points": 2.0},
+                    {"description": "Excellent", "points": 10.0},
+                    {"description": "Good", "points": 7.0},
+                ],
+            }
+        }
+        data = build_rubric_create_form_data("R", criteria)
+        assert data["rubric[criteria][0][ratings][0][description]"] == "Excellent"
+        assert data["rubric[criteria][0][ratings][1][description]"] == "Good"
+        assert data["rubric[criteria][0][ratings][2][description]"] == "Poor"
+
+    def test_association_fields_present_when_assignment_given(self):
+        """rubric_association fields are added when assignment_id is provided."""
+        criteria = {"c1": {"description": "Q", "points": 5.0, "ratings": []}}
+        data = build_rubric_create_form_data("R", criteria, assignment_id=42, use_for_grading=True)
+        assert data["rubric_association[association_id]"] == "42"
+        assert data["rubric_association[association_type]"] == "Assignment"
+        assert data["rubric_association[use_for_grading]"] == "1"
+
+    def test_association_fields_absent_without_assignment(self):
+        """rubric_association fields are omitted when no assignment_id."""
+        criteria = {"c1": {"description": "Q", "points": 5.0, "ratings": []}}
+        data = build_rubric_create_form_data("R", criteria)
+        assert not any(k.startswith("rubric_association") for k in data)
+
+    def test_multiple_criteria_indexed(self):
+        """Multiple criteria are assigned sequential numeric indices."""
+        criteria = {
+            "c1": {"description": "First", "points": 5.0, "ratings": []},
+            "c2": {"description": "Second", "points": 10.0, "ratings": []},
+        }
+        data = build_rubric_create_form_data("R", criteria)
+        descriptions = {
+            data.get("rubric[criteria][0][description]"),
+            data.get("rubric[criteria][1][description]"),
+        }
+        assert descriptions == {"First", "Second"}
+
+    def test_dict_format_ratings(self):
+        """Ratings in object/dict format are normalized to a list."""
+        criteria = {
+            "c1": {
+                "description": "Quality",
+                "points": 10.0,
+                "ratings": {
+                    "r1": {"description": "Good", "points": 10.0},
+                    "r2": {"description": "Poor", "points": 3.0},
+                },
+            }
+        }
+        data = build_rubric_create_form_data("R", criteria)
+        # Highest points rating should be index 0
+        assert data["rubric[criteria][0][ratings][0][description]"] == "Good"
+        assert data["rubric[criteria][0][ratings][1][description]"] == "Poor"
+
+
 class TestRubricTools:
     """Test rubric tool registration and invocation."""
 
@@ -118,6 +206,150 @@ class TestRubricTools:
         register_rubric_tools(mcp)
         tool_names = [t.name for t in mcp._tool_manager.list_tools()]
         assert "get_rubric" in tool_names
+
+    def test_create_rubric_registered(self, mcp):
+        """Verify create_rubric is registered after calling register_rubric_tools."""
+        register_rubric_tools(mcp)
+        tool_names = [t.name for t in mcp._tool_manager.list_tools()]
+        assert "create_rubric" in tool_names
+
+    @pytest.mark.asyncio
+    async def test_create_rubric_success(self, mcp, mock_canvas_request, mock_course_id, mock_course_code):
+        """create_rubric calls Canvas API with form data and returns formatted result."""
+        mock_canvas_request.return_value = {
+            "rubric": {
+                "id": 7371,
+                "title": "Essay Rubric",
+                "context_type": "Course",
+                "context_id": 12345,
+                "points_possible": 15,
+                "reusable": False,
+                "free_form_criterion_comments": False,
+                "data": [
+                    {"id": "_c1", "description": "Content", "points": 10},
+                    {"id": "_c2", "description": "Grammar", "points": 5},
+                ],
+            },
+            "rubric_association": None,
+        }
+
+        criteria = json.dumps({
+            "c1": {
+                "description": "Content",
+                "points": 10,
+                "ratings": [
+                    {"description": "Excellent", "points": 10},
+                    {"description": "Needs Work", "points": 5},
+                ],
+            },
+            "c2": {
+                "description": "Grammar",
+                "points": 5,
+                "ratings": [
+                    {"description": "No errors", "points": 5},
+                    {"description": "Some errors", "points": 2},
+                ],
+            },
+        })
+
+        register_rubric_tools(mcp)
+        result = await mcp.call_tool("create_rubric", {
+            "course_identifier": "TEST101",
+            "title": "Essay Rubric",
+            "criteria": criteria,
+        })
+
+        output = result[0][0].text
+        assert "7371" in output or "Essay Rubric" in output
+
+        # Verify form data was used
+        call_args = mock_canvas_request.call_args
+        assert call_args.kwargs.get("use_form_data") is True or (
+            len(call_args.args) > 0 and call_args.args[0] == "post"
+        )
+
+    @pytest.mark.asyncio
+    async def test_create_rubric_with_assignment(self, mcp, mock_canvas_request, mock_course_id, mock_course_code):
+        """create_rubric passes association fields when assignment_id is provided."""
+        mock_canvas_request.return_value = {
+            "rubric": {
+                "id": 7372,
+                "title": "Graded Rubric",
+                "context_type": "Course",
+                "context_id": 12345,
+                "points_possible": 10,
+                "reusable": False,
+                "free_form_criterion_comments": False,
+                "data": [{"id": "_c1", "description": "Content", "points": 10}],
+            },
+            "rubric_association": {
+                "association_id": 999,
+                "association_type": "Assignment",
+                "use_for_grading": True,
+                "purpose": "grading",
+            },
+        }
+
+        criteria = json.dumps({
+            "c1": {
+                "description": "Content",
+                "points": 10,
+                "ratings": [{"description": "Excellent", "points": 10}],
+            }
+        })
+
+        register_rubric_tools(mcp)
+        result = await mcp.call_tool("create_rubric", {
+            "course_identifier": "TEST101",
+            "title": "Graded Rubric",
+            "criteria": criteria,
+            "assignment_id": 999,
+            "use_for_grading": True,
+        })
+
+        output = result[0][0].text
+        assert "7372" in output or "Graded Rubric" in output
+
+        # Verify association fields were sent
+        call_args = mock_canvas_request.call_args
+        sent_data = call_args.kwargs.get("data", {})
+        assert "rubric_association[association_id]" in sent_data
+        assert sent_data["rubric_association[association_type]"] == "Assignment"
+        assert sent_data["rubric_association[use_for_grading]"] == "1"
+
+    @pytest.mark.asyncio
+    async def test_create_rubric_invalid_criteria(self, mcp, mock_canvas_request, mock_course_id, mock_course_code):
+        """create_rubric returns error message for invalid criteria JSON."""
+        register_rubric_tools(mcp)
+        result = await mcp.call_tool("create_rubric", {
+            "course_identifier": "TEST101",
+            "title": "Bad Rubric",
+            "criteria": '{"c1": {"points": 10}}',  # missing description
+        })
+
+        output = result[0][0].text
+        assert "Error" in output
+        assert "description" in output.lower()
+
+    @pytest.mark.asyncio
+    async def test_create_rubric_api_error(self, mcp, mock_canvas_request, mock_course_id, mock_course_code):
+        """create_rubric surfaces Canvas API errors."""
+        mock_canvas_request.return_value = {"error": "Unauthorized"}
+
+        criteria = json.dumps({
+            "c1": {"description": "Content", "points": 10, "ratings": []}
+        })
+
+        register_rubric_tools(mcp)
+        result = await mcp.call_tool("create_rubric", {
+            "course_identifier": "TEST101",
+            "title": "Failing Rubric",
+            "criteria": criteria,
+        })
+
+        output = result[0][0].text
+        assert "Error" in output
+        assert "Unauthorized" in output
 
     @pytest.mark.asyncio
     async def test_get_rubric_by_rubric_id(self, mcp, mock_canvas_request, mock_course_id, mock_course_code):

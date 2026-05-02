@@ -1,6 +1,7 @@
 """HTTP client and Canvas API utilities."""
 
 import asyncio
+import weakref
 from typing import Any
 from urllib.parse import urlencode
 
@@ -19,17 +20,40 @@ DEFAULT_PAGE_SIZE = 100
 
 # HTTP client will be initialized with configuration
 http_client: httpx.AsyncClient | None = None
+_http_client_loop_ref: "weakref.ref[asyncio.AbstractEventLoop] | None" = None  # weakref to the loop that owns http_client
 
 # Concurrency limiter for outbound Canvas API calls
 _request_semaphore: asyncio.Semaphore | None = None
+_semaphore_loop_ref: "weakref.ref[asyncio.AbstractEventLoop] | None" = None  # weakref to the loop that owns _request_semaphore
 
 
 def _get_request_semaphore() -> asyncio.Semaphore:
-    """Get or create the concurrency semaphore from config."""
-    global _request_semaphore
+    """Get or create the concurrency semaphore from config.
+
+    Recreates the semaphore when the running event loop has changed (e.g. after
+    asyncio.run() closes one loop and mcp.run() starts a new one) to avoid
+    "Event loop is closed" errors on asyncio synchronization primitives.
+
+    A weakref to the creating loop is stored so that when the old loop is
+    garbage-collected (as asyncio.run() does), the weakref goes dead and we
+    detect the loop change reliably without relying on object id() reuse.
+    """
+    global _request_semaphore, _semaphore_loop_ref
+    try:
+        current_loop: asyncio.AbstractEventLoop | None = asyncio.get_running_loop()
+    except RuntimeError:
+        current_loop = None
+
+    stored_loop = _semaphore_loop_ref() if _semaphore_loop_ref is not None else None
+
+    if _request_semaphore is not None and current_loop is not None and stored_loop is not current_loop:
+        _request_semaphore = None
+        _semaphore_loop_ref = None
+
     if _request_semaphore is None:
         from .config import get_config
         _request_semaphore = asyncio.Semaphore(get_config().max_concurrent_requests)
+        _semaphore_loop_ref = weakref.ref(current_loop) if current_loop is not None else None
     return _request_semaphore
 
 
@@ -88,10 +112,32 @@ def _should_anonymize_endpoint(endpoint: str) -> bool:
 
 
 def _get_http_client() -> httpx.AsyncClient:
-    """Get or create the HTTP client with current configuration."""
-    global http_client
-    if http_client is not None and http_client.is_closed:
+    """Get or create the HTTP client with current configuration.
+
+    Recreates the client when the running event loop has changed (e.g. after
+    asyncio.run() closes one loop and mcp.run() starts a new one).  The stale
+    client's internal anyio/asyncio connection-pool primitives are tied to the
+    closed loop and will raise "Event loop is closed" on the first use.
+
+    A weakref to the creating loop is stored so that when the old loop is
+    garbage-collected (as asyncio.run() does), the weakref goes dead and we
+    detect the loop change reliably without relying on object id() reuse.
+    """
+    global http_client, _http_client_loop_ref
+    try:
+        current_loop: asyncio.AbstractEventLoop | None = asyncio.get_running_loop()
+    except RuntimeError:
+        current_loop = None
+
+    stored_loop = _http_client_loop_ref() if _http_client_loop_ref is not None else None
+
+    if http_client is not None and (
+        http_client.is_closed
+        or (current_loop is not None and stored_loop is not current_loop)
+    ):
         http_client = None
+        _http_client_loop_ref = None
+
     if http_client is None:
         from .. import __version__
         from .config import get_config
@@ -103,6 +149,7 @@ def _get_http_client() -> httpx.AsyncClient:
             },
             timeout=config.api_timeout
         )
+        _http_client_loop_ref = weakref.ref(current_loop) if current_loop is not None else None
     return http_client
 
 

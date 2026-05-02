@@ -229,9 +229,50 @@ Update an existing assignment in a course.
 
 ### Grading & Rubrics
 
-> **Note:** Due to Canvas API limitations, `create_rubric` and `update_rubric` are not available.
-> Create and edit rubrics via the Canvas web UI, then use `associate_rubric` to link them.
-> See [Known API Limitations](#known-api-limitations) for details.
+#### `create_rubric`
+Create a new rubric in a course, optionally associating it with an assignment.
+
+Uses bracket-notation form-data encoding required by the Canvas rubric API.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `title`: Rubric title
+- `criteria`: JSON string defining criteria (see example below)
+- `assignment_id` (optional): Assignment ID to immediately associate the rubric with
+- `use_for_grading` (optional): Use rubric for grade calculation when associating (default: false)
+- `reusable` (optional): Make rubric reusable across courses (default: false)
+- `free_form_criterion_comments` (optional): Allow free-form comments per criterion (default: false)
+
+**Criteria JSON format:**
+```json
+{
+  "c1": {
+    "description": "Content Quality",
+    "points": 10,
+    "ratings": [
+      {"description": "Excellent", "points": 10},
+      {"description": "Satisfactory", "points": 7},
+      {"description": "Needs Work", "points": 3}
+    ]
+  },
+  "c2": {
+    "description": "Grammar",
+    "points": 5,
+    "ratings": [
+      {"description": "No errors", "points": 5},
+      {"description": "Minor errors", "points": 3}
+    ]
+  }
+}
+```
+
+**Example:**
+```
+"Create a rubric called 'Essay Rubric' in CS101 with two criteria: Content (10 pts) and Grammar (5 pts)"
+"Create a rubric and associate it with Assignment 456 for grading"
+```
+
+---
 
 #### `list_rubrics`
 List all rubrics in a course.
@@ -1053,16 +1094,14 @@ Some Canvas API endpoints have bugs or design issues that prevent certain operat
 
 | Tool | Status | Issue | Reference |
 |------|--------|-------|-----------|
-| `create_rubric` | Removed | Canvas API returns 500 Internal Server Error | [Canvas Community](https://community.canvaslms.com/t5/Canvas-Question-Forum/Uploading-rubric-from-CSV-sheet/m-p/602222) |
 | `update_rubric` | Removed | API does full replacement instead of PATCH (causes data loss) | Internal testing |
 
-**Workaround for Rubrics:**
-1. **Create rubrics** in Canvas web UI: Assignments → Edit → + Rubric
+**Workaround for Rubric Editing:**
+1. **Edit rubrics** in Canvas web UI: Assignments → Edit → Rubric
 2. **Copy rubrics** between courses: Use "Find a Rubric" in the rubric editor
-3. **Associate rubrics** programmatically: Use `associate_rubric` tool
-4. **Grade with rubrics**: Use `grade_with_rubric` or `bulk_grade_submissions`
 
 **Working Rubric Tools:**
+- `create_rubric` - Create a new rubric with defined criteria and ratings
 - `list_rubrics` - List rubrics in a course
 - `get_rubric` - View rubric criteria and points (by rubric_id or assignment_id)
 - `get_rubric_assessment` - View a student's rubric assessment
