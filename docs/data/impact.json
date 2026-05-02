@@ -1,74 +1,74 @@
 {
-  "collected_at": "2026-04-16T02:56:17Z",
+  "collected_at": "2026-04-27T14:00:05Z",
   "github": {
-    "stars": 98,
-    "forks": 32,
-    "contributors": 10,
-    "open_issues": 0,
-    "views_14d": 1538,
-    "views_14d_unique": 591,
-    "clones_14d": 1251,
-    "clones_14d_unique": 489,
+    "stars": 113,
+    "forks": 35,
+    "contributors": 11,
+    "open_issues": 3,
+    "views_14d": 1262,
+    "views_14d_unique": 538,
+    "clones_14d": 1130,
+    "clones_14d_unique": 475,
     "referrers": [
       {
         "referrer": "Google",
-        "count": 696,
-        "uniques": 346
+        "count": 544,
+        "uniques": 316
       },
       {
         "referrer": "github.com",
-        "count": 220,
-        "uniques": 89
-      },
-      {
-        "referrer": "statics.teams.cdn.office.net",
-        "count": 32,
-        "uniques": 7
+        "count": 186,
+        "uniques": 66
       },
       {
         "referrer": "Bing",
-        "count": 31,
-        "uniques": 18
+        "count": 41,
+        "uniques": 29
       },
       {
-        "referrer": "search.brave.com",
-        "count": 28,
-        "uniques": 11
-      },
-      {
-        "referrer": "DuckDuckGo",
+        "referrer": "statics.teams.cdn.office.net",
         "count": 26,
-        "uniques": 4
-      },
-      {
-        "referrer": "canvas-mcp.illinihunt.org",
-        "count": 24,
-        "uniques": 16
+        "uniques": 10
       },
       {
         "referrer": "pypi.org",
-        "count": 21,
-        "uniques": 1
-      },
-      {
-        "referrer": "mcpservers.org",
-        "count": 9,
+        "count": 24,
         "uniques": 2
       },
       {
-        "referrer": "linkedin.com",
-        "count": 8,
-        "uniques": 5
+        "referrer": "canvas-mcp.illinihunt.org",
+        "count": 22,
+        "uniques": 7
+      },
+      {
+        "referrer": "DuckDuckGo",
+        "count": 15,
+        "uniques": 6
+      },
+      {
+        "referrer": "search.brave.com",
+        "count": 11,
+        "uniques": 4
+      },
+      {
+        "referrer": "claude.ai",
+        "count": 11,
+        "uniques": 2
+      },
+      {
+        "referrer": "mcpservers.org",
+        "count": 7,
+        "uniques": 1
       }
     ]
   },
   "pypi": {
-    "last_day": 6,
-    "last_week": 183,
-    "last_month": 437
+    "last_day": 2,
+    "last_week": 27,
+    "last_month": 384
   },
   "npm": {
-    "last_month": 92
+    "last_month": 86
   },
   "history": [
     {
@@ -124,6 +124,24 @@
       "npm_month": 92,
       "views_unique": 591,
       "clones_unique": 489
+    },
+    {
+      "date": "2026-04-20",
+      "stars": 106,
+      "forks": 33,
+      "pypi_month": 414,
+      "npm_month": 87,
+      "views_unique": 592,
+      "clones_unique": 565
+    },
+    {
+      "date": "2026-04-27",
+      "stars": 113,
+      "forks": 35,
+      "pypi_month": 384,
+      "npm_month": 86,
+      "views_unique": 538,
+      "clones_unique": 475
     }
   ]
 }
