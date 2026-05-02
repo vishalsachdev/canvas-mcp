@@ -321,6 +321,16 @@ def main() -> None:
                 "Could not validate token on startup (network may be unavailable). "
                 "Server will start anyway."
             )
+        finally:
+            # asyncio.run() creates and immediately closes its own event loop.
+            # Any global httpx client or asyncio semaphore created during token
+            # validation is now bound to that closed loop.  Reset them so they
+            # are recreated fresh inside the event loop that mcp.run() starts.
+            from .core import client as _client_module
+            _client_module.http_client = None
+            _client_module._http_client_loop_ref = None
+            _client_module._request_semaphore = None
+            _client_module._semaphore_loop_ref = None
 
     log_info("Use Ctrl+C to stop the server")
 
