@@ -191,12 +191,10 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 **When adding a new tool**, update: `tools/README.md` → `AGENTS.md` → `TOOL_MANIFEST.json`. Do NOT update `README.md` unless it's a major feature. Do NOT duplicate tool usage docs in `CLAUDE.md` (architecture only).
 
 ## Current Focus
-- [x] Release v1.2.0 — role-based filtering, accessibility, security hardening, contributor acknowledgements
-- [x] Merge PR #90 (`read_course_file` for remote MCP deployments, @DomBarker99) — tool count 87 → 88
-- [x] Repo hygiene audit — -9,260 lines of stale/orphan/duplicate content
-- [x] Weekly maintenance cleanup (PR #92 dead code + floor bumps; PR #93 drop phantom fastmcp dep)
-- [ ] Tag v1.3.0 release (read_course_file is MCP-Registry-worthy feature)
+- [x] Release v1.3.0 — `create_rubric` (#100), `read_course_file` (#90), event-loop fix (#99), bulk-delete safety (#96); tool count 88 → 90; CHANGELOG.md added
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
+- [ ] Follow-up: split publish-mcp.yml into separate PyPI + MCP Registry jobs with PyPI-propagation poll (avoid race retry on next release)
+- [ ] Follow-up: add `ruff` to dev deps in pyproject.toml so contributors don't trip pre-commit hook on fresh clone
 
 ## Roadmap
 - [x] Release v1.0.8 — all CI/CD pipelines passing (PyPI, MCP Registry, GitHub Release)
@@ -206,6 +204,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] HTTP transport & hosted server — per-request credentials via ContextVar, deployed to VPS at mcp.illinihunt.org
 - [x] Cloudflare Pages migration — site moved from GitHub Pages (blocked by Actions) to Cloudflare Pages
 - [x] Release v1.2.0 — role-based filtering, accessibility remediation, security hardening, contributor acknowledgements
+- [x] Release v1.3.0 — create_rubric, read_course_file, event-loop fix, bulk-delete safety, CHANGELOG.md
 
 ## Backlog
 - [x] Impact tracker: automated weekly stats collection + website section
@@ -219,9 +218,10 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 ## Session Log
 > Full history: [docs/session-history.md](./docs/session-history.md)
 
-### 2026-04-21
-- **Merged PR #93** (`chore/drop-unused-fastmcp-dep`, commit `eebac6a`): Weekly maintenance report #91 flagged fastmcp 2.14 → 3.x as a 🔴 high-priority upgrade. Investigation showed the repo imports `from mcp.server.fastmcp import FastMCP` (bundled FastMCP 1.0 inside the official `mcp` SDK v1.26.0) — zero files import the standalone `fastmcp` package. The `fastmcp>=2.14.0` pin was phantom. Replaced with explicit `mcp>=1.26.0,<2` (upper bound per Codex plan review), regenerated uv.lock. Net −794 lines, pruned ~30 unused transitive deps (authlib, cyclopts, pydocket, py-key-value-aio, rich, typer, websockets, etc). All 363 tests pass, stdio + streamable-http transports verified, CI 8/8 green. Admin-merged through branch protection.
-- **Codex integration**: Used `codex:codex-rescue` subagent for plan review (caught need for upper bound + "intentional, not to-be-re-flagged" framing) and `/codex:rescue` for post-push diff review (APPROVE with evidence from uv.lock and upstream mcp docs).
-- **Key learning**: When a maintenance bot flags a dep upgrade, first verify the dep is actually imported. Weekly-report "🔴 High" can be a false positive on a phantom pin.
-- Next: Tag v1.3.0 release for `read_course_file` (still pending from prior session). Backlog triage. Note: `docs/data/impact.json` still dirty from prior session. Deleted the `canvas-mcp-meets-skills-sh` article draft as not relevant.
+### 2026-05-02
+- **Released v1.3.0** (commits `cff934c` + `c2f1438`, tag `v1.3.0`): Bundled four already-merged PRs into a coherent release — `create_rubric` (#100, bracket-notation form-data finally working), `read_course_file` (#90, @DomBarker99), event-loop fix on user-scoped tools (#99, weakref-tracked client/semaphore), and bulk-delete safety (#96, default cap of 25 + dry_run). Drafted CHANGELOG.md (Keep-a-Changelog format) before bumping versions — that scope-pass caught the bulk-delete behavior change for callers passing >25 IDs and got it into the release notes. Bumped 5 release-checklist files; 382 tests pass at 1.3.0; tool count 88 → 90.
+- **CI publish race surfaced**: `publish-mcp.yml` runs PyPI upload + MCP Registry publish in one sequential job. The Registry's PyPI lookup raced PyPI's CDN propagation and 404'd. `gh run rerun --failed` succeeded immediately on retry — no code change. Added a follow-up: split into two jobs with a PyPI-propagation poll between them. Also surfaced a Node 20 deprecation warning for `actions/checkout@v4` + `actions/setup-python@v5` (force-upgraded June 2026).
+- **Session prep**: Pulled 3 backlog commits (#96, #99, #100), committed two carry-forward dirty files (`AGENTS.md` policy additions for memory lookup + external-action approval; `impact.json` April 27 stats refresh). Deleted two 66-day-old `.claude/plans/` files whose targets had all shipped. Cloudflare Pages deployed manually with `unset CF_API_TOKEN && wrangler pages deploy` (the documented workaround for the deprecated env var).
+- **Pre-commit hook surprise**: Fresh venv didn't have `ruff` installed; hook called `uv run ruff` which spawn-failed with "No such file or directory." Installed via `uv pip install ruff`. Should be a dev dep in pyproject.toml.
+- Next: Backlog triage (module templates, bulk creation, page versioning). Address the two follow-ups in Current Focus before the next release.
 
