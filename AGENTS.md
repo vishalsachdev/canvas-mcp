@@ -77,6 +77,8 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `list_rubrics` | List rubrics in a course |
 | `get_rubric` | View rubric details (by rubric_id or assignment_id) |
 | `get_rubric_assessment` | View rubric assessment for a student submission |
+| `create_rubric` | Create rubric with criteria, ratings, and optional assignment association |
+| `associate_rubric` | Associate existing rubric with an assignment |
 | `grade_with_rubric` | Grade single submission with rubric |
 | `bulk_grade_submissions` | Grade multiple submissions efficiently |
 | `send_conversation` | Message students |
@@ -206,7 +208,8 @@ Is it a simple query?
 - Read courses, assignments, grades, discussions, pages
 - Submit grades with or without rubrics
 - Send Canvas messages and announcements
-- Use existing rubrics for grading (create/update rubrics via Canvas UI)
+- Create rubrics programmatically with defined criteria and ratings
+- Use existing rubrics for grading (edit rubrics via Canvas UI if needed)
 - Analyze peer review completion
 - Execute TypeScript for bulk operations
 - Access student data (with FERPA-compliant anonymization option)
@@ -224,12 +227,11 @@ Some Canvas API endpoints have bugs or limitations that prevent certain operatio
 
 | Tool | Issue | Workaround |
 |------|-------|------------|
-| `create_rubric` | Canvas API returns 500 error | Create rubrics via Canvas web UI |
 | `update_rubric` | Partial updates wipe all criteria (full replacement, not PATCH) | Edit rubrics via Canvas web UI |
 
-**Working rubric tools:** `list_rubrics`, `get_rubric`, `get_rubric_assessment`, `associate_rubric`, `grade_with_rubric`, `bulk_grade_submissions`
+**Working rubric tools:** `create_rubric`, `list_rubrics`, `get_rubric`, `get_rubric_assessment`, `associate_rubric`, `grade_with_rubric`, `bulk_grade_submissions`
 
-**Rubric workaround:** Create/edit rubrics in Canvas UI, then use `associate_rubric` to link them to assignments. Use "Find a Rubric" feature in Canvas to copy rubrics between courses.
+**Rubric workflow:** Use `create_rubric` to create rubrics programmatically. Edit rubrics via Canvas UI when needed, then use `associate_rubric` to link them to assignments.
 
 ### Data Access Rules
 | User Type | Can Access |
