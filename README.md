@@ -256,7 +256,40 @@ Connect to the hosted Canvas MCP server — no Python, no cloning, no setup. Jus
 **All you need:** A Canvas API token and your institution's Canvas URL.
 
 <details open>
-<summary><strong>Claude Desktop / Cursor / Windsurf / Continue</strong></summary>
+<summary><strong>Claude Desktop</strong></summary>
+
+Claude Desktop's `claude_desktop_config.json` expects stdio servers (`command` + `args`), so use an HTTP bridge:
+
+```json
+{
+  "mcpServers": {
+    "canvas": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://mcp.illinihunt.org/mcp",
+        "--transport",
+        "http-only",
+        "--header",
+        "X-Canvas-Token: ${CANVAS_TOKEN}",
+        "--header",
+        "X-Canvas-URL: ${CANVAS_URL}"
+      ],
+      "env": {
+        "CANVAS_TOKEN": "your_canvas_api_token",
+        "CANVAS_URL": "https://your-school.instructure.com/api/v1"
+      }
+    }
+  }
+}
+```
+
+Requires Node.js (`npx`).
+
+</details>
+
+<details>
+<summary><strong>Cursor / Windsurf / Continue</strong></summary>
 
 Add to your MCP client configuration:
 
