@@ -372,7 +372,6 @@ class TestEventLoopChangeDetection:
         """
         import asyncio
         import gc
-        import weakref
 
         import canvas_mcp.core.client as _cm
         from canvas_mcp.core.client import _get_http_client
