@@ -20,13 +20,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
+  publish-pypi:
+    name: Build & publish to PyPI
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag_name || github.ref }}
+
+      - name: Resolve version
+        id: version
+        run: |
+          REF_NAME="${{ inputs.tag_name || github.ref_name }}"
+          # Strip leading 'v' to match PyPI package version (e.g. v1.3.0 -> 1.3.0)
+          VERSION="${REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $VERSION"
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -54,14 +66,43 @@ jobs:
         with:
           skip-existing: true
 
+  publish-registry:
+    name: Publish to MCP Registry
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag_name || github.ref }}
+
+      - name: Wait for PyPI propagation
+        env:
+          VERSION: ${{ needs.publish-pypi.outputs.version }}
+        run: |
+          # MCP Registry's PyPI lookup can 404 before CDN propagates after upload.
+          # Poll the JSON metadata endpoint up to 12 times (6 min ceiling) until
+          # the just-published version is visible. See pyproject.toml for project name.
+          echo "Polling PyPI for canvas-mcp==$VERSION"
+          for i in $(seq 1 12); do
+            if curl -fsSL "https://pypi.org/pypi/canvas-mcp/$VERSION/json" >/dev/null 2>&1; then
+              echo "Attempt $i: version $VERSION visible on PyPI"
+              exit 0
+            fi
+            echo "Attempt $i: not yet visible, waiting 30s..."
+            sleep 30
+          done
+          echo "ERROR: PyPI did not surface version $VERSION within 6 minutes"
+          exit 1
+
       - name: Install MCP Publisher
         run: |
-          # Get latest release version dynamically
+          # Get latest mcp-publisher release version dynamically
           VERSION=$(curl -s https://api.github.com/repos/modelcontextprotocol/registry/releases/latest | jq -r '.tag_name')
           echo "Installing mcp-publisher version: $VERSION"
           OS=$(uname -s | tr '[:upper:]' '[:lower:]')
           ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
-          # New naming format: mcp-publisher_OS_ARCH.tar.gz (no version in filename)
+          # Naming format: mcp-publisher_OS_ARCH.tar.gz (no version in filename)
           curl -L "https://github.com/modelcontextprotocol/registry/releases/download/${VERSION}/mcp-publisher_${OS}_${ARCH}.tar.gz" | tar xz
           sudo mv mcp-publisher /usr/local/bin/
           mcp-publisher --version
