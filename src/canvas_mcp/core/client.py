@@ -1,9 +1,8 @@
 """HTTP client and Canvas API utilities."""
-
+import os
 import asyncio
 from typing import Any
 from urllib.parse import urlencode
-
 import httpx
 
 from .anonymization import anonymize_response_data
@@ -29,7 +28,8 @@ def _get_request_semaphore() -> asyncio.Semaphore:
     global _request_semaphore
     if _request_semaphore is None:
         from .config import get_config
-        _request_semaphore = asyncio.Semaphore(get_config().max_concurrent_requests)
+        _request_semaphore = asyncio.Semaphore(
+            get_config().max_concurrent_requests)
     return _request_semaphore
 
 
@@ -57,9 +57,10 @@ def _should_anonymize_endpoint(endpoint: str) -> bool:
     """Determine if an endpoint should have its data anonymized."""
     # Don't anonymize these endpoints as they don't contain student data
     safe_endpoints = [
-        '/courses',  # Course info without student data (unless it includes users)
+        # Course info without student data (unless it includes users)
+        '/courses',
         '/self',     # User's own profile
-        '/accounts', # Account information
+        '/accounts',  # Account information
         '/terms',    # Academic terms
     ]
 
@@ -112,6 +113,41 @@ async def cleanup_http_client() -> None:
     if http_client is not None:
         await http_client.aclose()
         http_client = None
+
+
+async def get_new_access_token():
+    """Silently fetch a new access token using the OAuth2 refresh token."""
+    canvas_url = os.getenv("CANVAS_BASE_URL", "").rstrip('/')
+    client_id = os.getenv("CANVAS_CLIENT_ID")
+    client_secret = os.getenv("CANVAS_CLIENT_SECRET")
+    refresh_token = os.getenv("CANVAS_REFRESH_TOKEN")
+
+    if not all([canvas_url, client_id, client_secret, refresh_token]):
+        return None
+
+    payload = {
+        "grant_type": "refresh_token",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "refresh_token": refresh_token
+    }
+
+    url = f"{canvas_url}/login/oauth2/token"
+
+    # Use httpx to make the request asynchronously
+    async with httpx.AsyncClient() as refresh_client:
+        try:
+            response = await refresh_client.post(url, data=payload)
+            response.raise_for_status()
+
+            new_token = response.json().get('access_token')
+
+            # Update the environment variable so future calls use the new token
+            os.environ["CANVAS_API_TOKEN"] = new_token
+            return new_token
+        except Exception as e:
+            print(f"Failed to refresh token: {e}")
+            return None
 
 
 async def make_canvas_request(
@@ -176,7 +212,8 @@ async def make_canvas_request(
                     # Log the request for debugging (if enabled)
                     if config.log_api_requests:
                         retry_info = f" (retry {attempt}/{MAX_RETRIES})" if attempt > 0 else ""
-                        log_debug(f"Making {method.upper()} request to {sanitize_url(url)}{retry_info}")
+                        log_debug(
+                            f"Making {method.upper()} request to {sanitize_url(url)}{retry_info}")
 
                     if method.lower() == "get":
                         response = await client.get(url, params=params)
@@ -189,7 +226,8 @@ async def make_canvas_request(
                                 response = await client.post(
                                     url,
                                     content=encoded,
-                                    headers={"Content-Type": "application/x-www-form-urlencoded"}
+                                    headers={
+                                        "Content-Type": "application/x-www-form-urlencoded"}
                                 )
                             else:
                                 response = await client.post(url, data=data)
@@ -203,7 +241,8 @@ async def make_canvas_request(
                                 response = await client.put(
                                     url,
                                     content=encoded,
-                                    headers={"Content-Type": "application/x-www-form-urlencoded"}
+                                    headers={
+                                        "Content-Type": "application/x-www-form-urlencoded"}
                                 )
                             else:
                                 response = await client.put(url, data=data)
@@ -225,7 +264,8 @@ async def make_canvas_request(
 
                         # Log anonymization for debugging (if enabled)
                         if config.anonymization_debug:
-                            log_debug(f"Applied {data_type} anonymization to {endpoint}")
+                            log_debug(
+                                f"Applied {data_type} anonymization to {endpoint}")
 
                     # Audit: log successful data access
                     log_data_access(method, endpoint, "success")
@@ -235,46 +275,56 @@ async def make_canvas_request(
                 except httpx.HTTPStatusError as e:
                     # Handle rate limiting with exponential backoff
                     if e.response.status_code == 429 and attempt < MAX_RETRIES:
-                        # Check for Retry-After header
+                        # ... (keep your existing 429 logic here) ...
                         retry_after = e.response.headers.get('Retry-After')
                         if retry_after:
                             try:
                                 wait_time = int(retry_after)
                             except ValueError:
-                                wait_time = INITIAL_BACKOFF_SECONDS * (2 ** attempt)
+                                wait_time = INITIAL_BACKOFF_SECONDS * \
+                                    (2 ** attempt)
                         else:
-                            wait_time = INITIAL_BACKOFF_SECONDS * (2 ** attempt)
+                            wait_time = INITIAL_BACKOFF_SECONDS * \
+                                (2 ** attempt)
 
-                        log_warning(f"Rate limited (429). Retrying in {wait_time}s...", attempt=attempt + 1, max_retries=MAX_RETRIES)
+                        log_warning(
+                            f"Rate limited (429). Retrying in {wait_time}s...", attempt=attempt + 1, max_retries=MAX_RETRIES)
                         await asyncio.sleep(wait_time)
                         continue
 
-                    # Not a rate limit error or out of retries - format and return error
+                    # --- NEW 401 UNAUTHORIZED LOGIC START ---
+                    if e.response.status_code == 401 and attempt < MAX_RETRIES:
+                        log_warning("Token expired (401). Attempting to refresh...",
+                                    attempt=attempt + 1, max_retries=MAX_RETRIES)
+
+                        new_token = await get_new_access_token()
+
+                        if new_token:
+                            # Update the active client's headers so the retry uses the new token
+                            client.headers["Authorization"] = f"Bearer {new_token}"
+                            log_warning(
+                                "Successfully refreshed token! Retrying request...")
+                            continue  # Jump back to the top of the loop and try the API call again!
+                        else:
+                            log_error(
+                                "Could not refresh OAuth token. Check your .env variables.")
+                    # --- NEW 401 UNAUTHORIZED LOGIC END ---
+
+                    # Not a rate limit error, not a 401, or out of retries - format and return error
                     error_message = f"HTTP error: {e.response.status_code}"
-                    try:
-                        error_details = e.response.json()
-                        error_message += f", Details: {error_details}"
-                    except ValueError:
-                        error_details = e.response.text
-                        error_message += f", Text: {error_details}"
-
-                    log_error(f"API error on {sanitize_url(endpoint)}", status_code=e.response.status_code)
-
-                    # Audit: log HTTP error (status code only — response body may contain PII)
-                    log_data_access(method, endpoint, "error", f"HTTP {e.response.status_code}")
-
-                    return {"error": error_message}
 
                 except Exception as e:
-                    log_error(f"Request failed for {sanitize_url(endpoint)}", error_type=type(e).__name__)
+                    log_error(
+                        f"Request failed for {sanitize_url(endpoint)}", error_type=type(e).__name__)
 
                     # Audit: log request exception (type only — message may contain PII)
-                    log_data_access(method, endpoint, "error", type(e).__name__)
+                    log_data_access(method, endpoint,
+                                    "error", type(e).__name__)
 
                     return {"error": f"Request failed: {str(e)}"}
 
             # Should never reach here, but just in case
-            return {"error": "Max retries exceeded"}
+            return {"error": "Max retries ================>"}
         finally:
             if _close_client:
                 await client.aclose()
@@ -326,7 +376,8 @@ async def upload_file_to_storage(
 
             # Log for debugging
             if config.log_api_requests:
-                log_debug(f"Uploading file to storage: {upload_url}", filename=filename, content_type=content_type, size=len(file_content))
+                log_debug(f"Uploading file to storage: {upload_url}", filename=filename,
+                          content_type=content_type, size=len(file_content))
 
             # Make the upload request
             # Note: follow_redirects=False because Canvas may return a 3xx with file info
@@ -439,6 +490,7 @@ async def fetch_all_paginated_results(endpoint: str, params: dict[str, Any] | No
         all_results = anonymize_response_data(all_results, data_type)
 
         if config.anonymization_debug:
-            log_debug(f"Applied {data_type} anonymization to paginated results from {endpoint}")
+            log_debug(
+                f"Applied {data_type} anonymization to paginated results from {endpoint}")
 
     return all_results
