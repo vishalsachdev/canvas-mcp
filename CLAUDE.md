@@ -192,9 +192,10 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 
 ## Current Focus
 - [x] Release v1.3.0 — `create_rubric` (#100), `read_course_file` (#90), event-loop fix (#99), bulk-delete safety (#96); tool count 88 → 90; CHANGELOG.md added
+- [x] Follow-up: split publish-mcp.yml into separate PyPI + MCP Registry jobs with PyPI-propagation poll (PR #107)
+- [x] Follow-up: add `ruff`/`black`/`mypy` to dev deps in pyproject.toml; remove unused `requests`; `setup-python@v4 → @v6` (PR #105)
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
-- [ ] Follow-up: split publish-mcp.yml into separate PyPI + MCP Registry jobs with PyPI-propagation poll (avoid race retry on next release)
-- [ ] Follow-up: add `ruff` to dev deps in pyproject.toml so contributors don't trip pre-commit hook on fresh clone
+- [ ] Issue #106: 186 mypy errors uncovered by adding mypy to dev deps — incremental cleanup, module by module
 
 ## Roadmap
 - [x] Release v1.0.8 — all CI/CD pipelines passing (PyPI, MCP Registry, GitHub Release)
@@ -218,8 +219,11 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 ## Session Log
 > Full history: [docs/session-history.md](./docs/session-history.md)
 
-### 2026-05-07
-- **Instructure/Canvas breach advisory** (no code changes): ShinyHunters claimed exfiltration of ~275–280M records / 3.65 TB from Instructure across ~8,800 institutions; ransom deadline was today. Exposed: names, emails, student IDs, **private Canvas Inbox messages**. Not exposed (per Instructure): passwords, DOB, gov IDs, financial. Second Instructure breach in 8 months (Sept 2025 was Salesforce social-engineering). **Project impact: none** — canvas-mcp is a client of the Canvas API, not affected by the data exfil. `CANVAS_API_TOKEN` is user-issued via Canvas UI and almost certainly not in the exfil path; rotation is hygiene, not required. No advisory needed in repo docs.
-- **Stats refresh deployed**: Committed pre-session `docs/data/impact.json` refresh and pushed to Cloudflare Pages.
-- Next: Backlog triage (module templates, bulk creation, page versioning) — unchanged from last session. Two v1.3.0 follow-ups still open: split `publish-mcp.yml` (PyPI + MCP Registry jobs with propagation poll), add `ruff` to dev deps in `pyproject.toml`.
+### 2026-05-14
+- **Cleared both v1.3.0 follow-ups from the carryover queue** by working through the auto-bot maintenance reports (#95/#101/#102). Started with a Codex plan-review pass on the proposed batches — that surfaced two real corrections before any code: the bot was recommending `setup-python@v4 → @v5` but current is `@v6` (Node 24 vs 20), and Batch 1 needed to be a PR, not a direct-to-main push, because of the lockfile regeneration. Final plan: two PRs, both admin-merged after green CI + Codex code-review.
+- **PR #105 (`chore: housekeeping`)**: Added `ruff>=0.9.0`, `black>=25.0.0`, `mypy>=1.15.0` to `[dependency-groups] dev` — all three were already configured in `[tool.*]` sections but never installable; fresh contributors tripped the pre-commit hook. Removed unused `requests>=2.33.1` from runtime deps (verified zero `import requests` across `src/`/`tests/`/`scripts/`/`tools/`/`.github/`). Bumped `actions/setup-python` from `@v4`/`@v5` to `@v6` across all 5 workflow files. Applied `ruff --fix` to clear 7 pre-existing unused-import warnings. 382 tests + ruff clean post-change.
+- **PR #107 (`ci: split publish-mcp`)**: Split the single `publish` job into `publish-pypi` (build/test/upload, exposes resolved version as a job output with leading-`v` stripped) and `publish-registry` (`needs:` PyPI job; polls `https://pypi.org/pypi/canvas-mcp/<version>/json` up to 12× × 30s = 6 min ceiling before calling `mcp-publisher publish`). Eliminates the rerun-after-each-release operational burden caused by the CDN-propagation race that hit v1.3.0. Codex code-review returned zero findings.
+- **Issue #106 filed**: Adding mypy as a real dev dep exposed 186 pre-existing type errors across 19 files (mypy was configured in `[tool.mypy]` but never installable, so no one ever ran it). Tracked for incremental module-by-module cleanup; out of scope for the housekeeping PR.
+- **impact.json refresh**: A 2026-05-11 auto-refresh from the impact-stats skill was waiting at session start (stars 120→128, new referrers from search.brave.com and mcpservers.org). Committed direct to main and deployed to Cloudflare Pages.
+- Next: Backlog triage (module templates, bulk creation, page versioning) — same as last two sessions. After that, Issue #106 (mypy cleanup) and the two test-coverage gaps from the maintenance reports (`discovery.py`, `message_templates.py`).
 

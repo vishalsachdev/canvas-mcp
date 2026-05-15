@@ -4,6 +4,11 @@ Archived session log entries from canvas-mcp CLAUDE.md.
 
 ## Session Log
 
+### 2026-05-07
+- **Instructure/Canvas breach advisory** (no code changes): ShinyHunters claimed exfiltration of ~275–280M records / 3.65 TB from Instructure across ~8,800 institutions; ransom deadline was today. Exposed: names, emails, student IDs, **private Canvas Inbox messages**. Not exposed (per Instructure): passwords, DOB, gov IDs, financial. Second Instructure breach in 8 months (Sept 2025 was Salesforce social-engineering). **Project impact: none** — canvas-mcp is a client of the Canvas API, not affected by the data exfil. `CANVAS_API_TOKEN` is user-issued via Canvas UI and almost certainly not in the exfil path; rotation is hygiene, not required. No advisory needed in repo docs.
+- **Stats refresh deployed**: Committed pre-session `docs/data/impact.json` refresh and pushed to Cloudflare Pages.
+- Next: Backlog triage (module templates, bulk creation, page versioning) — unchanged from last session. Two v1.3.0 follow-ups still open: split `publish-mcp.yml` (PyPI + MCP Registry jobs with propagation poll), add `ruff` to dev deps in `pyproject.toml`.
+
 ### 2026-05-02
 - **Released v1.3.0** (commits `cff934c` + `c2f1438`, tag `v1.3.0`): Bundled four already-merged PRs into a coherent release — `create_rubric` (#100, bracket-notation form-data finally working), `read_course_file` (#90, @DomBarker99), event-loop fix on user-scoped tools (#99, weakref-tracked client/semaphore), and bulk-delete safety (#96, default cap of 25 + dry_run). Drafted CHANGELOG.md (Keep-a-Changelog format) before bumping versions — that scope-pass caught the bulk-delete behavior change for callers passing >25 IDs and got it into the release notes. Bumped 5 release-checklist files; 382 tests pass at 1.3.0; tool count 88 → 90.
 - **CI publish race surfaced**: `publish-mcp.yml` runs PyPI upload + MCP Registry publish in one sequential job. The Registry's PyPI lookup raced PyPI's CDN propagation and 404'd. `gh run rerun --failed` succeeded immediately on retry — no code change. Added a follow-up: split into two jobs with a PyPI-propagation poll between them. Also surfaced a Node 20 deprecation warning for `actions/checkout@v4` + `actions/setup-python@v5` (force-upgraded June 2026).
