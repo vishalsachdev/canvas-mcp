@@ -2,17 +2,51 @@
 
 Date/Time Formatting Standard
 ---------------------------
-This module standardizes all date/time values to ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ)
-with the following conventions:
+This module standardizes all date/time values to ISO 8601 format with the
+following conventions:
 - All dates include time components (even if they're 00:00:00)
 - All dates include timezone information (Z for UTC or +/-HH:MM offset)
-- UTC timezone is used for all internal date handling
+- Canvas returns UTC; internal datetime comparisons stay in UTC
+- User-facing output is converted to the configured TIMEZONE (default UTC)
+  so models surface a wall-clock time the user recognizes. Output remains
+  ISO 8601 (e.g. ``2026-05-28T18:59:59-05:00``) so downstream parsers that
+  use ``fromisoformat`` continue to work.
 - Dates without timezone information are assumed to be in UTC
-- The format_date() function handles conversion of various formats to this standard
 """
 
 import datetime
 import sys
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+_tz_cache: dict[str, datetime.tzinfo] = {}
+_tz_warned: set[str] = set()
+
+
+def _output_tz() -> datetime.tzinfo:
+    """Resolve the configured output timezone, falling back to UTC."""
+    from .config import get_config
+
+    name = (get_config().timezone or "UTC").strip()
+    if name in _tz_cache:
+        return _tz_cache[name]
+
+    if name.upper() == "UTC":
+        tz: datetime.tzinfo = datetime.timezone.utc
+    else:
+        try:
+            tz = ZoneInfo(name)
+        except ZoneInfoNotFoundError:
+            if name not in _tz_warned:
+                print(
+                    f"Warning: TIMEZONE='{name}' not found; falling back to UTC. "
+                    "On Windows, install the 'tzdata' package.",
+                    file=sys.stderr,
+                )
+                _tz_warned.add(name)
+            tz = datetime.timezone.utc
+
+    _tz_cache[name] = tz
+    return tz
 
 
 def parse_date(date_str: str | None) -> datetime.datetime | None:
@@ -66,10 +100,12 @@ def parse_date(date_str: str | None) -> datetime.datetime | None:
 
 
 def format_date(date_str: str | None) -> str:
-    """Format a date string to ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ) or return 'N/A' if None.
+    """Format a date string to ISO 8601 in the configured output timezone.
 
-    All dates are converted to ISO 8601 format for consistency across the API.
-    Timezone information is preserved if present, otherwise UTC is assumed.
+    Converts the parsed datetime to the timezone specified by the ``TIMEZONE``
+    environment variable (default ``UTC``) and emits ISO 8601. UTC is rendered
+    with the ``Z`` suffix for backward compatibility; other zones use a
+    numeric offset (e.g. ``2026-05-28T18:59:59-05:00``).
 
     Args:
         date_str: The date string to format
@@ -84,11 +120,12 @@ def format_date(date_str: str | None) -> str:
     if not dt:
         return date_str  # Return original if parsing fails
 
-    # Format to ISO 8601 with Z for UTC or offset for other timezones
-    if dt.tzinfo == datetime.timezone.utc:
-        return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
-    else:
-        return dt.strftime('%Y-%m-%dT%H:%M:%S%z')
+    tz = _output_tz()
+    local_dt = dt.astimezone(tz)
+
+    if local_dt.utcoffset() == datetime.timedelta(0):
+        return local_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+    return local_dt.strftime('%Y-%m-%dT%H:%M:%S%z')
 
 
 def truncate_text(text: str, max_length: int = 100) -> str:
