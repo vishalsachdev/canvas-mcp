@@ -21,6 +21,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Education",
     "Topic :: Internet :: WWW/HTTP :: Dynamic Content :: Content Management System",
 ]
@@ -112,5 +113,5 @@ dev = [
     "pytest-asyncio>=1.3.0",
     "ruff>=0.9.0",
     "black>=25.0.0",
-    "mypy>=1.15.0",
+    "mypy>=1.15.0,<2",
 ]

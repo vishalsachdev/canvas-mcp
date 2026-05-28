@@ -841,6 +841,54 @@ class TestDownloadCourseFile:
 
         assert "error" in result.lower()
 
+    @pytest.mark.asyncio
+    async def test_download_uses_per_request_credentials_in_http_mode(self, mock_download_api, tmp_path):
+        """HTTP transport should use request-scoped credentials for downloads."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from canvas_mcp.core.credentials import RequestCredentials
+
+        mock_download_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "display_name": "syllabus.pdf",
+            "url": "https://canvas.example.com/files/12345/download",
+            "content-type": "application/pdf",
+        }
+
+        mock_response = AsyncMock()
+        mock_response.raise_for_status = MagicMock()
+
+        async def aiter_bytes(chunk_size=8192):
+            yield b"file content here"
+
+        mock_response.aiter_bytes = aiter_bytes
+        mock_stream_cm = AsyncMock()
+        mock_stream_cm.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_stream_cm.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "canvas_mcp.tools.files.get_request_credentials",
+            return_value=RequestCredentials(
+                api_token="per-request-token",
+                api_url="https://canvas.example.com/api/v1",
+            ),
+        ), patch("canvas_mcp.tools.files.httpx.AsyncClient") as mock_async_client:
+            per_request_client = AsyncMock()
+            per_request_client.stream = MagicMock(return_value=mock_stream_cm)
+            per_request_client.aclose = AsyncMock()
+            mock_async_client.return_value = per_request_client
+
+            download_fn = get_tool_function('download_course_file')
+            result = await download_fn("60366", 12345, save_directory=str(tmp_path))
+
+            assert "Downloaded: syllabus.pdf" in result
+            mock_download_api['_get_http_client'].assert_not_called()
+            mock_async_client.assert_called_once()
+            auth_header = mock_async_client.call_args.kwargs["headers"]["Authorization"]
+            assert auth_header.startswith("Bearer ")
+            assert auth_header.endswith("per-request-token")
+            per_request_client.aclose.assert_called_once()
+
 
 class TestReadCourseFile:
     """Tests for read_course_file tool."""
@@ -1112,6 +1160,56 @@ class TestReadCourseFile:
             result = await read_fn("60366", 12345, max_size_mb=1000.0)
 
         assert "Read: small.txt" in result
+
+    @pytest.mark.asyncio
+    async def test_read_uses_per_request_credentials_in_http_mode(self, mock_read_api):
+        """HTTP transport should use request-scoped credentials for reads."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from canvas_mcp.core.credentials import RequestCredentials
+
+        file_content = b"Hello from HTTP mode"
+        mock_read_api['make_canvas_request'].return_value = {
+            "id": 12345,
+            "display_name": "syllabus.pdf",
+            "url": "https://canvas.example.com/files/12345/download",
+            "size": len(file_content),
+            "content-type": "application/pdf",
+        }
+
+        mock_response = AsyncMock()
+        mock_response.raise_for_status = MagicMock()
+
+        async def aiter_bytes(chunk_size=8192):
+            yield file_content
+
+        mock_response.aiter_bytes = aiter_bytes
+        mock_stream_cm = AsyncMock()
+        mock_stream_cm.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_stream_cm.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "canvas_mcp.tools.files.get_request_credentials",
+            return_value=RequestCredentials(
+                api_token="per-request-token",
+                api_url="https://canvas.example.com/api/v1",
+            ),
+        ), patch("canvas_mcp.tools.files.httpx.AsyncClient") as mock_async_client:
+            per_request_client = AsyncMock()
+            per_request_client.stream = MagicMock(return_value=mock_stream_cm)
+            per_request_client.aclose = AsyncMock()
+            mock_async_client.return_value = per_request_client
+
+            read_fn = get_tool_function('read_course_file')
+            result = await read_fn("60366", 12345)
+
+            assert "Read: syllabus.pdf" in result
+            mock_read_api['_get_http_client'].assert_not_called()
+            mock_async_client.assert_called_once()
+            auth_header = mock_async_client.call_args.kwargs["headers"]["Authorization"]
+            assert auth_header.startswith("Bearer ")
+            assert auth_header.endswith("per-request-token")
+            per_request_client.aclose.assert_called_once()
 
 
 class TestListCourseFiles:

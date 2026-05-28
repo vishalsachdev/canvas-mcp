@@ -14,10 +14,13 @@ This module handles all three steps transparently.
 
 import base64
 import tempfile
+from contextlib import asynccontextmanager
 
+import httpx
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from .. import __version__
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import (
     _get_http_client,
@@ -26,6 +29,7 @@ from ..core.client import (
     upload_file_to_storage,
 )
 from ..core.config import get_config
+from ..core.credentials import get_request_credentials
 from ..core.file_validation import (
     FileValidationResult,
     format_file_size,
@@ -33,6 +37,31 @@ from ..core.file_validation import (
     validate_file_for_upload,
 )
 from ..core.validation import validate_params
+
+
+@asynccontextmanager
+async def _get_download_http_client():
+    """Get an HTTP client for file downloads.
+
+    In HTTP transport mode, use per-request credentials. In stdio mode,
+    reuse the global client.
+    """
+    req_creds = get_request_credentials()
+    if req_creds:
+        config = get_config()
+        client = httpx.AsyncClient(
+            headers={
+                "Authorization": "Bearer " + req_creds.api_token,
+                "User-Agent": f"canvas-mcp/{__version__} (https://github.com/vishalsachdev/canvas-mcp)",
+            },
+            timeout=config.api_timeout,
+        )
+        try:
+            yield client
+        finally:
+            await client.aclose()
+    else:
+        yield _get_http_client()
 
 
 def register_shared_file_tools(mcp: FastMCP):
@@ -84,16 +113,16 @@ def register_shared_file_tools(mcp: FastMCP):
             return "Error: Invalid filename - path outside allowed directory"
 
         # Download the file using streaming to handle large files efficiently
-        client = _get_http_client()
         try:
             total_bytes = 0
-            async with client.stream("GET", download_url, follow_redirects=True) as response:
-                response.raise_for_status()
+            async with _get_download_http_client() as client:
+                async with client.stream("GET", download_url, follow_redirects=True) as response:
+                    response.raise_for_status()
 
-                with open(save_path, 'wb') as f:
-                    async for chunk in response.aiter_bytes(chunk_size=8192):
-                        f.write(chunk)
-                        total_bytes += len(chunk)
+                    with open(save_path, 'wb') as f:
+                        async for chunk in response.aiter_bytes(chunk_size=8192):
+                            f.write(chunk)
+                            total_bytes += len(chunk)
 
             size_str = format_file_size(total_bytes)
             course_display = await get_course_code(course_id) or course_identifier
@@ -169,19 +198,19 @@ def register_shared_file_tools(mcp: FastMCP):
             )
 
         # Download the file content into memory
-        client = _get_http_client()
         try:
             buffer = bytearray()
-            async with client.stream("GET", download_url, follow_redirects=True) as response:
-                response.raise_for_status()
+            async with _get_download_http_client() as client:
+                async with client.stream("GET", download_url, follow_redirects=True) as response:
+                    response.raise_for_status()
 
-                async for chunk in response.aiter_bytes(chunk_size=8192):
-                    if len(buffer) + len(chunk) > max_size_bytes:
-                        return (
-                            f"Error: File '{filename}' exceeds the {effective_max_mb} MB limit "
-                            f"during download. Use download_course_file instead for large files."
-                        )
-                    buffer.extend(chunk)
+                    async for chunk in response.aiter_bytes(chunk_size=8192):
+                        if len(buffer) + len(chunk) > max_size_bytes:
+                            return (
+                                f"Error: File '{filename}' exceeds the {effective_max_mb} MB limit "
+                                f"during download. Use download_course_file instead for large files."
+                            )
+                        buffer.extend(chunk)
 
             base64_content = base64.b64encode(buffer).decode("ascii")
 
