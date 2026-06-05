@@ -202,7 +202,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] Learning Designer tools & skills — `get_course_structure` tool + 3 skills (QC, accessibility, builder)
 - [x] GitHub Pages audit — 7 disconnects fixed (tool count, test count, analytics, URLs, compatibility)
 - [x] MCP token optimization — trimmed tool docstrings ~35% (350 lines removed across 15 files)
-- [x] HTTP transport & hosted server — per-request credentials via ContextVar, deployed to VPS at mcp.illinihunt.org
+- [x] HTTP transport & hosted server — per-request credentials via ContextVar. VPS instance (mcp.illinihunt.org) **decommissioned 2026-06-05** (workshop-only; public code-exec surface); Gies/Azure rebuild tracked in issue #115
 - [x] Cloudflare Pages migration — site moved from GitHub Pages (blocked by Actions) to Cloudflare Pages
 - [x] Release v1.2.0 — role-based filtering, accessibility remediation, security hardening, contributor acknowledgements
 - [x] Release v1.3.0 — create_rubric, read_course_file, event-loop fix, bulk-delete safety, CHANGELOG.md
