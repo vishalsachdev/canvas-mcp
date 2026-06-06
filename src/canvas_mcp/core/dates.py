@@ -123,9 +123,10 @@ def format_date(date_str: str | None) -> str:
     tz = _output_tz()
     local_dt = dt.astimezone(tz)
 
+    iso = local_dt.isoformat(timespec="seconds")
     if local_dt.utcoffset() == datetime.timedelta(0):
-        return local_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
-    return local_dt.strftime('%Y-%m-%dT%H:%M:%S%z')
+        return iso.replace("+00:00", "Z")
+    return iso
 
 
 def truncate_text(text: str, max_length: int = 100) -> str:
