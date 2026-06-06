@@ -435,12 +435,12 @@ def register_educator_assignment_tools(mcp: FastMCP):
         # Format the due date
         due_date_str = "No due date"
         if due_date:
-            try:
-                due_date_obj = datetime.datetime.fromisoformat(due_date.replace('Z', '+00:00'))
-                due_date_str = due_date_obj.strftime("%Y-%m-%d %H:%M")
+            due_date_obj = parse_date(due_date)
+            if due_date_obj:
+                due_date_str = format_date(due_date)
                 now = datetime.datetime.now(datetime.timezone.utc)
                 is_past_due = due_date_obj < now
-            except (ValueError, AttributeError):
+            else:
                 due_date_str = due_date
                 is_past_due = False
         else:

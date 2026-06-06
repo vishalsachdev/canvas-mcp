@@ -10,23 +10,9 @@ Canvas MCP is a Model Context Protocol server that bridges AI assistants with Ca
 
 ## Authentication
 
-All tools require a valid Canvas API token. Two connection modes:
+All tools require a valid Canvas API token.
 
-### Remote (Hosted Server — No Installation)
-Connect to the hosted server with your credentials as HTTP headers. Best for students and quick evaluation. Educators with FERPA obligations should use local mode.
-```json
-{
-  "mcpServers": {
-    "canvas": {
-      "url": "https://mcp.illinihunt.org/mcp",
-      "headers": {
-        "X-Canvas-Token": "your_canvas_api_token",
-        "X-Canvas-URL": "https://your-school.instructure.com/api/v1"
-      }
-    }
-  }
-}
-```
+> **Note:** The public hosted server (`mcp.illinihunt.org`) has been **retired** — a public MCP endpoint without an access gate would expose the code-execution tool. Use local (self-hosted) mode below. The HTTP/streamable transport remains supported for self-hosting behind your own authentication; an authenticated institutional deployment is tracked in [#115](https://github.com/vishalsachdev/canvas-mcp/issues/115).
 
 ### Local (Self-Hosted)
 Configure credentials in the MCP server's `.env` file:

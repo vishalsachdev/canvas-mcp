@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+- **Retired the public hosted server (`mcp.illinihunt.org`).** It had been
+  deployed without an authentication gate, which left the sandboxed
+  `execute_typescript` tool and an unvalidated `X-Canvas-URL` (SSRF shape)
+  publicly reachable. No data was stored server-side and the published package
+  itself was unaffected. Self-hosting the HTTP/streamable transport remains
+  supported **behind your own authentication**; an authenticated institutional
+  deployment is tracked in [#115](https://github.com/vishalsachdev/canvas-mcp/issues/115).
+
 ## [1.3.0] — 2026-05-02
 
 ### Added

@@ -129,3 +129,6 @@ if [[ "${1:-}" == "--deploy" ]]; then
 fi
 
 log "Impact stats collection finished"
+
+# cron heartbeat sentinel (added 2026-05-31) — only runs if script reached EOF (success)
+mkdir -p "$HOME/.cron-sentinels" && touch "$HOME/.cron-sentinels/impact-stats"

@@ -194,6 +194,8 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] Release v1.3.0 — `create_rubric` (#100), `read_course_file` (#90), event-loop fix (#99), bulk-delete safety (#96); tool count 88 → 90; CHANGELOG.md added
 - [x] Follow-up: split publish-mcp.yml into separate PyPI + MCP Registry jobs with PyPI-propagation poll (PR #107)
 - [x] Follow-up: add `ruff`/`black`/`mypy` to dev deps in pyproject.toml; remove unused `requests`; `setup-python@v4 → @v6` (PR #105)
+- [x] Retired public hosted server (`mcp.illinihunt.org`) — security teardown + cleaned all references (memory, website, README/AGENTS/CHANGELOG)
+- [ ] Issue #115: Gies-operated, Azure-hosted, SSO-gated deployment (v1 key gate) — specced, awaiting Gies dev team / demand
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
 - [ ] Issue #106: 186 mypy errors uncovered by adding mypy to dev deps — incremental cleanup, module by module
 
@@ -202,7 +204,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] Learning Designer tools & skills — `get_course_structure` tool + 3 skills (QC, accessibility, builder)
 - [x] GitHub Pages audit — 7 disconnects fixed (tool count, test count, analytics, URLs, compatibility)
 - [x] MCP token optimization — trimmed tool docstrings ~35% (350 lines removed across 15 files)
-- [x] HTTP transport & hosted server — per-request credentials via ContextVar, deployed to VPS at mcp.illinihunt.org
+- [x] HTTP transport & hosted server — per-request credentials via ContextVar. VPS instance (mcp.illinihunt.org) **decommissioned 2026-06-05** (workshop-only; public code-exec surface); Gies/Azure rebuild tracked in issue #115
 - [x] Cloudflare Pages migration — site moved from GitHub Pages (blocked by Actions) to Cloudflare Pages
 - [x] Release v1.2.0 — role-based filtering, accessibility remediation, security hardening, contributor acknowledgements
 - [x] Release v1.3.0 — create_rubric, read_course_file, event-loop fix, bulk-delete safety, CHANGELOG.md
@@ -219,11 +221,11 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 ## Session Log
 > Full history: [docs/session-history.md](./docs/session-history.md)
 
-### 2026-05-14
-- **Cleared both v1.3.0 follow-ups from the carryover queue** by working through the auto-bot maintenance reports (#95/#101/#102). Started with a Codex plan-review pass on the proposed batches — that surfaced two real corrections before any code: the bot was recommending `setup-python@v4 → @v5` but current is `@v6` (Node 24 vs 20), and Batch 1 needed to be a PR, not a direct-to-main push, because of the lockfile regeneration. Final plan: two PRs, both admin-merged after green CI + Codex code-review.
-- **PR #105 (`chore: housekeeping`)**: Added `ruff>=0.9.0`, `black>=25.0.0`, `mypy>=1.15.0` to `[dependency-groups] dev` — all three were already configured in `[tool.*]` sections but never installable; fresh contributors tripped the pre-commit hook. Removed unused `requests>=2.33.1` from runtime deps (verified zero `import requests` across `src/`/`tests/`/`scripts/`/`tools/`/`.github/`). Bumped `actions/setup-python` from `@v4`/`@v5` to `@v6` across all 5 workflow files. Applied `ruff --fix` to clear 7 pre-existing unused-import warnings. 382 tests + ruff clean post-change.
-- **PR #107 (`ci: split publish-mcp`)**: Split the single `publish` job into `publish-pypi` (build/test/upload, exposes resolved version as a job output with leading-`v` stripped) and `publish-registry` (`needs:` PyPI job; polls `https://pypi.org/pypi/canvas-mcp/<version>/json` up to 12× × 30s = 6 min ceiling before calling `mcp-publisher publish`). Eliminates the rerun-after-each-release operational burden caused by the CDN-propagation race that hit v1.3.0. Codex code-review returned zero findings.
-- **Issue #106 filed**: Adding mypy as a real dev dep exposed 186 pre-existing type errors across 19 files (mypy was configured in `[tool.mypy]` but never installable, so no one ever ran it). Tracked for incremental module-by-module cleanup; out of scope for the housekeeping PR.
-- **impact.json refresh**: A 2026-05-11 auto-refresh from the impact-stats skill was waiting at session start (stars 120→128, new referrers from search.brave.com and mcpservers.org). Committed direct to main and deployed to Cloudflare Pages.
-- Next: Backlog triage (module templates, bulk creation, page versioning) — same as last two sessions. After that, Issue #106 (mypy cleanup) and the two test-coverage gaps from the maintenance reports (`discovery.py`, `message_templates.py`).
+### 2026-06-05
+- **Retired the public hosted MCP server end-to-end + specced the Gies/Azure replacement.** Brainstormed the "move repo to gies-ai-experiments / transition to Azure" ask and decomposed it into three separable concerns — code ownership (stays personal; a GitHub transfer would break PyPI Trusted Publishing + the `io.github.vishalsachdev` MCP Registry namespace for zero benefit → **no transfer, no fork**), institutional *operation* (the Azure project), and inference (Azure OpenAI credits). Goal landed on: a Gies-operated, Azure-hosted, SSO-gated deployment for staff using downloaded MCP clients (Codex/Claude Desktop/VS Code/Cursor).
+- **Security teardown of `mcp.illinihunt.org`** (was a workshop-only instance): review found it live with **no auth gate**, `execute_typescript` (code-exec) exposed publicly 🔴, unvalidated `X-Canvas-URL` (SSRF) 🟠, on a `0.0.0.0:8819` systemd listener. Decommissioned reversibly: `systemctl stop/disable canvas-mcp.service` (port closed), nginx vhost symlink removed, Cloudflare `A mcp` record deleted (NXDOMAIN; `proof-mcp`/`canvas-mcp` siblings untouched).
+- **Filed issue #115** — dev-team-ready v1 spec: Azure Container Apps, lightweight per-user **key gate** (proof-vps pattern, not full OAuth), BYO `X-Canvas-Token` header, hardening as acceptance criteria (disable code-exec, pin `CANVAS_API_URL=canvas.illinois.edu`, ingress-only), phased toward v2 OAuth/Entra/ChatGPT-Edu-web-connector. Confirmed ChatGPT Edu *web* connectors are OAuth-only (→ v2); downloaded clients support custom headers (→ key gate fine for v1).
+- **Cleaned every surface that referenced the dead server**: auto-memory (`reference_vps_deploy.md` + MEMORY.md index → DECOMMISSIONED), website (removed "Hosted Server (Recommended)" from `docs/index.html` + learning-designer guide; local install now primary; redeployed to Cloudflare), and README/AGENTS/CHANGELOG (accurate "retired" notes + dated `### Security` disclosure — feature *not* disabled, it was a deployment-posture issue, package unaffected).
+- **impact.json refresh** committed + deployed (stars 128→141, forks 34→38, data through 2026-06-01) + cron heartbeat sentinel.
+- Next: Backlog triage (module templates, bulk creation, page versioning) and Issue #106 (mypy cleanup) remain the standing queue. **#115 (Gies/Azure hosted deployment)** is now a live thread — picked up if/when the Gies dev team or demand materializes.
 
