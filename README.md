@@ -249,86 +249,11 @@ All student data is anonymized **before** it reaches AI systems. See [Educator G
 - **No tracking**: Your Canvas usage and AI interactions remain private
 - **No anonymization needed**: Since you're only accessing your own data, there are no privacy concerns
 
-## Use Without Installing (Hosted Server)
+## Hosted Server (Retired)
 
-Connect to the hosted Canvas MCP server — no Python, no cloning, no setup. Just add a URL and your Canvas credentials to your MCP client.
+The public hosted server (`mcp.illinihunt.org`) has been **retired**. A public MCP endpoint without an access gate isn't safe to operate — it would expose the built-in code-execution tool — so the supported path is **[local installation](#local-installation)** below.
 
-**All you need:** A Canvas API token and your institution's Canvas URL.
-
-<details open>
-<summary><strong>Claude Desktop</strong></summary>
-
-Claude Desktop's `claude_desktop_config.json` expects stdio servers (`command` + `args`), so use an HTTP bridge:
-
-```json
-{
-  "mcpServers": {
-    "canvas": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://mcp.illinihunt.org/mcp",
-        "--transport",
-        "http-only",
-        "--header",
-        "X-Canvas-Token: ${CANVAS_TOKEN}",
-        "--header",
-        "X-Canvas-URL: ${CANVAS_URL}"
-      ],
-      "env": {
-        "CANVAS_TOKEN": "your_canvas_api_token",
-        "CANVAS_URL": "https://your-school.instructure.com/api/v1"
-      }
-    }
-  }
-}
-```
-
-Requires Node.js (`npx`).
-
-</details>
-
-<details>
-<summary><strong>Cursor / Windsurf / Continue</strong></summary>
-
-Add to your MCP client configuration:
-
-```json
-{
-  "mcpServers": {
-    "canvas": {
-      "url": "https://mcp.illinihunt.org/mcp",
-      "headers": {
-        "X-Canvas-Token": "your_canvas_api_token",
-        "X-Canvas-URL": "https://your-school.instructure.com/api/v1"
-      }
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><strong>Claude Code (CLI)</strong></summary>
-
-```bash
-claude mcp add canvas \
-  --transport http \
-  --url https://mcp.illinihunt.org/mcp \
-  --header "X-Canvas-Token: your_canvas_api_token" \
-  --header "X-Canvas-URL: https://your-school.instructure.com/api/v1"
-```
-
-</details>
-
-> **Get your Canvas API token:** Canvas → Account → Settings → New Access Token
-
-> **Find your Canvas URL:** It's your institution's Canvas domain with `/api/v1` appended (e.g., `https://canvas.illinois.edu/api/v1`). Check the URL bar when you log into Canvas.
-
-Your credentials are sent as HTTP headers with each request — they are never stored on the server. All 88 tools work the same as local installation.
-
-> **Privacy note:** The hosted server does not store or log credentials or Canvas data. However, data passes through a third-party VPS in transit. **Educators handling FERPA-protected student data should use the [local installation](#local-installation) instead.** The hosted server is ideal for students (who only access their own data) and for trying out Canvas MCP before installing locally.
+The HTTP/streamable transport itself remains fully supported for **self-hosting behind your own authentication** (`canvas-mcp-server --transport streamable-http`). An authenticated institutional deployment is planned ([#115](https://github.com/vishalsachdev/canvas-mcp/issues/115)).
 
 ---
 
