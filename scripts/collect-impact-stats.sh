@@ -45,8 +45,21 @@ GH_REFERRERS=$(gh api "repos/$REPO/traffic/popular/referrers" 2>/dev/null || ech
 log "GitHub: $GH_STARS stars, $GH_FORKS forks, $GH_CONTRIBUTORS contributors"
 
 # --- PyPI Stats ---
+# pypistats is flaky; the old `curl -sf || echo 0` silently wrote 0 on any blip,
+# corrupting history (e.g. 2026-05-18/25, 06-01 all recorded pypi_month=0 despite
+# ~500/mo real traffic). Retry up to 3x and only accept a response with month>0;
+# the Python build step below additionally guards against overwriting last-good.
 log "Fetching PyPI stats..."
-PYPI_RECENT=$(curl -sf "https://pypistats.org/api/packages/$PYPI_PACKAGE/recent" || echo '{"data":{"last_day":0,"last_week":0,"last_month":0}}')
+PYPI_RECENT='{"data":{"last_day":0,"last_week":0,"last_month":0}}'
+for attempt in 1 2 3; do
+    RESP=$(curl -sf --max-time 20 "https://pypistats.org/api/packages/$PYPI_PACKAGE/recent" || true)
+    if [[ -n "$RESP" ]] && echo "$RESP" | "$PYTHON" -c "import sys,json; sys.exit(0 if json.load(sys.stdin).get('data',{}).get('last_month',0)>0 else 1)" 2>/dev/null; then
+        PYPI_RECENT="$RESP"
+        break
+    fi
+    log "PyPI fetch attempt $attempt failed or returned 0; retrying in 5s..."
+    sleep 5
+done
 PYPI_DAY=$(echo "$PYPI_RECENT" | "$PYTHON" -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('last_day', 0))")
 PYPI_WEEK=$(echo "$PYPI_RECENT" | "$PYTHON" -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('last_week', 0))")
 PYPI_MONTH=$(echo "$PYPI_RECENT" | "$PYTHON" -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('last_month', 0))")
@@ -97,15 +110,28 @@ snapshot = {
     }
 }
 
-# Append to history (deduplicate by date)
+# Guard: a download API that returns 0 is almost always a transient fetch
+# failure, not reality (a published, starred package does not truly drop to 0).
+# Never let a 0 overwrite a non-zero last-good value — keep the previous number.
+prev_pypi = existing.get("pypi", {})
+if snapshot["pypi"]["last_month"] == 0 and prev_pypi.get("last_month", 0) > 0:
+    print("WARNING: PyPI returned 0; keeping last-good", prev_pypi)
+    snapshot["pypi"] = prev_pypi
+prev_npm = existing.get("npm", {})
+if snapshot["npm"]["last_month"] == 0 and prev_npm.get("last_month", 0) > 0:
+    print("WARNING: npm returned 0; keeping last-good", prev_npm)
+    snapshot["npm"] = prev_npm
+
+# Append to history (deduplicate by date), using the guarded values so a
+# transient 0 never lands in the trend series either.
 history = existing.get("history", [])
 history = [h for h in history if h.get("date") != "$TODAY"]
 history.append({
     "date": "$TODAY",
     "stars": $GH_STARS,
     "forks": $GH_FORKS,
-    "pypi_month": $PYPI_MONTH,
-    "npm_month": $NPM_MONTH,
+    "pypi_month": snapshot["pypi"]["last_month"],
+    "npm_month": snapshot["npm"]["last_month"],
     "views_unique": $GH_VIEWS_UNIQUE,
     "clones_unique": $GH_CLONES_UNIQUE
 })
