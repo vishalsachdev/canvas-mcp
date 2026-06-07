@@ -1,74 +1,74 @@
 {
-  "collected_at": "2026-06-01T14:00:09Z",
+  "collected_at": "2026-06-07T23:11:26Z",
   "github": {
-    "stars": 141,
-    "forks": 38,
-    "contributors": 11,
-    "open_issues": 10,
-    "views_14d": 712,
-    "views_14d_unique": 350,
-    "clones_14d": 486,
-    "clones_14d_unique": 171,
+    "stars": 142,
+    "forks": 39,
+    "contributors": 12,
+    "open_issues": 6,
+    "views_14d": 726,
+    "views_14d_unique": 335,
+    "clones_14d": 740,
+    "clones_14d_unique": 261,
     "referrers": [
       {
         "referrer": "Google",
-        "count": 296,
-        "uniques": 194
+        "count": 283,
+        "uniques": 195
       },
       {
         "referrer": "github.com",
-        "count": 75,
-        "uniques": 47
+        "count": 105,
+        "uniques": 52
+      },
+      {
+        "referrer": "statics.teams.cdn.office.net",
+        "count": 20,
+        "uniques": 5
       },
       {
         "referrer": "reddit.com",
-        "count": 20,
+        "count": 16,
         "uniques": 11
       },
       {
         "referrer": "Bing",
-        "count": 9,
-        "uniques": 8
-      },
-      {
-        "referrer": "canvas-mcp.illinihunt.org",
-        "count": 9,
-        "uniques": 6
+        "count": 16,
+        "uniques": 9
       },
       {
         "referrer": "search.brave.com",
-        "count": 6,
+        "count": 8,
+        "uniques": 7
+      },
+      {
+        "referrer": "canvas-mcp.illinihunt.org",
+        "count": 8,
         "uniques": 5
       },
       {
-        "referrer": "com.reddit.frontpage",
-        "count": 4,
-        "uniques": 2
-      },
-      {
-        "referrer": "statics.teams.cdn.office.net",
+        "referrer": "yf2ljykclb.xfchat.iflytek.com",
         "count": 3,
-        "uniques": 3
+        "uniques": 2
       },
       {
         "referrer": "word-edit.officeapps.live.com",
-        "count": 3,
+        "count": 2,
         "uniques": 2
       },
       {
-        "referrer": "DuckDuckGo",
-        "count": 2,
-        "uniques": 2
+        "referrer": "chatforest.com",
+        "count": 1,
+        "uniques": 1
       }
     ]
   },
   "pypi": {
-    "last_day": 0,
-    "last_week": 0,
-    "last_month": 0
+    "last_day": 68,
+    "last_week": 203,
+    "last_month": 503
   },
   "npm": {
-    "last_month": 66
+    "last_month": 69
   },
   "history": [
     {
@@ -162,19 +162,10 @@
       "clones_unique": 272
     },
     {
-      "date": "2026-05-18",
-      "stars": 0,
-      "forks": 0,
-      "pypi_month": 0,
-      "npm_month": 0,
-      "views_unique": 0,
-      "clones_unique": 0
-    },
-    {
       "date": "2026-05-25",
       "stars": 134,
       "forks": 34,
-      "pypi_month": 0,
+      "pypi_month": null,
       "npm_month": 47,
       "views_unique": 415,
       "clones_unique": 198
@@ -183,10 +174,19 @@
       "date": "2026-06-01",
       "stars": 141,
       "forks": 38,
-      "pypi_month": 0,
+      "pypi_month": null,
       "npm_month": 66,
       "views_unique": 350,
       "clones_unique": 171
+    },
+    {
+      "date": "2026-06-07",
+      "stars": 142,
+      "forks": 39,
+      "pypi_month": 503,
+      "npm_month": 69,
+      "views_unique": 335,
+      "clones_unique": 261
     }
   ]
 }

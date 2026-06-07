@@ -14,6 +14,7 @@ Supports two transport modes:
 
 import argparse
 import asyncio
+import re
 import sys
 from typing import Any
 
@@ -53,12 +54,20 @@ from .tools import (
 )
 
 
+_CANVAS_URL_RE = re.compile(
+    r"^https://[a-zA-Z0-9.-]+\.instructure\.com/api/v1$"
+)
+
+
 class CanvasCredentialMiddleware:
     """ASGI middleware that extracts Canvas credentials from HTTP headers.
 
     For each incoming HTTP request, reads X-Canvas-Token and X-Canvas-URL
     headers and sets them in the ContextVar so make_canvas_request uses
     the caller's credentials instead of the server's .env config.
+
+    The X-Canvas-URL header is validated against a strict allowlist pattern
+    (must be an instructure.com HTTPS URL ending in /api/v1) to prevent SSRF.
     """
 
     def __init__(self, app: Any) -> None:
@@ -72,9 +81,16 @@ class CanvasCredentialMiddleware:
             canvas_url = headers.get(b"x-canvas-url", b"").decode()
 
             if token and canvas_url:
-                set_request_credentials(
-                    RequestCredentials(api_token=token, api_url=canvas_url)
-                )
+                if not _CANVAS_URL_RE.match(canvas_url):
+                    log_warning(
+                        "Rejected invalid X-Canvas-URL header; "
+                        "must be https://*.instructure.com/api/v1",
+                        url=canvas_url,
+                    )
+                else:
+                    set_request_credentials(
+                        RequestCredentials(api_token=token, api_url=canvas_url)
+                    )
             try:
                 await self.app(scope, receive, send)
             finally:
@@ -135,7 +151,8 @@ def register_all_tools(mcp: FastMCP, role: str = "all") -> None:
         register_peer_review_comment_tools(mcp)
         register_educator_messaging_tools(mcp)
         register_accessibility_tools(mcp)
-        register_code_execution_tools(mcp)
+        if get_config().execute_typescript_enabled:
+            register_code_execution_tools(mcp)
         register_admin_tools(mcp)
 
     # Resources and prompts — always registered

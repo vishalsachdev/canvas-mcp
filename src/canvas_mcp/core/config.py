@@ -88,6 +88,10 @@ class Config:
         self.ts_sandbox_timeout_sec = _int_env("TS_SANDBOX_TIMEOUT_SEC", 120)
         self.ts_sandbox_container_image = os.getenv("TS_SANDBOX_CONTAINER_IMAGE", "node:20-alpine")
 
+        # Code execution kill switch — set EXECUTE_TYPESCRIPT_ENABLED=false to
+        # disable the execute_typescript tool without changing CANVAS_ROLE.
+        self.execute_typescript_enabled = _bool_env("EXECUTE_TYPESCRIPT_ENABLED", True)
+
         # Optional metadata
         self.institution_name = os.getenv("INSTITUTION_NAME", "")
         self.timezone = os.getenv("TIMEZONE", "UTC")

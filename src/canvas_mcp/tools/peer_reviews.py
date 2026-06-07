@@ -1,6 +1,8 @@
 """Peer review analytics MCP tools for Canvas API."""
 
 import json
+from datetime import datetime
+from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -129,9 +131,6 @@ def register_peer_review_tools(mcp: FastMCP):
 
             # Handle file saving if requested
             if save_to_file and "report" in result:
-                from datetime import datetime
-                from pathlib import Path
-
                 reports_dir = Path("./reports").resolve()
                 reports_dir.mkdir(parents=True, exist_ok=True)
 

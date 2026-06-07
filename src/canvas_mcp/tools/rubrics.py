@@ -1,5 +1,6 @@
 """Rubric-related MCP tools for Canvas API."""
 
+import ast
 import json
 from typing import Any
 
@@ -56,7 +57,6 @@ def validate_rubric_criteria(criteria_json: str) -> dict[str, Any]:
         # Try alternative parsing methods if JSON fails
         try:
             # Maybe it's a Python literal string representation
-            import ast
             criteria = ast.literal_eval(cleaned_json)
             if isinstance(criteria, dict):
                 # Successfully parsed as Python literal, continue with validation

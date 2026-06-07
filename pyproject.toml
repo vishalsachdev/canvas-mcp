@@ -31,7 +31,7 @@ dependencies = [
     "httpx>=0.28.1",
     "python-dotenv>=1.2.2",
     "pydantic>=2.13.1",
-    "python-dateutil>=2.9.0",
+    "python-dateutil>=2.9.0,<3",
     "uvicorn>=0.34.0",
 ]
 

@@ -156,7 +156,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "mcp", specifier = ">=1.26.0,<2" },
     { name = "pydantic", specifier = ">=2.13.1" },
-    { name = "python-dateutil", specifier = ">=2.9.0" },
+    { name = "python-dateutil", specifier = ">=2.9.0,<3" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "uvicorn", specifier = ">=0.34.0" },
 ]
