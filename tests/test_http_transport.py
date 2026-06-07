@@ -95,6 +95,61 @@ class TestCanvasCredentialMiddleware:
         assert get_request_credentials() is None
 
     @pytest.mark.asyncio
+    async def test_rejects_non_instructure_url(self, middleware):
+        """Middleware rejects X-Canvas-URL values that are not instructure.com URLs (SSRF prevention)."""
+        captured_creds = {"set": False}
+
+        async def check_app(scope, receive, send):
+            captured_creds["set"] = get_request_credentials() is not None
+
+        middleware.app = check_app
+
+        for bad_url in [
+            "http://169.254.169.254/latest/meta-data/",
+            "https://evil.example.com/api/v1",
+            "https://school.instructure.com.evil.com/api/v1",
+            "http://school.instructure.com/api/v1",  # http not https
+            "https://school.instructure.com/api/v1/extra",  # extra path
+            "",
+        ]:
+            captured_creds["set"] = False
+            scope = {
+                "type": "http",
+                "headers": [
+                    (b"x-canvas-token", b"tok"),
+                    (b"x-canvas-url", bad_url.encode()),
+                ],
+            }
+            await middleware(scope, AsyncMock(), AsyncMock())
+            assert captured_creds["set"] is False, f"Should have rejected URL: {bad_url}"
+
+    @pytest.mark.asyncio
+    async def test_accepts_valid_instructure_urls(self, middleware):
+        """Middleware accepts valid instructure.com HTTPS /api/v1 URLs."""
+        for good_url in [
+            "https://school.instructure.com/api/v1",
+            "https://my-university.instructure.com/api/v1",
+            "https://canvas.instructure.com/api/v1",
+        ]:
+            captured_creds: dict = {}
+
+            async def capture_app(scope, receive, send, _url=good_url):
+                creds = get_request_credentials()
+                if creds:
+                    captured_creds["url"] = creds.api_url
+
+            middleware.app = capture_app
+            scope = {
+                "type": "http",
+                "headers": [
+                    (b"x-canvas-token", b"tok"),
+                    (b"x-canvas-url", good_url.encode()),
+                ],
+            }
+            await middleware(scope, AsyncMock(), AsyncMock())
+            assert captured_creds.get("url") == good_url, f"Should have accepted URL: {good_url}"
+
+    @pytest.mark.asyncio
     async def test_clears_credentials_after_request(self, middleware):
         """Credentials are cleared even if the inner app raises."""
         async def failing_app(scope, receive, send):
@@ -106,7 +161,7 @@ class TestCanvasCredentialMiddleware:
             "type": "http",
             "headers": [
                 (b"x-canvas-token", b"tok"),
-                (b"x-canvas-url", b"https://x.com/api/v1"),
+                (b"x-canvas-url", b"https://x.instructure.com/api/v1"),
             ],
         }
         with pytest.raises(ValueError, match="boom"):
