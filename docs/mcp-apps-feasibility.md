@@ -37,6 +37,17 @@ canvas-mcp is well-positioned:
 
 ---
 
+## Decisions locked (2026-06-07)
+
+- **Renderers are spec-interpreters from day one.** Even the first presets consume
+  a component-spec DSL (server fills the spec). Generative UI (Tier D) is then
+  *additive* — the model fills the same spec — not a later rewrite.
+- **Generative substrate (self-rendered DSL vs remote-dom) is decided after the
+  Phase 0 spike**, once we've confirmed `_meta` passthrough and seen what actually
+  renders in Claude. The DSL is authored substrate-agnostically until then.
+
+---
+
 ## 2. Architecture: generic renderers, not per-tool UIs
 
 ### 2.1 Why this works
@@ -302,17 +313,17 @@ new UI code.
 
 | Phase | Scope | Est. |
 |---|---|---|
-| **0 — Spike** | Hello-world `ui://` widget on one tool; confirm `_meta` passthrough + render in Claude via tunnel (unknown #1) | 0.5–1 day |
-| **1 — `dashboard` renderer + analytics pilot** | Build the reusable `dashboard` widget; refactor `get_assignment_analytics` to emit the canonical shape + text fallback | 2–3 days |
-| **2 — Fan-out** | Map `get_student_analytics` / peer-review analytics onto `dashboard`; build `table` renderer; refactor 2-3 list tools onto it | 2–4 days |
-| **3 — Spec interpreter** | Refactor the renderers into **one DSL interpreter** + a server-side spec validator; presets become server-composed specs (sets up Tier D) | 2–3 days |
-| **4 — Generative (Tier D)** | Add `render_view(spec)` + `describe_view_schema`; let the model compose layouts for long-tail/custom asks; validate per call | 2–4 days |
-| **5 — Callbacks** | Validate credential forwarding (unknown #2); add message/refresh actions | 1–2 days |
-| **6 — Productionize** | Bundle build in CI; `cards` renderer; hosting decision (→ #115) | tracked separately |
+| **0 — Spike + substrate decision** | Hello-world `ui://` widget on one tool; confirm `_meta` passthrough + render in Claude via tunnel (unknown #1); **decide self-rendered DSL vs remote-dom** (unknown #4a) | 0.5–1 day |
+| **1 — Interpreter + analytics pilot** | Build the **spec-interpreter** renderer (consumes the component DSL) **+ a server-side spec validator**; define the `dashboard` preset spec; refactor `get_assignment_analytics` to emit a server-composed spec + text fallback | 3–4 days |
+| **2 — Fan-out (more presets)** | Add `table` / `cards` preset specs; map `get_student_analytics`, peer-review analytics, and 2-3 list tools onto server-composed specs | 2–4 days |
+| **3 — Generative (Tier D)** | Add `render_view(spec)` + `describe_view_schema`; let the model compose layouts for long-tail/custom asks; reuse the Phase 1 validator | 2–4 days |
+| **4 — Callbacks** | Validate credential forwarding (unknown #2); add message/refresh actions | 1–2 days |
+| **5 — Productionize** | Bundle build in CI; hosting decision (→ #115) | tracked separately |
 
-Phases 0–2 are reliable presets (Tier B) and stand alone. Phases 3–4 add the
-generative path on the *same* renderer and are only pursued if §2.4's tradeoffs
-are acceptable.
+The interpreter + validator land in **Phase 1** (decision locked), so the
+generative path in Phase 3 is purely additive — same renderer, model fills the
+spec instead of the server. Phases 1–2 are reliable presets (Tier B) and stand
+alone if Tier D is deferred.
 
 Frontend adds a small JS/HTML build to a currently pure-Python package — keep it
 isolated (e.g. `ui/` dir, prebuilt bundle committed or built in CI) so the
@@ -322,18 +333,18 @@ Python install path is unaffected for non-Apps clients.
 
 ## 9. Open questions for maintainer
 
-1. Confirm renderer set = **`table` / `dashboard` / `cards`** (Tier B), and
-   whether we also want the universal fallback (Tier C).
-2. **Generative (Tier D):** pursue now or defer? If now — **self-rendered
-   component DSL** (host-agnostic) vs **remote-dom** (more native, host-dependent)?
-   And do we build the renderers as **spec interpreters from day one** (phases
-   0–2) so Tier D is additive rather than a later rewrite?
-3. Read-only v1, or invest in the callback credential-forwarding spike
+1. Confirm preset spec shapes = **`table` / `dashboard` / `cards`**, and whether
+   we also want a universal-introspection fallback (Tier C).
+2. Read-only v1, or invest in the callback credential-forwarding spike
    (unknown #2) up front?
-4. Hosting: pilot via local+tunnel only, or fold the reachable-server need into
+3. Hosting: pilot via local+tunnel only, or fold the reachable-server need into
    the #115 Azure work from the start?
-5. Acceptable to add a JS/Vite build to the repo, or keep widget bundles as
+4. Acceptable to add a JS/Vite build to the repo, or keep widget bundles as
    prebuilt committed artifacts to avoid Node in the Python toolchain?
+
+**Resolved 2026-06-07:** renderers are spec-interpreters from day one; generative
+substrate (DSL vs remote-dom) decided after the Phase 0 spike — see *Decisions
+locked* above.
 
 ---
 
