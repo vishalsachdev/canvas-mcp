@@ -2,7 +2,7 @@
 
 **Status:** Scoping / design doc (no implementation yet)
 **Author:** scoped 2026-06-07
-**Architecture:** generic, data-shape-driven renderers (not one UI per tool)
+**Architecture:** spec-interpreter renderers — reliable presets now (Tier B), generative-per-query optional (Tier D, §2.4)
 **Pilot surface:** `get_assignment_analytics` → first instance of the `dashboard` renderer
 **Related:** #115 (Gies/Azure hosted, SSO-gated deployment)
 
@@ -78,11 +78,62 @@ at the cost of generic-looking output. Optional.
 | Tier | What we write | Reuse | Decision |
 |---|---|---|---|
 | A. Per-tool widget | one UI per tool | none | ❌ rejected — too much code |
-| **B. Generic renderers** | ~3 shape-driven widgets | high | ✅ **chosen** |
+| **B. Generic renderers** | ~3 shape-driven widgets | high | ✅ **chosen as the reliable default** |
 | C. Universal adaptive | one introspecting widget | total | ➕ optional fallback |
-| D. Generative UI | widget interprets a server/model "UI spec" per call | total | 🔮 future, out of scope |
+| **D. Generative UI** | one trusted interpreter widget; the **spec** is authored per query | total | 🟢 **under active consideration — see §2.5** |
 
-### 2.4 Where the real work is
+> **Key insight:** B and D are not a fork — they're the *same widget code* with a
+> different spec author. If we build the renderers as **spec interpreters**, then
+> Tier B = *the server fills the spec deterministically*, and Tier D = *the model
+> fills the spec per query*. We don't choose one; we build the interpreter once
+> and decide, per tool, who writes the spec. See §2.5.
+
+### 2.4 Generative UI (Tier D) — feasibility & recommended form
+
+We want to keep the door open for the UI to be **composed per query** rather than
+chosen from a fixed set. Within MCP Apps this is real but constrained, because the
+host renders the **HTML the server serves at a `ui://` resource** — it does *not*
+let the conversation model inject markup straight into the chat. So "generative"
+has to route through one of three forms:
+
+| Form | Who/what is generated | Safety | Reliability | Verdict |
+|---|---|---|---|---|
+| **Raw HTML** | model (or server) writes full HTML/CSS/JS per call | ⚠️ executes model-written JS in the user's client; XSS surface even sandboxed; breaks `ui://` caching (content varies per call) | varies turn-to-turn; can render broken markup | 🔴 prototyping only — keep out of the trusted path |
+| **Declarative component spec** | model/server emits a **JSON component tree** (`stack`, `row`, `table`, `stat`, `chart`, `badge`, `text`, `button`); a fixed trusted widget renders it | ✅ no arbitrary HTML; text via `textContent`; server validates the spec against a schema | predictable — bounded vocabulary, host styling | 🟢 **recommended** |
+| **remote-dom** | server sends a serializable component tree rendered with the **host's own design-system components** (`application/vnd.mcp-ui.remote-dom`) | ✅ sandboxed script → JSON DOM messages → host React tree | very native-looking | 🟢 strong option where the host supports it (MCP-UI) |
+
+**Recommended generative architecture for canvas-mcp:**
+
+1. Define a small, **constrained component DSL** (JSON schema) — the same
+   vocabulary the §2.2 renderers already need (`stack/row/table/stat/chart/
+   badge/text/button/...`).
+2. Build **one trusted interpreter widget** that renders any valid spec (this
+   *is* the generic renderer — §2.2's `table`/`dashboard`/`cards` become preset
+   spec shapes, not separate code).
+3. Decide **who authors the spec, per tool**:
+   - **Server-composed (default, reliable):** a formatter function turns the
+     Canvas data into a spec. Deterministic, polished, no extra latency/tokens.
+     This is Tier B.
+   - **Model-composed (generative, on demand):** expose a `render_view(spec)`
+     tool. The model — having already seen the data — composes a layout tailored
+     to the *specific* question ("just the at-risk students as a checklist",
+     "compare these two assignments side by side"). The server **validates the
+     spec against the schema** and forwards it to the same interpreter. This is
+     Tier D, gated and safe.
+
+**Why this is the right envelope:** we get per-query flexibility for the long
+tail of 88 tools *without* the raw-HTML security/caching/reliability cost, and
+without hand-building a UI per tool. The reliable presets and the generative path
+share one renderer.
+
+**Costs to weigh (see unknown #4 in §5):** every model-composed render adds
+**latency + token cost**; output **consistency** drops vs. presets; the model must
+**know the DSL** (system-prompt budget or a `describe_view_schema` tool); and
+**spec validation** becomes a security boundary we own. Mitigation: default to
+server-composed specs, reserve model-composed for tools/queries where bespoke
+layout clearly pays off.
+
+### 2.5 Where the real work is
 
 Not the widgets — **standardizing tool outputs**. Today every tool returns a
 hand-formatted string. Generic renderers need tools to emit **structured content
@@ -169,6 +220,14 @@ Each is a small spike, not a research project:
    `--transport streamable-http` + `cloudflared` tunnel; anything shared
    **intersects with #115** (Azure, SSO/key-gated).
 
+4. **Generative path (only if pursuing Tier D / §2.4).** Confirm: (a) whether we
+   adopt a **self-rendered component DSL** (works on any MCP-Apps host) or
+   **remote-dom** (more native, but depends on host support — verify Claude
+   renders `application/vnd.mcp-ui.remote-dom`); (b) a **server-side spec
+   validator** (schema + size/recursion limits) as the security boundary; and
+   (c) acceptable **latency/token budget** for model-composed renders. None of
+   this blocks Tier B — it's additive.
+
 ---
 
 ## 6. Pilot — Assignment Analytics as the first `dashboard` instance
@@ -246,8 +305,14 @@ new UI code.
 | **0 — Spike** | Hello-world `ui://` widget on one tool; confirm `_meta` passthrough + render in Claude via tunnel (unknown #1) | 0.5–1 day |
 | **1 — `dashboard` renderer + analytics pilot** | Build the reusable `dashboard` widget; refactor `get_assignment_analytics` to emit the canonical shape + text fallback | 2–3 days |
 | **2 — Fan-out** | Map `get_student_analytics` / peer-review analytics onto `dashboard`; build `table` renderer; refactor 2-3 list tools onto it | 2–4 days |
-| **3 — Callbacks** | Validate credential forwarding (unknown #2); add message/refresh actions | 1–2 days |
-| **4 — Productionize** | Bundle build in CI; `cards` renderer; hosting decision (→ #115) | tracked separately |
+| **3 — Spec interpreter** | Refactor the renderers into **one DSL interpreter** + a server-side spec validator; presets become server-composed specs (sets up Tier D) | 2–3 days |
+| **4 — Generative (Tier D)** | Add `render_view(spec)` + `describe_view_schema`; let the model compose layouts for long-tail/custom asks; validate per call | 2–4 days |
+| **5 — Callbacks** | Validate credential forwarding (unknown #2); add message/refresh actions | 1–2 days |
+| **6 — Productionize** | Bundle build in CI; `cards` renderer; hosting decision (→ #115) | tracked separately |
+
+Phases 0–2 are reliable presets (Tier B) and stand alone. Phases 3–4 add the
+generative path on the *same* renderer and are only pursued if §2.4's tradeoffs
+are acceptable.
 
 Frontend adds a small JS/HTML build to a currently pure-Python package — keep it
 isolated (e.g. `ui/` dir, prebuilt bundle committed or built in CI) so the
@@ -259,11 +324,15 @@ Python install path is unaffected for non-Apps clients.
 
 1. Confirm renderer set = **`table` / `dashboard` / `cards`** (Tier B), and
    whether we also want the universal fallback (Tier C).
-2. Read-only v1, or invest in the callback credential-forwarding spike
+2. **Generative (Tier D):** pursue now or defer? If now — **self-rendered
+   component DSL** (host-agnostic) vs **remote-dom** (more native, host-dependent)?
+   And do we build the renderers as **spec interpreters from day one** (phases
+   0–2) so Tier D is additive rather than a later rewrite?
+3. Read-only v1, or invest in the callback credential-forwarding spike
    (unknown #2) up front?
-3. Hosting: pilot via local+tunnel only, or fold the reachable-server need into
+4. Hosting: pilot via local+tunnel only, or fold the reachable-server need into
    the #115 Azure work from the start?
-4. Acceptable to add a JS/Vite build to the repo, or keep widget bundles as
+5. Acceptable to add a JS/Vite build to the repo, or keep widget bundles as
    prebuilt committed artifacts to avoid Node in the Python toolchain?
 
 ---
@@ -276,3 +345,6 @@ Python install path is unaffected for non-Apps clients.
 - [Claude: Interactive connectors and MCP Apps](https://claude.com/blog/interactive-tools-in-claude)
 - [ext-apps repo & examples](https://github.com/modelcontextprotocol/ext-apps/)
 - [MCP-UI (alt client/server SDK, incl. Python)](https://mcpui.dev/)
+- [MCP-UI remote-dom resource renderer](https://mcpui.dev/guide/client/remote-dom-resource.html)
+- [MCP-UI: declarative reactive UI components (MCP discussion #1141)](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/1141)
+- [The Developer's Guide to Generative UI in 2026 (CopilotKit)](https://www.copilotkit.ai/blog/the-developer-s-guide-to-generative-ui-in-2026)
