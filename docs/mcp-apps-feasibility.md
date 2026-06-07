@@ -144,6 +144,38 @@ share one renderer.
 server-composed specs, reserve model-composed for tools/queries where bespoke
 layout clearly pays off.
 
+#### Candidate implementation: `vercel-labs/json-render`
+
+[`json-render`](https://github.com/vercel-labs/json-render) is a near-drop-in for
+this layer and maps almost 1:1 onto the design above:
+
+| Our design | `json-render` primitive |
+|---|---|
+| Component-spec DSL (JSON tree) | `{ root, elements }` flat spec |
+| Constrained vocabulary + spec validator (security boundary) | `defineCatalog(schema, {...})` (Zod) |
+| Trusted interpreter widget | `Renderer` + `defineRegistry` |
+| `describe_view_schema` (teach the model the DSL) | `catalog.prompt()` |
+| Tier B (server-filled) vs Tier D (model-filled) | same spec JSON renders either way |
+| Progressive render | `createSpecStreamCompiler` |
+
+It is purpose-built for guardrailed AI-generated UI and is framework-agnostic
+(React/Vue/Svelte/vanilla), so it fits whatever we bundle in the widget. Adopting
+it saves hand-rolling the DSL, renderer, catalog/validator, and prompt generator.
+
+**Caveats / what it commits us to:**
+
+- It is the **self-rendered-DSL** substrate, *not* remote-dom — so choosing it
+  resolves unknown #4a one way. Evaluate against remote-dom in the Phase 0 spike;
+  don't pre-commit.
+- **Python-server / TS-widget split.** The catalog (Zod schemas) lives in the JS
+  widget bundle and validation runs **client-side**. Our server is Python emitting
+  spec JSON. The §2.4 "server owns validation" boundary becomes largely in-iframe.
+  Acceptable given the sandbox + that a model-authored *spec* is far lower-risk
+  than raw HTML — but it's a deliberate shift to ratify, and we may still want a
+  thin Python-side sanity check (size/recursion/allowed-types).
+- **Maturity.** `vercel-labs` is a Labs project — expect API churn; fine for a
+  spike, a risk to pin the roadmap to.
+
 ### 2.5 Where the real work is
 
 Not the widgets — **standardizing tool outputs**. Today every tool returns a
@@ -232,12 +264,14 @@ Each is a small spike, not a research project:
    **intersects with #115** (Azure, SSO/key-gated).
 
 4. **Generative path (only if pursuing Tier D / §2.4).** Confirm: (a) whether we
-   adopt a **self-rendered component DSL** (works on any MCP-Apps host) or
+   adopt a **self-rendered component DSL** (works on any MCP-Apps host; e.g.
+   [`json-render`](https://github.com/vercel-labs/json-render) — see §2.4) or
    **remote-dom** (more native, but depends on host support — verify Claude
-   renders `application/vnd.mcp-ui.remote-dom`); (b) a **server-side spec
-   validator** (schema + size/recursion limits) as the security boundary; and
-   (c) acceptable **latency/token budget** for model-composed renders. None of
-   this blocks Tier B — it's additive.
+   renders `application/vnd.mcp-ui.remote-dom`); (b) a **spec validator** (schema +
+   size/recursion limits) as the security boundary, and whether it lives
+   server-side (Python) or client-side (the json-render catalog); and (c)
+   acceptable **latency/token budget** for model-composed renders. None of this
+   blocks Tier B — it's additive.
 
 ---
 
@@ -359,3 +393,4 @@ locked* above.
 - [MCP-UI remote-dom resource renderer](https://mcpui.dev/guide/client/remote-dom-resource.html)
 - [MCP-UI: declarative reactive UI components (MCP discussion #1141)](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/1141)
 - [The Developer's Guide to Generative UI in 2026 (CopilotKit)](https://www.copilotkit.ai/blog/the-developer-s-guide-to-generative-ui-in-2026)
+- [`vercel-labs/json-render` — guardrailed AI-generated UI from JSON specs](https://github.com/vercel-labs/json-render)
