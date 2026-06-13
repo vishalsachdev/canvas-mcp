@@ -1,24 +1,24 @@
 {
-  "collected_at": "2026-06-07T23:11:26Z",
+  "collected_at": "2026-06-08T14:00:19Z",
   "github": {
     "stars": 142,
     "forks": 39,
     "contributors": 12,
-    "open_issues": 6,
-    "views_14d": 726,
-    "views_14d_unique": 335,
-    "clones_14d": 740,
-    "clones_14d_unique": 261,
+    "open_issues": 4,
+    "views_14d": 733,
+    "views_14d_unique": 331,
+    "clones_14d": 962,
+    "clones_14d_unique": 328,
     "referrers": [
       {
         "referrer": "Google",
-        "count": 283,
-        "uniques": 195
+        "count": 284,
+        "uniques": 196
       },
       {
         "referrer": "github.com",
-        "count": 105,
-        "uniques": 52
+        "count": 104,
+        "uniques": 51
       },
       {
         "referrer": "statics.teams.cdn.office.net",
@@ -27,8 +27,8 @@
       },
       {
         "referrer": "reddit.com",
-        "count": 16,
-        "uniques": 11
+        "count": 17,
+        "uniques": 12
       },
       {
         "referrer": "Bing",
@@ -56,16 +56,16 @@
         "uniques": 2
       },
       {
-        "referrer": "chatforest.com",
+        "referrer": "DuckDuckGo",
         "count": 1,
         "uniques": 1
       }
     ]
   },
   "pypi": {
-    "last_day": 68,
-    "last_week": 203,
-    "last_month": 503
+    "last_day": 17,
+    "last_week": 213,
+    "last_month": 514
   },
   "npm": {
     "last_month": 69
@@ -187,6 +187,15 @@
       "npm_month": 69,
       "views_unique": 335,
       "clones_unique": 261
+    },
+    {
+      "date": "2026-06-08",
+      "stars": 142,
+      "forks": 39,
+      "pypi_month": 514,
+      "npm_month": 69,
+      "views_unique": 331,
+      "clones_unique": 328
     }
   ]
 }
