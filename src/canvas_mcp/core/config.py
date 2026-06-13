@@ -99,16 +99,6 @@ class Config:
         # Role-based tool filtering
         self.canvas_role = os.getenv("CANVAS_ROLE", "all").lower()
 
-    @property
-    def api_base_url(self) -> str:
-        """Legacy compatibility for API_BASE_URL."""
-        return self.canvas_api_url
-
-    @property
-    def api_token(self) -> str:
-        """Legacy compatibility for API_TOKEN."""
-        return self.canvas_api_token
-
 
 # Global configuration instance
 _config: Config | None = None
@@ -120,6 +110,32 @@ def get_config() -> Config:
     if _config is None:
         _config = Config()
     return _config
+
+
+def reset_config() -> None:
+    """Discard the cached configuration singleton.
+
+    The next ``get_config()`` call rebuilds it from the current environment.
+    Used by tests that patch environment variables so they don't read stale
+    config captured at first access.
+
+    Also clears the invalid-env-var caches, which are populated during
+    ``Config.__init__`` and read by ``validate_config()``; otherwise a stale
+    entry from a prior parse would produce a warning inconsistent with the
+    rebuilt configuration's environment.
+
+    Scope: this resets the config singleton only. Derived state built from
+    config elsewhere is **not** reset here — notably the stdio HTTP client in
+    ``core.client``, which captures the ``Authorization`` token at creation and
+    is reused until its event loop closes. A caller rotating ``CANVAS_API_TOKEN``
+    at runtime must also ``await cleanup_http_client()`` so the next request
+    rebuilds the client with the new credentials. (Tests mock the request layer,
+    and HTTP-transport mode uses per-request clients, so neither is affected.)
+    """
+    global _config
+    _config = None
+    _INVALID_INT_ENV_VARS.clear()
+    _INVALID_FLOAT_ENV_VARS.clear()
 
 
 def validate_config() -> bool:
@@ -187,8 +203,3 @@ def validate_config() -> bool:
             log_warning(f"{env_name} is set but {note}.")
 
     return True
-
-
-# Legacy compatibility - these will be used by existing code
-API_BASE_URL = get_config().api_base_url
-API_TOKEN = get_config().api_token

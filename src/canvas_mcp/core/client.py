@@ -144,7 +144,7 @@ def _get_http_client() -> httpx.AsyncClient:
         config = get_config()
         http_client = httpx.AsyncClient(
             headers={
-                'Authorization': f'Bearer {config.api_token}',
+                'Authorization': f'Bearer {config.canvas_api_token}',
                 'User-Agent': f'canvas-mcp/{__version__} (https://github.com/vishalsachdev/canvas-mcp)'
             },
             timeout=config.api_timeout
@@ -210,7 +210,7 @@ async def make_canvas_request(
     else:
         # Global client (stdio mode)
         client = _get_http_client()
-        url = f"{config.api_base_url.rstrip('/')}{endpoint}"
+        url = f"{config.canvas_api_url.rstrip('/')}{endpoint}"
         _close_client = False
 
     # Gate outbound calls with concurrency semaphore (uses MAX_CONCURRENT_REQUESTS)

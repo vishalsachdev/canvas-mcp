@@ -4,6 +4,21 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from canvas_mcp.core.config import reset_config
+
+
+@pytest.fixture(autouse=True)
+def reset_config_between_tests():
+    """Discard the cached config singleton before and after each test.
+
+    Without this, the first test to call get_config() freezes the singleton
+    from its environment; later tests that patch env vars (e.g. anonymization
+    toggles) would silently read stale config.
+    """
+    reset_config()
+    yield
+    reset_config()
+
 
 @pytest.fixture
 def mock_canvas_request():
