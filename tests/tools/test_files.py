@@ -658,7 +658,7 @@ class TestDownloadCourseFile:
         with patch('canvas_mcp.tools.files.get_course_id') as mock_get_id, \
              patch('canvas_mcp.tools.files.get_course_code') as mock_get_code, \
              patch('canvas_mcp.tools.files.make_canvas_request') as mock_request, \
-             patch('canvas_mcp.tools.files._get_http_client') as mock_client:
+             patch('canvas_mcp.tools.files.canvas_authenticated_client') as mock_client:
 
             mock_get_id.return_value = "60366"
             mock_get_code.return_value = "badm_350_120251"
@@ -689,7 +689,11 @@ class TestDownloadCourseFile:
 
         mock_http = AsyncMock()
         mock_http.stream = MagicMock(return_value=mock_stream_cm)
-        mock_client.return_value = mock_http
+        # canvas_authenticated_client() is an async context manager yielding the client
+        client_cm = AsyncMock()
+        client_cm.__aenter__ = AsyncMock(return_value=mock_http)
+        client_cm.__aexit__ = AsyncMock(return_value=False)
+        mock_client.return_value = client_cm
 
         return mock_http
 
@@ -834,7 +838,10 @@ class TestDownloadCourseFile:
 
         mock_http = AsyncMock()
         mock_http.stream = MagicMock(return_value=mock_stream_cm)
-        mock_download_api['_get_http_client'].return_value = mock_http
+        client_cm = AsyncMock()
+        client_cm.__aenter__ = AsyncMock(return_value=mock_http)
+        client_cm.__aexit__ = AsyncMock(return_value=False)
+        mock_download_api['_get_http_client'].return_value = client_cm
 
         download_fn = get_tool_function('download_course_file')
         result = await download_fn("60366", 12345, save_directory=str(tmp_path))
@@ -851,7 +858,7 @@ class TestReadCourseFile:
         with patch('canvas_mcp.tools.files.get_course_id') as mock_get_id, \
              patch('canvas_mcp.tools.files.get_course_code') as mock_get_code, \
              patch('canvas_mcp.tools.files.make_canvas_request') as mock_request, \
-             patch('canvas_mcp.tools.files._get_http_client') as mock_client:
+             patch('canvas_mcp.tools.files.canvas_authenticated_client') as mock_client:
 
             mock_get_id.return_value = "60366"
             mock_get_code.return_value = "badm_350_120251"
@@ -881,7 +888,11 @@ class TestReadCourseFile:
 
         mock_http = AsyncMock()
         mock_http.stream = MagicMock(return_value=mock_stream_cm)
-        mock_client.return_value = mock_http
+        # canvas_authenticated_client() is an async context manager yielding the client
+        client_cm = AsyncMock()
+        client_cm.__aenter__ = AsyncMock(return_value=mock_http)
+        client_cm.__aexit__ = AsyncMock(return_value=False)
+        mock_client.return_value = client_cm
 
         return mock_http
 
@@ -1022,7 +1033,10 @@ class TestReadCourseFile:
 
         mock_http = AsyncMock()
         mock_http.stream = MagicMock(return_value=mock_stream_cm)
-        mock_read_api['_get_http_client'].return_value = mock_http
+        client_cm = AsyncMock()
+        client_cm.__aenter__ = AsyncMock(return_value=mock_http)
+        client_cm.__aexit__ = AsyncMock(return_value=False)
+        mock_read_api['_get_http_client'].return_value = client_cm
 
         read_fn = get_tool_function('read_course_file')
         result = await read_fn("60366", 12345)

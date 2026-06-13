@@ -2,13 +2,15 @@
 
 import asyncio
 import weakref
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 from urllib.parse import urlencode
 
 import httpx
 
 from .anonymization import anonymize_response_data
-from .credentials import get_request_credentials
+from .credentials import get_request_credentials, is_http_request_active
 from .logging import log_debug, log_error, log_warning, sanitize_url
 
 # Rate limit retry configuration
@@ -17,6 +19,16 @@ INITIAL_BACKOFF_SECONDS = 2
 
 # Default number of results per page for paginated requests
 DEFAULT_PAGE_SIZE = 100
+
+
+def _canvas_auth_headers(api_token: str) -> dict[str, str]:
+    """Build the standard Canvas auth + User-Agent headers for a token."""
+    from .. import __version__
+
+    return {
+        "Authorization": f"Bearer {api_token}",
+        "User-Agent": f"canvas-mcp/{__version__} (https://github.com/vishalsachdev/canvas-mcp)",
+    }
 
 # HTTP client will be initialized with configuration
 http_client: httpx.AsyncClient | None = None
@@ -139,14 +151,10 @@ def _get_http_client() -> httpx.AsyncClient:
         _http_client_loop_ref = None
 
     if http_client is None:
-        from .. import __version__
         from .config import get_config
         config = get_config()
         http_client = httpx.AsyncClient(
-            headers={
-                'Authorization': f'Bearer {config.canvas_api_token}',
-                'User-Agent': f'canvas-mcp/{__version__} (https://github.com/vishalsachdev/canvas-mcp)'
-            },
+            headers=_canvas_auth_headers(config.canvas_api_token),
             timeout=config.api_timeout
         )
         _http_client_loop_ref = weakref.ref(current_loop) if current_loop is not None else None
@@ -159,6 +167,35 @@ async def cleanup_http_client() -> None:
     if http_client is not None:
         await http_client.aclose()
         http_client = None
+
+
+@asynccontextmanager
+async def canvas_authenticated_client() -> AsyncIterator[httpx.AsyncClient]:
+    """Yield a Canvas-authenticated httpx client for the current context.
+
+    Resolution, fail-closed:
+    - Per-request credentials present (HTTP mode) -> a fresh client with the
+      caller's token.
+    - No per-request credentials but an HTTP request is active -> raise
+      PermissionError (never fall back to the server's own token).
+    - Otherwise (stdio mode) -> the shared global client (env-based token).
+    """
+    from .config import get_config
+
+    req_creds = get_request_credentials()
+    if req_creds:
+        config = get_config()
+        async with httpx.AsyncClient(
+            headers=_canvas_auth_headers(req_creds.api_token),
+            timeout=config.api_timeout,
+        ) as client:
+            yield client
+        return
+
+    if is_http_request_active():
+        raise PermissionError("Canvas token required for HTTP request")
+
+    yield _get_http_client()
 
 
 async def make_canvas_request(
@@ -196,17 +233,20 @@ async def make_canvas_request(
 
     if req_creds:
         # Per-request client with user's credentials (HTTP mode)
-        from .. import __version__
-
         client = httpx.AsyncClient(
-            headers={
-                "Authorization": f"Bearer {req_creds.api_token}",
-                "User-Agent": f"canvas-mcp/{__version__} (https://github.com/vishalsachdev/canvas-mcp)",
-            },
+            headers=_canvas_auth_headers(req_creds.api_token),
             timeout=config.api_timeout,
         )
         url = f"{req_creds.api_url.rstrip('/')}{endpoint}"
         _close_client = True
+    elif is_http_request_active():
+        # HTTP request without a per-request token: fail closed. Never fall
+        # back to the server's own credentials (would mis-attribute actions).
+        log_warning(
+            "Blocked Canvas API request without per-request Canvas token",
+            endpoint=sanitize_url(endpoint),
+        )
+        return {"error": "Canvas token required for HTTP request"}
     else:
         # Global client (stdio mode)
         client = _get_http_client()
@@ -399,27 +439,17 @@ async def upload_file_to_storage(
                 # Redirect - follow it to get file info from Canvas
                 redirect_url = response.headers.get('Location')
                 if redirect_url:
-                    # Follow the redirect to get file info
-                    # This goes back to Canvas API, needs auth
-                    req_creds = get_request_credentials()
-                    if req_creds:
-                        from .. import __version__
-
-                        async with httpx.AsyncClient(
-                            headers={
-                                "Authorization": f"Bearer {req_creds.api_token}",
-                                "User-Agent": f"canvas-mcp/{__version__} (https://github.com/vishalsachdev/canvas-mcp)",
-                            },
-                            timeout=config.api_timeout,
-                        ) as canvas_client:
+                    # Follow the redirect to get file info. This goes back to the
+                    # Canvas API and needs auth; route through the shared
+                    # fail-closed resolver so HTTP mode never uses the server's
+                    # own token.
+                    try:
+                        async with canvas_authenticated_client() as canvas_client:
                             confirm_response = await canvas_client.get(redirect_url)
                             confirm_response.raise_for_status()
                             return confirm_response.json()
-                    else:
-                        canvas_client = _get_http_client()
-                        confirm_response = await canvas_client.get(redirect_url)
-                        confirm_response.raise_for_status()
-                        return confirm_response.json()
+                    except PermissionError as e:
+                        return {"error": str(e)}
                 else:
                     return {"error": "Redirect without Location header"}
 
