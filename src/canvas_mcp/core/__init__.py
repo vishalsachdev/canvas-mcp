@@ -6,7 +6,7 @@ from .client import (
     fetch_all_paginated_results,
     make_canvas_request,
 )
-from .config import API_BASE_URL, API_TOKEN, get_config, validate_config
+from .config import get_config, reset_config, validate_config
 from .dates import format_date, parse_date, truncate_text
 from .types import AnnouncementInfo, AssignmentInfo, CourseInfo, PageInfo
 from .validation import (
@@ -35,7 +35,6 @@ __all__ = [
     'PageInfo',
     'AnnouncementInfo',
     'get_config',
-    'validate_config',
-    'API_BASE_URL',
-    'API_TOKEN'
+    'reset_config',
+    'validate_config'
 ]

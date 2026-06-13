@@ -99,16 +99,6 @@ class Config:
         # Role-based tool filtering
         self.canvas_role = os.getenv("CANVAS_ROLE", "all").lower()
 
-    @property
-    def api_base_url(self) -> str:
-        """Legacy compatibility for API_BASE_URL."""
-        return self.canvas_api_url
-
-    @property
-    def api_token(self) -> str:
-        """Legacy compatibility for API_TOKEN."""
-        return self.canvas_api_token
-
 
 # Global configuration instance
 _config: Config | None = None
@@ -120,6 +110,17 @@ def get_config() -> Config:
     if _config is None:
         _config = Config()
     return _config
+
+
+def reset_config() -> None:
+    """Discard the cached configuration singleton.
+
+    The next ``get_config()`` call rebuilds it from the current environment.
+    Used by tests that patch environment variables so they don't read stale
+    config captured at first access.
+    """
+    global _config
+    _config = None
 
 
 def validate_config() -> bool:
@@ -187,8 +188,3 @@ def validate_config() -> bool:
             log_warning(f"{env_name} is set but {note}.")
 
     return True
-
-
-# Legacy compatibility - these will be used by existing code
-API_BASE_URL = get_config().api_base_url
-API_TOKEN = get_config().api_token
