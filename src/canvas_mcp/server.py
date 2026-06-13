@@ -53,7 +53,6 @@ from .tools import (
     register_student_tools,
 )
 
-
 _CANVAS_URL_RE = re.compile(
     r"^https://[a-zA-Z0-9.-]+\.instructure\.com/api/v1$"
 )
