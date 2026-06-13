@@ -155,6 +155,27 @@ class TestListGroups:
 
         assert "Error" in result
 
+    @pytest.mark.asyncio
+    async def test_list_groups_anonymization_failure_logs_warning(self, mock_canvas_api):
+        """A failing member anonymization is reported via log_warning, not print."""
+        mock_canvas_api['fetch_all_paginated_results'].side_effect = [
+            [{"id": 1, "name": "Group A", "group_category_id": 10, "members_count": 1}],
+            [{"id": 101, "name": "Alice", "email": "alice@example.com"}],
+        ]
+
+        with patch(
+            'canvas_mcp.tools.admin_tools.anonymize_response_data',
+            side_effect=RuntimeError("alice@example.com"),
+        ), patch('canvas_mcp.tools.admin_tools.log_warning') as mock_warn:
+            fn = get_tool_function('list_groups')
+            result = await fn("badm_350_120251")
+
+        mock_warn.assert_called_once()
+        _, kwargs = mock_warn.call_args
+        assert kwargs.get("error_type") == "RuntimeError"
+        assert "alice@example.com" not in str(mock_warn.call_args)
+        assert "Group A" in result  # falls back to original data
+
 
 # ---------------------------------------------------------------------------
 # list_users
@@ -292,3 +313,26 @@ class TestGetStudentAnalytics:
         result = await fn("badm_350_120251")
 
         assert "0" in result or "No" in result or "students" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_get_student_analytics_anonymization_failure_logs_warning(self, mock_canvas_api):
+        """A failing student anonymization is reported via log_warning, not print."""
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "id": 60366, "name": "Business Administration 350"
+        }
+        mock_canvas_api['fetch_all_paginated_results'].side_effect = [
+            [{"id": 301, "name": "Alice", "email": "alice@example.com"}],  # students
+            [{"id": 401, "name": "HW1", "published": True, "points_possible": 100}],  # assignments
+        ]
+
+        with patch(
+            'canvas_mcp.tools.admin_tools.anonymize_response_data',
+            side_effect=RuntimeError("alice@example.com"),
+        ), patch('canvas_mcp.tools.admin_tools.log_warning') as mock_warn:
+            fn = get_tool_function('get_student_analytics')
+            await fn("badm_350_120251")
+
+        mock_warn.assert_called_once()
+        _, kwargs = mock_warn.call_args
+        assert kwargs.get("error_type") == "RuntimeError"
+        assert "alice@example.com" not in str(mock_warn.call_args)
