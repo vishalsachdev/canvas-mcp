@@ -123,6 +123,14 @@ def reset_config() -> None:
     ``Config.__init__`` and read by ``validate_config()``; otherwise a stale
     entry from a prior parse would produce a warning inconsistent with the
     rebuilt configuration's environment.
+
+    Scope: this resets the config singleton only. Derived state built from
+    config elsewhere is **not** reset here — notably the stdio HTTP client in
+    ``core.client``, which captures the ``Authorization`` token at creation and
+    is reused until its event loop closes. A caller rotating ``CANVAS_API_TOKEN``
+    at runtime must also ``await cleanup_http_client()`` so the next request
+    rebuilds the client with the new credentials. (Tests mock the request layer,
+    and HTTP-transport mode uses per-request clients, so neither is affected.)
     """
     global _config
     _config = None
