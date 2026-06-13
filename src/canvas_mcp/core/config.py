@@ -118,9 +118,16 @@ def reset_config() -> None:
     The next ``get_config()`` call rebuilds it from the current environment.
     Used by tests that patch environment variables so they don't read stale
     config captured at first access.
+
+    Also clears the invalid-env-var caches, which are populated during
+    ``Config.__init__`` and read by ``validate_config()``; otherwise a stale
+    entry from a prior parse would produce a warning inconsistent with the
+    rebuilt configuration's environment.
     """
     global _config
     _config = None
+    _INVALID_INT_ENV_VARS.clear()
+    _INVALID_FLOAT_ENV_VARS.clear()
 
 
 def validate_config() -> bool:
