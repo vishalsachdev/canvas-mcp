@@ -208,6 +208,35 @@ class TestListUsers:
 
         assert "Error" in result
 
+    @pytest.mark.asyncio
+    async def test_list_users_anonymization_failure_logs_warning(self, mock_canvas_api):
+        """A failing anonymization is reported via log_warning (stderr), not print.
+
+        Bare print() would corrupt the MCP stdio JSON-RPC stream, and str(e) could
+        leak the PII that failed to scrub. The handler must route through
+        log_warning, log only the exception type, and continue with original data.
+        """
+        mock_canvas_api['fetch_all_paginated_results'].return_value = [
+            {"id": 201, "name": "Alice Smith", "email": "alice@example.com",
+             "enrollments": [{"role": "StudentEnrollment"}]},
+        ]
+
+        with patch(
+            'canvas_mcp.tools.admin_tools.anonymize_response_data',
+            side_effect=RuntimeError("alice@example.com"),
+        ), patch('canvas_mcp.tools.admin_tools.log_warning') as mock_warn:
+            fn = get_tool_function('list_users')
+            result = await fn("badm_350_120251")
+
+        # Warning routed to logger, not stdout
+        mock_warn.assert_called_once()
+        _, kwargs = mock_warn.call_args
+        # Only the exception type is logged — never the PII-bearing message
+        assert kwargs.get("error_type") == "RuntimeError"
+        assert "alice@example.com" not in str(mock_warn.call_args)
+        # Falls back to original (un-anonymized) data so the tool still works
+        assert "201" in result
+
 
 # ---------------------------------------------------------------------------
 # get_student_analytics
