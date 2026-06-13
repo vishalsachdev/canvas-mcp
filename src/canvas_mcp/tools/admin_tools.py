@@ -7,6 +7,7 @@ from mcp.types import ToolAnnotations
 from ..core.anonymization import anonymize_response_data
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
+from ..core.logging import log_warning
 from ..core.validation import validate_params
 
 
@@ -101,7 +102,10 @@ def register_admin_tools(mcp: FastMCP):
                 try:
                     members = anonymize_response_data(members, data_type="users")
                 except Exception as e:
-                    print(f"Warning: Failed to anonymize group member data: {str(e)}")
+                    log_warning(
+                        "Failed to anonymize group member data; continuing with original data",
+                        error_type=type(e).__name__,
+                    )
                     # Continue with original data for functionality
                 output += "Members:\n"
                 for member in members:
@@ -141,7 +145,10 @@ def register_admin_tools(mcp: FastMCP):
         try:
             users = anonymize_response_data(users, data_type="users")
         except Exception as e:
-            print(f"Warning: Failed to anonymize user data: {str(e)}")
+            log_warning(
+                "Failed to anonymize user data; continuing with original data",
+                error_type=type(e).__name__,
+            )
             # Continue with original data for functionality
 
         users_info = []
@@ -208,7 +215,10 @@ def register_admin_tools(mcp: FastMCP):
         try:
             students = anonymize_response_data(students, data_type="users")
         except Exception as e:
-            print(f"Warning: Failed to anonymize student analytics data: {str(e)}")
+            log_warning(
+                "Failed to anonymize student analytics data; continuing with original data",
+                error_type=type(e).__name__,
+            )
 
         by_id = {u.get("id"): u for u in students}
 
