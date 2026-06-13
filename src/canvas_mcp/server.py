@@ -9,12 +9,14 @@ academic tracking.
 
 Supports two transport modes:
 - stdio (default): Local process communication, credentials from .env
-- streamable-http: HTTP server, per-request credentials via X-Canvas-Token/X-Canvas-URL headers
+- streamable-http: HTTP server, per-request token via X-Canvas-Token header;
+  the Canvas API URL is pinned by server config (CANVAS_API_URL), not the client.
 """
 
 import argparse
 import asyncio
-import re
+import hmac
+import json
 import sys
 from typing import Any
 
@@ -23,7 +25,8 @@ from mcp.server.fastmcp import FastMCP
 from .core.config import get_config, validate_config
 from .core.credentials import (
     RequestCredentials,
-    clear_request_credentials,
+    clear_http_request_context,
+    set_http_request_active,
     set_request_credentials,
 )
 from .core.logging import log_error, log_info, log_warning
@@ -53,50 +56,91 @@ from .tools import (
     register_student_tools,
 )
 
-_CANVAS_URL_RE = re.compile(
-    r"^https://[a-zA-Z0-9.-]+\.instructure\.com/api/v1$"
-)
+
+async def _send_json_error(send: Any, status: int, message: str) -> None:
+    """Emit a minimal ASGI JSON error response (used to fail closed)."""
+    body = json.dumps({"error": message}).encode("utf-8")
+    await send({
+        "type": "http.response.start",
+        "status": status,
+        "headers": [
+            (b"content-type", b"application/json"),
+            (b"content-length", str(len(body)).encode("ascii")),
+        ],
+    })
+    await send({"type": "http.response.body", "body": body})
+
+
+def _access_key_ok(presented: str, allowed: frozenset[str]) -> bool:
+    """Constant-time check of a presented access key against the allowed set."""
+    if not presented:
+        return False
+    # compare_digest against each key; the any() still runs every comparison's
+    # constant-time op, avoiding early-exit timing leaks on the matched key.
+    return any(hmac.compare_digest(presented, key) for key in allowed)
 
 
 class CanvasCredentialMiddleware:
-    """ASGI middleware that extracts Canvas credentials from HTTP headers.
+    """ASGI middleware that extracts the caller's Canvas token from headers.
 
-    For each incoming HTTP request, reads X-Canvas-Token and X-Canvas-URL
-    headers and sets them in the ContextVar so make_canvas_request uses
-    the caller's credentials instead of the server's .env config.
+    For each incoming HTTP request, reads X-Canvas-Token and combines it with
+    the server-pinned CANVAS_API_URL so make_canvas_request uses the caller's
+    own Canvas token instead of any server .env token.
 
-    The X-Canvas-URL header is validated against a strict allowlist pattern
-    (must be an instructure.com HTTPS URL ending in /api/v1) to prevent SSRF.
+    Fail-closed semantics:
+    - When MCP_ACCESS_KEYS is configured, a missing/invalid X-MCP-Access-Key
+      returns HTTP 401 before anything else (the v1 multi-user gate).
+    - A missing/blank X-Canvas-Token returns HTTP 401 before the app runs.
+    - X-Canvas-URL is ignored (logged); the Canvas API URL is never
+      client-controlled, which removes the SSRF surface entirely.
+    - The "HTTP request active" marker is set so downstream code refuses to
+      fall back to the server's own credentials.
     """
 
     def __init__(self, app: Any) -> None:
         self.app = app
 
     async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
-        if scope["type"] == "http":
-            # Parse headers from ASGI scope (list of [name, value] byte pairs)
-            headers = dict(scope.get("headers", []))
-            token = headers.get(b"x-canvas-token", b"").decode()
-            canvas_url = headers.get(b"x-canvas-url", b"").decode()
-
-            if token and canvas_url:
-                if not _CANVAS_URL_RE.match(canvas_url):
-                    log_warning(
-                        "Rejected invalid X-Canvas-URL header; "
-                        "must be https://*.instructure.com/api/v1",
-                        url=canvas_url,
-                    )
-                else:
-                    set_request_credentials(
-                        RequestCredentials(api_token=token, api_url=canvas_url)
-                    )
-            try:
-                await self.app(scope, receive, send)
-            finally:
-                clear_request_credentials()
-        else:
+        if scope["type"] != "http":
             # Passthrough for lifespan and other non-HTTP scopes
             await self.app(scope, receive, send)
+            return
+
+        set_http_request_active(True)
+        try:
+            # Parse headers from ASGI scope (list of [name, value] byte pairs)
+            headers = dict(scope.get("headers", []))
+            config = get_config()
+
+            # v1 access-key gate (when configured): reject before touching creds.
+            allowed_keys = config.mcp_access_keys
+            if allowed_keys:
+                presented = headers.get(b"x-mcp-access-key", b"").decode("utf-8", errors="ignore").strip()
+                if not _access_key_ok(presented, allowed_keys):
+                    await _send_json_error(send, 401, "Invalid or missing X-MCP-Access-Key")
+                    return
+
+            token = headers.get(b"x-canvas-token", b"").decode("utf-8", errors="ignore").strip()
+
+            if b"x-canvas-url" in headers:
+                log_warning("Ignoring X-Canvas-URL header; Canvas API URL is server-pinned")
+
+            if not token:
+                await _send_json_error(send, 401, "Missing X-Canvas-Token header")
+                return
+
+            canvas_url = config.canvas_api_url.strip()
+            if not canvas_url:
+                log_error("CANVAS_API_URL is required in HTTP mode but is not configured")
+                await _send_json_error(send, 500, "Server Canvas API URL is not configured")
+                return
+
+            set_request_credentials(
+                RequestCredentials(api_token=token, api_url=canvas_url)
+            )
+            await self.app(scope, receive, send)
+        finally:
+            clear_http_request_context()
 
 
 def create_server(
@@ -242,14 +286,33 @@ def main() -> None:
     args = parser.parse_args()
     is_http = args.transport == "streamable-http"
 
-    # In HTTP mode, .env credentials are optional (per-request auth instead)
-    if not is_http:
+    config = get_config()
+
+    # HTTP mode: the Canvas URL is server-pinned and per-user tokens arrive via
+    # X-Canvas-Token. A server token must NOT be set, or a missing request token
+    # could silently fall back to it (mis-attributing actions to the operator).
+    if is_http:
+        if not config.canvas_api_url:
+            log_error("CANVAS_API_URL is required in HTTP mode (the Canvas API URL is server-pinned)")
+            sys.exit(1)
+        if config.canvas_api_token:
+            log_error(
+                "CANVAS_API_TOKEN must NOT be set in HTTP mode — clients supply their "
+                "own token via the X-Canvas-Token header. Unset it and restart."
+            )
+            sys.exit(1)
+        if not config.mcp_access_keys:
+            log_warning(
+                "HTTP mode has no MCP_ACCESS_KEYS configured — the endpoint is NOT "
+                "key-gated. Anyone who can reach it and holds a Canvas token can connect. "
+                "Set MCP_ACCESS_KEYS or place the endpoint behind external authentication."
+            )
+    else:
+        # stdio mode: .env credentials are required (single-user, env-based auth)
         if not validate_config():
             log_error("Please check your .env file configuration")
             log_error("Use the env.template file as a reference")
             sys.exit(1)
-
-    config = get_config()
 
     # Handle special commands
     if args.config:
@@ -314,7 +377,7 @@ def main() -> None:
         log_info(
             f"Starting Canvas MCP server in HTTP mode on {args.host}:{args.port}"
         )
-        log_info("Credentials: per-request via X-Canvas-Token / X-Canvas-URL headers")
+        log_info("Credentials: per-request via X-Canvas-Token header; Canvas API URL is server-pinned")
     else:
         log_info(f"Starting Canvas MCP server with API URL: {config.canvas_api_url}")
 

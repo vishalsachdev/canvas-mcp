@@ -15,6 +15,13 @@ _INVALID_FLOAT_ENV_VARS: dict[str, str] = {}
 VALID_SANDBOX_MODES = frozenset({"auto", "local", "container"})
 
 
+def _parse_keys(raw: str) -> frozenset[str]:
+    """Parse a comma/whitespace-separated list of access keys into a set."""
+    if not raw:
+        return frozenset()
+    return frozenset(k for k in raw.replace(",", " ").split() if k)
+
+
 def _bool_env(name: str, default: bool) -> bool:
     value = os.getenv(name)
     if value is None:
@@ -91,6 +98,12 @@ class Config:
         # Code execution kill switch — set EXECUTE_TYPESCRIPT_ENABLED=false to
         # disable the execute_typescript tool without changing CANVAS_ROLE.
         self.execute_typescript_enabled = _bool_env("EXECUTE_TYPESCRIPT_ENABLED", True)
+
+        # HTTP access-key gate (v1, multi-user). Comma- or whitespace-separated
+        # list of accepted keys; an HTTP caller must present a matching
+        # X-MCP-Access-Key header. Empty disables the gate (rely on external
+        # auth). stdio mode ignores this entirely.
+        self.mcp_access_keys = _parse_keys(os.getenv("MCP_ACCESS_KEYS", ""))
 
         # Optional metadata
         self.institution_name = os.getenv("INSTITUTION_NAME", "")
