@@ -18,8 +18,9 @@ from canvas_mcp.core.credentials import (
 class _FakeConfig:
     """Minimal stand-in for the config object the middleware reads."""
 
-    def __init__(self, canvas_api_url="https://canvas.illinois.edu/api/v1"):
+    def __init__(self, canvas_api_url="https://canvas.illinois.edu/api/v1", mcp_access_keys=frozenset()):
         self.canvas_api_url = canvas_api_url
+        self.mcp_access_keys = mcp_access_keys
 
 # ---------------------------------------------------------------------------
 # ContextVar credential tests
@@ -209,6 +210,96 @@ class TestCanvasCredentialMiddleware:
         scope = {"type": "lifespan"}
         await middleware(scope, AsyncMock(), AsyncMock())
         assert called["value"] is True
+
+
+class TestAccessKeyGate:
+    """Test the v1 MCP_ACCESS_KEYS header gate."""
+
+    @pytest.fixture
+    def middleware(self):
+        from canvas_mcp.server import CanvasCredentialMiddleware
+
+        return CanvasCredentialMiddleware(AsyncMock())
+
+    @pytest.mark.asyncio
+    async def test_valid_key_passes_through(self, middleware):
+        """A matching X-MCP-Access-Key lets the request proceed to creds."""
+        captured = {}
+
+        async def capture_app(scope, receive, send):
+            creds = get_request_credentials()
+            captured["token"] = creds.api_token if creds else None
+
+        middleware.app = capture_app
+        scope = {
+            "type": "http",
+            "headers": [
+                (b"x-mcp-access-key", b"key-abc"),
+                (b"x-canvas-token", b"tok"),
+            ],
+        }
+        cfg = _FakeConfig(mcp_access_keys=frozenset({"key-abc", "key-def"}))
+        with patch("canvas_mcp.server.get_config", return_value=cfg):
+            await middleware(scope, AsyncMock(), AsyncMock())
+
+        assert captured["token"] == "tok"
+
+    @pytest.mark.asyncio
+    async def test_missing_key_returns_401_and_skips_canvas(self, middleware):
+        """No access key -> 401 before the Canvas token is even considered."""
+        app_called = {"value": False}
+
+        async def inner(scope, receive, send):
+            app_called["value"] = True
+
+        middleware.app = inner
+        send = AsyncMock()
+        scope = {
+            "type": "http",
+            "headers": [(b"x-canvas-token", b"tok")],  # valid canvas token, but no access key
+        }
+        cfg = _FakeConfig(mcp_access_keys=frozenset({"key-abc"}))
+        with patch("canvas_mcp.server.get_config", return_value=cfg):
+            await middleware(scope, AsyncMock(), send)
+
+        assert app_called["value"] is False
+        first_call = send.call_args_list[0][0][0]
+        assert first_call["status"] == 401
+        assert get_request_credentials() is None
+
+    @pytest.mark.asyncio
+    async def test_wrong_key_returns_401(self, middleware):
+        """A non-matching access key is rejected."""
+        send = AsyncMock()
+        scope = {
+            "type": "http",
+            "headers": [
+                (b"x-mcp-access-key", b"wrong"),
+                (b"x-canvas-token", b"tok"),
+            ],
+        }
+        cfg = _FakeConfig(mcp_access_keys=frozenset({"key-abc"}))
+        with patch("canvas_mcp.server.get_config", return_value=cfg):
+            await middleware(scope, AsyncMock(), send)
+
+        assert send.call_args_list[0][0][0]["status"] == 401
+
+    @pytest.mark.asyncio
+    async def test_no_keys_configured_gate_disabled(self, middleware):
+        """With no MCP_ACCESS_KEYS, the gate is inactive (token gate still applies)."""
+        captured = {}
+
+        async def capture_app(scope, receive, send):
+            creds = get_request_credentials()
+            captured["token"] = creds.api_token if creds else None
+
+        middleware.app = capture_app
+        scope = {"type": "http", "headers": [(b"x-canvas-token", b"tok")]}
+        cfg = _FakeConfig(mcp_access_keys=frozenset())
+        with patch("canvas_mcp.server.get_config", return_value=cfg):
+            await middleware(scope, AsyncMock(), AsyncMock())
+
+        assert captured["token"] == "tok"
 
 
 # ---------------------------------------------------------------------------

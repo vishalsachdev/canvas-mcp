@@ -15,6 +15,7 @@ Supports two transport modes:
 
 import argparse
 import asyncio
+import hmac
 import json
 import sys
 from typing import Any
@@ -70,6 +71,15 @@ async def _send_json_error(send: Any, status: int, message: str) -> None:
     await send({"type": "http.response.body", "body": body})
 
 
+def _access_key_ok(presented: str, allowed: frozenset[str]) -> bool:
+    """Constant-time check of a presented access key against the allowed set."""
+    if not presented:
+        return False
+    # compare_digest against each key; the any() still runs every comparison's
+    # constant-time op, avoiding early-exit timing leaks on the matched key.
+    return any(hmac.compare_digest(presented, key) for key in allowed)
+
+
 class CanvasCredentialMiddleware:
     """ASGI middleware that extracts the caller's Canvas token from headers.
 
@@ -78,6 +88,8 @@ class CanvasCredentialMiddleware:
     own Canvas token instead of any server .env token.
 
     Fail-closed semantics:
+    - When MCP_ACCESS_KEYS is configured, a missing/invalid X-MCP-Access-Key
+      returns HTTP 401 before anything else (the v1 multi-user gate).
     - A missing/blank X-Canvas-Token returns HTTP 401 before the app runs.
     - X-Canvas-URL is ignored (logged); the Canvas API URL is never
       client-controlled, which removes the SSRF surface entirely.
@@ -98,6 +110,16 @@ class CanvasCredentialMiddleware:
         try:
             # Parse headers from ASGI scope (list of [name, value] byte pairs)
             headers = dict(scope.get("headers", []))
+            config = get_config()
+
+            # v1 access-key gate (when configured): reject before touching creds.
+            allowed_keys = config.mcp_access_keys
+            if allowed_keys:
+                presented = headers.get(b"x-mcp-access-key", b"").decode("utf-8", errors="ignore").strip()
+                if not _access_key_ok(presented, allowed_keys):
+                    await _send_json_error(send, 401, "Invalid or missing X-MCP-Access-Key")
+                    return
+
             token = headers.get(b"x-canvas-token", b"").decode("utf-8", errors="ignore").strip()
 
             if b"x-canvas-url" in headers:
@@ -107,7 +129,7 @@ class CanvasCredentialMiddleware:
                 await _send_json_error(send, 401, "Missing X-Canvas-Token header")
                 return
 
-            canvas_url = get_config().canvas_api_url.strip()
+            canvas_url = config.canvas_api_url.strip()
             if not canvas_url:
                 log_error("CANVAS_API_URL is required in HTTP mode but is not configured")
                 await _send_json_error(send, 500, "Server Canvas API URL is not configured")
@@ -279,6 +301,12 @@ def main() -> None:
                 "own token via the X-Canvas-Token header. Unset it and restart."
             )
             sys.exit(1)
+        if not config.mcp_access_keys:
+            log_warning(
+                "HTTP mode has no MCP_ACCESS_KEYS configured — the endpoint is NOT "
+                "key-gated. Anyone who can reach it and holds a Canvas token can connect. "
+                "Set MCP_ACCESS_KEYS or place the endpoint behind external authentication."
+            )
     else:
         # stdio mode: .env credentials are required (single-user, env-based auth)
         if not validate_config():
