@@ -196,7 +196,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] Follow-up: split publish-mcp.yml into separate PyPI + MCP Registry jobs with PyPI-propagation poll (PR #107)
 - [x] Follow-up: add `ruff`/`black`/`mypy` to dev deps in pyproject.toml; remove unused `requests`; `setup-python@v4 → @v6` (PR #105)
 - [x] Retired public hosted server (`mcp.illinihunt.org`) — security teardown + cleaned all references (memory, website, README/AGENTS/CHANGELOG)
-- [ ] Issue #115: Gies-operated, Azure-hosted, SSO-gated deployment (v1 key gate) — specced, awaiting Gies dev team / demand
+- [~] Issue #115: Gies/Azure hosted deployment — **v1 shipped** (token-only fail-closed auth + `MCP_ACCESS_KEYS` gate, PR #121) and **deployed to staging** (see Hosted Deployment below). Remaining: positive end-to-end client test, AcrPull RBAC fix, Entra/OAuth (v2)
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
 - [ ] Issue #106: 186 mypy errors uncovered by adding mypy to dev deps — incremental cleanup, module by module
 
@@ -219,14 +219,20 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [ ] Bulk page creation from markdown files
 - [ ] Page content versioning/history tools
 
+## Hosted Deployment (Azure staging) — #115 v1
+
+- **Endpoint**: `https://gies-canvas-mcp-staging.azurewebsites.net/mcp` (streamable-http). Subscription `urbana-business-disruptionlab`, RG `DL_ResourceGroup_01`, app `gies-canvas-mcp-staging` on shared plan `dl-appplan-01`, registry `giescanvasmcpacr`.
+- **Auth model (v1)**: clients send `X-MCP-Access-Key` (gate; `MCP_ACCESS_KEYS` app setting) + their own `X-Canvas-Token`. URL is server-pinned (`CANVAS_API_URL`); **no server `CANVAS_API_TOKEN`** (HTTP startup guard exits if set). `X-Canvas-URL` is ignored. Code-exec off (`EXECUTE_TYPESCRIPT_ENABLED=false`, also Dockerfile default). `httpsOnly=true`. **No Entra gate yet** (Easy Auth 302-breaks non-browser MCP clients → v2 OAuth).
+- **Deploy**: `az acr build -g DL_ResourceGroup_01 -r giescanvasmcpacr -t canvas-mcp:azure-gies-$(git rev-parse --short HEAD) .` → `az webapp config container set ... --container-image-name <img>` → `az webapp restart`. App settings persist across image swaps.
+- ⚠️ **ACR pull uses admin-user creds (temporary workaround).** Managed-identity pull was failing (`ACRTokenRetrievalFailure`) because the app's MI (`dd6ad3e0-e1af-4845-b259-f71e1e2c1dcf`) lacks `AcrPull`, and **Vishal can't grant it** (no `roleAssignments/write` on `giescanvasmcpacr` — owned by Ash). **Follow-up: have Ash/an Owner grant that principal `AcrPull`, then re-enable MI pull + disable ACR admin-user.**
+- Access key is a secret (stored out-of-band, not in repo). Add a per-person key to `MCP_ACCESS_KEYS` (comma-separated) for revocability.
+
 ## Session Log
 > Full history: [docs/session-history.md](./docs/session-history.md)
 
-### 2026-06-05
-- **Retired the public hosted MCP server end-to-end + specced the Gies/Azure replacement.** Brainstormed the "move repo to gies-ai-experiments / transition to Azure" ask and decomposed it into three separable concerns — code ownership (stays personal; a GitHub transfer would break PyPI Trusted Publishing + the `io.github.vishalsachdev` MCP Registry namespace for zero benefit → **no transfer, no fork**), institutional *operation* (the Azure project), and inference (Azure OpenAI credits). Goal landed on: a Gies-operated, Azure-hosted, SSO-gated deployment for staff using downloaded MCP clients (Codex/Claude Desktop/VS Code/Cursor).
-- **Security teardown of `mcp.illinihunt.org`** (was a workshop-only instance): review found it live with **no auth gate**, `execute_typescript` (code-exec) exposed publicly 🔴, unvalidated `X-Canvas-URL` (SSRF) 🟠, on a `0.0.0.0:8819` systemd listener. Decommissioned reversibly: `systemctl stop/disable canvas-mcp.service` (port closed), nginx vhost symlink removed, Cloudflare `A mcp` record deleted (NXDOMAIN; `proof-mcp`/`canvas-mcp` siblings untouched).
-- **Filed issue #115** — dev-team-ready v1 spec: Azure Container Apps, lightweight per-user **key gate** (proof-vps pattern, not full OAuth), BYO `X-Canvas-Token` header, hardening as acceptance criteria (disable code-exec, pin `CANVAS_API_URL=canvas.illinois.edu`, ingress-only), phased toward v2 OAuth/Entra/ChatGPT-Edu-web-connector. Confirmed ChatGPT Edu *web* connectors are OAuth-only (→ v2); downloaded clients support custom headers (→ key gate fine for v1).
-- **Cleaned every surface that referenced the dead server**: auto-memory (`reference_vps_deploy.md` + MEMORY.md index → DECOMMISSIONED), website (removed "Hosted Server (Recommended)" from `docs/index.html` + learning-designer guide; local install now primary; redeployed to Cloudflare), and README/AGENTS/CHANGELOG (accurate "retired" notes + dated `### Security` disclosure — feature *not* disabled, it was a deployment-posture issue, package unaffected).
-- **impact.json refresh** committed + deployed (stars 128→141, forks 34→38, data through 2026-06-01) + cron heartbeat sentinel.
-- Next: Backlog triage (module templates, bulk creation, page versioning) and Issue #106 (mypy cleanup) remain the standing queue. **#115 (Gies/Azure hosted deployment)** is now a live thread — picked up if/when the Gies dev team or demand materializes.
+### 2026-06-13
+- **Shipped #115 v1 (token-only fail-closed HTTP auth + key gate) and deployed it to Azure staging.** Three Codex passes drove it: Architect GO on the "token-only + server-pinned URL" model, an xhigh end-to-end plan, and a diff-level review that caught a secure-by-default Dockerfile gap (code-exec defaulted on for the network-facing image → fixed). Core problem solved: the old HTTP credential path was all-or-nothing — a missing/rejected per-request header silently fell back to the *server's* token, mis-attributing actions to the operator (FERPA/audit failure); #118's `*.instructure.com` SSRF regex made it worse by rejecting the `canvas.illinois.edu` vanity domain.
+- **Code (PR #121, admin-merged, CI green + twice codex-reviewed clean):** new `is_http_request_active()` marker so the env-fallback only fires in stdio; all Canvas-touching paths route through one `canvas_authenticated_client()` resolver (caught a 6th leak path — `files.py` downloads used the server-token global client); middleware is token-only (X-Canvas-URL ignored, 401 on missing token), startup guard forbids `CANVAS_API_TOKEN` in HTTP mode; `MCP_ACCESS_KEYS` constant-time gate; Dockerfile launches streamable-http on the injected port with code-exec off by default. 405 tests pass.
+- **Deploy:** built from main, live at `gies-canvas-mcp-staging` (see Hosted Deployment above). Verified both gates over HTTPS (no-key → 401, key-but-no-token → 401). Discovered the app had never actually served (prior Jun 9/10 images crash-looped on `ACRTokenRetrievalFailure`); root cause = MI lacks `AcrPull`; worked around with ACR admin-user creds + enabled `httpsOnly`.
+- Next: (1) positive end-to-end test with a real MCP client (key + Canvas token → acts as that user); (2) hand Ash the `AcrPull` grant to retire the admin-user workaround; (3) Entra/OAuth v2; (4) standing queue: backlog triage + #106 mypy cleanup.
 
