@@ -15,6 +15,7 @@ Supports two transport modes:
 
 import argparse
 import asyncio
+import base64
 import hmac
 import json
 import sys
@@ -80,6 +81,37 @@ def _access_key_ok(presented: str, allowed: frozenset[str]) -> bool:
     return any(hmac.compare_digest(presented, key) for key in allowed)
 
 
+def _client_principal_id(headers: dict[bytes, bytes]) -> str | None:
+    """Read the Entra object id from Azure App Service's injected identity header.
+
+    ``X-MS-CLIENT-PRINCIPAL-ID`` is set by the App Service auth layer *after* it
+    validates the token; external callers cannot spoof it (the platform strips
+    inbound ``X-MS-*`` headers). Empty/absent → ``None``.
+    """
+    pid = headers.get(b"x-ms-client-principal-id", b"").decode("utf-8", errors="ignore").strip()
+    return pid or None
+
+
+def _client_principal_claims(headers: dict[bytes, bytes]) -> dict[str, str]:
+    """Decode the base64 JSON ``X-MS-CLIENT-PRINCIPAL`` header into a claim map.
+
+    The header is ``{"claims": [{"typ": ..., "val": ...}, ...]}``. Returns an
+    empty dict on any parse failure (used only for audit context, never auth).
+    """
+    raw = headers.get(b"x-ms-client-principal", b"")
+    if not raw:
+        return {}
+    try:
+        payload = json.loads(base64.b64decode(raw))
+        return {
+            c["typ"]: c["val"]
+            for c in payload.get("claims", [])
+            if "typ" in c and "val" in c
+        }
+    except Exception:
+        return {}
+
+
 class CanvasCredentialMiddleware:
     """ASGI middleware that extracts the caller's Canvas token from headers.
 
@@ -112,13 +144,41 @@ class CanvasCredentialMiddleware:
             headers = dict(scope.get("headers", []))
             config = get_config()
 
-            # v1 access-key gate (when configured): reject before touching creds.
-            allowed_keys = config.mcp_access_keys
-            if allowed_keys:
-                presented = headers.get(b"x-mcp-access-key", b"").decode("utf-8", errors="ignore").strip()
-                if not _access_key_ok(presented, allowed_keys):
-                    await _send_json_error(send, 401, "Invalid or missing X-MCP-Access-Key")
+            if config.entra_auth_enabled:
+                # Entra platform-auth path: Azure App Service has already validated
+                # the bearer token and (for unauthenticated callers) emitted the
+                # 401 + RFC 9728 challenge before we ran. Here we enforce the
+                # per-identity allowlist + audit on the trusted injected header.
+                # Student records are FERPA "Sensitive" — fail closed if the
+                # platform identity is absent (defense-in-depth) or not allowlisted.
+                oid = _client_principal_id(headers)
+                if not oid:
+                    await _send_json_error(send, 401, "Missing verified Entra identity")
                     return
+                if config.mcp_entra_allowed_oids and oid not in config.mcp_entra_allowed_oids:
+                    await _send_json_error(send, 403, "Identity not authorized for this MCP server")
+                    return
+                claims = _client_principal_claims(headers)
+                # Log only the stable, opaque identifiers (oid GUID, scope, client
+                # app id) — NOT X-MS-CLIENT-PRINCIPAL-NAME, which is the user's
+                # UPN/email and would write PII to the app log on every request,
+                # bypassing LOG_REDACT_PII. Per-user audit attribution uses the oid;
+                # the dedicated audit logger (core.audit) handles richer events.
+                log_info(
+                    "MCP request authorized via Entra identity",
+                    entra_oid=oid,
+                    entra_scp=claims.get("scp")
+                    or claims.get("http://schemas.microsoft.com/identity/claims/scope"),
+                    entra_azp=claims.get("azp") or claims.get("appid"),
+                )
+            else:
+                # v1 access-key gate (when configured): reject before touching creds.
+                allowed_keys = config.mcp_access_keys
+                if allowed_keys:
+                    presented = headers.get(b"x-mcp-access-key", b"").decode("utf-8", errors="ignore").strip()
+                    if not _access_key_ok(presented, allowed_keys):
+                        await _send_json_error(send, 401, "Invalid or missing X-MCP-Access-Key")
+                        return
 
             token = headers.get(b"x-canvas-token", b"").decode("utf-8", errors="ignore").strip()
 
@@ -301,7 +361,22 @@ def main() -> None:
                 "own token via the X-Canvas-Token header. Unset it and restart."
             )
             sys.exit(1)
-        if not config.mcp_access_keys:
+        if config.entra_auth_enabled and not config.mcp_allow_unauthenticated:
+            # Entra platform-auth trusts the X-MS-CLIENT-PRINCIPAL-ID header, which
+            # is ONLY safe when Azure App Service auth actually fronts the endpoint
+            # (it strips client-supplied X-MS-* headers). The app can't detect that
+            # at runtime, so the operator must assert it explicitly — otherwise a
+            # caller could forge the identity header and bypass auth. Require the
+            # external-auth opt-in regardless of any (now-ignored) MCP_ACCESS_KEYS.
+            log_error(
+                "ENTRA_AUTH_ENABLED=true requires MCP_ALLOW_UNAUTHENTICATED=true — an "
+                "explicit acknowledgment that an external authenticator (Azure App "
+                "Service / Entra) fronts this endpoint and injects the trusted "
+                "X-MS-CLIENT-PRINCIPAL identity. Refusing to start: without that "
+                "platform, the identity header is client-spoofable."
+            )
+            sys.exit(1)
+        if not config.entra_auth_enabled and not config.mcp_access_keys:
             # Secure-by-default: refuse to start an ungated endpoint unless the
             # operator has explicitly accepted that external auth fronts it.
             # Student education records are FERPA "Sensitive" data (U of I DAT01)
