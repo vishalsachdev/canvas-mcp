@@ -59,8 +59,9 @@ class Config:
     """Configuration class for Canvas MCP server."""
 
     def __init__(self) -> None:
-        # Required configuration
+        # Required configuration (one of canvas_api_token or canvas_session_cookie must be set)
         self.canvas_api_token = os.getenv("CANVAS_API_TOKEN", "")
+        self.canvas_session_cookie = os.getenv("CANVAS_SESSION_COOKIE", "")
         self.canvas_api_url = os.getenv("CANVAS_API_URL", "")
 
         # Optional configuration with defaults
@@ -186,9 +187,9 @@ def validate_config() -> bool:
         "FIREWALL_HINT": "firewall hints are documentation-only",
     }
 
-    if not config.canvas_api_token:
-        log_error("CANVAS_API_TOKEN environment variable is required")
-        log_error("Please set CANVAS_API_TOKEN in your .env file")
+    if not config.canvas_api_token and not config.canvas_session_cookie:
+        log_error("Either CANVAS_API_TOKEN or CANVAS_SESSION_COOKIE is required")
+        log_error("Please set one of them in your .env file")
         return False
 
     if not config.canvas_api_url:
