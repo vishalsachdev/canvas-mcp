@@ -302,11 +302,26 @@ def main() -> None:
             )
             sys.exit(1)
         if not config.mcp_access_keys:
-            log_warning(
-                "HTTP mode has no MCP_ACCESS_KEYS configured — the endpoint is NOT "
-                "key-gated. Anyone who can reach it and holds a Canvas token can connect. "
-                "Set MCP_ACCESS_KEYS or place the endpoint behind external authentication."
-            )
+            # Secure-by-default: refuse to start an ungated endpoint unless the
+            # operator has explicitly accepted that external auth fronts it.
+            # Student education records are FERPA "Sensitive" data (U of I DAT01)
+            # and must never be accessed without specific authorization, so a
+            # silent fail-open here is a compliance failure, not a warning.
+            if config.mcp_allow_unauthenticated:
+                log_warning(
+                    "HTTP mode has no MCP_ACCESS_KEYS, but MCP_ALLOW_UNAUTHENTICATED=true "
+                    "is set — assuming external authentication (e.g. Entra/Easy Auth) "
+                    "fronts this endpoint. The app-level key gate is DISABLED."
+                )
+            else:
+                log_error(
+                    "HTTP mode requires MCP_ACCESS_KEYS (the app-level auth gate). "
+                    "Refusing to start an unauthenticated endpoint that can read and "
+                    "write Canvas gradebooks. Set MCP_ACCESS_KEYS, or if an external "
+                    "authenticator (Entra/Easy Auth) fronts this endpoint, set "
+                    "MCP_ALLOW_UNAUTHENTICATED=true to opt in deliberately."
+                )
+                sys.exit(1)
     else:
         # stdio mode: .env credentials are required (single-user, env-based auth)
         if not validate_config():

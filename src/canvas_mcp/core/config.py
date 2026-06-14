@@ -105,6 +105,12 @@ class Config:
         # auth). stdio mode ignores this entirely.
         self.mcp_access_keys = _parse_keys(os.getenv("MCP_ACCESS_KEYS", ""))
 
+        # Secure-by-default: in HTTP mode, an unconfigured key gate makes the
+        # server exit unless the operator EXPLICITLY opts into unauthenticated
+        # mode (i.e. external auth such as Entra/Easy Auth fronts the endpoint).
+        # This makes "fail open" impossible by omission — only by declaration.
+        self.mcp_allow_unauthenticated = _bool_env("MCP_ALLOW_UNAUTHENTICATED", False)
+
         # Optional metadata
         self.institution_name = os.getenv("INSTITUTION_NAME", "")
         self.timezone = os.getenv("TIMEZONE", "UTC")

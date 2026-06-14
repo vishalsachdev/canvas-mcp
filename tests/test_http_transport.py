@@ -723,3 +723,60 @@ class TestFailClosedNoToken:
             async with canvas_authenticated_client() as client:
                 assert client is sentinel
             mock_get_client.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Startup guard: HTTP mode fails closed when the key gate is unconfigured
+# ---------------------------------------------------------------------------
+
+
+class TestHttpAccessKeyStartupGuard:
+    """In HTTP mode, an unconfigured MCP_ACCESS_KEYS must refuse to start
+    unless MCP_ALLOW_UNAUTHENTICATED=true is explicitly set (external auth)."""
+
+    def _run_main(self, monkeypatch, env):
+        """Drive main() in HTTP mode with --config (exits before serving).
+
+        Returns the SystemExit raised by main() so the caller can assert the
+        exit code: 1 == guard tripped (fail closed), 0 == guard passed.
+        """
+        from canvas_mcp.core import config as config_module
+
+        # Clean slate: required HTTP env, no server token, plus test overrides.
+        monkeypatch.setenv("CANVAS_API_URL", "https://canvas.illinois.edu/api/v1")
+        monkeypatch.delenv("CANVAS_API_TOKEN", raising=False)
+        monkeypatch.delenv("MCP_ACCESS_KEYS", raising=False)
+        monkeypatch.delenv("MCP_ALLOW_UNAUTHENTICATED", raising=False)
+        for key, value in env.items():
+            monkeypatch.setenv(key, value)
+
+        config_module.reset_config()
+        monkeypatch.setattr(
+            "sys.argv",
+            ["canvas-mcp-server", "--transport", "streamable-http", "--config"],
+        )
+        from canvas_mcp.server import main
+
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        config_module.reset_config()
+        return exc_info.value
+
+    def test_no_keys_no_optin_exits_nonzero(self, monkeypatch):
+        """No MCP_ACCESS_KEYS and no opt-in -> fail closed (exit 1)."""
+        exc = self._run_main(monkeypatch, env={})
+        assert exc.code == 1
+
+    def test_no_keys_with_explicit_optin_starts(self, monkeypatch):
+        """No keys but MCP_ALLOW_UNAUTHENTICATED=true -> guard passes (exit 0)."""
+        exc = self._run_main(
+            monkeypatch, env={"MCP_ALLOW_UNAUTHENTICATED": "true"}
+        )
+        assert exc.code == 0
+
+    def test_keys_configured_starts(self, monkeypatch):
+        """MCP_ACCESS_KEYS configured -> guard passes regardless of opt-in (exit 0)."""
+        exc = self._run_main(
+            monkeypatch, env={"MCP_ACCESS_KEYS": "key-abc,key-def"}
+        )
+        assert exc.code == 0
