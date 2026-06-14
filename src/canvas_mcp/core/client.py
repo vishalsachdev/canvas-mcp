@@ -21,14 +21,21 @@ INITIAL_BACKOFF_SECONDS = 2
 DEFAULT_PAGE_SIZE = 100
 
 
-def _canvas_auth_headers(api_token: str) -> dict[str, str]:
-    """Build the standard Canvas auth + User-Agent headers for a token."""
+def _canvas_auth_headers(api_token: str = "", session_cookie: str = "") -> dict[str, str]:
+    """Build Canvas auth + User-Agent headers.
+
+    Prefers API token (Bearer) over session cookie when both are provided.
+    """
     from .. import __version__
 
-    return {
-        "Authorization": f"Bearer {api_token}",
+    headers: dict[str, str] = {
         "User-Agent": f"canvas-mcp/{__version__} (https://github.com/vishalsachdev/canvas-mcp)",
     }
+    if api_token:
+        headers["Authorization"] = f"Bearer {api_token}"
+    elif session_cookie:
+        headers["Cookie"] = f"canvas_session={session_cookie}"
+    return headers
 
 # HTTP client will be initialized with configuration
 http_client: httpx.AsyncClient | None = None
@@ -154,7 +161,7 @@ def _get_http_client() -> httpx.AsyncClient:
         from .config import get_config
         config = get_config()
         http_client = httpx.AsyncClient(
-            headers=_canvas_auth_headers(config.canvas_api_token),
+            headers=_canvas_auth_headers(config.canvas_api_token, config.canvas_session_cookie),
             timeout=config.api_timeout
         )
         _http_client_loop_ref = weakref.ref(current_loop) if current_loop is not None else None
@@ -186,7 +193,7 @@ async def canvas_authenticated_client() -> AsyncIterator[httpx.AsyncClient]:
     if req_creds:
         config = get_config()
         async with httpx.AsyncClient(
-            headers=_canvas_auth_headers(req_creds.api_token),
+            headers=_canvas_auth_headers(req_creds.api_token, req_creds.session_cookie),
             timeout=config.api_timeout,
         ) as client:
             yield client
@@ -234,7 +241,7 @@ async def make_canvas_request(
     if req_creds:
         # Per-request client with user's credentials (HTTP mode)
         client = httpx.AsyncClient(
-            headers=_canvas_auth_headers(req_creds.api_token),
+            headers=_canvas_auth_headers(req_creds.api_token, req_creds.session_cookie),
             timeout=config.api_timeout,
         )
         url = f"{req_creds.api_url.rstrip('/')}{endpoint}"
