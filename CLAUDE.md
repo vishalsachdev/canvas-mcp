@@ -196,7 +196,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] Follow-up: split publish-mcp.yml into separate PyPI + MCP Registry jobs with PyPI-propagation poll (PR #107)
 - [x] Follow-up: add `ruff`/`black`/`mypy` to dev deps in pyproject.toml; remove unused `requests`; `setup-python@v4 → @v6` (PR #105)
 - [x] Retired public hosted server (`mcp.illinihunt.org`) — security teardown + cleaned all references (memory, website, README/AGENTS/CHANGELOG)
-- [~] Issue #115: Gies/Azure hosted deployment — **v1 shipped** (token-only fail-closed auth + `MCP_ACCESS_KEYS` gate, PR #121) and **deployed to staging** (see Hosted Deployment below). Remaining: positive end-to-end client test, AcrPull RBAC fix, Entra/OAuth (v2)
+- [~] Issue #115: Gies/Azure hosted deployment — **v1 shipped + validated end-to-end** (token-only fail-closed auth + `MCP_ACCESS_KEYS` gate, PR #121; TA Lalitha connected via Claude Desktop/`mcp-remote` and confirmed working 2026-06-14). Remaining: AcrPull RBAC fix (retire ACR admin-user workaround — needs Adam), Entra/OAuth (v2)
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
 - [ ] Issue #106: 186 mypy errors uncovered by adding mypy to dev deps — incremental cleanup, module by module
 
