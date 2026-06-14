@@ -114,16 +114,19 @@ def _client_principal_claims(headers: dict[bytes, bytes]) -> dict[str, str]:
 
 
 class CanvasCredentialMiddleware:
-    """ASGI middleware that extracts the caller's Canvas token from headers.
+    """ASGI middleware that extracts the caller's Canvas credentials from headers.
 
-    For each incoming HTTP request, reads X-Canvas-Token and combines it with
-    the server-pinned CANVAS_API_URL so make_canvas_request uses the caller's
-    own Canvas token instead of any server .env token.
+    For each incoming HTTP request, reads either X-Canvas-Token (API token) or
+    X-Canvas-Session-Cookie (browser session cookie) and combines the credential
+    with the server-pinned CANVAS_API_URL so make_canvas_request uses the
+    caller's own Canvas identity instead of any server .env credential.
 
     Fail-closed semantics:
     - When MCP_ACCESS_KEYS is configured, a missing/invalid X-MCP-Access-Key
       returns HTTP 401 before anything else (the v1 multi-user gate).
-    - A missing/blank X-Canvas-Token returns HTTP 401 before the app runs.
+    - A missing/blank X-Canvas-Token AND missing/blank X-Canvas-Session-Cookie
+      returns HTTP 401 before the app runs.
+    - When both headers are present, X-Canvas-Token (API token) takes precedence.
     - X-Canvas-URL is ignored (logged); the Canvas API URL is never
       client-controlled, which removes the SSRF surface entirely.
     - The "HTTP request active" marker is set so downstream code refuses to
@@ -182,12 +185,13 @@ class CanvasCredentialMiddleware:
                         return
 
             token = headers.get(b"x-canvas-token", b"").decode("utf-8", errors="ignore").strip()
+            session_cookie = headers.get(b"x-canvas-session-cookie", b"").decode("utf-8", errors="ignore").strip().removeprefix("canvas_session=")
 
             if b"x-canvas-url" in headers:
                 log_warning("Ignoring X-Canvas-URL header; Canvas API URL is server-pinned")
 
-            if not token:
-                await _send_json_error(send, 401, "Missing X-Canvas-Token header")
+            if not token and not session_cookie:
+                await _send_json_error(send, 401, "Missing credentials: provide X-Canvas-Token or X-Canvas-Session-Cookie")
                 return
 
             canvas_url = config.canvas_api_url.strip()
@@ -197,7 +201,7 @@ class CanvasCredentialMiddleware:
                 return
 
             set_request_credentials(
-                RequestCredentials(api_token=token, api_url=canvas_url)
+                RequestCredentials(api_token=token, api_url=canvas_url, session_cookie=session_cookie)
             )
             await self.app(scope, receive, send)
         finally:
@@ -376,6 +380,12 @@ def main() -> None:
                 "Service / Entra) fronts this endpoint and injects the trusted "
                 "X-MS-CLIENT-PRINCIPAL identity. Refusing to start: without that "
                 "platform, the identity header is client-spoofable."
+            )
+            sys.exit(1)
+        if config.canvas_session_cookie:
+            log_error(
+                "CANVAS_SESSION_COOKIE must NOT be set in HTTP mode — clients supply "
+                "their own cookie via the X-Canvas-Session-Cookie header. Unset it and restart."
             )
             sys.exit(1)
         if not config.entra_auth_enabled and not config.mcp_access_keys:
