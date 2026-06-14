@@ -927,3 +927,158 @@ class TestEntraPlatformAuth:
             await middleware(scope, AsyncMock(), AsyncMock())
 
         assert captured["token"] == "tok"
+
+
+# ---------------------------------------------------------------------------
+# Session cookie authentication tests
+# ---------------------------------------------------------------------------
+
+
+class TestSessionCookieCredentials:
+    """RequestCredentials carries session_cookie and defaults it to empty string."""
+
+    def test_default_session_cookie_is_empty(self):
+        """session_cookie defaults to empty string for backward compatibility."""
+        creds = RequestCredentials(api_token="tok", api_url="https://canvas.example.com/api/v1")
+        assert creds.session_cookie == ""
+
+    def test_session_cookie_stored_and_retrieved(self):
+        """session_cookie value round-trips through set/get."""
+        creds = RequestCredentials(
+            api_token="",
+            api_url="https://canvas.example.com/api/v1",
+            session_cookie="abc123",
+        )
+        set_request_credentials(creds)
+        result = get_request_credentials()
+        assert result is not None
+        assert result.session_cookie == "abc123"
+        clear_request_credentials()
+
+    def test_frozen_with_session_cookie(self):
+        """RequestCredentials with session_cookie is still immutable."""
+        creds = RequestCredentials(api_token="", api_url="u", session_cookie="s")
+        with pytest.raises(AttributeError):
+            creds.session_cookie = "other"  # type: ignore[misc]
+
+
+class TestCanvasAuthHeaders:
+    """_canvas_auth_headers builds the correct headers for each credential type."""
+
+    def test_token_produces_bearer_header(self):
+        from canvas_mcp.core.client import _canvas_auth_headers
+
+        headers = _canvas_auth_headers(api_token="mytoken")
+        assert headers["Authorization"] == "Bearer mytoken"
+        assert "Cookie" not in headers
+
+    def test_session_cookie_produces_cookie_header(self):
+        from canvas_mcp.core.client import _canvas_auth_headers
+
+        headers = _canvas_auth_headers(session_cookie="cookieval")
+        assert headers["Cookie"] == "canvas_session=cookieval"
+        assert "Authorization" not in headers
+
+    def test_token_takes_precedence_over_cookie(self):
+        from canvas_mcp.core.client import _canvas_auth_headers
+
+        headers = _canvas_auth_headers(api_token="tok", session_cookie="cook")
+        assert headers["Authorization"] == "Bearer tok"
+        assert "Cookie" not in headers
+
+    def test_neither_produces_no_auth_header(self):
+        from canvas_mcp.core.client import _canvas_auth_headers
+
+        headers = _canvas_auth_headers()
+        assert "Authorization" not in headers
+        assert "Cookie" not in headers
+        assert "User-Agent" in headers
+
+
+class TestMiddlewareSessionCookie:
+    """CanvasCredentialMiddleware accepts X-Canvas-Session-Cookie in HTTP mode."""
+
+    @pytest.fixture
+    def middleware(self):
+        from canvas_mcp.server import CanvasCredentialMiddleware
+
+        app = AsyncMock()
+        mw = CanvasCredentialMiddleware(app)
+        mw._app = app
+        return mw
+
+    def _make_scope(self, headers: dict[bytes, bytes]) -> dict:
+        return {
+            "type": "http",
+            "headers": list(headers.items()),
+        }
+
+    @pytest.fixture(autouse=True)
+    def reset_context(self):
+        clear_http_request_context()
+        yield
+        clear_http_request_context()
+
+    @pytest.mark.asyncio
+    async def test_cookie_only_sets_credentials(self, middleware):
+        """A request with only X-Canvas-Session-Cookie is accepted."""
+        scope = self._make_scope({b"x-canvas-session-cookie": b"cookievalue"})
+        receive = AsyncMock()
+        send = AsyncMock()
+
+        with patch("canvas_mcp.server.get_config", return_value=_FakeConfig()):
+            with patch("canvas_mcp.server.set_request_credentials") as mock_set:
+                await middleware(scope, receive, send)
+
+        mock_set.assert_called_once()
+        stored: RequestCredentials = mock_set.call_args[0][0]
+        assert stored.session_cookie == "cookievalue"
+        assert stored.api_token == ""
+
+    @pytest.mark.asyncio
+    async def test_token_takes_precedence_when_both_present(self, middleware):
+        """When both headers are supplied, the API token wins."""
+        scope = self._make_scope({
+            b"x-canvas-token": b"apitoken",
+            b"x-canvas-session-cookie": b"cookievalue",
+        })
+        receive = AsyncMock()
+        send = AsyncMock()
+
+        with patch("canvas_mcp.server.get_config", return_value=_FakeConfig()):
+            with patch("canvas_mcp.server.set_request_credentials") as mock_set:
+                await middleware(scope, receive, send)
+
+        stored: RequestCredentials = mock_set.call_args[0][0]
+        assert stored.api_token == "apitoken"
+        assert stored.session_cookie == "cookievalue"
+
+    @pytest.mark.asyncio
+    async def test_neither_token_nor_cookie_returns_401(self, middleware):
+        """A request with no canvas credentials gets HTTP 401."""
+        scope = self._make_scope({})
+        receive = AsyncMock()
+        responses: list[dict] = []
+
+        async def capture_send(event: dict) -> None:
+            responses.append(event)
+
+        with patch("canvas_mcp.server.get_config", return_value=_FakeConfig()):
+            await middleware(scope, receive, capture_send)
+
+        start = next(r for r in responses if r.get("type") == "http.response.start")
+        assert start["status"] == 401
+
+    @pytest.mark.asyncio
+    async def test_cookie_prefix_stripped(self, middleware):
+        """If the user pastes 'canvas_session=value', the prefix is stripped."""
+        scope = self._make_scope({b"x-canvas-session-cookie": b"canvas_session=cookievalue"})
+        receive = AsyncMock()
+        send = AsyncMock()
+
+        with patch("canvas_mcp.server.get_config", return_value=_FakeConfig()):
+            with patch("canvas_mcp.server.set_request_credentials") as mock_set:
+                await middleware(scope, receive, send)
+
+        stored: RequestCredentials = mock_set.call_args[0][0]
+        assert stored.session_cookie == "cookievalue"
