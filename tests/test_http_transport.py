@@ -18,9 +18,17 @@ from canvas_mcp.core.credentials import (
 class _FakeConfig:
     """Minimal stand-in for the config object the middleware reads."""
 
-    def __init__(self, canvas_api_url="https://canvas.illinois.edu/api/v1", mcp_access_keys=frozenset()):
+    def __init__(
+        self,
+        canvas_api_url="https://canvas.illinois.edu/api/v1",
+        mcp_access_keys=frozenset(),
+        entra_auth_enabled=False,
+        mcp_entra_allowed_oids=frozenset(),
+    ):
         self.canvas_api_url = canvas_api_url
         self.mcp_access_keys = mcp_access_keys
+        self.entra_auth_enabled = entra_auth_enabled
+        self.mcp_entra_allowed_oids = mcp_entra_allowed_oids
 
 # ---------------------------------------------------------------------------
 # ContextVar credential tests
@@ -747,6 +755,7 @@ class TestHttpAccessKeyStartupGuard:
         monkeypatch.delenv("CANVAS_API_TOKEN", raising=False)
         monkeypatch.delenv("MCP_ACCESS_KEYS", raising=False)
         monkeypatch.delenv("MCP_ALLOW_UNAUTHENTICATED", raising=False)
+        monkeypatch.delenv("ENTRA_AUTH_ENABLED", raising=False)
         for key, value in env.items():
             monkeypatch.setenv(key, value)
 
@@ -774,9 +783,147 @@ class TestHttpAccessKeyStartupGuard:
         )
         assert exc.code == 0
 
+    def test_entra_enabled_without_optin_exits_nonzero(self, monkeypatch):
+        """ENTRA_AUTH_ENABLED=true without MCP_ALLOW_UNAUTHENTICATED -> fail closed.
+
+        Even with MCP_ACCESS_KEYS set, Entra mode must require the explicit
+        external-auth acknowledgment (the X-MS-* identity header is only
+        trustworthy when App Service actually fronts the endpoint).
+        """
+        exc = self._run_main(
+            monkeypatch,
+            env={"ENTRA_AUTH_ENABLED": "true", "MCP_ACCESS_KEYS": "key-abc"},
+        )
+        assert exc.code == 1
+
+    def test_entra_enabled_with_optin_starts(self, monkeypatch):
+        """ENTRA_AUTH_ENABLED=true + MCP_ALLOW_UNAUTHENTICATED=true -> starts (exit 0)."""
+        exc = self._run_main(
+            monkeypatch,
+            env={
+                "ENTRA_AUTH_ENABLED": "true",
+                "MCP_ALLOW_UNAUTHENTICATED": "true",
+            },
+        )
+        assert exc.code == 0
+
     def test_keys_configured_starts(self, monkeypatch):
         """MCP_ACCESS_KEYS configured -> guard passes regardless of opt-in (exit 0)."""
         exc = self._run_main(
             monkeypatch, env={"MCP_ACCESS_KEYS": "key-abc,key-def"}
         )
         assert exc.code == 0
+
+
+# ---------------------------------------------------------------------------
+# Entra platform-auth path (Azure App Service validates the token upstream;
+# the middleware authorizes the injected X-MS-CLIENT-PRINCIPAL-ID identity)
+# ---------------------------------------------------------------------------
+
+
+def _principal_header(claims: dict) -> bytes:
+    """Build a base64 X-MS-CLIENT-PRINCIPAL value from a claim dict."""
+    import base64
+    import json
+
+    payload = {"claims": [{"typ": k, "val": v} for k, v in claims.items()]}
+    return base64.b64encode(json.dumps(payload).encode("utf-8"))
+
+
+class TestEntraPlatformAuth:
+    """When entra_auth_enabled, the access key is replaced by the platform identity."""
+
+    @pytest.fixture
+    def middleware(self):
+        from canvas_mcp.server import CanvasCredentialMiddleware
+
+        return CanvasCredentialMiddleware(AsyncMock())
+
+    @pytest.mark.asyncio
+    async def test_allowlisted_identity_passes_without_access_key(self, middleware):
+        """A platform-injected oid on the allowlist proceeds — no X-MCP-Access-Key."""
+        captured = {}
+
+        async def capture_app(scope, receive, send):
+            creds = get_request_credentials()
+            captured["token"] = creds.api_token if creds else None
+
+        middleware.app = capture_app
+        scope = {
+            "type": "http",
+            "headers": [
+                (b"x-ms-client-principal-id", b"oid-alice"),
+                (b"x-canvas-token", b"tok"),
+            ],
+        }
+        cfg = _FakeConfig(
+            entra_auth_enabled=True,
+            mcp_entra_allowed_oids=frozenset({"oid-alice", "oid-bob"}),
+        )
+        with patch("canvas_mcp.server.get_config", return_value=cfg):
+            await middleware(scope, AsyncMock(), AsyncMock())
+
+        assert captured["token"] == "tok"
+
+    @pytest.mark.asyncio
+    async def test_missing_identity_returns_401(self, middleware):
+        """No X-MS-CLIENT-PRINCIPAL-ID -> fail closed (401), Canvas not reached."""
+        app_called = {"value": False}
+
+        async def inner(scope, receive, send):
+            app_called["value"] = True
+
+        middleware.app = inner
+        send = AsyncMock()
+        scope = {"type": "http", "headers": [(b"x-canvas-token", b"tok")]}
+        cfg = _FakeConfig(entra_auth_enabled=True)
+        with patch("canvas_mcp.server.get_config", return_value=cfg):
+            await middleware(scope, AsyncMock(), send)
+
+        assert app_called["value"] is False
+        assert send.call_args_list[0][0][0]["status"] == 401
+        assert get_request_credentials() is None
+
+    @pytest.mark.asyncio
+    async def test_non_allowlisted_identity_returns_403(self, middleware):
+        """A valid platform identity not on the allowlist -> 403."""
+        send = AsyncMock()
+        scope = {
+            "type": "http",
+            "headers": [
+                (b"x-ms-client-principal-id", b"oid-eve"),
+                (b"x-canvas-token", b"tok"),
+            ],
+        }
+        cfg = _FakeConfig(
+            entra_auth_enabled=True,
+            mcp_entra_allowed_oids=frozenset({"oid-alice"}),
+        )
+        with patch("canvas_mcp.server.get_config", return_value=cfg):
+            await middleware(scope, AsyncMock(), send)
+
+        assert send.call_args_list[0][0][0]["status"] == 403
+
+    @pytest.mark.asyncio
+    async def test_empty_allowlist_allows_any_platform_identity(self, middleware):
+        """Empty allowlist -> any platform-authenticated identity proceeds."""
+        captured = {}
+
+        async def capture_app(scope, receive, send):
+            creds = get_request_credentials()
+            captured["token"] = creds.api_token if creds else None
+
+        middleware.app = capture_app
+        scope = {
+            "type": "http",
+            "headers": [
+                (b"x-ms-client-principal-id", b"oid-anyone"),
+                (b"x-ms-client-principal", _principal_header({"scp": "access_as_user"})),
+                (b"x-canvas-token", b"tok"),
+            ],
+        }
+        cfg = _FakeConfig(entra_auth_enabled=True, mcp_entra_allowed_oids=frozenset())
+        with patch("canvas_mcp.server.get_config", return_value=cfg):
+            await middleware(scope, AsyncMock(), AsyncMock())
+
+        assert captured["token"] == "tok"

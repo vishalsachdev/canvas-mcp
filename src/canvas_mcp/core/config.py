@@ -111,6 +111,17 @@ class Config:
         # This makes "fail open" impossible by omission — only by declaration.
         self.mcp_allow_unauthenticated = _bool_env("MCP_ALLOW_UNAUTHENTICATED", False)
 
+        # Entra ID platform auth: when the endpoint is fronted by Azure App
+        # Service authentication, the platform validates the Entra token and
+        # injects a trusted X-MS-CLIENT-PRINCIPAL(-ID) identity header. The app
+        # reads that for per-identity authorization + audit (the token is already
+        # validated upstream). Gate behind a flag so local/stdio runs never trust
+        # the spoofable X-MS-* headers. mcp_entra_allowed_oids is the allowlist of
+        # Entra object IDs permitted to use this server (empty = allow any
+        # platform-authenticated identity).
+        self.entra_auth_enabled = _bool_env("ENTRA_AUTH_ENABLED", False)
+        self.mcp_entra_allowed_oids = _parse_keys(os.getenv("MCP_ENTRA_ALLOWED_OIDS", ""))
+
         # Optional metadata
         self.institution_name = os.getenv("INSTITUTION_NAME", "")
         self.timezone = os.getenv("TIMEZONE", "UTC")
