@@ -1,0 +1,56 @@
+name: Deploy to Azure — staging slot
+
+# Push to the `staging` branch builds + ships to the staging deployment slot of
+# gies-canvas-mcp (host: gies-canvas-mcp-staging9b87.azurewebsites.net). Use this
+# to validate a build against real Entra/Azure config before it reaches main/prod.
+# Promote by merging `staging` -> `main` (which fires deploy-prod), or via an
+# Azure slot swap.
+on:
+  push:
+    branches: [staging]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'tools/**'
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: true
+
+env:
+  REGISTRY: giescanvasmcpacr.azurecr.io
+  IMAGE: canvas-mcp
+  APP_NAME: gies-canvas-mcp
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute image tag
+        id: tag
+        run: echo "tag=azure-gies-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ steps.tag.outputs.tag }}
+
+      - name: Deploy to staging slot
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.APP_NAME }}
+          slot-name: staging
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_STAGING }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ steps.tag.outputs.tag }}
