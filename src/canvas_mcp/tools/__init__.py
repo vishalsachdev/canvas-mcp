@@ -13,6 +13,7 @@ from .discussions import (
     register_educator_discussion_tools,
     register_shared_discussion_tools,
 )
+from .enrollment import register_enrollment_tools
 from .files import register_educator_file_tools, register_shared_file_tools
 from .messaging import (
     register_educator_messaging_tools,
@@ -31,6 +32,7 @@ __all__ = [
     'register_code_execution_tools',
     'register_course_tools',
     'register_discovery_tools',
+    'register_enrollment_tools',
     'register_educator_assignment_tools',
     'register_educator_discussion_tools',
     'register_educator_file_tools',

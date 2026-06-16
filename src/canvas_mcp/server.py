@@ -44,6 +44,7 @@ from .tools import (
     register_educator_messaging_tools,
     register_educator_module_tools,
     register_educator_page_crud_tools,
+    register_enrollment_tools,
     register_page_tools,
     register_peer_review_comment_tools,
     register_peer_review_tools,
@@ -254,6 +255,7 @@ def register_all_tools(mcp: FastMCP, role: str = "all") -> None:
         register_peer_review_comment_tools(mcp)
         register_educator_messaging_tools(mcp)
         register_accessibility_tools(mcp)
+        register_enrollment_tools(mcp)  # requires teacher-scoped roster access
         if get_config().execute_typescript_enabled:
             register_code_execution_tools(mcp)
         register_admin_tools(mcp)
