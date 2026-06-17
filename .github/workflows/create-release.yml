@@ -89,8 +89,27 @@ jobs:
             --notes-file release_body.md \
             --latest
 
+      - name: Build & attach Claude Desktop Extension (.mcpb)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${{ steps.version.outputs.tag_name }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          # Stamp the release version into the manifest so the bundle version can't
+          # drift from the tag (the committed manifest.json value is just a default).
+          tmp=$(mktemp)
+          jq --arg v "$VERSION" '.version = $v' manifest.json > "$tmp" && mv "$tmp" manifest.json
+          # Validate + pack the bundle (uv runtime — Python deps resolve on the user's machine).
+          npx -y @anthropic-ai/mcpb@latest validate manifest.json
+          npx -y @anthropic-ai/mcpb@latest pack . canvas-mcp.mcpb
+          # Attach to the release just created (--clobber so re-runs replace, not duplicate).
+          gh release upload "$TAG_NAME" canvas-mcp.mcpb --clobber
+          echo "mcpb_size=$(du -h canvas-mcp.mcpb | cut -f1)" >> "$GITHUB_OUTPUT"
+        id: mcpb
+
       - name: Summary
         run: |
           echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Tag:** ${{ steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
           echo "- **GitHub Release:** Created" >> $GITHUB_STEP_SUMMARY
+          echo "- **Desktop Extension:** canvas-mcp.mcpb (${{ steps.mcpb.outputs.mcpb_size }}) attached" >> $GITHUB_STEP_SUMMARY

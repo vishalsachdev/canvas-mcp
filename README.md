@@ -269,6 +269,16 @@ Works with any MCP-compatible client: [Claude Desktop](https://claude.ai/downloa
 
 Canvas MCP is compliant with Canvas LMS API 2024-2026 requirements (User-Agent header, `per_page` pagination). Works with Canvas Cloud and self-hosted instances.
 
+## Install as a Claude Desktop Extension (easiest)
+
+If you use **Claude Desktop**, you can install Canvas MCP with one click — no terminal, no config-file editing:
+
+1. Download `canvas-mcp.mcpb` from the [latest release](https://github.com/vishalsachdev/canvas-mcp/releases/latest).
+2. Double-click the file (or drag it into Claude Desktop → Settings → Extensions).
+3. When prompted, enter your **Canvas API URL** (e.g. `https://canvas.youruniversity.edu`) and your **Canvas API token** (Canvas → Account → Settings → New Access Token). The token is stored in your OS keychain.
+
+The extension runs the server locally and calls Canvas with **your own** token — every action runs under your own Canvas role and audit trail. Requires Python 3.10+ (the bundled runtime manages dependencies automatically). For other clients, or to run from source, use the manual setup below.
+
 ## Local Installation
 
 ### 1. Install Dependencies
