@@ -12,7 +12,7 @@ Canvas MCP is built and operated by me (netid vishal), running on University
 Azure (subscription urbana-business-disruptionlab). Could ITP add:
 
   • CNAME  canvas-mcp.disruptionlab.illinois.edu
-           ->  gies-canvas-mcp-staging.azurewebsites.net
+           ->  gies-canvas-mcp.azurewebsites.net
 
   • TXT    asuid.canvas-mcp.disruptionlab.illinois.edu
            F8E842062F6451724C1F92914D09E0721596D0D79DA568EE28429F3ADED767A3

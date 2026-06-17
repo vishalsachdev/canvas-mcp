@@ -1,74 +1,74 @@
 {
-  "collected_at": "2026-06-08T14:00:19Z",
+  "collected_at": "2026-06-15T14:17:22Z",
   "github": {
-    "stars": 142,
-    "forks": 39,
+    "stars": 145,
+    "forks": 41,
     "contributors": 12,
-    "open_issues": 4,
-    "views_14d": 733,
-    "views_14d_unique": 331,
-    "clones_14d": 962,
-    "clones_14d_unique": 328,
+    "open_issues": 7,
+    "views_14d": 738,
+    "views_14d_unique": 361,
+    "clones_14d": 1572,
+    "clones_14d_unique": 494,
     "referrers": [
       {
         "referrer": "Google",
-        "count": 284,
-        "uniques": 196
+        "count": 335,
+        "uniques": 213
       },
       {
         "referrer": "github.com",
-        "count": 104,
-        "uniques": 51
-      },
-      {
-        "referrer": "statics.teams.cdn.office.net",
-        "count": 20,
-        "uniques": 5
-      },
-      {
-        "referrer": "reddit.com",
-        "count": 17,
-        "uniques": 12
+        "count": 84,
+        "uniques": 44
       },
       {
         "referrer": "Bing",
-        "count": 16,
-        "uniques": 9
-      },
-      {
-        "referrer": "search.brave.com",
-        "count": 8,
-        "uniques": 7
+        "count": 26,
+        "uniques": 15
       },
       {
         "referrer": "canvas-mcp.illinihunt.org",
-        "count": 8,
+        "count": 17,
+        "uniques": 9
+      },
+      {
+        "referrer": "statics.teams.cdn.office.net",
+        "count": 17,
+        "uniques": 2
+      },
+      {
+        "referrer": "reddit.com",
+        "count": 14,
+        "uniques": 10
+      },
+      {
+        "referrer": "DuckDuckGo",
+        "count": 5,
         "uniques": 5
+      },
+      {
+        "referrer": "search.brave.com",
+        "count": 5,
+        "uniques": 5
+      },
+      {
+        "referrer": "moonshot.feishu.cn",
+        "count": 5,
+        "uniques": 1
       },
       {
         "referrer": "yf2ljykclb.xfchat.iflytek.com",
         "count": 3,
         "uniques": 2
-      },
-      {
-        "referrer": "word-edit.officeapps.live.com",
-        "count": 2,
-        "uniques": 2
-      },
-      {
-        "referrer": "DuckDuckGo",
-        "count": 1,
-        "uniques": 1
       }
     ]
   },
   "pypi": {
-    "last_day": 17,
-    "last_week": 213,
-    "last_month": 514
+    "last_day": 6,
+    "last_week": 102,
+    "last_month": 521
   },
   "npm": {
-    "last_month": 69
+    "last_month": 68
   },
   "history": [
     {
@@ -196,6 +196,15 @@
       "npm_month": 69,
       "views_unique": 331,
       "clones_unique": 328
+    },
+    {
+      "date": "2026-06-15",
+      "stars": 145,
+      "forks": 41,
+      "pypi_month": 521,
+      "npm_month": 68,
+      "views_unique": 361,
+      "clones_unique": 494
     }
   ]
 }

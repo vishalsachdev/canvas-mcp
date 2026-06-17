@@ -1,0 +1,33 @@
+To: consult@illinois.edu (reply on the same Canvas MCP / disruptionlab.illinois.edu thread)
+Subject: RE: Canvas MCP DNS — CNAME target is missing the "gies-" prefix
+
+Hi, and thanks for creating these.
+
+One small fix needed on the CNAME — the target is missing the "gies-" prefix,
+so it currently points at a hostname that doesn't exist.
+
+What's live right now:
+
+  • CNAME  canvas-mcp.disruptionlab.illinois.edu
+           ->  canvas-mcp.azurewebsites.net        ← no such app (dead end)
+
+What it should be (matches the target in your own confirmation note):
+
+  • CNAME  canvas-mcp.disruptionlab.illinois.edu
+           ->  gies-canvas-mcp.azurewebsites.net   ← our App Service
+
+The TXT record is correct as-is — no change needed there:
+
+  • TXT    asuid.canvas-mcp.disruptionlab.illinois.edu
+           F8E842062F6451724C1F92914D09E0721596D0D79DA568EE28429F3ADED767A3
+
+Once the CNAME points at gies-canvas-mcp.azurewebsites.net I'll bind the custom
+domain + managed cert on the App Service side. Quick confirmation: I verified
+the current record with `dig` — canvas-mcp.azurewebsites.net returns no address,
+while gies-canvas-mcp.azurewebsites.net resolves correctly.
+
+Thanks!
+
+Vishal Sachdev
+Gies College of Business
+vishal@illinois.edu
