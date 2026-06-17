@@ -21,7 +21,7 @@ concurrency:
 env:
   REGISTRY: giescanvasmcpacr.azurecr.io
   IMAGE: canvas-mcp
-  APP_NAME: gies-canvas-mcp
+  APP_NAME: canvas-mcp
 
 jobs:
   build-and-deploy:
