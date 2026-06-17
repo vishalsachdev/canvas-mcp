@@ -93,3 +93,6 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Private hosted-deployment ops (Gies-internal, not public)
+docs/*.local.md
