@@ -96,3 +96,6 @@ Thumbs.db
 
 # Private hosted-deployment ops (Gies-internal, not public)
 docs/*.local.md
+
+# Internal compliance email drafts (not public)
+docs/compliance/
