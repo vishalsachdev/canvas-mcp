@@ -60,6 +60,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `create_assignment` | Create new assignment with due date, submission types, peer reviews |
 | `update_assignment` | Update existing assignment (name, due date, points, published, etc.) |
 | `get_student_analytics` | Individual student performance |
+| `check_enrollment` | Is a given NetID enrolled in a course? Returns yes/no only, never the roster |
 | `list_rubrics` | List rubrics in a course |
 | `get_rubric` | View rubric details (by rubric_id or assignment_id) |
 | `get_rubric_assessment` | View rubric assessment for a student submission |

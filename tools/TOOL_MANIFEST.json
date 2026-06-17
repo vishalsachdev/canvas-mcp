@@ -589,6 +589,41 @@
         "Send reminders to all students who haven't submitted"
       ],
       "notes": "Use search_canvas_tools first to discover available imports. Best for 30+ items."
+    },
+    {
+      "name": "check_enrollment",
+      "category": "educator",
+      "description": "Check whether a specific NetID is enrolled in a course (yes/no, never the roster)",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string",
+          "required": true,
+          "description": "Course code, numeric ID, or SIS ID"
+        },
+        {
+          "name": "net_id",
+          "type": "string",
+          "required": true,
+          "description": "Campus NetID to check (matched against login_id, then sis_user_id)"
+        },
+        {
+          "name": "role",
+          "type": "string",
+          "required": false,
+          "default": "student",
+          "description": "Enrollment type that satisfies the check: student, teacher, ta, observer, designer, or any"
+        },
+        {
+          "name": "active_only",
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Only count active enrollments"
+        }
+      ],
+      "returns": "Yes/no plus minimal enrollment metadata (state, role, matched field) — never the roster",
+      "notes": "Data-minimizing roster-membership check for external access gating. Requires a teacher-scoped token; a student token yields a clean Canvas 403."
     }
   ],
   "workflows": [

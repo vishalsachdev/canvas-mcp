@@ -402,6 +402,24 @@ Multi-dimensional student performance analysis.
 
 ---
 
+#### `check_enrollment`
+Check whether a specific NetID is enrolled in a course. Answers a roster-membership question about an externally-supplied person (not the caller) and returns **only** a yes/no plus minimal enrollment metadata — never the roster, names, or grades. Requires a teacher-scoped Canvas token (a student token returns a clean Canvas 403).
+
+**Parameters:**
+- `course_identifier`: Course code, numeric ID, or SIS ID
+- `net_id`: Campus NetID to check (matched case-insensitively against `login_id`, then `sis_user_id`)
+- `role` (optional): Enrollment type that satisfies the check — `student` (default), `teacher`, `ta`, `observer`, `designer`, or `any`
+- `active_only` (optional): Only count active enrollments (default `true`)
+
+**Example:**
+```
+"Is netid jdoe2 enrolled in BADM 350?"
+```
+
+**Returns:** A yes/no answer with the enrollment state, role, and which field matched. Data-minimizing by design — built for external access gating (e.g. UniQuick) without exposing the class roster.
+
+---
+
 ### Peer Review Management
 
 #### `list_peer_reviews`
