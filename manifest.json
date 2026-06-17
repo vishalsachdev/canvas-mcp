@@ -1,0 +1,51 @@
+{
+  "manifest_version": "0.2",
+  "name": "canvas-mcp",
+  "display_name": "Canvas MCP",
+  "version": "1.3.0",
+  "description": "Work with your Canvas LMS courses through an AI assistant — assignments, grading with rubrics, discussions, peer-review analytics, messaging, and more.",
+  "long_description": "Canvas MCP gives an MCP client (Claude Desktop, etc.) ~90 tools for Canvas LMS: list/manage courses, assignments and submissions, grade with rubrics, facilitate discussions, run peer-review and student analytics, send messages, and audit course content for accessibility. It runs locally as a stdio server and calls Canvas with YOUR own Canvas API token — every action runs under your own Canvas role and audit trail.",
+  "author": {
+    "name": "Vishal Sachdev",
+    "url": "https://github.com/vishalsachdev"
+  },
+  "homepage": "https://github.com/vishalsachdev/canvas-mcp",
+  "documentation": "https://github.com/vishalsachdev/canvas-mcp/blob/main/README.md",
+  "support": "https://github.com/vishalsachdev/canvas-mcp/issues",
+  "license": "MIT",
+  "keywords": ["canvas", "lms", "education", "grading", "mcp"],
+  "server": {
+    "type": "python",
+    "entry_point": "src/canvas_mcp/server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--directory", "${__dirname}", "canvas-mcp-server"],
+      "env": {
+        "CANVAS_API_URL": "${user_config.canvas_api_url}",
+        "CANVAS_API_TOKEN": "${user_config.canvas_api_token}"
+      }
+    }
+  },
+  "user_config": {
+    "canvas_api_url": {
+      "type": "string",
+      "title": "Canvas API URL",
+      "description": "Your institution's Canvas base URL, e.g. https://canvas.illinois.edu",
+      "required": true
+    },
+    "canvas_api_token": {
+      "type": "string",
+      "title": "Canvas API Token",
+      "description": "A Canvas personal access token (Account → Settings → New Access Token). Stored securely in your OS keychain.",
+      "sensitive": true,
+      "required": true
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  }
+}

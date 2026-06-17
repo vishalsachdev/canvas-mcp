@@ -99,3 +99,6 @@ docs/*.local.md
 
 # Internal compliance email drafts (not public)
 docs/compliance/
+
+# Claude Desktop Extension build artifact
+*.mcpb

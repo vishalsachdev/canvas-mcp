@@ -1,0 +1,15 @@
+# Allowlist: ignore everything at the repo root, then un-ignore ONLY what the
+# Python server needs at runtime. This keeps the bundle minimal and prevents
+# shipping internal/ops files (CLAUDE.md, deploy/, docs/, etc.) to end users.
+/*
+!/manifest.json
+!/pyproject.toml
+!/uv.lock
+!/LICENSE
+!/README.md
+!/env.template
+!/src
+
+# Drop Python caches even within src/
+**/__pycache__/
+*.pyc
