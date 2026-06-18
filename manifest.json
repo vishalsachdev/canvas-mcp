@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "canvas-mcp",
   "display_name": "Canvas MCP",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Work with your Canvas LMS courses through an AI assistant — assignments, grading with rubrics, discussions, peer-review analytics, messaging, and more.",
   "long_description": "Canvas MCP gives an MCP client (Claude Desktop, etc.) ~90 tools for Canvas LMS: list/manage courses, assignments and submissions, grade with rubrics, facilitate discussions, run peer-review and student analytics, send messages, and audit course content for accessibility. It runs locally as a stdio server and calls Canvas with YOUR own Canvas API token — every action runs under your own Canvas role and audit trail.",
   "author": {

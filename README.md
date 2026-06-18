@@ -125,18 +125,19 @@ Canvas MCP provides **90 tools** for interacting with Canvas LMS. Tools are orga
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data through any MCP-compatible client.
 
-## Latest Release: v1.3.0
+## Latest Release: v1.4.0
 
-**Released:** May 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
+**Released:** June 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
 
-- **`create_rubric`** — Programmatic rubric creation with criteria, ratings, and optional assignment association (PR #100)
-- **`read_course_file`** — Read Canvas file content for remote MCP deployments ([@DomBarker99](https://github.com/DomBarker99), PR #90)
-- **Event-loop fix** — Resolves "Event loop is closed" on user-scoped tools (`get_my_todo_items`, `get_my_upcoming_assignments`, etc.) (PR #99)
-- **⚠️ Bulk-delete safety** — `bulk_delete_announcements` now caps at 25 IDs by default; pass `limit=N` to override or `dry_run=True` to preview. **Existing callers passing >25 IDs must add `limit=N` explicitly.** (PR #96)
-- **Maintenance** — Drop unused `fastmcp` dep, pin `mcp>=1.26,<2`, prune ~30 transitive deps (PR #93)
+- **`check_enrollment`** — data-minimizing "is this NetID enrolled in the course?" check; returns only a yes/no plus minimal metadata, never the roster (teacher-scoped, PR #126)
+- **Claude Desktop Extension (`.mcpb`)** — one-click install in Claude Desktop (no terminal, no config-file editing); attached to each GitHub Release
+- **Authenticated institutional hosting** — Microsoft Entra ID (Azure AD) platform authentication for in-tenant App Service deployments ([#115](https://github.com/vishalsachdev/canvas-mcp/issues/115), PR #125)
+- **Security** — HTTP mode now fails closed without an auth gate configured (PR #123)
 
 <details>
 <summary>Previous releases</summary>
+
+**v1.3.0** — `create_rubric` (PR #100), `read_course_file` ([@DomBarker99](https://github.com/DomBarker99), PR #90), event-loop fix for user-scoped tools (PR #99), bulk-delete safety cap (PR #96), dependency pruning (PR #93)
 
 **v1.2.0** — Role-Based Tool Filtering ([@Promithius-DR](https://github.com/Promithius-DR), PR #84), Accessibility Remediation (`fix_accessibility_issues`, scanner expanded 4→20 checks), Security Hardening (path traversal/symlink protections), Windows Support for `execute_typescript` (PR #85), CI consolidation (11→8 checks)
 

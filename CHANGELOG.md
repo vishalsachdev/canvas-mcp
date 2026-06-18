@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-06-17
+
+### Added
+- **`check_enrollment` tool** — a data-minimizing roster-membership check (is a given NetID enrolled in a course?). Returns only a yes/no plus minimal enrollment metadata, never the roster, names, or grades. Requires a teacher-scoped token ([#126](https://github.com/vishalsachdev/canvas-mcp/pull/126)).
+- **Claude Desktop Extension (`.mcpb`)** — one-click install in Claude Desktop (no terminal, no config-file editing). Built and attached to each GitHub Release automatically; prompts for your Canvas URL + token (stored in the OS keychain).
+
+### Changed
+- **Authenticated institutional hosted deployment.** The HTTP/streamable transport now supports Microsoft Entra ID (Azure AD) platform authentication fronting App Service, so an in-tenant institutional deployment can require campus identity per request ([#115](https://github.com/vishalsachdev/canvas-mcp/issues/115), [#125](https://github.com/vishalsachdev/canvas-mcp/pull/125)).
+
 ### Security
+- **HTTP mode fails closed.** The server refuses to start in HTTP mode without an auth gate configured, unless `MCP_ALLOW_UNAUTHENTICATED=true` is explicitly set for an externally-authenticated front (e.g. Entra) ([#123](https://github.com/vishalsachdev/canvas-mcp/pull/123)).
 - **Retired the public hosted server (`mcp.illinihunt.org`).** It had been
   deployed without an authentication gate, which left the sandboxed
   `execute_typescript` tool and an unvalidated `X-Canvas-URL` (SSRF shape)
