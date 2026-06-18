@@ -65,6 +65,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `get_rubric` | View rubric details (by rubric_id or assignment_id) |
 | `get_rubric_assessment` | View rubric assessment for a student submission |
 | `create_rubric` | Create rubric with criteria, ratings, and optional assignment association |
+| `create_rubric_from_csv` | Create rubric from a CSV string |
 | `associate_rubric` | Associate existing rubric with an assignment |
 | `grade_with_rubric` | Grade single submission with rubric |
 | `bulk_grade_submissions` | Grade multiple submissions efficiently |

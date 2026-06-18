@@ -204,7 +204,8 @@ async def make_canvas_request(
     params: dict[str, Any] | None = None,
     data: dict[str, Any] | None = None,
     use_form_data: bool = False,
-    skip_anonymization: bool = False
+    skip_anonymization: bool = False,
+    files: dict[str, tuple[str, bytes, str]] | None = None
 ) -> Any:
     """Make a request to the Canvas API with proper error handling.
 
@@ -217,6 +218,7 @@ async def make_canvas_request(
         data: Request body data
         use_form_data: Use form data instead of JSON
         skip_anonymization: Skip anonymization (used by paginated fetchers)
+        files: Dictionary of file objects for multipart form uploads
     """
 
     from .audit import log_data_access
@@ -268,7 +270,9 @@ async def make_canvas_request(
                     if method.lower() == "get":
                         response = await client.get(url, params=params)
                     elif method.lower() == "post":
-                        if use_form_data:
+                        if files:
+                            response = await client.post(url, data=data, files=files)
+                        elif use_form_data:
                             # Handle list of tuples separately to work around httpx async bug
                             # with duplicate keys (e.g., module[prerequisite_module_ids][])
                             if isinstance(data, list):
