@@ -753,6 +753,7 @@ class TestHttpAccessKeyStartupGuard:
         # Clean slate: required HTTP env, no server token, plus test overrides.
         monkeypatch.setenv("CANVAS_API_URL", "https://canvas.illinois.edu/api/v1")
         monkeypatch.delenv("CANVAS_API_TOKEN", raising=False)
+        monkeypatch.delenv("CANVAS_SESSION_COOKIE", raising=False)
         monkeypatch.delenv("MCP_ACCESS_KEYS", raising=False)
         monkeypatch.delenv("MCP_ALLOW_UNAUTHENTICATED", raising=False)
         monkeypatch.delenv("ENTRA_AUTH_ENABLED", raising=False)

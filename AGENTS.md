@@ -10,11 +10,11 @@ Canvas MCP is a Model Context Protocol server that bridges AI assistants with Ca
 
 ## Authentication
 
-All tools require a valid Canvas API token.
+All tools require valid Canvas credentials — either an API token or a session cookie.
 
 > **Note:** The public hosted server (`mcp.illinihunt.org`) has been **retired** — a public MCP endpoint without an access gate would expose the code-execution tool. Use local (self-hosted) mode below. The HTTP/streamable transport remains supported for self-hosting behind your own authentication; an authenticated institutional deployment is tracked in [#115](https://github.com/vishalsachdev/canvas-mcp/issues/115).
 
-### Local (Self-Hosted)
+### Local (Self-Hosted) — API Token (Recommended)
 Configure credentials in the MCP server's `.env` file:
 ```
 CANVAS_API_TOKEN=your_token_here
@@ -22,6 +22,37 @@ CANVAS_API_URL=https://your-institution.instructure.com/api/v1
 ```
 
 Students and educators use the same server but have access to different tools based on Canvas API permissions.
+
+### Local (Self-Hosted) — Session Cookie (Alternative)
+If you cannot generate a Canvas API token (e.g. your institution restricts token creation), you can authenticate using the `canvas_session` cookie from an active browser session instead:
+
+```
+CANVAS_SESSION_COOKIE=<value of the canvas_session cookie>
+CANVAS_API_URL=https://your-institution.instructure.com/api/v1
+```
+
+To get the cookie value: open Canvas in your browser → DevTools → Application → Cookies → copy the value of `canvas_session` (everything after `canvas_session=`).
+
+> **Limitations:** Session cookies expire when your browser session ends (typically hours, not days). The session cookie auth path is not officially documented by Instructure and may stop working without notice. **API tokens are strongly preferred.** Do not set `CANVAS_SESSION_COOKIE` and `CANVAS_API_TOKEN` at the same time — the API token takes precedence.
+
+### HTTP Transport (Multi-User / Hosted)
+In HTTP mode each client supplies its own credentials per-request via headers. Set only `CANVAS_API_URL` on the server; do **not** set `CANVAS_API_TOKEN` or `CANVAS_SESSION_COOKIE` in the server's `.env`.
+
+| Header | Value |
+|--------|-------|
+| `X-Canvas-Token` | Canvas API token (preferred) |
+| `X-Canvas-Session-Cookie` | `canvas_session` cookie value (fallback) |
+| `X-MCP-Access-Key` | Gate key if `MCP_ACCESS_KEYS` is configured |
+
+When both `X-Canvas-Token` and `X-Canvas-Session-Cookie` are present, the API token takes precedence. A request with neither header is rejected with HTTP 401.
+
+**Troubleshooting:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `401 Missing credentials` | No token or cookie header sent | Add `X-Canvas-Token` or `X-Canvas-Session-Cookie` |
+| `401 Missing X-MCP-Access-Key` | Key gate active, no key provided | Add `X-MCP-Access-Key` header |
+| `401 Unauthorized` (Canvas) | Invalid/expired credentials | Regenerate token or refresh browser session |
 
 ### Tool Profile (Optional)
 Reduce tool overhead by setting a role-based profile. Only tools relevant to the selected role are registered:

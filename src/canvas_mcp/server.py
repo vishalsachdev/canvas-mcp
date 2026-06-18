@@ -9,8 +9,11 @@ academic tracking.
 
 Supports two transport modes:
 - stdio (default): Local process communication, credentials from .env
-- streamable-http: HTTP server, per-request token via X-Canvas-Token header;
-  the Canvas API URL is pinned by server config (CANVAS_API_URL), not the client.
+  (CANVAS_API_TOKEN or CANVAS_SESSION_COOKIE + CANVAS_API_URL).
+- streamable-http: HTTP server, per-request credentials via request headers.
+  Clients send either X-Canvas-Token (API token) or X-Canvas-Session-Cookie
+  (browser session cookie). The Canvas API URL is pinned by server config
+  (CANVAS_API_URL) — never supplied by the client.
 """
 
 import argparse
