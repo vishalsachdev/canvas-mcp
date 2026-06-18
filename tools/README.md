@@ -18,6 +18,14 @@ These tools provide students with personal academic tracking and organization ca
 
 ### Personal Organization
 
+
+#### 
+Create a rubric in a course using a CSV file upload.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `csv_content`: The content of the CSV file as a string
+
 #### `get_my_upcoming_assignments`
 Get your upcoming assignments across all enrolled courses.
 
