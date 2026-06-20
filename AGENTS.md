@@ -2,6 +2,18 @@
 
 This guide helps AI agents (Claude, Cursor, Zed, Windsurf, and other MCP clients) effectively use the Canvas MCP server.
 
+## Review Personas
+
+When reviewing or generating PRs, load the applicable persona checklist:
+
+| Change area | Persona file |
+|-------------|-------------|
+| `src/`, `Dockerfile`, `pyproject.toml`, deployment config | [`docs/review-personas/security.md`](docs/review-personas/security.md) |
+
+Personas are LLM-as-judge checklists distilled from real session bugfixes. Load the relevant one before self-reviewing any diff.
+
+---
+
 ## Quick Start
 
 Canvas MCP is a Model Context Protocol server that bridges AI assistants with Canvas Learning Management System. It provides tools for students to track their academic work and for educators to manage courses, grade assignments, and communicate with students.
