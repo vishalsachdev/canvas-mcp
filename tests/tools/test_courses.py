@@ -88,7 +88,8 @@ class TestListCoursesParams:
 
     @pytest.mark.asyncio
     async def test_include_all_returns_full_history(self):
-        """include_all=True is the escape hatch: no role/active filtering."""
+        """include_all=True drops role/active scoping; state[] still defaults to
+        ['available'] (use include_concluded to also surface past courses)."""
         params = await self._call_and_get_params(role="student", include_all=True)
         assert "enrollment_type" not in params
         assert "enrollment_state" not in params

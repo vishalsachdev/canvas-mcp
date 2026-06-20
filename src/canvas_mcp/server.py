@@ -514,6 +514,10 @@ def main() -> None:
     if role not in ("student", "educator", "all"):
         log_warning(f"Unknown role '{role}', defaulting to 'all'")
         role = "all"
+    # Make the resolved role authoritative so runtime tool behavior (e.g.
+    # list_courses reading get_config().canvas_role) matches the registered
+    # profile even when the CLI --role flag overrides the CANVAS_ROLE env var.
+    config.canvas_role = role
     log_info(f"Tool profile: {role}")
     register_all_tools(mcp, role=role)
 
