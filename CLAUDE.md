@@ -241,7 +241,7 @@ of this (public) repo. All operational detail lives in the **gitignored** `docs/
   is operator-only.
 
 ## Session Log
-> Full history: [docs/session-history.md](./docs/session-history.md)
+> Full history: [internal/session-history.md](./internal/session-history.md)
 
 ### 2026-06-17 — mcp-remote blocker RESOLVED + app→`canvas-mcp` + branch→slot CI
 - **🏁 The `AADSTS9010010` blocker is gone — verified live.** DNS landed (CNAME + asuid), bound the private custom domain + GeoTrust managed cert to the app; PRM `resource` now == the registered App ID URI, and added that URI to Easy Auth `allowedAudiences` (RFC 8707 token `aud`). Ran `mcp-remote` end-to-end against the custom domain: token exchange + MCP session succeed. (Endpoint/IDs in gitignored `docs/ops-hosted.local.md`.) **All clients (Claude Desktop/Code, Cursor, Codex, VS Code) work.**
