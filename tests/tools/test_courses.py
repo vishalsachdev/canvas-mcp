@@ -138,8 +138,9 @@ class TestGetSyllabus:
         assert "Grading Policy" in result
         assert "[truncated" not in result  # explicit truncation marker must be absent
         # include[]=syllabus_body must be requested
-        _, kwargs = mock_api['make_canvas_request'].call_args
-        assert kwargs["params"] == {"include[]": "syllabus_body"}
+        mock_api['make_canvas_request'].assert_called_once_with(
+            "get", "/courses/60366", params={"include[]": "syllabus_body"}
+        )
 
     @pytest.mark.asyncio
     async def test_html_format_returns_raw_body(self, mock_api):
@@ -195,6 +196,15 @@ class TestGetSyllabus:
         mock_api['make_canvas_request'].assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_max_chars_negative_rejected(self, mock_api):
+        """Negative max_chars is rejected by the same positive-int guard."""
+        get_syllabus = get_tool_function('get_syllabus')
+        result = await get_syllabus("CS101", max_chars=-5)
+
+        assert "max_chars must be a positive integer" in result
+        mock_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_empty_syllabus(self, mock_api):
         mock_api['make_canvas_request'].return_value = {
             "course_code": "CS101",
@@ -230,6 +240,8 @@ class TestGetSyllabus:
         result = await get_syllabus("CS101", output_format="pdf")
 
         assert "invalid output_format" in result
+        # Validation happens before I/O — Canvas is never hit.
+        mock_api['make_canvas_request'].assert_not_called()
 
     @pytest.mark.asyncio
     async def test_api_error(self, mock_api):
