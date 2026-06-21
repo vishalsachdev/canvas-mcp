@@ -32,6 +32,10 @@ def strip_html_tags(html_content: str) -> str:
 
     text = html_content
 
+    # Drop <script>/<style> blocks entirely so their JS/CSS contents don't
+    # leak into the plain-text output.
+    text = re.sub(r'(?is)<(script|style)\b[^>]*>.*?</\1>', '', text)
+
     # Normalize <br> and block-level boundaries to newlines so content across
     # tag boundaries is separated instead of concatenated.
     text = re.sub(r'(?i)<\s*br\s*/?\s*>', '\n', text)

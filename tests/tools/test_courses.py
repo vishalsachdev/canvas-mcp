@@ -70,6 +70,17 @@ class TestStripHtmlTags:
         result = strip_html_tags(html)
         assert result == "Hello World&More"
 
+    def test_strip_script_and_style_blocks(self):
+        """<script>/<style> block contents must not leak into plain text."""
+        html_content = (
+            "<style>.a{color:red}</style><p>Real content</p>"
+            "<script>alert('x')</script>"
+        )
+        result = strip_html_tags(html_content)
+        assert "Real content" in result
+        assert "color:red" not in result
+        assert "alert" not in result
+
     def test_strip_extended_entities(self):
         """Entities beyond the old 5-entry table (smart quotes, dashes, hex) decode."""
         html_content = "<p>Weeks 1&ndash;3 use the instructor&rsquo;s &#x201C;rubric&#x201D;</p>"
@@ -242,6 +253,19 @@ class TestGetSyllabus:
         mock_api['make_canvas_request'].return_value = {
             "course_code": "CS101",
             "syllabus_body": "",
+        }
+
+        get_syllabus = get_tool_function('get_syllabus')
+        result = await get_syllabus("CS101")
+
+        assert "No syllabus content found" in result
+
+    @pytest.mark.asyncio
+    async def test_whitespace_only_syllabus(self, mock_api):
+        """A whitespace-only body is treated as no content."""
+        mock_api['make_canvas_request'].return_value = {
+            "course_code": "CS101",
+            "syllabus_body": "   \n  ",
         }
 
         get_syllabus = get_tool_function('get_syllabus')
