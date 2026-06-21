@@ -124,6 +124,65 @@ def register_course_tools(mcp: FastMCP):
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
+    async def get_syllabus(course_identifier: str | int,
+                           output_format: str = "text",
+                           max_chars: int | None = None) -> str:
+        """Get the complete Canvas Syllabus tab content for a course, untruncated.
+
+        Unlike get_course_content_overview (which returns only a ~1000-char
+        preview), this returns the full syllabus body so later sections such as
+        grading policies, weighting, and final-exam details remain accessible.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            output_format: "text" (plain text, default), "html" (raw HTML body),
+                or "both" (plain text followed by raw HTML)
+            max_chars: Optional cap on the returned characters per section. When
+                set and exceeded, the content is truncated with an explicit
+                "[truncated...]" marker. Defaults to None (no truncation).
+        """
+        course_id = await get_course_id(course_identifier)
+
+        response = await make_canvas_request(
+            "get",
+            f"/courses/{course_id}",
+            params={"include[]": "syllabus_body"},
+        )
+
+        if "error" in response:
+            return f"Error fetching syllabus: {response['error']}"
+
+        course_display = response.get("course_code", course_identifier)
+        syllabus_body = response.get("syllabus_body") or ""
+
+        if not syllabus_body.strip():
+            return f"No syllabus content found for course {course_display}."
+
+        fmt = (output_format or "text").lower()
+        if fmt not in ("text", "html", "both"):
+            return (
+                f"Error: invalid output_format '{output_format}'. "
+                "Use 'text', 'html', or 'both'."
+            )
+
+        def _maybe_truncate(text: str) -> str:
+            if max_chars is not None and max_chars > 0 and len(text) > max_chars:
+                return text[:max_chars] + f"\n\n...[truncated at {max_chars} characters]"
+            return text
+
+        sections = [f"Syllabus for Course {course_display}:"]
+
+        if fmt in ("text", "both"):
+            plain_text = strip_html_tags(syllabus_body)
+            sections.append("\n--- Plain Text ---\n" + _maybe_truncate(plain_text))
+
+        if fmt in ("html", "both"):
+            sections.append("\n--- Raw HTML ---\n" + _maybe_truncate(syllabus_body))
+
+        return "\n".join(sections)
+
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @validate_params
     async def get_course_content_overview(course_identifier: str | int,
                                         include_pages: bool = True,
                                         include_modules: bool = True,

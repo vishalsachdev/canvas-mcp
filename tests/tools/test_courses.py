@@ -9,6 +9,40 @@ import pytest
 from canvas_mcp.tools.courses import strip_html_tags
 
 
+def get_tool_function(tool_name: str):
+    """Capture a registered course tool function by name without MCP plumbing."""
+    from mcp.server.fastmcp import FastMCP
+
+    from canvas_mcp.tools.courses import register_course_tools
+
+    mcp = FastMCP("test")
+    captured_functions = {}
+    original_tool = mcp.tool
+
+    def capturing_tool(*args, **kwargs):
+        decorator = original_tool(*args, **kwargs)
+
+        def wrapper(fn):
+            captured_functions[fn.__name__] = fn
+            return decorator(fn)
+
+        return wrapper
+
+    mcp.tool = capturing_tool
+    register_course_tools(mcp)
+
+    return captured_functions.get(tool_name)
+
+
+# A syllabus longer than the 1000-char overview preview, to prove no truncation.
+LONG_SYLLABUS_HTML = (
+    "<h2>Course Syllabus</h2>"
+    "<p>" + ("Intro content. " * 80) + "</p>"
+    "<h3>Grading Policy</h3>"
+    "<p>Final exam is weighted at 40% of the total grade.</p>"
+)
+
+
 class TestStripHtmlTags:
     """Test HTML stripping utility function."""
 
@@ -74,6 +108,114 @@ class TestCourseToolsIntegration:
 
             assert isinstance(result, dict)
             assert "error" in result
+
+
+class TestGetSyllabus:
+    """Tests for the get_syllabus tool."""
+
+    @pytest.fixture
+    def mock_api(self):
+        with patch('canvas_mcp.tools.courses.get_course_id', new_callable=AsyncMock) as mock_id, \
+             patch('canvas_mcp.tools.courses.make_canvas_request', new_callable=AsyncMock) as mock_req:
+            mock_id.return_value = "60366"
+            yield {'get_course_id': mock_id, 'make_canvas_request': mock_req}
+
+    @pytest.mark.asyncio
+    async def test_returns_full_syllabus_no_truncation(self, mock_api):
+        """The full syllabus is returned, including content past the old 1000-char preview."""
+        mock_api['make_canvas_request'].return_value = {
+            "course_code": "CS101",
+            "syllabus_body": LONG_SYLLABUS_HTML,
+        }
+
+        get_syllabus = get_tool_function('get_syllabus')
+        assert get_syllabus is not None
+
+        result = await get_syllabus("CS101")
+
+        # The grading section lives well past 1000 chars and must not be cut.
+        assert "Final exam is weighted at 40%" in result
+        assert "Grading Policy" in result
+        assert "..." not in result.split("Plain Text")[-1][:50]  # no silent ellipsis marker
+        # include[]=syllabus_body must be requested
+        _, kwargs = mock_api['make_canvas_request'].call_args
+        assert kwargs["params"] == {"include[]": "syllabus_body"}
+
+    @pytest.mark.asyncio
+    async def test_html_format_returns_raw_body(self, mock_api):
+        """output_format='html' returns the raw HTML, not stripped text."""
+        mock_api['make_canvas_request'].return_value = {
+            "course_code": "CS101",
+            "syllabus_body": "<p>Hello <strong>World</strong></p>",
+        }
+
+        get_syllabus = get_tool_function('get_syllabus')
+        result = await get_syllabus("CS101", output_format="html")
+
+        assert "<strong>World</strong>" in result
+        assert "Raw HTML" in result
+
+    @pytest.mark.asyncio
+    async def test_both_format_includes_text_and_html(self, mock_api):
+        mock_api['make_canvas_request'].return_value = {
+            "course_code": "CS101",
+            "syllabus_body": "<p>Hello World</p>",
+        }
+
+        get_syllabus = get_tool_function('get_syllabus')
+        result = await get_syllabus("CS101", output_format="both")
+
+        assert "Plain Text" in result
+        assert "Raw HTML" in result
+        assert "Hello World" in result
+        assert "<p>Hello World</p>" in result
+
+    @pytest.mark.asyncio
+    async def test_max_chars_truncates_explicitly(self, mock_api):
+        """max_chars truncates but flags it — no silent truncation."""
+        mock_api['make_canvas_request'].return_value = {
+            "course_code": "CS101",
+            "syllabus_body": "<p>" + ("word " * 200) + "</p>",
+        }
+
+        get_syllabus = get_tool_function('get_syllabus')
+        result = await get_syllabus("CS101", output_format="text", max_chars=50)
+
+        assert "[truncated at 50 characters]" in result
+
+    @pytest.mark.asyncio
+    async def test_empty_syllabus(self, mock_api):
+        mock_api['make_canvas_request'].return_value = {
+            "course_code": "CS101",
+            "syllabus_body": "",
+        }
+
+        get_syllabus = get_tool_function('get_syllabus')
+        result = await get_syllabus("CS101")
+
+        assert "No syllabus content found" in result
+
+    @pytest.mark.asyncio
+    async def test_invalid_format(self, mock_api):
+        mock_api['make_canvas_request'].return_value = {
+            "course_code": "CS101",
+            "syllabus_body": "<p>Hello</p>",
+        }
+
+        get_syllabus = get_tool_function('get_syllabus')
+        result = await get_syllabus("CS101", output_format="pdf")
+
+        assert "invalid output_format" in result
+
+    @pytest.mark.asyncio
+    async def test_api_error(self, mock_api):
+        mock_api['make_canvas_request'].return_value = {"error": "Course not found"}
+
+        get_syllabus = get_tool_function('get_syllabus')
+        result = await get_syllabus("bad_course")
+
+        assert "Error fetching syllabus" in result
+        assert "Course not found" in result
 
 
 if __name__ == "__main__":
