@@ -46,7 +46,7 @@ wrong conclusions.
 |---|---|---|
 | Client → LLM | Claude Desktop/Code → third-party (Anthropic) API | In-tenant Azure OpenAI (enterprise agreement, no training) |
 | Canvas token | Operator's env (`CANVAS_API_TOKEN`) | Each caller's own token via `X-Canvas-Token` |
-| Endpoint gate | n/a (local) | SSO / Entra + `X-MCP-Access-Key`, fail-closed |
+| Endpoint gate | n/a (local) | SSO / Entra **or** `X-MCP-Access-Key` — mutually exclusive (the key gate is ignored when Entra is on; `server.py:148/372`); both fail-closed |
 | Anonymization (`enable_data_anonymization`) | **ON** by default (`config.py:79`, `=True`) | **OFF** by design (`Dockerfile`) — not the control here |
 | Code execution (`execute_typescript_enabled`) | **ON** by default (`config.py:100`, `=True`) | **OFF** by design (`Dockerfile`, `EXECUTE_TYPESCRIPT_ENABLED=false`) |
 | Privacy control | *Anonymize before a third-party model sees PII* | *Need-to-know token + SSO + in-tenant model + contract* |
@@ -154,9 +154,10 @@ the exact leakage the Python layer prevents.
 
 - **Self-hosted stdio (default config): affected.** The *code defaults* pair
   anonymization **on** (`config.py:79`) with code execution **on**
-  (`config.py:100`). A local user who trusts the anonymization promise can have
-  it silently bypassed the moment Claude reaches for `execute_typescript`. The
-  privacy guarantee is **transport-dependent**, not architectural.
+  (`config.py:100`). A local user (educator/`all` role — the tool is role-gated,
+  `server.py:246`) who trusts the anonymization promise can have it silently
+  bypassed the moment Claude reaches for `execute_typescript`. The privacy
+  guarantee is **transport-dependent**, not architectural.
 
 **The real issue is the default pairing, not the hosted deployment.** Options
 (self-hosted path only; none touch hosted SSO):
@@ -233,7 +234,7 @@ Each is annotated for hosted-SSO safety.
 | Anonymization default ON (code) | `src/canvas_mcp/core/config.py:79` (`=True`) |
 | Code execution default ON (code) | `src/canvas_mcp/core/config.py:100` (`=True`) |
 | Hosted image: code-exec + anon OFF | `Dockerfile` (`EXECUTE_TYPESCRIPT_ENABLED="false"`, `ENABLE_DATA_ANONYMIZATION="false"`) |
-| Code-exec tool only registered if enabled | `src/canvas_mcp/server.py:259` |
+| Code-exec tool registered only when enabled **and** role ∈ {educator, all} | `src/canvas_mcp/server.py:246,259` |
 | Raw token injected into sandbox | `src/canvas_mcp/tools/code_execution.py:62-64` |
 | TS client: raw bearer + verbatim JSON, no anonymization | `src/canvas_mcp/code_api/client.ts:89-132`; `grep -i anonymiz src/canvas_mcp/code_api/` → 0 |
 | Hosted privacy/compliance model | `docs/SECURITY-COMPLIANCE.md` |
