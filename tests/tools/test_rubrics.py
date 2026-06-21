@@ -466,17 +466,17 @@ class TestRubricTools:
             "course_identifier": "TEST101",
             "csv_content": "Title,Rating 1\nCrit,5",
         })
-        
+
         output = result[0][0].text
 
         assert mock_canvas_request.call_count == 2
-        
+
         # Verify first call
         first_call = mock_canvas_request.call_args_list[0]
         assert first_call[0][0] == "post"
         assert first_call[0][1] == "/courses/12345/rubrics/upload"
         assert "files" in first_call[1]
-        
+
         # Verify second call
         second_call = mock_canvas_request.call_args_list[1]
         assert second_call[0][0] == "get"
@@ -486,6 +486,42 @@ class TestRubricTools:
         assert "Import ID: 1234" in output
         assert "Created Rubric ID: 999" in output
         assert "Rubric Title: CSV Rubric" in output
+
+    @pytest.mark.asyncio
+    async def test_create_rubric_from_csv_upload_error(self, mcp, mock_canvas_request, mock_course_id, mock_course_code):
+        """An API error on the initial upload is surfaced and aborts before polling."""
+        mock_canvas_request.return_value = {"error": "Invalid CSV format"}
+
+        register_rubric_tools(mcp)
+        result = await mcp.call_tool("create_rubric_from_csv", {
+            "course_identifier": "TEST101",
+            "csv_content": "x",
+        })
+
+        output = result[0][0].text
+        assert "Error uploading rubric CSV" in output
+        assert "Invalid CSV format" in output
+        # Upload failed → no status polling
+        assert mock_canvas_request.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_create_rubric_from_csv_failed_state(self, mcp, mock_canvas_request, mock_course_id, mock_course_code):
+        """A terminal 'failed' workflow_state is reported without further polling."""
+        mock_canvas_request.side_effect = [
+            {"id": 1234, "workflow_state": "failed"},
+        ]
+
+        register_rubric_tools(mcp)
+        result = await mcp.call_tool("create_rubric_from_csv", {
+            "course_identifier": "TEST101",
+            "csv_content": "Title,Rating 1\nCrit,5",
+        })
+
+        output = result[0][0].text
+        # 'failed' is terminal → loop breaks immediately, no GET poll
+        assert mock_canvas_request.call_count == 1
+        assert "finished with status: failed" in output
+        assert "Created Rubric ID" not in output
 
 
 if __name__ == "__main__":

@@ -18,14 +18,6 @@ These tools provide students with personal academic tracking and organization ca
 
 ### Personal Organization
 
-
-#### 
-Create a rubric in a course using a CSV file upload.
-
-**Parameters:**
-- `course_identifier`: Course code or ID
-- `csv_content`: The content of the CSV file as a string
-
 #### `get_my_upcoming_assignments`
 Get your upcoming assignments across all enrolled courses.
 
@@ -282,13 +274,19 @@ Uses bracket-notation form-data encoding required by the Canvas rubric API.
 
 ---
 
-
 #### `create_rubric_from_csv`
-Create a rubric in a course using a CSV file upload.
+Create a rubric in a course from a CSV string using Canvas's native rubric CSV import endpoint. Uploads the CSV, then polls the import job until it succeeds or fails.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
-- `csv_content`: The content of the CSV file as a string
+- `csv_content`: The CSV content as a string (e.g. `"Title,Rating 1,Rating 2\nCriterion 1,10,5"`)
+
+**Example:**
+```
+"Create a rubric in CS101 from this CSV: Title,Excellent,Poor / Clarity,10,2"
+```
+
+---
 
 #### `list_rubrics`
 List all rubrics in a course.
