@@ -1,5 +1,6 @@
 """Course-related MCP tools for Canvas API."""
 
+import html
 import re
 
 from mcp.server.fastmcp import FastMCP
@@ -17,25 +18,51 @@ from ..core.validation import validate_params
 
 
 def strip_html_tags(html_content: str) -> str:
-    """Remove HTML tags and clean up text content."""
+    """Convert HTML to readable plain text.
+
+    Block-level elements (headings, paragraphs, list items, table rows, ``<br>``,
+    etc.) become line breaks so adjacent blocks don't run together — e.g.
+    ``<h3>Grading</h3><p>Final exam...</p>`` yields ``Grading\nFinal exam...``
+    rather than ``GradingFinal exam...``. Inline tags become a space. HTML
+    entities are decoded and excess whitespace collapsed (intra-line runs to a
+    single space; blank-line runs to at most one).
+    """
     if not html_content:
         return ""
 
-    # Remove HTML tags
-    clean_text = re.sub(r'<[^>]+>', '', html_content)
+    text = html_content
 
-    # Replace common HTML entities
-    clean_text = clean_text.replace('&nbsp;', ' ')
-    clean_text = clean_text.replace('&amp;', '&')
-    clean_text = clean_text.replace('&lt;', '<')
-    clean_text = clean_text.replace('&gt;', '>')
-    clean_text = clean_text.replace('&quot;', '"')
+    # Drop <script>/<style> blocks entirely so their JS/CSS contents don't
+    # leak into the plain-text output.
+    text = re.sub(r'(?is)<(script|style)\b[^>]*>.*?</\1>', '', text)
 
-    # Clean up whitespace
-    clean_text = re.sub(r'\s+', ' ', clean_text)
-    clean_text = clean_text.strip()
+    # Normalize <br> and block-level boundaries to newlines so content across
+    # tag boundaries is separated instead of concatenated.
+    text = re.sub(r'(?i)<\s*br\s*/?\s*>', '\n', text)
+    text = re.sub(
+        r'(?i)</\s*(?:p|div|h[1-6]|li|ul|ol|tr|table|thead|tbody|tfoot|'
+        r'section|article|header|footer|blockquote|pre)\s*>',
+        '\n',
+        text,
+    )
+    # Separate table cells within a row.
+    text = re.sub(r'(?i)</\s*(?:td|th)\s*>', '\t', text)
 
-    return clean_text
+    # Remove all remaining tags. Use a space so inline tags don't join words.
+    text = re.sub(r'<[^>]+>', ' ', text)
+
+    # Decode HTML entities (named, decimal, and hex) via the stdlib — covers
+    # smart quotes, dashes, accents, &nbsp;, etc. that Canvas content commonly
+    # uses, with no manual entity table to maintain.
+    text = html.unescape(text)
+
+    # Collapse intra-line whitespace but preserve line breaks. \xa0 (decoded
+    # from &nbsp;) is normalized to a regular space.
+    text = re.sub(r'[ \t\xa0]+', ' ', text)
+    text = re.sub(r' *\n *', '\n', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+
+    return text.strip()
 
 
 def register_course_tools(mcp: FastMCP):
@@ -121,6 +148,71 @@ def register_course_tools(mcp: FastMCP):
         # Prefer to show course code in the output
         course_display = response.get("course_code", course_identifier)
         return f"Course Details for {course_display}:\n\n" + "\n".join(details)
+
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @validate_params
+    async def get_syllabus(course_identifier: str | int,
+                           output_format: str = "text",
+                           max_chars: int | None = None) -> str:
+        """Get the complete Canvas Syllabus tab content for a course, untruncated.
+
+        Unlike get_course_content_overview (which returns only a ~1000-char
+        preview), this returns the full syllabus body so later sections such as
+        grading policies, weighting, and final-exam details remain accessible.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            output_format: "text" (plain text, default), "html" (raw HTML body),
+                or "both" (plain text followed by raw HTML)
+            max_chars: Optional positive cap on the returned characters per
+                section. When exceeded, the content is truncated with an explicit
+                "[truncated...]" marker. Defaults to None (no truncation).
+        """
+        # Validate inputs before any network I/O so bad arguments fail fast.
+        fmt = (output_format or "text").lower()
+        if fmt not in ("text", "html", "both"):
+            return (
+                f"Error: invalid output_format '{output_format}'. "
+                "Use 'text', 'html', or 'both'."
+            )
+        if max_chars is not None and max_chars <= 0:
+            return "Error: max_chars must be a positive integer (or omitted for no limit)."
+
+        course_id = await get_course_id(course_identifier)
+
+        response = await make_canvas_request(
+            "get",
+            f"/courses/{course_id}",
+            params={"include[]": "syllabus_body"},
+        )
+
+        if "error" in response:
+            return f"Error fetching syllabus: {response['error']}"
+
+        course_display = response.get("course_code", course_identifier)
+        syllabus_body = response.get("syllabus_body") or ""
+
+        if not syllabus_body.strip():
+            return f"No syllabus content found for course {course_display}."
+
+        def _maybe_truncate(text: str) -> str:
+            if max_chars is not None and len(text) > max_chars:
+                return text[:max_chars] + f"\n\n...[truncated at {max_chars} characters]"
+            return text
+
+        # Section headers only help disambiguate when both formats are present.
+        labeled = fmt == "both"
+        sections = [f"Syllabus for Course {course_display}:"]
+
+        if fmt in ("text", "both"):
+            plain_text = _maybe_truncate(strip_html_tags(syllabus_body))
+            sections.append(("\n--- Plain Text ---\n" if labeled else "\n") + plain_text)
+
+        if fmt in ("html", "both"):
+            raw_html = _maybe_truncate(syllabus_body)
+            sections.append(("\n--- Raw HTML ---\n" if labeled else "\n") + raw_html)
+
+        return "\n".join(sections)
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
