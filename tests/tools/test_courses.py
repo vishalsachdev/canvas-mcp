@@ -215,6 +215,21 @@ class TestGetSyllabus:
         assert "<p>Hello World</p>" in result
 
     @pytest.mark.asyncio
+    async def test_format_case_insensitive(self, mock_api):
+        """output_format is normalized with .lower() — 'Both' works like 'both'."""
+        mock_api['make_canvas_request'].return_value = {
+            "course_code": "CS101",
+            "syllabus_body": "<p>Hello</p>",
+        }
+
+        get_syllabus = get_tool_function('get_syllabus')
+        result = await get_syllabus("CS101", output_format="Both")
+
+        assert "invalid output_format" not in result
+        assert "Hello" in result
+        assert "<p>Hello</p>" in result  # 'both' includes the raw HTML section
+
+    @pytest.mark.asyncio
     async def test_max_chars_truncates_explicitly(self, mock_api):
         """max_chars truncates but flags it — no silent truncation."""
         mock_api['make_canvas_request'].return_value = {
