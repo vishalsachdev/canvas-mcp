@@ -13,6 +13,7 @@ from ..core.cache import (
     id_to_course_code_cache,
 )
 from ..core.client import fetch_all_paginated_results, make_canvas_request
+from ..core.config import get_config
 from ..core.dates import format_date
 from ..core.validation import validate_params
 
@@ -79,7 +80,17 @@ def register_course_tools(mcp: FastMCP):
         }
 
         if not include_all:
-            params["enrollment_type"] = "teacher"
+            # Scope to the user's *current* enrollments. enrollment_state="active"
+            # is Canvas's canonical "current" signal; the course state[] filter
+            # below cannot distinguish current from past at institutions that
+            # never flip finished courses to workflow_state="completed".
+            params["enrollment_state"] = "active"
+            # Educators keep teacher-only scoping (unchanged behavior). Students
+            # and the "all" profile see every active enrollment, which is what a
+            # Shared tool should return — the old unconditional teacher filter
+            # returned nothing for students.
+            if get_config().canvas_role == "educator":
+                params["enrollment_type"] = "teacher"
 
         if include_concluded:
             params["state[]"] = ["available", "completed"]
