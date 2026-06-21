@@ -238,7 +238,7 @@ Each is annotated for hosted-SSO safety.
 | Code-exec tool registered only when enabled **and** role ∈ {educator, all} | `src/canvas_mcp/server.py:246,259` |
 | Raw token injected into sandbox | `src/canvas_mcp/tools/code_execution.py:62-64` |
 | TS client: raw bearer + verbatim JSON, no anonymization | `src/canvas_mcp/code_api/client.ts:89-132`; `grep -i anonymiz src/canvas_mcp/code_api/` → 0 |
-| Hosted privacy/compliance model | `docs/SECURITY-COMPLIANCE.md` |
+| Hosted privacy/compliance model | `internal/SECURITY-COMPLIANCE.md` |
 
 ## Appendix B — Sources
 
