@@ -1,5 +1,6 @@
 """Course-related MCP tools for Canvas API."""
 
+import html
 import re
 
 from mcp.server.fastmcp import FastMCP
@@ -46,16 +47,14 @@ def strip_html_tags(html_content: str) -> str:
     # Remove all remaining tags. Use a space so inline tags don't join words.
     text = re.sub(r'<[^>]+>', ' ', text)
 
-    # Replace common HTML entities
-    text = text.replace('&nbsp;', ' ')
-    text = text.replace('&amp;', '&')
-    text = text.replace('&lt;', '<')
-    text = text.replace('&gt;', '>')
-    text = text.replace('&quot;', '"')
-    text = text.replace('&#39;', "'")
+    # Decode HTML entities (named, decimal, and hex) via the stdlib — covers
+    # smart quotes, dashes, accents, &nbsp;, etc. that Canvas content commonly
+    # uses, with no manual entity table to maintain.
+    text = html.unescape(text)
 
-    # Collapse intra-line whitespace but preserve line breaks.
-    text = re.sub(r'[ \t]+', ' ', text)
+    # Collapse intra-line whitespace but preserve line breaks. \xa0 (decoded
+    # from &nbsp;) is normalized to a regular space.
+    text = re.sub(r'[ \t\xa0]+', ' ', text)
     text = re.sub(r' *\n *', '\n', text)
     text = re.sub(r'\n{3,}', '\n\n', text)
 

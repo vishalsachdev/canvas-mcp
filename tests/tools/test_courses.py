@@ -10,7 +10,13 @@ from canvas_mcp.tools.courses import strip_html_tags
 
 
 def get_tool_function(tool_name: str):
-    """Capture a registered course tool function by name without MCP plumbing."""
+    """Capture a registered course tool function by name without MCP plumbing.
+
+    Wraps ``mcp.tool`` to grab each tool's undecorated coroutine, keyed by
+    ``fn.__name__``. This relies on the ``@validate_params`` wrapper preserving
+    ``__name__`` (it uses ``functools.wraps``); if that ever changes, lookups
+    here would return ``None`` and the assertions below would fail loudly.
+    """
     from mcp.server.fastmcp import FastMCP
 
     from canvas_mcp.tools.courses import register_course_tools
@@ -63,6 +69,12 @@ class TestStripHtmlTags:
         html = "<p>Hello&nbsp;World&amp;More</p>"
         result = strip_html_tags(html)
         assert result == "Hello World&More"
+
+    def test_strip_extended_entities(self):
+        """Entities beyond the old 5-entry table (smart quotes, dashes, hex) decode."""
+        html_content = "<p>Weeks 1&ndash;3 use the instructor&rsquo;s &#x201C;rubric&#x201D;</p>"
+        result = strip_html_tags(html_content)
+        assert result == "Weeks 1–3 use the instructor’s “rubric”"
 
     def test_strip_empty_string(self):
         """Test stripping empty string."""
@@ -211,7 +223,8 @@ class TestGetSyllabus:
         result = await get_syllabus("CS101", max_chars=0)
 
         assert "max_chars must be a positive integer" in result
-        # Validation happens before I/O — Canvas is never hit.
+        # Validation happens before any I/O — neither lookup nor Canvas runs.
+        mock_api['get_course_id'].assert_not_called()
         mock_api['make_canvas_request'].assert_not_called()
 
     @pytest.mark.asyncio
@@ -221,6 +234,7 @@ class TestGetSyllabus:
         result = await get_syllabus("CS101", max_chars=-5)
 
         assert "max_chars must be a positive integer" in result
+        mock_api['get_course_id'].assert_not_called()
         mock_api['make_canvas_request'].assert_not_called()
 
     @pytest.mark.asyncio
@@ -259,7 +273,8 @@ class TestGetSyllabus:
         result = await get_syllabus("CS101", output_format="pdf")
 
         assert "invalid output_format" in result
-        # Validation happens before I/O — Canvas is never hit.
+        # Validation happens before any I/O — neither lookup nor Canvas runs.
+        mock_api['get_course_id'].assert_not_called()
         mock_api['make_canvas_request'].assert_not_called()
 
     @pytest.mark.asyncio
