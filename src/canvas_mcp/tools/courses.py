@@ -137,10 +137,20 @@ def register_course_tools(mcp: FastMCP):
             course_identifier: Course code or Canvas ID
             output_format: "text" (plain text, default), "html" (raw HTML body),
                 or "both" (plain text followed by raw HTML)
-            max_chars: Optional cap on the returned characters per section. When
-                set and exceeded, the content is truncated with an explicit
+            max_chars: Optional positive cap on the returned characters per
+                section. When exceeded, the content is truncated with an explicit
                 "[truncated...]" marker. Defaults to None (no truncation).
         """
+        # Validate inputs before any network I/O so bad arguments fail fast.
+        fmt = (output_format or "text").lower()
+        if fmt not in ("text", "html", "both"):
+            return (
+                f"Error: invalid output_format '{output_format}'. "
+                "Use 'text', 'html', or 'both'."
+            )
+        if max_chars is not None and max_chars <= 0:
+            return "Error: max_chars must be a positive integer (or omitted for no limit)."
+
         course_id = await get_course_id(course_identifier)
 
         response = await make_canvas_request(
@@ -158,26 +168,22 @@ def register_course_tools(mcp: FastMCP):
         if not syllabus_body.strip():
             return f"No syllabus content found for course {course_display}."
 
-        fmt = (output_format or "text").lower()
-        if fmt not in ("text", "html", "both"):
-            return (
-                f"Error: invalid output_format '{output_format}'. "
-                "Use 'text', 'html', or 'both'."
-            )
-
         def _maybe_truncate(text: str) -> str:
-            if max_chars is not None and max_chars > 0 and len(text) > max_chars:
+            if max_chars is not None and len(text) > max_chars:
                 return text[:max_chars] + f"\n\n...[truncated at {max_chars} characters]"
             return text
 
+        # Section headers only help disambiguate when both formats are present.
+        labeled = fmt == "both"
         sections = [f"Syllabus for Course {course_display}:"]
 
         if fmt in ("text", "both"):
-            plain_text = strip_html_tags(syllabus_body)
-            sections.append("\n--- Plain Text ---\n" + _maybe_truncate(plain_text))
+            plain_text = _maybe_truncate(strip_html_tags(syllabus_body))
+            sections.append(("\n--- Plain Text ---\n" if labeled else "\n") + plain_text)
 
         if fmt in ("html", "both"):
-            sections.append("\n--- Raw HTML ---\n" + _maybe_truncate(syllabus_body))
+            raw_html = _maybe_truncate(syllabus_body)
+            sections.append(("\n--- Raw HTML ---\n" if labeled else "\n") + raw_html)
 
         return "\n".join(sections)
 

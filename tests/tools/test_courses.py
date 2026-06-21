@@ -136,7 +136,7 @@ class TestGetSyllabus:
         # The grading section lives well past 1000 chars and must not be cut.
         assert "Final exam is weighted at 40%" in result
         assert "Grading Policy" in result
-        assert "..." not in result.split("Plain Text")[-1][:50]  # no silent ellipsis marker
+        assert "[truncated" not in result  # explicit truncation marker must be absent
         # include[]=syllabus_body must be requested
         _, kwargs = mock_api['make_canvas_request'].call_args
         assert kwargs["params"] == {"include[]": "syllabus_body"}
@@ -152,8 +152,9 @@ class TestGetSyllabus:
         get_syllabus = get_tool_function('get_syllabus')
         result = await get_syllabus("CS101", output_format="html")
 
+        # Raw HTML is returned verbatim; no stripped-text section in html-only mode.
         assert "<strong>World</strong>" in result
-        assert "Raw HTML" in result
+        assert "--- Plain Text ---" not in result
 
     @pytest.mark.asyncio
     async def test_both_format_includes_text_and_html(self, mock_api):
@@ -184,10 +185,33 @@ class TestGetSyllabus:
         assert "[truncated at 50 characters]" in result
 
     @pytest.mark.asyncio
+    async def test_max_chars_zero_rejected(self, mock_api):
+        """max_chars=0 is invalid and rejected before any API call."""
+        get_syllabus = get_tool_function('get_syllabus')
+        result = await get_syllabus("CS101", max_chars=0)
+
+        assert "max_chars must be a positive integer" in result
+        # Validation happens before I/O — Canvas is never hit.
+        mock_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_empty_syllabus(self, mock_api):
         mock_api['make_canvas_request'].return_value = {
             "course_code": "CS101",
             "syllabus_body": "",
+        }
+
+        get_syllabus = get_tool_function('get_syllabus')
+        result = await get_syllabus("CS101")
+
+        assert "No syllabus content found" in result
+
+    @pytest.mark.asyncio
+    async def test_null_syllabus_body(self, mock_api):
+        """Canvas may return syllabus_body: null — treated as no content."""
+        mock_api['make_canvas_request'].return_value = {
+            "course_code": "CS101",
+            "syllabus_body": None,
         }
 
         get_syllabus = get_tool_function('get_syllabus')
