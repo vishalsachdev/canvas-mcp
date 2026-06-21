@@ -182,8 +182,9 @@ the roster with `skip_anonymization=True` (by design, to match a single NetID).
 
 A direct-API skill is just text the model reads. A distributed MCP server adds a
 class of supply-chain risk: **tool poisoning** (malicious instructions in tool
-descriptions), **rug pulls** (tool definitions changing post-approval, e.g.
-CVE-2025-54136), and indirect prompt injection via tool metadata. This repo is
+descriptions), **rug pulls** (a benign tool definition silently swapped for a
+malicious one *after* the user approved it — e.g. CVE-2025-54136, "MCPoison",
+disclosed 2025), and indirect prompt injection via tool metadata. This repo is
 first-party and trustworthy, so the risk here is low — but it's attack surface
 that "agent + token + SKILL.md" simply doesn't have. Worth noting for any future
 third-party tool inclusion.
