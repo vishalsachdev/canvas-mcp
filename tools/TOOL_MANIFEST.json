@@ -492,6 +492,38 @@
       ]
     },
     {
+      "name": "get_syllabus",
+      "category": "shared",
+      "description": "Get the complete Canvas Syllabus tab content for a course, untruncated (unlike the overview preview)",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "output_format",
+          "type": "string",
+          "required": false,
+          "default": "text",
+          "description": "'text' (plain text), 'html' (raw HTML body), or 'both'"
+        },
+        {
+          "name": "max_chars",
+          "type": "integer",
+          "required": false,
+          "default": null,
+          "description": "Optional cap per section; truncation is explicitly marked. None = no truncation"
+        }
+      ],
+      "returns": "Full syllabus body with no silent truncation",
+      "examples": [
+        "Get the full syllabus for BADM 350 including the grading policy",
+        "Show me the raw HTML of the CS101 syllabus"
+      ]
+    },
+    {
       "name": "list_discussion_topics",
       "category": "shared",
       "description": "View discussion forums in a course",

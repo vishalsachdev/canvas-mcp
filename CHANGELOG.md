@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`get_syllabus` tool** — returns the complete Canvas Syllabus tab content without truncation (the overview tools only expose a ~1000-character preview, hiding later sections like grading policies and weighting). Supports `output_format` (`text`/`html`/`both`) and an optional `max_chars` cap that is explicitly marked when applied ([#134](https://github.com/vishalsachdev/canvas-mcp/issues/134)).
+
+### Fixed
+- **`strip_html_tags` no longer concatenates adjacent block elements.** Block-level tags (headings, paragraphs, list items, table rows, `<br>`) now convert to line breaks, so plain-text syllabus/overview output preserves structure instead of merging content across boundaries (e.g. `Grading` and `Final exam...`). Entity decoding now uses the stdlib `html.unescape`, covering smart quotes, dashes, and accents.
+
 ## [1.4.0] — 2026-06-17
 
 ### Added

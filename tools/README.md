@@ -614,6 +614,25 @@ Get detailed course information including syllabus.
 "What's the course description for my Marketing class?"
 ```
 
+> Note: `get_course_details` and `get_course_content_overview` return only a short
+> syllabus preview. For the **complete** syllabus body, use `get_syllabus` below.
+
+---
+
+#### `get_syllabus`
+Get the complete Canvas Syllabus tab content for a course, **untruncated**. Unlike `get_course_content_overview` (which returns only a ~1000-character preview), this returns the full syllabus body, so later sections such as grading policies, weighting, and final-exam details remain accessible.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `output_format` (optional): `text` (plain text, default), `html` (raw HTML body), or `both`
+- `max_chars` (optional): Cap on returned characters per section. When exceeded, the content is truncated with an explicit `[truncated...]` marker. Defaults to no truncation.
+
+**Example:**
+```
+"Get the full syllabus for BADM 350 including the grading policy"
+"Show me the raw HTML of the CS101 syllabus"
+```
+
 ---
 
 ### Content Access
