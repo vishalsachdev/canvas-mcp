@@ -17,25 +17,49 @@ from ..core.validation import validate_params
 
 
 def strip_html_tags(html_content: str) -> str:
-    """Remove HTML tags and clean up text content."""
+    """Convert HTML to readable plain text.
+
+    Block-level elements (headings, paragraphs, list items, table rows, ``<br>``,
+    etc.) become line breaks so adjacent blocks don't run together — e.g.
+    ``<h3>Grading</h3><p>Final exam...</p>`` yields ``Grading\nFinal exam...``
+    rather than ``GradingFinal exam...``. Inline tags become a space. HTML
+    entities are decoded and excess whitespace collapsed (intra-line runs to a
+    single space; blank-line runs to at most one).
+    """
     if not html_content:
         return ""
 
-    # Remove HTML tags
-    clean_text = re.sub(r'<[^>]+>', '', html_content)
+    text = html_content
+
+    # Normalize <br> and block-level boundaries to newlines so content across
+    # tag boundaries is separated instead of concatenated.
+    text = re.sub(r'(?i)<\s*br\s*/?\s*>', '\n', text)
+    text = re.sub(
+        r'(?i)</\s*(?:p|div|h[1-6]|li|ul|ol|tr|table|thead|tbody|tfoot|'
+        r'section|article|header|footer|blockquote|pre)\s*>',
+        '\n',
+        text,
+    )
+    # Separate table cells within a row.
+    text = re.sub(r'(?i)</\s*(?:td|th)\s*>', '\t', text)
+
+    # Remove all remaining tags. Use a space so inline tags don't join words.
+    text = re.sub(r'<[^>]+>', ' ', text)
 
     # Replace common HTML entities
-    clean_text = clean_text.replace('&nbsp;', ' ')
-    clean_text = clean_text.replace('&amp;', '&')
-    clean_text = clean_text.replace('&lt;', '<')
-    clean_text = clean_text.replace('&gt;', '>')
-    clean_text = clean_text.replace('&quot;', '"')
+    text = text.replace('&nbsp;', ' ')
+    text = text.replace('&amp;', '&')
+    text = text.replace('&lt;', '<')
+    text = text.replace('&gt;', '>')
+    text = text.replace('&quot;', '"')
+    text = text.replace('&#39;', "'")
 
-    # Clean up whitespace
-    clean_text = re.sub(r'\s+', ' ', clean_text)
-    clean_text = clean_text.strip()
+    # Collapse intra-line whitespace but preserve line breaks.
+    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r' *\n *', '\n', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
 
-    return clean_text
+    return text.strip()
 
 
 def register_course_tools(mcp: FastMCP):

@@ -74,6 +74,25 @@ class TestStripHtmlTags:
         result = strip_html_tags(None)
         assert result == ""
 
+    def test_block_elements_do_not_concatenate(self):
+        """Adjacent block elements must be separated, not run together."""
+        html = "<h3>Grading</h3><p>Final exam is 40%.</p>"
+        result = strip_html_tags(html)
+        # The bug: "GradingFinal exam is 40%." — block boundary must be kept.
+        assert "GradingFinal" not in result
+        assert "Grading" in result
+        assert "Final exam is 40%." in result
+        # Blocks land on separate lines.
+        assert result == "Grading\nFinal exam is 40%."
+
+    def test_list_items_separated(self):
+        """List items are placed on their own lines."""
+        html = "<ul><li>Homework 30%</li><li>Final 70%</li></ul>"
+        result = strip_html_tags(html)
+        assert "Homework 30%" in result
+        assert "Final 70%" in result
+        assert "30%Final" not in result
+
 
 class TestCourseToolsIntegration:
     """Integration tests for course tools."""
