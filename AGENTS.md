@@ -30,7 +30,7 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 # In .env:
 CANVAS_ROLE=student    # ~32 tools (student + shared)
 CANVAS_ROLE=educator   # ~87 tools (educator + shared)
-CANVAS_ROLE=all        # All 90 tools (default)
+CANVAS_ROLE=all        # All 91 tools (default)
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
@@ -79,6 +79,7 @@ Content access tools available to all authenticated users.
 |------|---------|
 | `list_courses` | Enrolled courses |
 | `get_course_details` | Course info and syllabus |
+| `get_syllabus` | Full Syllabus tab content, untruncated (text/html/both) |
 | `list_pages` | Course pages |
 | `get_page_content` | Read page content |
 | `update_page_settings` | Publish/unpublish, set front page, editing roles |
