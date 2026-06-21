@@ -47,8 +47,8 @@ wrong conclusions.
 | Client → LLM | Claude Desktop/Code → third-party (Anthropic) API | In-tenant Azure OpenAI (enterprise agreement, no training) |
 | Canvas token | Operator's env (`CANVAS_API_TOKEN`) | Each caller's own token via `X-Canvas-Token` |
 | Endpoint gate | n/a (local) | SSO / Entra + `X-MCP-Access-Key`, fail-closed |
-| Anonymization | **ON** by default (`config.py:79`, `=True`) | **OFF** by design (`Dockerfile`) — not the control here |
-| Code execution | **ON** by default (`config.py:100`, `=True`) | **OFF** by design (`Dockerfile`, `EXECUTE_TYPESCRIPT_ENABLED=false`) |
+| Anonymization (`enable_data_anonymization`) | **ON** by default (`config.py:79`, `=True`) | **OFF** by design (`Dockerfile`) — not the control here |
+| Code execution (`execute_typescript_enabled`) | **ON** by default (`config.py:100`, `=True`) | **OFF** by design (`Dockerfile`, `EXECUTE_TYPESCRIPT_ENABLED=false`) |
 | Privacy control | *Anonymize before a third-party model sees PII* | *Need-to-know token + SSO + in-tenant model + contract* |
 
 The hosted model does **not** rely on anonymization — it relies on the data
