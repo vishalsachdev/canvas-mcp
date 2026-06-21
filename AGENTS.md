@@ -30,7 +30,7 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 # In .env:
 CANVAS_ROLE=student    # ~32 tools (student + shared)
 CANVAS_ROLE=educator   # ~87 tools (educator + shared)
-CANVAS_ROLE=all        # All 91 tools (default)
+CANVAS_ROLE=all        # All 92 tools (default)
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
@@ -65,6 +65,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `get_rubric` | View rubric details (by rubric_id or assignment_id) |
 | `get_rubric_assessment` | View rubric assessment for a student submission |
 | `create_rubric` | Create rubric with criteria, ratings, and optional assignment association |
+| `create_rubric_from_csv` | Create rubric from a CSV string |
 | `associate_rubric` | Associate existing rubric with an assignment |
 | `grade_with_rubric` | Grade single submission with rubric |
 | `bulk_grade_submissions` | Grade multiple submissions efficiently |

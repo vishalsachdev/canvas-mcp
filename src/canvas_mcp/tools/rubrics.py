@@ -1,6 +1,7 @@
 """Rubric-related MCP tools for Canvas API."""
 
 import ast
+import asyncio
 import json
 from typing import Any
 
@@ -842,6 +843,76 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             result += "Example: {\"criterion_id\": {\"points\": X, \"comments\": \"...\", \"rating_id\": \"rating_id\"}}\n"
         else:
             result += "\nTo see detailed criteria and ratings, run this command with include_criteria=True.\n"
+
+        return result
+
+    @mcp.tool()
+    @validate_params
+    async def create_rubric_from_csv(
+        course_identifier: str | int,
+        csv_content: str,
+    ) -> str:
+        """Create a rubric in a course from a CSV string.
+
+        Uses Canvas's native rubric CSV import endpoint, then polls the import
+        job until it reaches a terminal workflow_state (succeeded/failed).
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            csv_content: The content of the CSV file as a string
+        """
+        course_id = await get_course_id(course_identifier)
+        if not course_id:
+            return f"Error: Could not find course {course_identifier}"
+
+        files = {
+            "attachment": ("rubrics.csv", csv_content.encode("utf-8"), "text/csv")
+        }
+
+        # Upload the CSV
+        response = await make_canvas_request(
+            "post",
+            f"/courses/{course_id}/rubrics/upload",
+            files=files
+        )
+
+        if "error" in response:
+            return f"Error uploading rubric CSV: {response['error']}"
+
+        import_id = response.get("id")
+        if not import_id:
+            return f"Error: No import ID returned. Response: {response}"
+
+        # Poll for completion
+        status = response.get("workflow_state", "created")
+        result_response = response
+
+        # Poll up to 10 times (20 seconds) for it to finish processing
+        for _ in range(10):
+            if status in ["succeeded", "failed", "completed"]:
+                break
+
+            await asyncio.sleep(2)
+            check_resp = await make_canvas_request(
+                "get",
+                f"/courses/{course_id}/rubrics/upload/{import_id}"
+            )
+            if "error" in check_resp:
+                return f"Error checking rubric import status: {check_resp['error']}"
+
+            status = check_resp.get("workflow_state", "unknown")
+            result_response = check_resp
+
+        course_display = await get_course_code(course_id) or course_identifier
+
+        result = f"Rubric CSV import process finished with status: {status}\n\n"
+        result += f"Course: {course_display}\n"
+        result += f"Import ID: {import_id}\n"
+
+        # Check if a rubric was returned in the final response
+        if "rubric" in result_response and result_response["rubric"]:
+            result += f"Created Rubric ID: {result_response['rubric'].get('id')}\n"
+            result += f"Rubric Title: {result_response['rubric'].get('title')}\n"
 
         return result
 
