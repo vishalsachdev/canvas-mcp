@@ -372,5 +372,5 @@ When adding new wrapper functions:
 ## References
 
 - [Anthropic Blog: Code Execution with MCP](https://www.anthropic.com/engineering/code-execution-with-mcp)
-- [Canvas LMS API Documentation](https://canvas.instructure.com/doc/api/)
+- [Canvas LMS API Documentation](https://developerdocs.instructure.com/services/canvas)
 - [Canvas MCP Server](../../README.md)
