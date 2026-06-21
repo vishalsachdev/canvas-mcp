@@ -94,11 +94,18 @@ Thumbs.db
 *.swo
 *~
 
-# Private hosted-deployment ops (Gies-internal, not public)
+# Private hosted-deployment ops (Gies-internal, not public).
+# Live in internal/ (outside the docs/ publish dir). The docs/ patterns are a
+# defensive backstop in case a local-only file is ever dropped there again.
+internal/*.local.md
 docs/*.local.md
 
 # Internal compliance email drafts (not public)
+internal/compliance/
 docs/compliance/
 
 # Claude Desktop Extension build artifact
 *.mcpb
+
+# Local agent skills (not part of the public package)
+.agents/

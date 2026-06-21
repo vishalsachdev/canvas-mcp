@@ -1,0 +1,10 @@
+# Wrangler Pages upload-exclude (gitignore syntax).
+# wrangler does NOT respect .gitignore — without this file, local-only
+# sensitive docs inside docs/ get published to the public site.
+# Keep in sync with the docs/ entries in the repo .gitignore.
+
+# Hosted-deployment ops notes (endpoint URL, Entra IDs, key-holders)
+*.local.md
+
+# Internal compliance email drafts
+compliance/

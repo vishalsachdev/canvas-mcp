@@ -228,7 +228,9 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 
 There is a **private, Entra-gated** hosted instance for Gies course staff. It is **not shared
 publicly** — keep its endpoint URL, Entra app IDs, deploy specifics, and access-key holders out
-of this (public) repo. All operational detail lives in the **gitignored** `docs/ops-hosted.local.md`.
+of this (public) repo. All operational detail lives in the **gitignored** `internal/ops-hosted.local.md`
+(moved out of `docs/` on 2026-06-21 — that dir is the Cloudflare Pages publish root and was serving
+these local-only files publicly; `docs/.assetsignore` is now a backstop).
 
 - **Architecture (no secrets):** Azure App Service (Web App for Containers) inside the UIUC
   `urbana-business-disruptionlab` subscription, fronted by App Service Easy Auth in API/bearer
