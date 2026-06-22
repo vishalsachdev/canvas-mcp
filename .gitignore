@@ -104,6 +104,9 @@ docs/*.local.md
 internal/compliance/
 docs/compliance/
 
+# Hosted Desktop Extension sources (contains the private hosted endpoint URL)
+internal/mcpb-hosted/
+
 # Claude Desktop Extension build artifact
 *.mcpb
 

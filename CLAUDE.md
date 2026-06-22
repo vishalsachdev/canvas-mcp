@@ -245,14 +245,32 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-06-17 — mcp-remote blocker RESOLVED + app→`canvas-mcp` + branch→slot CI
-- **🏁 The `AADSTS9010010` blocker is gone — verified live.** DNS landed (CNAME + asuid), bound the private custom domain + GeoTrust managed cert to the app; PRM `resource` now == the registered App ID URI, and added that URI to Easy Auth `allowedAudiences` (RFC 8707 token `aud`). Ran `mcp-remote` end-to-end against the custom domain: token exchange + MCP session succeed. (Endpoint/IDs in gitignored `docs/ops-hosted.local.md`.) **All clients (Claude Desktop/Code, Cursor, Codex, VS Code) work.**
-- **App renamed `gies-canvas-mcp` → `canvas-mcp`** (Azure can't rename → recreated; house-consistent bare name like mindforum/uniquick/illinihunt). ITP had typo'd the CNAME to `canvas-mcp.azurewebsites.net` (no `gies-`) — instead of asking them to fix it, adopted the cleaner name (was globally available). Old `gies-canvas-mcp` + `gies-canvas-mcp-staging` apps deleted.
-- **Branch→slot CI shipped (#128, #129):** `main`→Production, `staging`→staging slot; build→push ACR→`azure/webapps-deploy`. Auth via ACR creds + publish profiles (no SP — sidesteps Owner-only RBAC). Gotcha hit + fixed: enable SCM basic-auth or deploy fails "Failed to get app runtime OS".
-- **Standardization (A/A/A):** two blessed templates — Container (canvas-mcp, illinihunt) + Code (mindforum); direct branch→slot (not swap); recorded the pattern in the `illinois-azure-container-deploy`/`cli-deploy` skills. canvas-mcp ↔ illinihunt share the container backend; mindforum is the Node-code template.
-- Also merged: **#126** `check_enrollment`; doc-synced it across AGENTS/README/manifest (tool count stayed 90 — was off-by-one).
-- **Claude Desktop Extension (`.mcpb`)** scaffolded (uv runtime; `manifest.json` + `.mcpbignore` allowlist + `scripts/build-mcpb.sh`) and **distributed via GitHub Releases** (`create-release.yml` stamps the tag version + attaches the bundle). Install tested in Claude Desktop. README "Install as a Desktop Extension" section added.
-- **Released v1.4.0** — GitHub Release + `.mcpb` + PyPI + MCP Registry + hosted server + Cloudflare website all live. (Publish-race recurred; rerun needed *after* PyPI returns 200 — memory updated.)
-- **Sanitized the public repo:** moved hosted-deployment ops (URL, Entra IDs, key-holder names) → gitignored `docs/ops-hosted.local.md`; untracked `docs/compliance/` email drafts (kept local); deleted DNS correspondence files. Repo is PUBLIC — keep the hosted endpoint out of tracked files.
-- **Outreach:** faculty onboarding doc (`docs/ops-faculty-onboarding.local.md`, hosted-only, human+agent readable). Challen reply **sent** (him only; offered demo + linked the Extension + attached setup). Mark Reynolds email **staged in Outlook** (Canvas service owner; security architecture + review ask) — needs his address before send.
-- Next: (1) **send Mark Reynolds email** (confirm address). (2) **AcrPull grant** (Adam, `docs/compliance/email-adam-acrpull-entra.txt`) → re-enable MI pull. (3) Test `.mcpb` on **Windows** (pydantic compiled-wheel risk). (4) Wire **illinihunt CI** from the documented container pattern. (5) GRC/Cybersecurity compliance emails. (`MCP_ENTRA_ALLOWED_OIDS` left open per decision — no allowlist for now.)
+### 2026-06-21 — public-site doc leak fixed + hosted access locked down + cohort onboarded
+- **🔒 Fixed a live exposure:** gitignored local-only ops/compliance docs inside `docs/` were being
+  served publicly by Cloudflare Pages (`wrangler pages deploy docs/` ignores `.gitignore`). Moved
+  `ops-*.local.md` + `compliance/` → `internal/` (outside the publish dir), added `docs/.assetsignore`
+  backstop, gitignored `internal/*.local.md` + `internal/compliance/` (commit `796d352`). **Stale CDN
+  copies persist on the custom domain until the Pages-layer cache TTL (≤7d) — zone purge can't evict
+  it; not fixable from this repo.** Plan: `.claude/plans/post-exposure-remediation.md`.
+- **Access control:** `MCP_ENTRA_ALLOWED_OIDS` was empty (= any UIUC tenant user). Locked to an
+  explicit **7-OID allowlist on both slots** (operator + Lalitha/Challen/AdamKing/Ashish/Cheng/Jim).
+  Rationale captured in the plan: it's **not** a confidentiality control (BYO-token = caller only sees
+  own data) — it's a FERPA-scope/abuse control **while the security/privacy review is pending**; open
+  it up after. CAE gotcha resolving emails→OIDs: needed `az logout && az account clear && az login`.
+- **Dogfooding:** swapped user-scope Canvas MCP from local stdio → hosted `canvas` (mcp-remote/Entra)
+  to mirror faculty. Verified login end-to-end (operator not locked out; reached Summer AI Studio 69366).
+  **Hosted exposes 85 tools vs local 92** — code-exec (2) gated in HTTP mode + student `get_my_*` (5)
+  filtered by educator role. Memory: `project_hosted_canvas_mcp_as_default_client.md`.
+- **Onboarding doc + cohort email** (`internal/ops-faculty-onboarding.local.md`, `internal/compliance/`):
+  added the allowlist requirement + *why*, the Canvas-token request link
+  (answers.uillinois.edu/illinois/internal/150325), and the 85-vs-92 toolset note. Emailed the 6 (BCC)
+  via Outlook compose (reviewable, not auto-sent).
+- Next: (1) send the cohort email after review. (2) Confirm stale Pages cache cleared after TTL.
+  (3) Durable access mechanism — Entra group + `appRoleAssignmentRequired` to replace the env-var OID
+  list. (4) Reopen access decision once security/privacy review clears.
+- **Easier install — hosted `.mcpb` BUILT:** `internal/mcpb-hosted/` (GITIGNORED — has the private
+  endpoint) holds a 2nd Desktop Extension that wraps `mcp-remote` via a tiny `index.cjs` launcher +
+  a `canvas_token` user_config field. Faculty: double-click → paste token → NetID/Duo on first use.
+  Built `canvas-mcp-hosted.mcpb` (gitignored), shim smoke-tested (session established). `build.sh` in
+  that dir. Distinct from the repo-root `manifest.json` (the LOCAL/stdio python extension). Distribute
+  PRIVATELY (not the public Release). TODO: test install on macOS + Windows Claude Desktop.
