@@ -245,32 +245,26 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-06-21 — public-site doc leak fixed + hosted access locked down + cohort onboarded
-- **🔒 Fixed a live exposure:** gitignored local-only ops/compliance docs inside `docs/` were being
-  served publicly by Cloudflare Pages (`wrangler pages deploy docs/` ignores `.gitignore`). Moved
-  `ops-*.local.md` + `compliance/` → `internal/` (outside the publish dir), added `docs/.assetsignore`
-  backstop, gitignored `internal/*.local.md` + `internal/compliance/` (commit `796d352`). **Stale CDN
-  copies persist on the custom domain until the Pages-layer cache TTL (≤7d) — zone purge can't evict
-  it; not fixable from this repo.** Plan: `.claude/plans/post-exposure-remediation.md`.
-- **Access control:** `MCP_ENTRA_ALLOWED_OIDS` was empty (= any UIUC tenant user). Locked to an
-  explicit **7-OID allowlist on both slots** (operator + Lalitha/Challen/AdamKing/Ashish/Cheng/Jim).
-  Rationale captured in the plan: it's **not** a confidentiality control (BYO-token = caller only sees
-  own data) — it's a FERPA-scope/abuse control **while the security/privacy review is pending**; open
-  it up after. CAE gotcha resolving emails→OIDs: needed `az logout && az account clear && az login`.
-- **Dogfooding:** swapped user-scope Canvas MCP from local stdio → hosted `canvas` (mcp-remote/Entra)
-  to mirror faculty. Verified login end-to-end (operator not locked out; reached Summer AI Studio 69366).
-  **Hosted exposes 85 tools vs local 92** — code-exec (2) gated in HTTP mode + student `get_my_*` (5)
-  filtered by educator role. Memory: `project_hosted_canvas_mcp_as_default_client.md`.
-- **Onboarding doc + cohort email** (`internal/ops-faculty-onboarding.local.md`, `internal/compliance/`):
-  added the allowlist requirement + *why*, the Canvas-token request link
-  (answers.uillinois.edu/illinois/internal/150325), and the 85-vs-92 toolset note. Emailed the 6 (BCC)
-  via Outlook compose (reviewable, not auto-sent).
-- Next: (1) send the cohort email after review. (2) Confirm stale Pages cache cleared after TTL.
-  (3) Durable access mechanism — Entra group + `appRoleAssignmentRequired` to replace the env-var OID
-  list. (4) Reopen access decision once security/privacy review clears.
-- **Easier install — hosted `.mcpb` BUILT:** `internal/mcpb-hosted/` (GITIGNORED — has the private
-  endpoint) holds a 2nd Desktop Extension that wraps `mcp-remote` via a tiny `index.cjs` launcher +
-  a `canvas_token` user_config field. Faculty: double-click → paste token → NetID/Duo on first use.
-  Built `canvas-mcp-hosted.mcpb` (gitignored), shim smoke-tested (session established). `build.sh` in
-  that dir. Distinct from the repo-root `manifest.json` (the LOCAL/stdio python extension). Distribute
-  PRIVATELY (not the public Release). TODO: test install on macOS + Windows Claude Desktop.
+### 2026-06-22 — hosted `.mcpb` launch fix (npx/PATH → vendored mcp-remote)
+- **🐛 Fixed the hosted `.mcpb` failing to connect in Claude Desktop.** A tester's log showed the
+  server exiting **~170 ms after `initialize`** ("transport closed unexpectedly… process exiting
+  early"). Root cause: `internal/mcpb-hosted/index.cjs` did `spawn("npx", …)`, but Claude Desktop runs
+  extensions under the **minimal macOS GUI/launchd PATH** (`/usr/bin:/bin:/usr/sbin:/sbin`) — no
+  Homebrew/nvm/`~/.local/bin` — so `npx` → `spawn ENOENT` → instant exit. Reproduced exactly by
+  running the shim under a stripped PATH. (Same family as the cron minimal-PATH gotcha.)
+- **Fix (all in gitignored `internal/mcpb-hosted/`):** added `package.json` pinning **`mcp-remote@0.1.38`**;
+  rewrote `index.cjs` to `require.resolve("mcp-remote/dist/proxy.js")` + launch via **`process.execPath`**
+  (the host's own Node) — zero `npx`/PATH dependency, cross-platform; npx fallback kept for in-repo dev.
+  `build.sh` now `npm install --omit=dev` vendors the dep + verifies it's actually inside the `.mcpb`
+  (retry loop dodges an mcpb-pack flush race). Added a stderr **breadcrumb** so a remote tester's
+  per-server log states which launch path ran + token-set status. Rebuilt `canvas-mcp-hosted.mcpb`
+  (1.5 MB, vendored). Verified fixed under stripped PATH (now reaches OAuth/connect, not ENOENT).
+  Gotcha saved to auto memory: `gotcha_mcpb_no_npx_gui_path.md`.
+- **Open (tester-side, can't diagnose from here):** a *second* log block showed a **~3.8 s** exit —
+  mcp-remote launched + did network work, then quit. That's auth, not PATH: likely tester **not on the
+  7-OID allowlist** (401/403 post-Entra) or a blocked OAuth browser/callback. Needs their per-server
+  log `~/Library/Logs/Claude/mcp-server-Canvas MCP (Illinois hosted).log` once they're on the new build.
+- Next: (1) **Distribute the rebuilt `canvas-mcp-hosted.mcpb` to testers privately** (remove old ext +
+  quit/reopen Desktop + re-enter token); collect per-server log if still failing; check tester OID on
+  the allowlist. (2) Test install on macOS + Windows Desktop. (3) From prior session — confirm stale
+  Pages cache cleared after TTL; send cohort email; durable Entra-group access (`appRoleAssignmentRequired`).
