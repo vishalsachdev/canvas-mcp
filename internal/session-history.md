@@ -4,6 +4,30 @@ Archived session log entries from canvas-mcp CLAUDE.md.
 
 ## Session Log
 
+### 2026-06-22 — hosted `.mcpb` launch fix (npx/PATH → vendored mcp-remote)
+- **🐛 Fixed the hosted `.mcpb` failing to connect in Claude Desktop.** A tester's log showed the
+  server exiting **~170 ms after `initialize`** ("transport closed unexpectedly… process exiting
+  early"). Root cause: `internal/mcpb-hosted/index.cjs` did `spawn("npx", …)`, but Claude Desktop runs
+  extensions under the **minimal macOS GUI/launchd PATH** (`/usr/bin:/bin:/usr/sbin:/sbin`) — no
+  Homebrew/nvm/`~/.local/bin` — so `npx` → `spawn ENOENT` → instant exit. Reproduced exactly by
+  running the shim under a stripped PATH. (Same family as the cron minimal-PATH gotcha.)
+- **Fix (all in gitignored `internal/mcpb-hosted/`):** added `package.json` pinning **`mcp-remote@0.1.38`**;
+  rewrote `index.cjs` to `require.resolve("mcp-remote/dist/proxy.js")` + launch via **`process.execPath`**
+  (the host's own Node) — zero `npx`/PATH dependency, cross-platform; npx fallback kept for in-repo dev.
+  `build.sh` now `npm install --omit=dev` vendors the dep + verifies it's actually inside the `.mcpb`
+  (retry loop dodges an mcpb-pack flush race). Added a stderr **breadcrumb** so a remote tester's
+  per-server log states which launch path ran + token-set status. Rebuilt `canvas-mcp-hosted.mcpb`
+  (1.5 MB, vendored). Verified fixed under stripped PATH (now reaches OAuth/connect, not ENOENT).
+  Gotcha saved to auto memory: `gotcha_mcpb_no_npx_gui_path.md`.
+- **Open (tester-side, can't diagnose from here):** a *second* log block showed a **~3.8 s** exit —
+  mcp-remote launched + did network work, then quit. That's auth, not PATH: likely tester **not on the
+  7-OID allowlist** (401/403 post-Entra) or a blocked OAuth browser/callback. Needs their per-server
+  log `~/Library/Logs/Claude/mcp-server-Canvas MCP (Illinois hosted).log` once they're on the new build.
+- Next: (1) **Distribute the rebuilt `canvas-mcp-hosted.mcpb` to testers privately** (remove old ext +
+  quit/reopen Desktop + re-enter token); collect per-server log if still failing; check tester OID on
+  the allowlist. (2) Test install on macOS + Windows Desktop. (3) From prior session — confirm stale
+  Pages cache cleared after TTL; send cohort email; durable Entra-group access (`appRoleAssignmentRequired`).
+
 ### 2026-06-21 — public-site doc leak fixed + hosted access locked down + cohort onboarded
 - **🔒 Fixed a live exposure:** gitignored local-only ops/compliance docs inside `docs/` were being
   served publicly by Cloudflare Pages (`wrangler pages deploy docs/` ignores `.gitignore`). Moved

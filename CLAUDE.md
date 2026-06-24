@@ -245,26 +245,22 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-06-22 — hosted `.mcpb` launch fix (npx/PATH → vendored mcp-remote)
-- **🐛 Fixed the hosted `.mcpb` failing to connect in Claude Desktop.** A tester's log showed the
-  server exiting **~170 ms after `initialize`** ("transport closed unexpectedly… process exiting
-  early"). Root cause: `internal/mcpb-hosted/index.cjs` did `spawn("npx", …)`, but Claude Desktop runs
-  extensions under the **minimal macOS GUI/launchd PATH** (`/usr/bin:/bin:/usr/sbin:/sbin`) — no
-  Homebrew/nvm/`~/.local/bin` — so `npx` → `spawn ENOENT` → instant exit. Reproduced exactly by
-  running the shim under a stripped PATH. (Same family as the cron minimal-PATH gotcha.)
-- **Fix (all in gitignored `internal/mcpb-hosted/`):** added `package.json` pinning **`mcp-remote@0.1.38`**;
-  rewrote `index.cjs` to `require.resolve("mcp-remote/dist/proxy.js")` + launch via **`process.execPath`**
-  (the host's own Node) — zero `npx`/PATH dependency, cross-platform; npx fallback kept for in-repo dev.
-  `build.sh` now `npm install --omit=dev` vendors the dep + verifies it's actually inside the `.mcpb`
-  (retry loop dodges an mcpb-pack flush race). Added a stderr **breadcrumb** so a remote tester's
-  per-server log states which launch path ran + token-set status. Rebuilt `canvas-mcp-hosted.mcpb`
-  (1.5 MB, vendored). Verified fixed under stripped PATH (now reaches OAuth/connect, not ENOENT).
-  Gotcha saved to auto memory: `gotcha_mcpb_no_npx_gui_path.md`.
-- **Open (tester-side, can't diagnose from here):** a *second* log block showed a **~3.8 s** exit —
-  mcp-remote launched + did network work, then quit. That's auth, not PATH: likely tester **not on the
-  7-OID allowlist** (401/403 post-Entra) or a blocked OAuth browser/callback. Needs their per-server
-  log `~/Library/Logs/Claude/mcp-server-Canvas MCP (Illinois hosted).log` once they're on the new build.
-- Next: (1) **Distribute the rebuilt `canvas-mcp-hosted.mcpb` to testers privately** (remove old ext +
-  quit/reopen Desktop + re-enter token); collect per-server log if still failing; check tester OID on
-  the allowlist. (2) Test install on macOS + Windows Desktop. (3) From prior session — confirm stale
-  Pages cache cleared after TTL; send cohort email; durable Entra-group access (`appRoleAssignmentRequired`).
+### 2026-06-24 — added 2 faculty to hosted allowlist (7→9 OIDs) + onboarding-simplification thread
+- **Added Hugh Swiatek (`swiatek3`) + John Clark (`jsclark2`) to the hosted Entra allowlist.** Resolved
+  each NetID→Entra OID via `az ad user show`, appended both to `MCP_ENTRA_ALLOWED_OIDS` on the `canvas-mcp`
+  web app (RG `DL_ResourceGroup_01`); `appsettings set` auto-recycled the app. Verified: 9 OIDs, app
+  `Running`, endpoint returns `401` (correct auth challenge). `az` auth was healthy (no CAE loop this time).
+  Documented the roster + add/remove `az` procedure in gitignored `internal/ops-hosted.local.md` (new
+  "Allowlist (v2 Entra OIDs, current)" section).
+- **Also:** refreshed `docs/data/impact.json` (stars 150, forks 42) — committed + Cloudflare-deployed.
+- **Open thread — simplify hosted MCP onboarding.** User reports setup friction: an agent helping a user
+  set up couldn't read a "page behind login." Root cause not yet pinned (candidates: the NetID-walled
+  Canvas-token KB article `answers.uillinois.edu/.../150325`, the Entra NetID+Duo OAuth flow, the Canvas
+  token-creation page, or the instructions doc). User floated "magic link or something." Brainstorming was
+  opened but the clarifying question is still unanswered.
+- Next: (1) **Pin down which login-walled page blocked the agent**, then design simpler onboarding —
+  likely lean on the existing `.mcpb` (no JSON editing) + inline the token steps so no agent ever needs to
+  fetch the NetID-walled KB page. Note: "magic link" = the superseded v1 access-key model; reverting trades
+  away the Entra/Duo identity binding that the in-progress campus security review depends on — flag that
+  tradeoff before going there. (2) Carry-forward from 6/22: distribute rebuilt `.mcpb` to testers; macOS+
+  Windows install test; durable Entra-group access (`appRoleAssignmentRequired`).
