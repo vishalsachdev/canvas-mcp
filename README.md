@@ -276,7 +276,7 @@ If you use **Claude Desktop**, you can install Canvas MCP with one click — no 
 
 1. Download `canvas-mcp.mcpb` from the [latest release](https://github.com/vishalsachdev/canvas-mcp/releases/latest).
 2. Double-click the file (or drag it into Claude Desktop → Settings → Extensions).
-3. When prompted, enter your **Canvas API URL** (e.g. `https://canvas.youruniversity.edu`) and your **Canvas API token** (Canvas → Account → Settings → New Access Token). The token is stored in your OS keychain.
+3. When prompted, enter your **Canvas API URL** — this must include the `/api/v1` path (e.g. `https://canvas.youruniversity.edu/api/v1`) — and your **Canvas API token** (Canvas → Account → Settings → New Access Token). The token is stored in your OS keychain.
 
 The extension runs the server locally and calls Canvas with **your own** token — every action runs under your own Canvas role and audit trail. Requires Python 3.10+ (the bundled runtime manages dependencies automatically). For other clients, or to run from source, use the manual setup below.
 
