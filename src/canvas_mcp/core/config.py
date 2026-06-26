@@ -1,6 +1,7 @@
 """Configuration management for Canvas MCP server."""
 
 import os
+import re
 from urllib.parse import urlparse, urlunparse
 
 from dotenv import load_dotenv
@@ -41,6 +42,10 @@ def _normalize_canvas_url(raw: str) -> str:
     - ``https://canvas.school.edu/api/v1/foo``  → ``https://canvas.school.edu/api/v1``
     - ``https://canvas.school.edu/api/v1?x=1``  → ``https://canvas.school.edu/api/v1``
 
+    An explicit ``/api/v<N>`` version segment is preserved (only trailing
+    sub-paths after it are dropped), so a deliberately-set ``/api/v2`` is never
+    silently downgraded to ``/api/v1``.
+
     A scheme-less input (e.g. ``canvas.school.edu``) is returned unchanged so
     ``validate_config()`` can flag the missing ``https://`` rather than this
     silently producing a relative-path URL.
@@ -56,12 +61,12 @@ def _normalize_canvas_url(raw: str) -> str:
     if not parsed.scheme or not parsed.netloc:
         return url
 
-    marker = "/api/v1"
-    path = parsed.path
-    if marker in path:
-        path = path[: path.index(marker) + len(marker)]
-    else:
-        path = marker
+    # Preserve an existing ``/api/v<N>`` version segment (truncating any extra
+    # path after it), matching only at a segment boundary so a real version
+    # like ``/api/v2`` is kept rather than rewritten. When the path carries no
+    # version segment, append the canonical ``/api/v1``.
+    version = re.search(r"/api/v\d+(?=/|$)", parsed.path)
+    path = parsed.path[: version.end()] if version else "/api/v1"
     return urlunparse(parsed._replace(path=path, params="", query="", fragment=""))
 
 
