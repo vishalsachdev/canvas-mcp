@@ -59,6 +59,11 @@ def test_reset_config_clears_invalid_env_caches(monkeypatch):
         ("https://canvas.school.edu/api/v1/", "https://canvas.school.edu/api/v1"),
         # Surrounding whitespace is trimmed.
         ("  https://canvas.school.edu/api/v1  ", "https://canvas.school.edu/api/v1"),
+        # A stray query string is dropped before normalization (not duplicated).
+        ("https://canvas.school.edu?x=1", "https://canvas.school.edu/api/v1"),
+        ("https://canvas.school.edu/api/v1?x=1", "https://canvas.school.edu/api/v1"),
+        # A stray fragment is dropped too.
+        ("https://canvas.school.edu/api/v1#frag", "https://canvas.school.edu/api/v1"),
         # Empty / blank stays empty so validate_config() can flag it as missing.
         ("", ""),
         ("   ", ""),

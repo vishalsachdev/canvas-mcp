@@ -37,7 +37,13 @@ def _normalize_canvas_url(raw: str) -> str:
     - ``https://canvas.school.edu/api/v1``  → unchanged
     - ``https://canvas.school.edu/api/v1/`` → ``https://canvas.school.edu/api/v1``
     """
-    url = raw.strip().rstrip("/")
+    url = raw.strip()
+    # An API base URL never carries a query string or fragment. Drop anything
+    # from the first '?' or '#' so a stray paste (…/api/v1?x=1) can't be
+    # transformed into a malformed '…/api/v1?x=1/api/v1'.
+    for sep in ("?", "#"):
+        url = url.split(sep, 1)[0]
+    url = url.rstrip("/")
     if not url:
         return ""
     if not url.endswith("/api/v1"):
