@@ -22,6 +22,29 @@ def _parse_keys(raw: str) -> frozenset[str]:
     return frozenset(k for k in raw.replace(",", " ").split() if k)
 
 
+def _normalize_canvas_url(raw: str) -> str:
+    """Normalize ``CANVAS_API_URL`` to the canonical ``…/api/v1`` form.
+
+    Canvas REST endpoints live under ``/api/v1``. Users frequently enter just
+    the base host (e.g. ``https://canvas.school.edu``); requests without the
+    suffix make Canvas issue a 302 redirect to SSO login, which surfaces as a
+    misleading ``HTTP error: 302`` that looks like a bad token. Strip trailing
+    slashes and append ``/api/v1`` when missing so all of these forms resolve
+    to the same canonical URL:
+
+    - ``https://canvas.school.edu``         → ``https://canvas.school.edu/api/v1``
+    - ``https://canvas.school.edu/``        → ``https://canvas.school.edu/api/v1``
+    - ``https://canvas.school.edu/api/v1``  → unchanged
+    - ``https://canvas.school.edu/api/v1/`` → ``https://canvas.school.edu/api/v1``
+    """
+    url = raw.strip().rstrip("/")
+    if not url:
+        return ""
+    if not url.endswith("/api/v1"):
+        url = f"{url}/api/v1"
+    return url
+
+
 def _bool_env(name: str, default: bool) -> bool:
     value = os.getenv(name)
     if value is None:
@@ -61,7 +84,7 @@ class Config:
     def __init__(self) -> None:
         # Required configuration
         self.canvas_api_token = os.getenv("CANVAS_API_TOKEN", "")
-        self.canvas_api_url = os.getenv("CANVAS_API_URL", "")
+        self.canvas_api_url = _normalize_canvas_url(os.getenv("CANVAS_API_URL", ""))
 
         # Optional configuration with defaults
         self.mcp_server_name = os.getenv("MCP_SERVER_NAME", "canvas-api")
@@ -196,11 +219,9 @@ def validate_config() -> bool:
         log_error("Please set CANVAS_API_URL in your .env file")
         return False
 
-    if not config.canvas_api_url.endswith("/api/v1"):
-        log_warning(
-            "CANVAS_API_URL should end with '/api/v1'",
-            current_url=config.canvas_api_url,
-        )
+    # CANVAS_API_URL is normalized to the canonical '…/api/v1' form in
+    # Config.__init__ (see _normalize_canvas_url), so no suffix check is needed
+    # here — any non-empty value is already well-formed.
 
     if config.ts_sandbox_mode not in VALID_SANDBOX_MODES:
         log_warning(

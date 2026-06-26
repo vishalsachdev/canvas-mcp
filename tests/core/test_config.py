@@ -1,6 +1,9 @@
 """Tests for configuration management (singleton lifecycle, env parsing)."""
 
+import pytest
+
 import canvas_mcp.core.config as config_module
+from canvas_mcp.core.config import _normalize_canvas_url
 
 
 def test_get_config_returns_cached_singleton():
@@ -41,3 +44,33 @@ def test_reset_config_clears_invalid_env_caches(monkeypatch):
 
     config_module.get_config()  # valid now -> nothing recorded
     assert "API_TIMEOUT" not in config_module._INVALID_INT_ENV_VARS
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        # Base host (the common footgun) gets the suffix appended.
+        ("https://canvas.school.edu", "https://canvas.school.edu/api/v1"),
+        # Trailing slash is stripped before appending.
+        ("https://canvas.school.edu/", "https://canvas.school.edu/api/v1"),
+        # Already-canonical form is unchanged.
+        ("https://canvas.school.edu/api/v1", "https://canvas.school.edu/api/v1"),
+        # Canonical form with a trailing slash is normalized.
+        ("https://canvas.school.edu/api/v1/", "https://canvas.school.edu/api/v1"),
+        # Surrounding whitespace is trimmed.
+        ("  https://canvas.school.edu/api/v1  ", "https://canvas.school.edu/api/v1"),
+        # Empty / blank stays empty so validate_config() can flag it as missing.
+        ("", ""),
+        ("   ", ""),
+    ],
+)
+def test_normalize_canvas_url(raw, expected):
+    assert _normalize_canvas_url(raw) == expected
+
+
+def test_config_normalizes_canvas_api_url(monkeypatch):
+    """CANVAS_API_URL from the environment is normalized on Config build."""
+    monkeypatch.setenv("CANVAS_API_TOKEN", "test-token")
+    monkeypatch.setenv("CANVAS_API_URL", "https://canvas.school.edu")
+    config_module.reset_config()
+    assert config_module.get_config().canvas_api_url == "https://canvas.school.edu/api/v1"
