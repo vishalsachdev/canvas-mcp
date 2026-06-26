@@ -1,6 +1,7 @@
 """Configuration management for Canvas MCP server."""
 
 import os
+from urllib.parse import urlparse, urlunparse
 
 from dotenv import load_dotenv
 
@@ -28,27 +29,40 @@ def _normalize_canvas_url(raw: str) -> str:
     Canvas REST endpoints live under ``/api/v1``. Users frequently enter just
     the base host (e.g. ``https://canvas.school.edu``); requests without the
     suffix make Canvas issue a 302 redirect to SSO login, which surfaces as a
-    misleading ``HTTP error: 302`` that looks like a bad token. Strip trailing
-    slashes and append ``/api/v1`` when missing so all of these forms resolve
-    to the same canonical URL:
+    misleading ``HTTP error: 302`` that looks like a bad token. Canonicalize
+    the path to exactly ``/api/v1`` (dropping any extra segments copied from a
+    browser, plus stray query strings / fragments) so all of these resolve to
+    the same URL:
 
-    - ``https://canvas.school.edu``         → ``https://canvas.school.edu/api/v1``
-    - ``https://canvas.school.edu/``        → ``https://canvas.school.edu/api/v1``
-    - ``https://canvas.school.edu/api/v1``  → unchanged
-    - ``https://canvas.school.edu/api/v1/`` → ``https://canvas.school.edu/api/v1``
+    - ``https://canvas.school.edu``             → ``https://canvas.school.edu/api/v1``
+    - ``https://canvas.school.edu/``            → ``https://canvas.school.edu/api/v1``
+    - ``https://canvas.school.edu/api/v1``      → unchanged
+    - ``https://canvas.school.edu/api/v1/``     → ``https://canvas.school.edu/api/v1``
+    - ``https://canvas.school.edu/api/v1/foo``  → ``https://canvas.school.edu/api/v1``
+    - ``https://canvas.school.edu/api/v1?x=1``  → ``https://canvas.school.edu/api/v1``
+
+    A scheme-less input (e.g. ``canvas.school.edu``) is returned unchanged so
+    ``validate_config()`` can flag the missing ``https://`` rather than this
+    silently producing a relative-path URL.
     """
     url = raw.strip()
-    # An API base URL never carries a query string or fragment. Drop anything
-    # from the first '?' or '#' so a stray paste (…/api/v1?x=1) can't be
-    # transformed into a malformed '…/api/v1?x=1/api/v1'.
-    for sep in ("?", "#"):
-        url = url.split(sep, 1)[0]
-    url = url.rstrip("/")
     if not url:
         return ""
-    if not url.endswith("/api/v1"):
-        url = f"{url}/api/v1"
-    return url
+
+    parsed = urlparse(url)
+    # Without a scheme, urlparse puts the host in ``path`` and leaves
+    # ``netloc`` empty — we can't reliably rebuild it, so leave it for the
+    # validator to warn about.
+    if not parsed.scheme or not parsed.netloc:
+        return url
+
+    marker = "/api/v1"
+    path = parsed.path
+    if marker in path:
+        path = path[: path.index(marker) + len(marker)]
+    else:
+        path = marker
+    return urlunparse(parsed._replace(path=path, params="", query="", fragment=""))
 
 
 def _bool_env(name: str, default: bool) -> bool:
@@ -227,7 +241,13 @@ def validate_config() -> bool:
 
     # CANVAS_API_URL is normalized to the canonical '…/api/v1' form in
     # Config.__init__ (see _normalize_canvas_url), so no suffix check is needed
-    # here — any non-empty value is already well-formed.
+    # here. A scheme-less value can't be normalized, though — warn so the user
+    # gets a clear diagnostic instead of a cryptic connection error.
+    if not config.canvas_api_url.startswith(("http://", "https://")):
+        log_warning(
+            "CANVAS_API_URL should start with 'https://'",
+            current_url=config.canvas_api_url,
+        )
 
     if config.ts_sandbox_mode not in VALID_SANDBOX_MODES:
         log_warning(

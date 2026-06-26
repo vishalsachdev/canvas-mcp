@@ -1,5 +1,7 @@
 """Tests for configuration management (singleton lifecycle, env parsing)."""
 
+from unittest.mock import patch
+
 import pytest
 
 import canvas_mcp.core.config as config_module
@@ -64,6 +66,13 @@ def test_reset_config_clears_invalid_env_caches(monkeypatch):
         ("https://canvas.school.edu/api/v1?x=1", "https://canvas.school.edu/api/v1"),
         # A stray fragment is dropped too.
         ("https://canvas.school.edu/api/v1#frag", "https://canvas.school.edu/api/v1"),
+        # Over-specified path (copied from a browser) is truncated, not
+        # double-appended into '…/courses/api/v1'.
+        ("https://canvas.school.edu/api/v1/courses", "https://canvas.school.edu/api/v1"),
+        # Host:port is preserved.
+        ("https://canvas.school.edu:8443", "https://canvas.school.edu:8443/api/v1"),
+        # A scheme-less value is left untouched for validate_config() to flag.
+        ("canvas.school.edu", "canvas.school.edu"),
         # Empty / blank stays empty so validate_config() can flag it as missing.
         ("", ""),
         ("   ", ""),
@@ -71,6 +80,18 @@ def test_reset_config_clears_invalid_env_caches(monkeypatch):
 )
 def test_normalize_canvas_url(raw, expected):
     assert _normalize_canvas_url(raw) == expected
+
+
+def test_validate_config_warns_on_schemeless_url(monkeypatch):
+    """A scheme-less CANVAS_API_URL is accepted but warns instead of silently
+    producing a relative-path URL."""
+    monkeypatch.setenv("CANVAS_API_TOKEN", "test-token")
+    monkeypatch.setenv("CANVAS_API_URL", "canvas.school.edu")
+    config_module.reset_config()
+    with patch.object(config_module, "log_warning") as mock_warn:
+        assert config_module.validate_config() is True
+    messages = " ".join(str(call) for call in mock_warn.call_args_list)
+    assert "https://" in messages
 
 
 def test_config_normalizes_canvas_api_url(monkeypatch):
