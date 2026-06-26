@@ -5,7 +5,7 @@ from urllib.parse import urlparse, urlunparse
 
 from dotenv import load_dotenv
 
-from .logging import log_error, log_warning
+from .logging import log_error, log_info, log_warning
 
 # Load environment variables from .env file
 load_dotenv()
@@ -241,12 +241,27 @@ def validate_config() -> bool:
 
     # CANVAS_API_URL is normalized to the canonical '…/api/v1' form in
     # Config.__init__ (see _normalize_canvas_url), so no suffix check is needed
-    # here. A scheme-less value can't be normalized, though — warn so the user
-    # gets a clear diagnostic instead of a cryptic connection error.
-    if not config.canvas_api_url.startswith(("http://", "https://")):
+    # here. A value that isn't a full https:// URL with a host can't be turned
+    # into a working endpoint, though — this covers plain http://, scheme-less
+    # hosts, and malformed triple-slash inputs (e.g. 'https:///host', whose
+    # empty netloc the normalizer leaves untouched). Warn so the user gets a
+    # clear diagnostic instead of a cryptic redirect or connection error.
+    if not config.canvas_api_url.startswith("https://") or not urlparse(
+        config.canvas_api_url
+    ).netloc:
         log_warning(
-            "CANVAS_API_URL should start with 'https://'",
+            "CANVAS_API_URL should be a full 'https://' URL including the host",
             current_url=config.canvas_api_url,
+        )
+
+    # Surface normalization: a user debugging a connection issue should be able
+    # to see that the effective URL differs from what they configured.
+    raw_url = os.getenv("CANVAS_API_URL", "").strip()
+    if raw_url and raw_url != config.canvas_api_url:
+        log_info(
+            "CANVAS_API_URL normalized to canonical form",
+            configured=raw_url,
+            effective=config.canvas_api_url,
         )
 
     if config.ts_sandbox_mode not in VALID_SANDBOX_MODES:

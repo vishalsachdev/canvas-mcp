@@ -78,6 +78,12 @@ def test_reset_config_clears_invalid_env_caches(monkeypatch):
         ("https://canvas.school.edu:8443", "https://canvas.school.edu:8443/api/v1"),
         # A scheme-less value is left untouched for validate_config() to flag.
         ("canvas.school.edu", "canvas.school.edu"),
+        # http:// is path-normalized but kept as-is; validate_config warns the
+        # scheme should be https://.
+        ("http://canvas.school.edu", "http://canvas.school.edu/api/v1"),
+        # Malformed triple-slash (empty netloc) is left untouched for
+        # validate_config() to flag rather than silently mangled.
+        ("https:///canvas.school.edu", "https:///canvas.school.edu"),
         # Empty / blank stays empty so validate_config() can flag it as missing.
         ("", ""),
         ("   ", ""),
@@ -97,6 +103,45 @@ def test_validate_config_warns_on_schemeless_url(monkeypatch):
         assert config_module.validate_config() is True
     messages = " ".join(str(call) for call in mock_warn.call_args_list)
     assert "https://" in messages
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://canvas.school.edu",      # plain http
+        "https:///canvas.school.edu",    # triple-slash, empty host
+    ],
+)
+def test_validate_config_warns_on_non_https_or_hostless_url(url, monkeypatch):
+    """http:// and malformed host-less URLs are accepted but warned about."""
+    monkeypatch.setenv("CANVAS_API_TOKEN", "test-token")
+    monkeypatch.setenv("CANVAS_API_URL", url)
+    config_module.reset_config()
+    with patch.object(config_module, "log_warning") as mock_warn:
+        assert config_module.validate_config() is True
+    messages = " ".join(str(call) for call in mock_warn.call_args_list)
+    assert "https://" in messages
+
+
+def test_validate_config_logs_normalization(monkeypatch):
+    """When normalization changes the URL, an info log surfaces the rewrite."""
+    monkeypatch.setenv("CANVAS_API_TOKEN", "test-token")
+    monkeypatch.setenv("CANVAS_API_URL", "https://canvas.school.edu")
+    config_module.reset_config()
+    with patch.object(config_module, "log_info") as mock_info:
+        assert config_module.validate_config() is True
+    logged = " ".join(str(call) for call in mock_info.call_args_list)
+    assert "https://canvas.school.edu/api/v1" in logged
+
+
+def test_validate_config_no_normalization_log_when_canonical(monkeypatch):
+    """An already-canonical URL produces no normalization info log."""
+    monkeypatch.setenv("CANVAS_API_TOKEN", "test-token")
+    monkeypatch.setenv("CANVAS_API_URL", "https://canvas.school.edu/api/v1")
+    config_module.reset_config()
+    with patch.object(config_module, "log_info") as mock_info:
+        assert config_module.validate_config() is True
+    assert not mock_info.called
 
 
 def test_config_normalizes_canvas_api_url(monkeypatch):
