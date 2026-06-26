@@ -1,10 +1,12 @@
 """Configuration management for Canvas MCP server."""
 
 import os
+import re
+from urllib.parse import urlparse, urlunparse
 
 from dotenv import load_dotenv
 
-from .logging import log_error, log_warning
+from .logging import log_error, log_info, log_warning
 
 # Load environment variables from .env file
 load_dotenv()
@@ -20,6 +22,52 @@ def _parse_keys(raw: str) -> frozenset[str]:
     if not raw:
         return frozenset()
     return frozenset(k for k in raw.replace(",", " ").split() if k)
+
+
+def _normalize_canvas_url(raw: str) -> str:
+    """Normalize ``CANVAS_API_URL`` to the canonical ``…/api/v1`` form.
+
+    Canvas REST endpoints live under ``/api/v1``. Users frequently enter just
+    the base host (e.g. ``https://canvas.school.edu``); requests without the
+    suffix make Canvas issue a 302 redirect to SSO login, which surfaces as a
+    misleading ``HTTP error: 302`` that looks like a bad token. Canonicalize
+    the path to exactly ``/api/v1`` (dropping any extra segments copied from a
+    browser, plus stray query strings / fragments) so all of these resolve to
+    the same URL:
+
+    - ``https://canvas.school.edu``             → ``https://canvas.school.edu/api/v1``
+    - ``https://canvas.school.edu/``            → ``https://canvas.school.edu/api/v1``
+    - ``https://canvas.school.edu/api/v1``      → unchanged
+    - ``https://canvas.school.edu/api/v1/``     → ``https://canvas.school.edu/api/v1``
+    - ``https://canvas.school.edu/api/v1/foo``  → ``https://canvas.school.edu/api/v1``
+    - ``https://canvas.school.edu/api/v1?x=1``  → ``https://canvas.school.edu/api/v1``
+
+    An explicit ``/api/v<N>`` version segment is preserved (only trailing
+    sub-paths after it are dropped), so a deliberately-set ``/api/v2`` is never
+    silently downgraded to ``/api/v1``.
+
+    A scheme-less input (e.g. ``canvas.school.edu``) is returned unchanged so
+    ``validate_config()`` can flag the missing ``https://`` rather than this
+    silently producing a relative-path URL.
+    """
+    url = raw.strip()
+    if not url:
+        return ""
+
+    parsed = urlparse(url)
+    # Without a scheme, urlparse puts the host in ``path`` and leaves
+    # ``netloc`` empty — we can't reliably rebuild it, so leave it for the
+    # validator to warn about.
+    if not parsed.scheme or not parsed.netloc:
+        return url
+
+    # Preserve an existing ``/api/v<N>`` version segment (truncating any extra
+    # path after it), matching only at a segment boundary so a real version
+    # like ``/api/v2`` is kept rather than rewritten. When the path carries no
+    # version segment, append the canonical ``/api/v1``.
+    version = re.search(r"/api/v\d+(?=/|$)", parsed.path)
+    path = parsed.path[: version.end()] if version else "/api/v1"
+    return urlunparse(parsed._replace(path=path, params="", query="", fragment=""))
 
 
 def _bool_env(name: str, default: bool) -> bool:
@@ -61,7 +109,10 @@ class Config:
     def __init__(self) -> None:
         # Required configuration
         self.canvas_api_token = os.getenv("CANVAS_API_TOKEN", "")
-        self.canvas_api_url = os.getenv("CANVAS_API_URL", "")
+        # Keep the raw value so validate_config() can report the normalization
+        # delta from the same read that produced canvas_api_url.
+        self.canvas_api_url_raw = os.getenv("CANVAS_API_URL", "").strip()
+        self.canvas_api_url = _normalize_canvas_url(self.canvas_api_url_raw)
 
         # Optional configuration with defaults
         self.mcp_server_name = os.getenv("MCP_SERVER_NAME", "canvas-api")
@@ -196,10 +247,32 @@ def validate_config() -> bool:
         log_error("Please set CANVAS_API_URL in your .env file")
         return False
 
-    if not config.canvas_api_url.endswith("/api/v1"):
+    # Diagnose a CANVAS_API_URL that can't reach Canvas. The triple-slash case
+    # (e.g. 'https:///host') is the subtle one: it has a scheme but an empty
+    # netloc, so the normalizer leaves it untouched. Report the specific defect
+    # rather than a one-size-fits-all message.
+    parsed_url = urlparse(config.canvas_api_url)
+    if parsed_url.scheme not in ("http", "https"):
         log_warning(
-            "CANVAS_API_URL should end with '/api/v1'",
+            "CANVAS_API_URL should start with 'https://'",
             current_url=config.canvas_api_url,
+        )
+    elif not parsed_url.netloc:
+        log_warning(
+            "CANVAS_API_URL is missing a hostname",
+            current_url=config.canvas_api_url,
+        )
+    elif parsed_url.scheme != "https":
+        log_warning(
+            "CANVAS_API_URL should use the 'https://' scheme",
+            current_url=config.canvas_api_url,
+        )
+
+    if config.canvas_api_url_raw and config.canvas_api_url_raw != config.canvas_api_url:
+        log_info(
+            "CANVAS_API_URL normalized to canonical form",
+            configured=config.canvas_api_url_raw,
+            effective=config.canvas_api_url,
         )
 
     if config.ts_sandbox_mode not in VALID_SANDBOX_MODES:
