@@ -95,34 +95,38 @@ def test_normalize_canvas_url(raw, expected):
     assert _normalize_canvas_url(raw) == expected
 
 
-def test_validate_config_warns_on_schemeless_url(monkeypatch):
-    """A scheme-less CANVAS_API_URL is accepted but warns instead of silently
-    producing a relative-path URL."""
-    monkeypatch.setenv("CANVAS_API_TOKEN", "test-token")
-    monkeypatch.setenv("CANVAS_API_URL", "canvas.school.edu")
-    config_module.reset_config()
-    with patch.object(config_module, "log_warning") as mock_warn:
-        assert config_module.validate_config() is True
-    messages = " ".join(str(call) for call in mock_warn.call_args_list)
-    assert "https://" in messages
-
-
 @pytest.mark.parametrize(
-    "url",
+    "url,expected_fragment",
     [
-        "http://canvas.school.edu",      # plain http
-        "https:///canvas.school.edu",    # triple-slash, empty host
+        # Scheme-less: the defect is the missing scheme, not a missing host.
+        ("canvas.school.edu", "https://"),
+        # Plain http:// with a valid host: warn specifically about the scheme.
+        ("http://canvas.school.edu", "scheme"),
+        # Triple-slash (scheme present, empty host): warn about the hostname.
+        ("https:///canvas.school.edu", "hostname"),
     ],
 )
-def test_validate_config_warns_on_non_https_or_hostless_url(url, monkeypatch):
-    """http:// and malformed host-less URLs are accepted but warned about."""
+def test_validate_config_warns_with_specific_diagnostic(url, expected_fragment, monkeypatch):
+    """A bad CANVAS_API_URL is accepted but warned about with a message that
+    names the actual defect (scheme vs. missing host)."""
     monkeypatch.setenv("CANVAS_API_TOKEN", "test-token")
     monkeypatch.setenv("CANVAS_API_URL", url)
     config_module.reset_config()
     with patch.object(config_module, "log_warning") as mock_warn:
         assert config_module.validate_config() is True
     messages = " ".join(str(call) for call in mock_warn.call_args_list)
-    assert "https://" in messages
+    assert expected_fragment in messages
+
+
+def test_validate_config_no_warning_for_valid_https_url(monkeypatch):
+    """A well-formed https:// URL produces no URL warning."""
+    monkeypatch.setenv("CANVAS_API_TOKEN", "test-token")
+    monkeypatch.setenv("CANVAS_API_URL", "https://canvas.school.edu/api/v1")
+    config_module.reset_config()
+    with patch.object(config_module, "log_warning") as mock_warn:
+        assert config_module.validate_config() is True
+    messages = " ".join(str(call) for call in mock_warn.call_args_list)
+    assert "CANVAS_API_URL" not in messages
 
 
 def test_validate_config_logs_normalization(monkeypatch):

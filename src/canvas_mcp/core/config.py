@@ -109,7 +109,10 @@ class Config:
     def __init__(self) -> None:
         # Required configuration
         self.canvas_api_token = os.getenv("CANVAS_API_TOKEN", "")
-        self.canvas_api_url = _normalize_canvas_url(os.getenv("CANVAS_API_URL", ""))
+        # Keep the raw value so validate_config() can report the normalization
+        # delta from the same read that produced canvas_api_url.
+        self.canvas_api_url_raw = os.getenv("CANVAS_API_URL", "").strip()
+        self.canvas_api_url = _normalize_canvas_url(self.canvas_api_url_raw)
 
         # Optional configuration with defaults
         self.mcp_server_name = os.getenv("MCP_SERVER_NAME", "canvas-api")
@@ -244,28 +247,31 @@ def validate_config() -> bool:
         log_error("Please set CANVAS_API_URL in your .env file")
         return False
 
-    # CANVAS_API_URL is normalized to the canonical '…/api/v1' form in
-    # Config.__init__ (see _normalize_canvas_url), so no suffix check is needed
-    # here. A value that isn't a full https:// URL with a host can't be turned
-    # into a working endpoint, though — this covers plain http://, scheme-less
-    # hosts, and malformed triple-slash inputs (e.g. 'https:///host', whose
-    # empty netloc the normalizer leaves untouched). Warn so the user gets a
-    # clear diagnostic instead of a cryptic redirect or connection error.
-    if not config.canvas_api_url.startswith("https://") or not urlparse(
-        config.canvas_api_url
-    ).netloc:
+    # Diagnose a CANVAS_API_URL that can't reach Canvas. The triple-slash case
+    # (e.g. 'https:///host') is the subtle one: it has a scheme but an empty
+    # netloc, so the normalizer leaves it untouched. Report the specific defect
+    # rather than a one-size-fits-all message.
+    parsed_url = urlparse(config.canvas_api_url)
+    if parsed_url.scheme not in ("http", "https"):
         log_warning(
-            "CANVAS_API_URL should be a full 'https://' URL including the host",
+            "CANVAS_API_URL should start with 'https://'",
+            current_url=config.canvas_api_url,
+        )
+    elif not parsed_url.netloc:
+        log_warning(
+            "CANVAS_API_URL is missing a hostname",
+            current_url=config.canvas_api_url,
+        )
+    elif parsed_url.scheme != "https":
+        log_warning(
+            "CANVAS_API_URL should use the 'https://' scheme",
             current_url=config.canvas_api_url,
         )
 
-    # Surface normalization: a user debugging a connection issue should be able
-    # to see that the effective URL differs from what they configured.
-    raw_url = os.getenv("CANVAS_API_URL", "").strip()
-    if raw_url and raw_url != config.canvas_api_url:
+    if config.canvas_api_url_raw and config.canvas_api_url_raw != config.canvas_api_url:
         log_info(
             "CANVAS_API_URL normalized to canonical form",
-            configured=raw_url,
+            configured=config.canvas_api_url_raw,
             effective=config.canvas_api_url,
         )
 
