@@ -109,10 +109,11 @@ class Config:
     def __init__(self) -> None:
         # Required configuration
         self.canvas_api_token = os.getenv("CANVAS_API_TOKEN", "")
-        # Keep the raw value so validate_config() can report the normalization
-        # delta from the same read that produced canvas_api_url.
-        self.canvas_api_url_raw = os.getenv("CANVAS_API_URL", "").strip()
-        self.canvas_api_url = _normalize_canvas_url(self.canvas_api_url_raw)
+        # Keep the configured (pre-normalization) value so validate_config()
+        # can report the normalization delta from the same read that produced
+        # canvas_api_url. Whitespace-trimmed, matching the normalizer's input.
+        self.canvas_api_url_configured = os.getenv("CANVAS_API_URL", "").strip()
+        self.canvas_api_url = _normalize_canvas_url(self.canvas_api_url_configured)
 
         # Optional configuration with defaults
         self.mcp_server_name = os.getenv("MCP_SERVER_NAME", "canvas-api")
@@ -268,10 +269,13 @@ def validate_config() -> bool:
             current_url=config.canvas_api_url,
         )
 
-    if config.canvas_api_url_raw and config.canvas_api_url_raw != config.canvas_api_url:
+    if (
+        config.canvas_api_url_configured
+        and config.canvas_api_url_configured != config.canvas_api_url
+    ):
         log_info(
             "CANVAS_API_URL normalized to canonical form",
-            configured=config.canvas_api_url_raw,
+            configured=config.canvas_api_url_configured,
             effective=config.canvas_api_url,
         )
 
