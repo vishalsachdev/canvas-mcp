@@ -69,6 +69,11 @@ def test_reset_config_clears_invalid_env_caches(monkeypatch):
         # Over-specified path (copied from a browser) is truncated, not
         # double-appended into '…/courses/api/v1'.
         ("https://canvas.school.edu/api/v1/courses", "https://canvas.school.edu/api/v1"),
+        # Near-miss suffix is canonicalized to /api/v1 (path-aware, so it is
+        # never double-appended into '…/api/v10/api/v1').
+        ("https://canvas.school.edu/api/v10", "https://canvas.school.edu/api/v1"),
+        # A Canvas install under a sub-path keeps that prefix.
+        ("https://canvas.school.edu/lms/api/v1", "https://canvas.school.edu/lms/api/v1"),
         # Host:port is preserved.
         ("https://canvas.school.edu:8443", "https://canvas.school.edu:8443/api/v1"),
         # A scheme-less value is left untouched for validate_config() to flag.
