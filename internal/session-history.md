@@ -4,6 +4,26 @@ Archived session log entries from canvas-mcp CLAUDE.md.
 
 ## Session Log
 
+### 2026-06-26 — hosted `mcp-remote` clients re-login hourly (#146)
+The hosted-path onboarding template requested Entra scope `api://<app>/access_as_user` **without
+`offline_access`**, so Entra issued a ~1h access token and **no refresh token**. On expiry, `mcp-remote`
+redid the full browser flow; a leftover `_lock.json` (in `~/.mcp-auth/mcp-remote-*/`, holding the OAuth
+callback port from the prior live process) then made the re-auth **hang** instead of re-prompting — the
+OAuth tab pops and closes (auth succeeds) but the call never returns. Net effect: one working ~1h window
+per sign-in, then a jam.
+
+**Fix (confirmed live):** add `offline_access` to the scope. Entra honors it (no app-registration change
+needed) and `mcp-remote@0.1.37+` stores the refresh token → silent renewal, no more hourly hang. The scope
+is **not** in shipping code (`config-writer.js` writes a different direct-HTTP config) — it lives in the
+**manual hosted-onboarding templates**: `internal/ops-faculty-onboarding.local.md` and
+`internal/compliance/Canvas-MCP-Setup.md` (both patched 2026-06-26).
+
+**Existing users do NOT self-heal** — their local config still has the old scope. Each must: (1) add
+` offline_access` to the scope in their config, (2) `pkill -f "mcp-remote.*canvas"`, (3)
+`rm -rf ~/.mcp-auth/mcp-remote-*`, (4) reconnect + sign in once. Verify the fix took: the new
+`*_tokens.json` should contain a `refresh_token` key. (Minor/separate: per-caller `X-Canvas-Token` rides
+as a plaintext `--header` CLI arg → visible in `ps` on the client machine; inherent to `mcp-remote`.)
+
 ### 2026-06-22 — hosted `.mcpb` launch fix (npx/PATH → vendored mcp-remote)
 - **🐛 Fixed the hosted `.mcpb` failing to connect in Claude Desktop.** A tester's log showed the
   server exiting **~170 ms after `initialize`** ("transport closed unexpectedly… process exiting
