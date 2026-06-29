@@ -15,6 +15,7 @@ Contents:
 - `session-history.md` — full development session log.
 - `best-practices.md` — internal working notes.
 - `research-appservice-mcp-entra.md` — Azure App Service + Entra research notes.
+- `ops-hosted.local.md` *(gitignored, operator-only)* — hosted endpoint/auth/deploy runbook, incl. the **mcp-remote OAuth re-auth/hang troubleshooting** (#146).
 
 > Public, human-facing docs live in `docs/` (the HTML guides) and in the
 > top-level `README.md` / `AGENTS.md`.
