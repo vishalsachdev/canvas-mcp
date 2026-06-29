@@ -24,6 +24,19 @@ is **not** in shipping code (`config-writer.js` writes a different direct-HTTP c
 `*_tokens.json` should contain a `refresh_token` key. (Minor/separate: per-caller `X-Canvas-Token` rides
 as a plaintext `--header` CLI arg → visible in `ps` on the client machine; inherent to `mcp-remote`.)
 
+### 2026-06-24 — added 2 faculty to hosted allowlist (7→9 OIDs) + onboarding-simplification thread
+- **Added Hugh Swiatek (`swiatek3`) + John Clark (`jsclark2`) to the hosted Entra allowlist.** Resolved
+  each NetID→Entra OID via `az ad user show`, appended both to `MCP_ENTRA_ALLOWED_OIDS` on the `canvas-mcp`
+  web app (RG `DL_ResourceGroup_01`); `appsettings set` auto-recycled the app. Verified: 9 OIDs, app
+  `Running`, endpoint returns `401` (correct auth challenge). `az` auth was healthy (no CAE loop this time).
+  Documented the roster + add/remove `az` procedure in gitignored `internal/ops-hosted.local.md` (new
+  "Allowlist (v2 Entra OIDs, current)" section).
+- **Also:** refreshed `docs/data/impact.json` (stars 150, forks 42) — committed + Cloudflare-deployed.
+- **Open thread — simplify hosted MCP onboarding.** User reports setup friction: an agent helping a user
+  set up couldn't read a "page behind login." Root cause not yet pinned (candidates: the NetID-walled
+  Canvas-token KB article `answers.uillinois.edu/.../150325`, the Entra NetID+Duo OAuth flow, the Canvas
+  token-creation page, or the instructions doc). User floated "magic link or something."
+
 ### 2026-06-22 — hosted `.mcpb` launch fix (npx/PATH → vendored mcp-remote)
 - **🐛 Fixed the hosted `.mcpb` failing to connect in Claude Desktop.** A tester's log showed the
   server exiting **~170 ms after `initialize`** ("transport closed unexpectedly… process exiting

@@ -197,22 +197,25 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-06-24 — added 2 faculty to hosted allowlist (7→9 OIDs) + onboarding-simplification thread
-- **Added Hugh Swiatek (`swiatek3`) + John Clark (`jsclark2`) to the hosted Entra allowlist.** Resolved
-  each NetID→Entra OID via `az ad user show`, appended both to `MCP_ENTRA_ALLOWED_OIDS` on the `canvas-mcp`
-  web app (RG `DL_ResourceGroup_01`); `appsettings set` auto-recycled the app. Verified: 9 OIDs, app
-  `Running`, endpoint returns `401` (correct auth challenge). `az` auth was healthy (no CAE loop this time).
-  Documented the roster + add/remove `az` procedure in gitignored `internal/ops-hosted.local.md` (new
-  "Allowlist (v2 Entra OIDs, current)" section).
-- **Also:** refreshed `docs/data/impact.json` (stars 150, forks 42) — committed + Cloudflare-deployed.
-- **Open thread — simplify hosted MCP onboarding.** User reports setup friction: an agent helping a user
-  set up couldn't read a "page behind login." Root cause not yet pinned (candidates: the NetID-walled
-  Canvas-token KB article `answers.uillinois.edu/.../150325`, the Entra NetID+Duo OAuth flow, the Canvas
-  token-creation page, or the instructions doc). User floated "magic link or something." Brainstorming was
-  opened but the clarifying question is still unanswered.
-- Next: (1) **Pin down which login-walled page blocked the agent**, then design simpler onboarding —
-  likely lean on the existing `.mcpb` (no JSON editing) + inline the token steps so no agent ever needs to
-  fetch the NetID-walled KB page. Note: "magic link" = the superseded v1 access-key model; reverting trades
-  away the Entra/Duo identity binding that the in-progress campus security review depends on — flag that
-  tradeoff before going there. (2) Carry-forward from 6/22: distribute rebuilt `.mcpb` to testers; macOS+
-  Windows install test; durable Entra-group access (`appRoleAssignmentRequired`).
+### 2026-06-30 — #146 closed + compliance doc overhauled for the IT/LRA review + Adam email
+- **Closed #146** (hourly `mcp-remote` re-auth): root cause was the missing `offline_access` scope; fix
+  confirmed live 2026-06-26. Posted a consolidating summary, closed as completed. Folded the OAuth re-auth/
+  hang troubleshooting (incl. the stale `_lock.json` callback-port wedge) into `internal/ops-hosted.local.md`
+  and fixed a **stale client-setup snippet there that was missing `offline_access`** (would have re-introduced
+  the bug). Tracked README pointer added.
+- **Discovered the compliance-doc request from IT is the follow-up to Adam's submitted LRA** (2026-06-18,
+  auto-rated **HIGH** because student data = "Perhaps"; findings advisory). Overhauled `SECURITY-COMPLIANCE.md`:
+  reflected live Entra auth (P0 IT05/FO-36 identity gap → resolved), added a **3-tier risk-graded model**
+  (local-BYO / hosted+licensed-SaaS / hosted+in-tenant; contractual vs technical boundary), reframed §1 to
+  **lead with course-ops-at-scale** (course content, not student records → lower sensitivity), linked the
+  campus Canvas+Gemini-LTI eval as precedent.
+- **Governance:** flagged that the LRA says "uses Azure OpenAI" but as-built the model lives in the user's
+  **client** (server is a tool provider) — the doc now describes this accurately (model-portable). **Untracked
+  `SECURITY-COMPLIANCE.md`** (was public) → gitignored, operator-only; broadened ignore to `internal/*.local.*`.
+- **Email to Adam composed** (Outlook, **not sent** — awaiting review): Aptos-12 body + 2 attachments
+  (`canvas-mcp-architecture.html` flowchart + `canvas-mcp-compliance.pdf`). Made **Aptos 12pt the house email
+  standard** (baked into the `compose-outlook-email` skill).
+- Next: (1) **Send the Adam email** after review; decide model fork — correct LRA toward model-portable
+  (recommended) vs. pin hosted to in-tenant Azure OpenAI (Tier 3). (2) When the **ticket # lands**, supplement
+  with corrected model framing + diagram + course-ops narrative. (3) Carry-forward: onboarding-simplification
+  thread (which login-walled page blocked the setup agent); distribute rebuilt `.mcpb` to testers.
