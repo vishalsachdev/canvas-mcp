@@ -1,62 +1,62 @@
 {
-  "collected_at": "2026-06-22T14:00:09Z",
+  "collected_at": "2026-06-29T14:05:01Z",
   "github": {
-    "stars": 150,
-    "forks": 42,
-    "contributors": 12,
-    "open_issues": 4,
-    "views_14d": 748,
-    "views_14d_unique": 381,
-    "clones_14d": 2052,
-    "clones_14d_unique": 640,
+    "stars": 153,
+    "forks": 45,
+    "contributors": 13,
+    "open_issues": 5,
+    "views_14d": 866,
+    "views_14d_unique": 378,
+    "clones_14d": 1830,
+    "clones_14d_unique": 585,
     "referrers": [
       {
         "referrer": "Google",
-        "count": 315,
-        "uniques": 205
+        "count": 335,
+        "uniques": 194
       },
       {
         "referrer": "github.com",
-        "count": 68,
-        "uniques": 50
-      },
-      {
-        "referrer": "Bing",
-        "count": 21,
-        "uniques": 15
+        "count": 103,
+        "uniques": 60
       },
       {
         "referrer": "reddit.com",
-        "count": 17,
-        "uniques": 15
+        "count": 26,
+        "uniques": 20
       },
       {
         "referrer": "canvas-mcp.illinihunt.org",
-        "count": 16,
+        "count": 22,
         "uniques": 7
       },
       {
-        "referrer": "search.brave.com",
-        "count": 10,
-        "uniques": 4
+        "referrer": "Bing",
+        "count": 17,
+        "uniques": 11
       },
       {
-        "referrer": "DuckDuckGo",
-        "count": 6,
+        "referrer": "search.brave.com",
+        "count": 17,
         "uniques": 6
       },
       {
-        "referrer": "moonshot.feishu.cn",
-        "count": 5,
-        "uniques": 1
+        "referrer": "chatgpt.com",
+        "count": 6,
+        "uniques": 2
       },
       {
-        "referrer": "Yahoo",
+        "referrer": "DuckDuckGo",
         "count": 3,
         "uniques": 3
       },
       {
         "referrer": "chatwithgpt.substack.com",
+        "count": 2,
+        "uniques": 1
+      },
+      {
+        "referrer": "glama.ai",
         "count": 2,
         "uniques": 1
       }
@@ -68,7 +68,7 @@
     "last_month": 849
   },
   "npm": {
-    "last_month": 85
+    "last_month": 76
   },
   "history": [
     {
@@ -214,6 +214,15 @@
       "npm_month": 85,
       "views_unique": 381,
       "clones_unique": 640
+    },
+    {
+      "date": "2026-06-29",
+      "stars": 153,
+      "forks": 45,
+      "pypi_month": 849,
+      "npm_month": 76,
+      "views_unique": 378,
+      "clones_unique": 585
     }
   ]
 }
