@@ -13,12 +13,32 @@
 A self-hosted [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server that lets an LLM client perform Canvas LMS tasks (grading, discussion facilitation, peer-review analytics, messaging) on behalf of an instructor or TA. Architecture as deployed/intended:
 
 - **Compute:** Azure Web App for Containers, **inside the University of Illinois Azure subscription/tenant** (`urbana-business-disruptionlab`).
-- **LLM:** the University's **Azure OpenAI Service, in-tenant** (enterprise agreement; data not used for training). **Not** consumer OpenAI/Anthropic APIs.
+- **LLM (model layer — pluggable; see §1a):** the server is a **tool provider**, not a model host — the LLM that reasons over returned Canvas data lives in the **client**. The FERPA data boundary therefore depends on *which model the client uses*, governed by the tiered model in §1a. The hosted instance is deliberately **model-portable**: it can target whichever in-tenant or institutionally-licensed model campus approves (in-tenant Azure OpenAI, or the **Google Gemini-for-Education** path now under campus evaluation), and is **not** tied to consumer OpenAI/Anthropic APIs in its endorsed configurations.
 - **Canvas access:** each caller sends **their own Canvas API token** (`X-Canvas-Token` header). The server holds **no** shared Canvas token; the Canvas API URL is server-pinned.
 - **Endpoint gate (identity):** **Entra ID (Azure AD) platform authentication** via App Service Easy Auth in API/bearer mode (RFC 9728 Protected Resource Metadata + `401` challenge; MCP-native OAuth, **not** a browser redirect). Each caller authenticates with their **campus NetID + Duo 2FA**; the app trusts the `X-MS-CLIENT-PRINCIPAL-ID` claim Easy Auth injects. Access is further scoped to an explicit allowlist of authorized campus identity OIDs (`MCP_ENTRA_ALLOWED_OIDS`) as an interim defense-in-depth control. The prior shared static access key is **retired**.
 - **Server-token guard:** `CANVAS_API_TOKEN` must never be set in HTTP mode — a startup guard fails closed if it is, ensuring there is no shared Canvas credential.
 - **Transport:** TLS terminated at Azure (`httpsOnly=true`).
 - **Code execution tool disabled** on the hosted image (`EXECUTE_TYPESCRIPT_ENABLED=false`).
+
+---
+
+## 1a. Deployment tiers (risk-graded model boundary)
+
+The same codebase supports three deployment tiers that differ in **who owns the data-egress risk** and **what kind of FERPA boundary applies**. This lets IT/GRC map data sensitivity to a *minimum tier* rather than make one all-or-nothing decision.
+
+| Tier | Deployment | Model layer | Boundary type | Risk owner | Suitable for |
+|---|---|---|---|---|---|
+| **1 — Local / BYO** | Local stdio MCP, user's own client | Whatever the user's client uses (may be consumer) | *None institutional* | **Individual** instructor/TA | Non-identifiable / anonymized work; individual responsibility — do **not** feed identifiable records to an unapproved model |
+| **2 — Hosted + licensed model** | Hosted HTTP (Entra / NetID + Duo) | Institutionally-**licensed** SaaS model: ChatGPT EDU, Google Gemini for Education, (Claude Enterprise later) | **Contractual** — data egresses but under a FERPA-covering DPA/BAA | **Institution** (via vendor contract) | Identifiable student data, where contractual coverage is accepted |
+| **3 — Hosted + in-tenant model** | Hosted HTTP (Entra / NetID + Duo) | **In-tenant** model via API key (Azure OpenAI in the UIUC subscription; campus-hosted Gemini) | **Technical** — student data never leaves the institutional cloud | **Institution** (fully in-boundary) | Identifiable student data; strongest posture |
+
+**Boundary distinction:** Tier 2's boundary is a *signed contract* (data reaches the vendor but is contractually use-limited); Tier 3's is *technical* (data never leaves the tenant). Both are defensible; institutions that require a technical boundary should mandate Tier 3.
+
+**Cross-cutting control:** the built-in **student-anonymization map** de-identifies analytical outputs, *lowering the tier required* for many tasks (e.g., grade-distribution analytics can run at Tier 1 because no identifiable record reaches the model).
+
+**Client requirement (Tiers 2–3):** requires a client that supports remote MCP connectors — Claude.ai / ChatGPT connectors, or **model-agnostic desktop agents** (e.g., Cline, Continue) pointed at the approved model. The latter preserves desktop local-context and automation capability while keeping inference on the approved model.
+
+**Determinations still owed by GRC / Privacy (see §6):** (a) confirm Tier 3's in-tenant Azure OpenAI deployment is designated for Sensitive data; (b) confirm which Tier 2 licenses (ChatGPT EDU / Gemini for Education / Claude Enterprise) carry FERPA coverage acceptable to the institution; (c) ratify the data-sensitivity → minimum-tier mapping. **"Safe" in this document means *compliant per these determinations*, not an independent assertion.** Note: the campus Gemini-LTI evaluation already establishes a precedent for an AI vendor processing Canvas data under an institutional agreement — its outcome may directly inform (a)/(b).
 
 ---
 
