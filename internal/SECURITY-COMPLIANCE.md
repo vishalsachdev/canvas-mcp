@@ -1,8 +1,8 @@
 # Canvas MCP — Security & FERPA Compliance Evaluation
 
-**Status:** Draft for review by UIUC Privacy Office / GRC and Cybersecurity
-**Scope:** The hosted HTTP MCP deployment (`gies-canvas-mcp-staging`, Illinois Azure), recommended to staff/faculty for Canvas LMS workflows.
-**Date:** 2026-06-14
+**Status:** For review by UIUC Privacy Office / GRC and Cybersecurity. **Updated 2026-06-30** to reflect the now-live Entra platform authentication (the prior P0 identity gap is resolved).
+**Scope:** The hosted HTTP MCP deployment (`canvas-mcp`, Illinois Azure App Service), recommended to staff/faculty for Canvas LMS workflows.
+**Date:** 2026-06-30 (supersedes 2026-06-14 draft)
 **Owner:** Vishal Sachdev (vishal@illinois.edu)
 **Out of scope:** Canvas API token issuance/security (handled by a separate IT Services approval process).
 
@@ -15,7 +15,8 @@ A self-hosted [Model Context Protocol](https://modelcontextprotocol.io) (MCP) se
 - **Compute:** Azure Web App for Containers, **inside the University of Illinois Azure subscription/tenant** (`urbana-business-disruptionlab`).
 - **LLM:** the University's **Azure OpenAI Service, in-tenant** (enterprise agreement; data not used for training). **Not** consumer OpenAI/Anthropic APIs.
 - **Canvas access:** each caller sends **their own Canvas API token** (`X-Canvas-Token` header). The server holds **no** shared Canvas token; the Canvas API URL is server-pinned.
-- **Endpoint gate:** a shared static access key (`X-MCP-Access-Key`, constant-time compared) — one value per authorized person, individually revocable.
+- **Endpoint gate (identity):** **Entra ID (Azure AD) platform authentication** via App Service Easy Auth in API/bearer mode (RFC 9728 Protected Resource Metadata + `401` challenge; MCP-native OAuth, **not** a browser redirect). Each caller authenticates with their **campus NetID + Duo 2FA**; the app trusts the `X-MS-CLIENT-PRINCIPAL-ID` claim Easy Auth injects. Access is further scoped to an explicit allowlist of authorized campus identity OIDs (`MCP_ENTRA_ALLOWED_OIDS`) as an interim defense-in-depth control. The prior shared static access key is **retired**.
+- **Server-token guard:** `CANVAS_API_TOKEN` must never be set in HTTP mode — a startup guard fails closed if it is, ensuring there is no shared Canvas credential.
 - **Transport:** TLS terminated at Azure (`httpsOnly=true`).
 - **Code execution tool disabled** on the hosted image (`EXECUTE_TYPESCRIPT_ENABLED=false`).
 
@@ -49,8 +50,8 @@ A self-hosted [Model Context Protocol](https://modelcontextprotocol.io) (MCP) se
 | In-tenant Azure compute + **in-tenant Azure OpenAI** | ✅ Aligned (pending U1 confirmation) | Keeps Sensitive data inside the University boundary; not third-party egress |
 | TLS in transit (`httpsOnly`) | ✅ Aligned | Encryption-in-transit expectation |
 | `execute_typescript` disabled on hosted image | ✅ Aligned | Removes arbitrary-code-exec surface on the network-facing service |
-| **Endpoint gate fails closed when unconfigured** | ✅ Fixed 2026-06-14 | Was warn-only; now refuses to start without `MCP_ACCESS_KEYS` unless `MCP_ALLOW_UNAUTHENTICATED=true` |
-| **Authentication = shared static key, no NetID/Entra identity** | ❌ **Gap (P0)** | F3 — IT05 requires campus-identity-based auth; a shared secret gives no individual attribution for the FERPA need-to-know determination and weakens audit |
+| Endpoint fails closed when auth unconfigured | ✅ Fixed 2026-06-14 | Startup guard refuses HTTP mode unless authentication is configured; `CANVAS_API_TOKEN` in HTTP mode is rejected |
+| **Authentication = Entra ID (NetID + Duo 2FA) campus identity** | ✅ **Aligned (was P0 gap; resolved 2026-06-17)** | F3 — **IT05/FO-36 conformance.** Easy Auth bearer mode supplies a verified campus identity (`X-MS-CLIENT-PRINCIPAL-ID`) per request, giving individual attribution for the FERPA need-to-know determination. Replaces the retired shared static key. |
 | Access logging / audit trail of who accessed which records | ⚠️ Partial | F2 expects auditable access + documented authorization basis per user |
 | Documented business-need / authorization basis per operator | ⚠️ Partial | F2 — needs a recorded authorization basis per TA/instructor |
 
@@ -58,8 +59,8 @@ A self-hosted [Model Context Protocol](https://modelcontextprotocol.io) (MCP) se
 
 ## 5. Prioritized gap list
 
-- **P0 — Authentication identity (verified gap).** Replace the shared static access key with **NetID/Entra (Azure AD) SSO + 2FA** so each request carries a verified campus identity. This is the IT05/FO-36 conformance requirement (F3) and the single blocker for a campus-wide recommendation. *(Already on the roadmap as "Entra/OAuth v2" — this evaluation reclassifies it from enhancement to gate.)*
-  - *Rejected alternatives:* **campus VPN** and **Azure App Service IP access restrictions** are network-layer controls only — useful as optional defense-in-depth, but they do **not** supply per-request identity/attribution, so neither closes this gap. **Azure AD "Easy Auth"** (the one-click App Service toggle) is also unsuitable: it 302-redirects to a browser login that non-browser MCP clients cannot follow. The correct path is the MCP-native OAuth flow with Entra ID as the identity provider.
+- **P0 — Authentication identity.** ✅ **Resolved 2026-06-17.** The shared static access key was replaced with **NetID/Entra (Azure AD) SSO + Duo 2FA**, so each request now carries a verified campus identity — the IT05/FO-36 conformance requirement (F3) is met. Implemented as the **MCP-native OAuth flow with Entra ID** fronted by App Service Easy Auth in **API/bearer mode** (RFC 9728 PRM + `401` challenge, not a 302 browser redirect); the `AADSTS9010010` blocker was cleared by registering the custom-domain endpoint as an Entra App ID URI so the PRM `resource` matches.
+  - *Rejected alternatives (for the record):* **campus VPN** and **Azure App Service IP restrictions** are network-layer only — no per-request identity/attribution. The one-click Easy Auth **browser-redirect** mode was unsuitable for non-browser MCP clients (302 to a login they can't follow); the shipped solution uses Easy Auth's **bearer/API mode** instead.
 - **P0 — Fail-closed the endpoint gate.** ✅ **Done 2026-06-14** (`fix/http-gate-fail-closed`). HTTP mode now exits unless `MCP_ACCESS_KEYS` is set or `MCP_ALLOW_UNAUTHENTICATED=true` is explicitly declared (the latter only for an Entra/Easy-Auth-fronted deployment).
 - **P1 — Audit trail + documented authorization.** Add per-user access logging and a recorded authorization basis per operator (F2).
 - **P1 — Bound to legitimate educational interest.** Ensure tooling cannot exceed the operator's scope or re-disclose; keep High Risk elements (SSNs, etc.) out of any AI tool entirely — use the built-in student-anonymization map for analytical outputs (F1, F4, U1).
