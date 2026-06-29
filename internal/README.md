@@ -10,7 +10,7 @@ gitignored `*.local.md` files) — **do not** move them into `docs/`.
 
 Contents:
 
-- `SECURITY-COMPLIANCE.md` — FERPA/security evaluation of the hosted deployment.
+- `SECURITY-COMPLIANCE.md` *(gitignored, operator-only)* — FERPA/security evaluation of the hosted deployment; shared privately with IT, not published.
 - `architecture-review.md` — adversarial MCP-vs-direct-API design review.
 - `session-history.md` — full development session log.
 - `best-practices.md` — internal working notes.

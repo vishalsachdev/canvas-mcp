@@ -104,6 +104,10 @@ docs/*.local.md
 internal/compliance/
 docs/compliance/
 
+# Internal security/FERPA evaluation — shared privately with IT, not published
+# (publishes our own gap list + open questions; no secrets, but operator-only)
+internal/SECURITY-COMPLIANCE.md
+
 # Hosted Desktop Extension sources (contains the private hosted endpoint URL)
 internal/mcpb-hosted/
 
