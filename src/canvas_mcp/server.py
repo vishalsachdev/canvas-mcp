@@ -226,16 +226,23 @@ class CanvasCredentialMiddleware:
                     store = _access_store(config)
                     in_overlay = store.is_granted(oid) if store else False
                 if config.mcp_entra_allowed_oids and not (in_env or in_overlay):
-                    if config.access_request_enabled and store is not None:
-                        claims_for_req = _client_principal_claims(headers)
-                        from .core.access.store import Requester
-                        requester = Requester(
-                            oid=oid,
-                            upn=claims_for_req.get("preferred_username")
-                            or claims_for_req.get("upn", ""),
-                            display_name=claims_for_req.get("name", ""))
-                        _schedule_notify(config, store, requester)
+                    # Send the deny FIRST, so scheduling the access-request email
+                    # can never delay or break the 403 (auth boundary: respond,
+                    # then notify). The notify is additionally guarded so a
+                    # scheduling error degrades to "no email", never a dropped 403.
                     await _send_json_error(send, 403, "Identity not authorized for this MCP server")
+                    if config.access_request_enabled and store is not None:
+                        try:
+                            claims_for_req = _client_principal_claims(headers)
+                            from .core.access.store import Requester
+                            requester = Requester(
+                                oid=oid,
+                                upn=claims_for_req.get("preferred_username")
+                                or claims_for_req.get("upn", ""),
+                                display_name=claims_for_req.get("name", ""))
+                            _schedule_notify(config, store, requester)
+                        except Exception as exc:
+                            log_error(f"access-request notify scheduling failed: {exc}")
                     return
                 claims = _client_principal_claims(headers)
                 # Log only the stable, opaque identifiers (oid GUID, scope, client
