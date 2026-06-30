@@ -129,10 +129,23 @@ _ADMIN_APPROVE_PATH = "/admin/access/approve"
 _ADMIN_CONFIRM_PATH = "/admin/access/confirm"
 
 
+_overlay_store = None
+
+
 def _access_store(config):
-    """Build the overlay store lazily (None when feature not ready/unavailable)."""
-    from .core.access.factory import build_store
-    return build_store(config)
+    """Build the overlay store once and reuse it across requests.
+
+    The store's ``is_granted`` TTL cache is per-instance, so it only works if
+    the instance survives between requests — rebuilding per request also re-ran
+    ``create_table_if_not_exists`` and a fresh credential/client every time.
+    Returns None until it can be built (feature off / azure unavailable), and
+    retries on the next call so a transient build failure self-heals.
+    """
+    global _overlay_store
+    if _overlay_store is None:
+        from .core.access.factory import build_store
+        _overlay_store = build_store(config)
+    return _overlay_store
 
 
 def _schedule_notify(config, store, requester) -> None:

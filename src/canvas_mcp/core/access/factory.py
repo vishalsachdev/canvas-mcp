@@ -17,6 +17,23 @@ def feature_ready(config) -> bool:
                 and getattr(config, "access_table_account", ""))
 
 
+def _entity_to_row(entity) -> dict:
+    """Convert an azure-data-tables entity to a plain row, surfacing the ETag.
+
+    azure-data-tables exposes the ETag via ``entity.metadata['etag']`` rather
+    than as an item, so a bare ``dict(entity)`` silently drops it. The store's
+    ``consume_pending`` needs ``row['etag']`` for the optimistic-concurrency
+    (single-use) guard, so copy it onto the row. Pure — no azure import — so it
+    is unit-testable without the optional ``[hosted]`` deps installed.
+    """
+    row = dict(entity)
+    meta = getattr(entity, "metadata", None) or {}
+    etag = meta.get("etag")
+    if etag:
+        row["etag"] = etag
+    return row
+
+
 class _AzureTableBackend:
     def __init__(self, table_client) -> None:
         self._t = table_client
@@ -24,7 +41,7 @@ class _AzureTableBackend:
     def get(self, pk, rk):
         from azure.core.exceptions import ResourceNotFoundError
         try:
-            return dict(self._t.get_entity(pk, rk))
+            return _entity_to_row(self._t.get_entity(pk, rk))
         except ResourceNotFoundError:
             return None
 
@@ -34,15 +51,19 @@ class _AzureTableBackend:
     def replace_if_unmodified(self, entity, etag):
         from azure.core import MatchConditions
         from azure.core.exceptions import HttpResponseError
+        # The ETag rides the match_condition param, not the row body; drop the
+        # synthetic "etag" item (added by _entity_to_row) so it is never
+        # persisted as a data column.
+        payload = {k: v for k, v in entity.items() if k != "etag"}
         try:
-            self._t.update_entity(entity, mode="replace", etag=etag,
+            self._t.update_entity(payload, mode="replace", etag=etag,
                                   match_condition=MatchConditions.IfNotModified)
         except HttpResponseError as exc:
             raise ConcurrencyConflict(str(exc)) from exc
 
     def query(self, pk):
         flt = "PartitionKey eq '%s'" % pk.replace("'", "''")
-        return [dict(e) for e in self._t.query_entities(flt)]
+        return [_entity_to_row(e) for e in self._t.query_entities(flt)]
 
     def delete(self, pk, rk):
         self._t.delete_entity(pk, rk)
