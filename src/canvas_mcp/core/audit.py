@@ -169,6 +169,34 @@ def log_code_execution(
     _emit(event)
 
 
+def log_access_change(
+    action: str,
+    oid: str,
+    *,
+    upn: str | None = None,
+    source: str = "self-service",
+) -> None:
+    """Audit an authorization-allowlist change (grant/revoke/deny).
+
+    Args:
+        action: "grant", "revoke", or "deny".
+        oid: The affected Entra object ID.
+        upn: Optional user principal name (recorded in the audit log only).
+        source: How the change was made (default the self-service email flow).
+    """
+    if not _access_events_enabled:
+        return
+    event: dict[str, Any] = {
+        "event_type": "access_change",
+        "action": action,
+        "entra_oid": oid,
+    }
+    if upn:
+        event["upn"] = upn
+    event["source"] = source
+    _emit(event)
+
+
 def reset_audit_state() -> None:
     """Reset audit module state. For testing only."""
     global _access_events_enabled, _execution_events_enabled, _initialized
