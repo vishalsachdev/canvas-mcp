@@ -19,6 +19,8 @@ import base64
 import hmac
 import json
 import sys
+import time
+import uuid
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -73,6 +75,16 @@ async def _send_json_error(send: Any, status: int, message: str) -> None:
     await send({"type": "http.response.body", "body": body})
 
 
+async def _read_body(receive) -> bytes:
+    body = b""
+    while True:
+        msg = await receive()
+        body += msg.get("body", b"")
+        if not msg.get("more_body", False):
+            break
+    return body
+
+
 def _access_key_ok(presented: str, allowed: frozenset[str]) -> bool:
     """Constant-time check of a presented access key against the allowed set."""
     if not presented:
@@ -113,6 +125,34 @@ def _client_principal_claims(headers: dict[bytes, bytes]) -> dict[str, str]:
         return {}
 
 
+_ADMIN_APPROVE_PATH = "/admin/access/approve"
+_ADMIN_CONFIRM_PATH = "/admin/access/confirm"
+
+
+def _access_store(config):
+    """Build the overlay store lazily (None when feature not ready/unavailable)."""
+    from .core.access.factory import build_store
+    return build_store(config)
+
+
+def _schedule_notify(config, store, requester) -> None:
+    """Fire-and-forget admin email; never blocks or breaks the request path."""
+    from .core.access.factory import build_email_sender
+    from .core.access.notify import notify_access_request
+    sender = build_email_sender(config)
+    if sender is None:
+        return
+    now = int(time.time())
+    now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))
+    asyncio.create_task(notify_access_request(
+        store=store, requester=requester, secret=config.access_token_secret,
+        approve_base_url=config.access_approve_base_url,
+        admin_emails=config.access_admin_emails,
+        cooldown_hours=config.access_notify_cooldown_hours,
+        ttl_seconds=24 * 3600, send_email=sender,
+        jti=uuid.uuid4().hex, now=now, now_iso=now_iso))
+
+
 class CanvasCredentialMiddleware:
     """ASGI middleware that extracts the caller's Canvas token from headers.
 
@@ -139,11 +179,34 @@ class CanvasCredentialMiddleware:
             await self.app(scope, receive, send)
             return
 
+        config = get_config()
+        path = scope.get("path", "")
+
+        # --- Admin access-approval routes (intercepted before any token gate) ---
+        if path in (_ADMIN_APPROVE_PATH, _ADMIN_CONFIRM_PATH):
+            from .core.access.factory import feature_ready
+            if not (config.access_request_enabled and feature_ready(config)):
+                await _send_json_error(send, 404, "Not found")
+                return
+            store = _access_store(config)
+            if store is None:
+                await _send_json_error(send, 503, "Access service unavailable")
+                return
+            from .core.access import routes
+            now = int(time.time())
+            if path == _ADMIN_APPROVE_PATH:
+                await routes.handle_approve(scope.get("query_string", b""), send,
+                                            store=store, secret=config.access_token_secret, now=now)
+            else:
+                body = await _read_body(receive)
+                await routes.handle_confirm(body, send, store=store,
+                                            secret=config.access_token_secret, now=now)
+            return
+
         set_http_request_active(True)
         try:
             # Parse headers from ASGI scope (list of [name, value] byte pairs)
             headers = dict(scope.get("headers", []))
-            config = get_config()
 
             if config.entra_auth_enabled:
                 # Entra platform-auth path: Azure App Service has already validated
@@ -156,7 +219,22 @@ class CanvasCredentialMiddleware:
                 if not oid:
                     await _send_json_error(send, 401, "Missing verified Entra identity")
                     return
-                if config.mcp_entra_allowed_oids and oid not in config.mcp_entra_allowed_oids:
+                in_env = oid in config.mcp_entra_allowed_oids
+                in_overlay = False
+                store = None
+                if not in_env and config.access_request_enabled:
+                    store = _access_store(config)
+                    in_overlay = store.is_granted(oid) if store else False
+                if config.mcp_entra_allowed_oids and not (in_env or in_overlay):
+                    if config.access_request_enabled and store is not None:
+                        claims_for_req = _client_principal_claims(headers)
+                        from .core.access.store import Requester
+                        requester = Requester(
+                            oid=oid,
+                            upn=claims_for_req.get("preferred_username")
+                            or claims_for_req.get("upn", ""),
+                            display_name=claims_for_req.get("name", ""))
+                        _schedule_notify(config, store, requester)
                     await _send_json_error(send, 403, "Identity not authorized for this MCP server")
                     return
                 claims = _client_principal_claims(headers)

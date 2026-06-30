@@ -24,11 +24,13 @@ class _FakeConfig:
         mcp_access_keys=frozenset(),
         entra_auth_enabled=False,
         mcp_entra_allowed_oids=frozenset(),
+        access_request_enabled=False,
     ):
         self.canvas_api_url = canvas_api_url
         self.mcp_access_keys = mcp_access_keys
         self.entra_auth_enabled = entra_auth_enabled
         self.mcp_entra_allowed_oids = mcp_entra_allowed_oids
+        self.access_request_enabled = access_request_enabled
 
 # ---------------------------------------------------------------------------
 # ContextVar credential tests
@@ -927,3 +929,85 @@ class TestEntraPlatformAuth:
             await middleware(scope, AsyncMock(), AsyncMock())
 
         assert captured["token"] == "tok"
+
+
+# ---------------------------------------------------------------------------
+# Self-service access-approval overlay: gate union + admin route intercept
+# ---------------------------------------------------------------------------
+
+
+class TestAccessOverlayGate:
+    @pytest.fixture
+    def middleware(self):
+        from canvas_mcp.server import CanvasCredentialMiddleware
+        return CanvasCredentialMiddleware(AsyncMock())
+
+    def _cfg(self, **kw):
+        # Minimal config double with feature enabled + an in-memory store.
+        from types import SimpleNamespace
+        base = dict(entra_auth_enabled=True, mcp_entra_allowed_oids=frozenset({"oid-env"}),
+                    canvas_api_url="https://c.edu/api/v1", mcp_access_keys=frozenset(),
+                    access_request_enabled=True, access_token_secret="s",
+                    access_table_account="acct", access_admin_emails=["a@x"],
+                    access_approve_base_url="https://h.edu", acs_endpoint="https://acs",
+                    acs_sender="x@d", access_notify_cooldown_hours=24)
+        base.update(kw)
+        return SimpleNamespace(**base)
+
+    @pytest.mark.asyncio
+    async def test_overlay_oid_is_authorized(self, middleware):
+        from canvas_mcp.core.access.store import AccessStore, InMemoryBackend, Requester
+        store = AccessStore(InMemoryBackend(), cache_ttl_seconds=0)
+        store.grant(Requester("oid-new", "j@x", "Jane"), jti="j1")
+        captured = {}
+        async def inner(scope, receive, send):
+            captured["ran"] = True
+        middleware.app = inner
+        scope = {"type": "http", "path": "/mcp", "headers": [
+            (b"x-ms-client-principal-id", b"oid-new"),
+            (b"x-ms-client-principal", _principal_header({"scp": "x"})),
+            (b"x-canvas-token", b"tok")]}
+        with patch("canvas_mcp.server.get_config", return_value=self._cfg()), \
+             patch("canvas_mcp.server._access_store", return_value=store):
+            await middleware(scope, AsyncMock(), AsyncMock())
+        assert captured.get("ran") is True  # overlay grant -> allowed
+
+    @pytest.mark.asyncio
+    async def test_unlisted_oid_403_and_schedules_notify(self, middleware):
+        from canvas_mcp.core.access.store import AccessStore, InMemoryBackend
+        store = AccessStore(InMemoryBackend(), cache_ttl_seconds=0)
+        send = AsyncMock()
+        scope = {"type": "http", "path": "/mcp", "headers": [
+            (b"x-ms-client-principal-id", b"oid-unknown"),
+            (b"x-ms-client-principal", _principal_header(
+                {"scp": "x", "name": "Stranger", "preferred_username": "s@x.edu"})),
+            (b"x-canvas-token", b"tok")]}
+        with patch("canvas_mcp.server.get_config", return_value=self._cfg()), \
+             patch("canvas_mcp.server._access_store", return_value=store), \
+             patch("canvas_mcp.server._schedule_notify") as sched:
+            await middleware(scope, AsyncMock(), send)
+        assert send.call_args_list[0][0][0]["status"] == 403
+        sched.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_approve_path_served_without_canvas_token(self, middleware):
+        from canvas_mcp.core.access.store import AccessStore, InMemoryBackend
+        store = AccessStore(InMemoryBackend(), cache_ttl_seconds=0)
+        send = AsyncMock()
+        scope = {"type": "http", "path": "/admin/access/approve",
+                 "query_string": b"token=garbage", "headers": []}
+        with patch("canvas_mcp.server.get_config", return_value=self._cfg()), \
+             patch("canvas_mcp.server._access_store", return_value=store):
+            await middleware(scope, AsyncMock(), send)
+        status = send.call_args_list[0][0][0]["status"]
+        assert status == 200  # served by route handler, not the 401 token gate
+
+    @pytest.mark.asyncio
+    async def test_admin_path_404_when_feature_disabled(self, middleware):
+        send = AsyncMock()
+        scope = {"type": "http", "path": "/admin/access/approve",
+                 "query_string": b"", "headers": []}
+        with patch("canvas_mcp.server.get_config",
+                   return_value=self._cfg(access_request_enabled=False)):
+            await middleware(scope, AsyncMock(), send)
+        assert send.call_args_list[0][0][0]["status"] == 404
