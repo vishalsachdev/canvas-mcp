@@ -384,6 +384,34 @@ def test_connection() -> bool:
         return False
 
 
+def _cmd_list_grants(args) -> int:
+    """List self-service access grants from the overlay store. Returns an exit code."""
+    store = _access_store(get_config())
+    if store is None:
+        print("Access store unavailable (check ACCESS_* config + az login).")
+        return 1
+    grants = store.list_grants()
+    if not grants:
+        print("No self-service grants.")
+        return 0
+    for g in grants:
+        print(f"{g.oid}\t{g.display_name}\t{g.upn}\t{g.granted_utc}")
+    return 0
+
+
+def _cmd_revoke(args) -> int:
+    """Revoke one self-service access grant by Entra OID. Returns an exit code."""
+    store = _access_store(get_config())
+    if store is None:
+        print("Access store unavailable (check ACCESS_* config + az login).")
+        return 1
+    if store.revoke(args.revoke):
+        print(f"revoked {args.revoke}")
+        return 0
+    print(f"oid not found: {args.revoke}")
+    return 1
+
+
 def main() -> None:
     """Main entry point for the Canvas MCP server."""
     parser = argparse.ArgumentParser(
@@ -422,11 +450,29 @@ def main() -> None:
         default=None,
         help="Tool profile: student (~31 tools), educator (~86 tools), all (default: all)"
     )
+    parser.add_argument(
+        "--list-grants",
+        action="store_true",
+        help="List self-service access grants (hosted; needs az login) and exit"
+    )
+    parser.add_argument(
+        "--revoke",
+        metavar="OID",
+        help="Revoke a self-service access grant by Entra OID and exit"
+    )
 
     args = parser.parse_args()
     is_http = args.transport == "streamable-http"
 
     config = get_config()
+
+    # Admin access-approval commands talk only to the overlay store (Azure, via
+    # az login) — not Canvas — so dispatch them before the Canvas-credential /
+    # HTTP-mode validation below, which they don't need.
+    if args.list_grants:
+        raise SystemExit(_cmd_list_grants(args))
+    if args.revoke:
+        raise SystemExit(_cmd_revoke(args))
 
     # HTTP mode: the Canvas URL is server-pinned and per-user tokens arrive via
     # X-Canvas-Token. A server token must NOT be set, or a missing request token
