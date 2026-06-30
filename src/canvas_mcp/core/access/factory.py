@@ -69,15 +69,20 @@ def build_email_sender(config):
         return None
 
     async def send(recipients, subject, html, plain):
+        import asyncio
         from azure.communication.email import EmailClient
         from azure.identity import DefaultAzureCredential
-        client = EmailClient(config.acs_endpoint, DefaultAzureCredential())
-        message = {
-            "senderAddress": config.acs_sender,
-            "content": {"subject": subject, "html": html, "plainText": plain},
-            "recipients": {"to": [{"address": a} for a in recipients]},
-        }
-        poller = client.begin_send(message)
-        poller.result()
+
+        def _send():
+            client = EmailClient(config.acs_endpoint, DefaultAzureCredential())
+            message = {
+                "senderAddress": config.acs_sender,
+                "content": {"subject": subject, "html": html, "plainText": plain},
+                "recipients": {"to": [{"address": a} for a in recipients]},
+            }
+            client.begin_send(message).result()
+
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _send)
 
     return send
