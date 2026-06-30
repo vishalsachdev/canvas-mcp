@@ -44,6 +44,13 @@ Issues = "https://github.com/vishalsachdev/canvas-mcp/issues"
 [project.scripts]
 canvas-mcp-server = "canvas_mcp.server:main"
 
+[project.optional-dependencies]
+hosted = [
+    "azure-data-tables>=12.5.0",
+    "azure-communication-email>=1.0.0",
+    "azure-identity>=1.17.0",
+]
+
 [tool.hatch.version]
 path = "src/canvas_mcp/__init__.py"
 
