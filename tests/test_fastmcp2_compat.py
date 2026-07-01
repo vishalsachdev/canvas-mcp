@@ -66,3 +66,33 @@ def test_http_app_exists_and_mounts_mcp_path():
     app = mcp.http_app()
     paths = [getattr(r, "path", "") for r in app.routes]
     assert any(p.startswith("/mcp") for p in paths), f"expected /mcp mount, got {paths}"
+
+
+@pytest.mark.asyncio
+async def test_summarize_course_prompt_renders(monkeypatch):
+    """The real summarize-course prompt must render through fastmcp 2
+    (a 'system'-role dict, as v1 returned, is rejected at render time)."""
+    from unittest.mock import AsyncMock, patch
+
+    from canvas_mcp.resources.resources import register_resources_and_prompts
+
+    mcp = FastMCP(name="prompt-test")
+    register_resources_and_prompts(mcp)
+
+    with patch(
+        "canvas_mcp.resources.resources.get_course_id",
+        new=AsyncMock(return_value="12345"),
+    ), patch(
+        "canvas_mcp.resources.resources.make_canvas_request",
+        new=AsyncMock(return_value={"name": "Test Course", "course_code": "TST_101"}),
+    ), patch(
+        "canvas_mcp.resources.resources.fetch_all_paginated_results",
+        new=AsyncMock(return_value=[]),
+    ):
+        async with Client(mcp) as client:
+            result = await client.get_prompt(
+                "summarize-course", {"course_identifier": "TST_101"}
+            )
+
+    assert result.messages[0].role == "user"
+    assert "Test Course" in str(result.messages[0].content)
