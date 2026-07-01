@@ -88,14 +88,20 @@ def build_store(config) -> AccessStore | None:
 def build_email_sender(config):
     if not (config.acs_endpoint and config.acs_sender):
         return None
-
-    async def send(recipients, subject, html, plain):
+    # Build the credential + client ONCE here (not per send). Azure imports stay
+    # inside this function body (never module top-level), so the base install
+    # without the [hosted] extra is unaffected; degrade to None on any failure.
+    try:
         import asyncio
         from azure.communication.email import EmailClient
         from azure.identity import DefaultAzureCredential
+        client = EmailClient(config.acs_endpoint, DefaultAzureCredential())
+    except Exception as exc:
+        log_error(f"access email sender unavailable: {exc}")
+        return None
 
+    async def send(recipients, subject, html, plain):
         def _send():
-            client = EmailClient(config.acs_endpoint, DefaultAzureCredential())
             message = {
                 "senderAddress": config.acs_sender,
                 "content": {"subject": subject, "html": html, "plainText": plain},

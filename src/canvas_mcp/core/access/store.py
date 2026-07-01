@@ -7,6 +7,7 @@ module (and its tests) never import azure directly. The real backend lives in
 
 from __future__ import annotations
 
+import calendar
 import time
 from dataclasses import dataclass
 
@@ -137,8 +138,11 @@ class AccessStore:
         if not row or row.get("status") != "pending" or row.get("tokenJti") != jti:
             return False
         row["status"] = "granted"
+        # Use .get so a row that somehow lacks an ETag (e.g. written by another
+        # client) degrades to a rejected optimistic-write (ConcurrencyConflict)
+        # rather than a KeyError → 500.
         try:
-            self._backend.replace_if_unmodified(row, row["etag"])
+            self._backend.replace_if_unmodified(row, row.get("etag", ""))
         except ConcurrencyConflict:
             return False
         return True
@@ -153,8 +157,11 @@ def _within_cooldown(last_iso: str, now_iso: str, hours: int) -> bool:
         return False
     fmt = "%Y-%m-%dT%H:%M:%SZ"
     try:
-        last = time.mktime(time.strptime(last_iso, fmt))
-        now = time.mktime(time.strptime(now_iso, fmt))
+        # timegm interprets the struct_time as UTC (the timestamps are UTC
+        # ISO-8601); mktime would treat them as local time and skew by the DST
+        # offset when the two straddle a transition.
+        last = calendar.timegm(time.strptime(last_iso, fmt))
+        now = calendar.timegm(time.strptime(now_iso, fmt))
     except (ValueError, TypeError):
         return False
     return (now - last) < hours * 3600

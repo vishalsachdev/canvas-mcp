@@ -148,6 +148,12 @@ def _access_store(config):
     return _overlay_store
 
 
+def reset_overlay_store() -> None:
+    """Discard the memoized overlay store (test isolation; mirrors reset_config)."""
+    global _overlay_store
+    _overlay_store = None
+
+
 def _schedule_notify(config, store, requester) -> None:
     """Fire-and-forget admin email; never blocks or breaks the request path."""
     from .core.access.factory import build_email_sender

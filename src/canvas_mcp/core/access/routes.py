@@ -6,6 +6,7 @@ from html import escape
 from urllib.parse import parse_qs
 
 from ..audit import log_access_change
+from ..logging import log_error
 from .store import AccessStore, Requester
 from .tokens import verify_token
 
@@ -34,6 +35,13 @@ def render_invalid_page() -> str:
     return (_WRAP + "<h2>This approval link is no longer valid</h2>"
             "<p>It may have expired or already been used. No changes were made.</p>"
             "<p>If this person still needs access, ask them to reconnect.</p>")
+
+
+def render_retry_page() -> str:
+    return (_WRAP + "<h2>Approval didn&#x27;t complete</h2>"
+            "<p>A temporary error stopped the grant from being saved. Nothing was "
+            "consumed — click Confirm again, or ask the person to reconnect for a "
+            "fresh approval link.</p>")
 
 
 async def _send_html(send, html: str, status: int = 200) -> None:
@@ -68,10 +76,32 @@ async def handle_confirm(body: bytes, send, *, store: AccessStore,
     if not claims:
         await _send_html(send, render_invalid_page())
         return
-    req = _requester_from_pending(store.get_pending(claims.oid), claims.oid)
-    if not store.consume_pending(claims.oid, claims.jti):
+    # Validate the token against the live pending request WITHOUT consuming it
+    # yet, so a downstream write failure leaves the token retriable.
+    pending = store.get_pending(claims.oid)
+    if (not pending or pending.get("status") != "pending"
+            or pending.get("tokenJti") != claims.jti):
         await _send_html(send, render_invalid_page())
         return
-    store.grant(req, jti=claims.jti)
+    req = _requester_from_pending(pending, claims.oid)
+
+    # Grant FIRST — the actual authorization, an idempotent upsert. If this write
+    # fails, nothing has been consumed, so the SAME link still works on retry,
+    # instead of a token spent with no access granted.
+    try:
+        store.grant(req, jti=claims.jti)
+    except Exception as exc:
+        log_error(f"access grant write failed for {req.oid}: {exc}")
+        await _send_html(send, render_retry_page())
+        return
+
+    # Mark the token single-use consumed. Best-effort: the user is already
+    # granted, so a failure here at worst lets this token re-grant the SAME oid
+    # (a harmless idempotent no-op).
+    try:
+        store.consume_pending(claims.oid, claims.jti)
+    except Exception as exc:
+        log_error(f"access token consume failed after grant for {req.oid}: {exc}")
+
     log_access_change("grant", req.oid, upn=req.upn or None)
     await _send_html(send, render_success_page(req))

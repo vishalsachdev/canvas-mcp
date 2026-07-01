@@ -66,3 +66,38 @@ async def test_confirm_post_rejects_replayed_token():
     await routes.handle_confirm(f"token={token}".encode(), send2, store=store, secret=SECRET, now=1)
     _, html = await _collect(send2)
     assert "no longer valid" in html  # single-use enforced
+
+
+@pytest.mark.asyncio
+async def test_confirm_grant_failure_is_retriable(monkeypatch):
+    """A transient grant-write failure must NOT consume the token: the admin
+    gets a retry page (not a 500, not a spent token), and the SAME link then
+    works on retry once the write succeeds."""
+    store = _seeded_store()
+    token = mint_token(oid="oid-1", jti="j1", exp=1000, secret=SECRET)
+
+    calls = {"n": 0}
+    real_grant = store.grant
+
+    def flaky_grant(req, *, jti):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("azure write failed")
+        return real_grant(req, jti=jti)
+
+    monkeypatch.setattr(store, "grant", flaky_grant)
+
+    # First Confirm: grant throws -> retry page, nothing granted, token NOT consumed
+    send1 = AsyncMock()
+    await routes.handle_confirm(f"token={token}".encode(), send1, store=store, secret=SECRET, now=1)
+    status1, html1 = await _collect(send1)
+    assert status1 == 200 and "temporary error" in html1.lower()   # retry page, no 500
+    assert store.is_granted("oid-1") is False                       # not granted
+    assert store.get_pending("oid-1")["status"] == "pending"        # token retriable
+
+    # Second Confirm with the SAME token: grant now succeeds -> granted + success
+    send2 = AsyncMock()
+    await routes.handle_confirm(f"token={token}".encode(), send2, store=store, secret=SECRET, now=1)
+    status2, html2 = await _collect(send2)
+    assert status2 == 200 and "granted" in html2.lower()
+    assert store.is_granted("oid-1") is True

@@ -1,4 +1,3 @@
-import pytest
 from canvas_mcp.core.access.store import (
     AccessStore, InMemoryBackend, Requester, ConcurrencyConflict,
 )
@@ -47,8 +46,7 @@ def test_consume_pending_is_single_use():
 def test_consume_pending_loses_etag_race(monkeypatch):
     s = _store()
     s.note_request(REQ, jti="j1", exp=1000, now_iso="2026-06-29T00:00:00Z", cooldown_hours=24)
-    # Force the backend replace to lose the race exactly once.
-    orig = s._backend.replace_if_unmodified
+    # Force the backend replace to lose the race.
     def racing(entity, etag):
         raise ConcurrencyConflict("stale etag")
     monkeypatch.setattr(s._backend, "replace_if_unmodified", racing)
