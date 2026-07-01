@@ -19,6 +19,8 @@ import base64
 import hmac
 import json
 import sys
+import time
+import uuid
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -73,6 +75,16 @@ async def _send_json_error(send: Any, status: int, message: str) -> None:
     await send({"type": "http.response.body", "body": body})
 
 
+async def _read_body(receive) -> bytes:
+    body = b""
+    while True:
+        msg = await receive()
+        body += msg.get("body", b"")
+        if not msg.get("more_body", False):
+            break
+    return body
+
+
 def _access_key_ok(presented: str, allowed: frozenset[str]) -> bool:
     """Constant-time check of a presented access key against the allowed set."""
     if not presented:
@@ -113,6 +125,53 @@ def _client_principal_claims(headers: dict[bytes, bytes]) -> dict[str, str]:
         return {}
 
 
+_ADMIN_APPROVE_PATH = "/admin/access/approve"
+_ADMIN_CONFIRM_PATH = "/admin/access/confirm"
+
+
+_overlay_store = None
+
+
+def _access_store(config):
+    """Build the overlay store once and reuse it across requests.
+
+    The store's ``is_granted`` TTL cache is per-instance, so it only works if
+    the instance survives between requests — rebuilding per request also re-ran
+    ``create_table_if_not_exists`` and a fresh credential/client every time.
+    Returns None until it can be built (feature off / azure unavailable), and
+    retries on the next call so a transient build failure self-heals.
+    """
+    global _overlay_store
+    if _overlay_store is None:
+        from .core.access.factory import build_store
+        _overlay_store = build_store(config)
+    return _overlay_store
+
+
+def reset_overlay_store() -> None:
+    """Discard the memoized overlay store (test isolation; mirrors reset_config)."""
+    global _overlay_store
+    _overlay_store = None
+
+
+def _schedule_notify(config, store, requester) -> None:
+    """Fire-and-forget admin email; never blocks or breaks the request path."""
+    from .core.access.factory import build_email_sender
+    from .core.access.notify import notify_access_request
+    sender = build_email_sender(config)
+    if sender is None:
+        return
+    now = int(time.time())
+    now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))
+    asyncio.create_task(notify_access_request(
+        store=store, requester=requester, secret=config.access_token_secret,
+        approve_base_url=config.access_approve_base_url,
+        admin_emails=config.access_admin_emails,
+        cooldown_hours=config.access_notify_cooldown_hours,
+        ttl_seconds=24 * 3600, send_email=sender,
+        jti=uuid.uuid4().hex, now=now, now_iso=now_iso))
+
+
 class CanvasCredentialMiddleware:
     """ASGI middleware that extracts the caller's Canvas token from headers.
 
@@ -139,11 +198,34 @@ class CanvasCredentialMiddleware:
             await self.app(scope, receive, send)
             return
 
+        config = get_config()
+        path = scope.get("path", "")
+
+        # --- Admin access-approval routes (intercepted before any token gate) ---
+        if path in (_ADMIN_APPROVE_PATH, _ADMIN_CONFIRM_PATH):
+            from .core.access.factory import feature_ready
+            if not (config.access_request_enabled and feature_ready(config)):
+                await _send_json_error(send, 404, "Not found")
+                return
+            store = _access_store(config)
+            if store is None:
+                await _send_json_error(send, 503, "Access service unavailable")
+                return
+            from .core.access import routes
+            now = int(time.time())
+            if path == _ADMIN_APPROVE_PATH:
+                await routes.handle_approve(scope.get("query_string", b""), send,
+                                            store=store, secret=config.access_token_secret, now=now)
+            else:
+                body = await _read_body(receive)
+                await routes.handle_confirm(body, send, store=store,
+                                            secret=config.access_token_secret, now=now)
+            return
+
         set_http_request_active(True)
         try:
             # Parse headers from ASGI scope (list of [name, value] byte pairs)
             headers = dict(scope.get("headers", []))
-            config = get_config()
 
             if config.entra_auth_enabled:
                 # Entra platform-auth path: Azure App Service has already validated
@@ -156,8 +238,30 @@ class CanvasCredentialMiddleware:
                 if not oid:
                     await _send_json_error(send, 401, "Missing verified Entra identity")
                     return
-                if config.mcp_entra_allowed_oids and oid not in config.mcp_entra_allowed_oids:
+                in_env = oid in config.mcp_entra_allowed_oids
+                in_overlay = False
+                store = None
+                if not in_env and config.access_request_enabled:
+                    store = _access_store(config)
+                    in_overlay = store.is_granted(oid) if store else False
+                if config.mcp_entra_allowed_oids and not (in_env or in_overlay):
+                    # Send the deny FIRST, so scheduling the access-request email
+                    # can never delay or break the 403 (auth boundary: respond,
+                    # then notify). The notify is additionally guarded so a
+                    # scheduling error degrades to "no email", never a dropped 403.
                     await _send_json_error(send, 403, "Identity not authorized for this MCP server")
+                    if config.access_request_enabled and store is not None:
+                        try:
+                            claims_for_req = _client_principal_claims(headers)
+                            from .core.access.store import Requester
+                            requester = Requester(
+                                oid=oid,
+                                upn=claims_for_req.get("preferred_username")
+                                or claims_for_req.get("upn", ""),
+                                display_name=claims_for_req.get("name", ""))
+                            _schedule_notify(config, store, requester)
+                        except Exception as exc:
+                            log_error(f"access-request notify scheduling failed: {exc}")
                     return
                 claims = _client_principal_claims(headers)
                 # Log only the stable, opaque identifiers (oid GUID, scope, client
@@ -306,6 +410,34 @@ def test_connection() -> bool:
         return False
 
 
+def _cmd_list_grants(args) -> int:
+    """List self-service access grants from the overlay store. Returns an exit code."""
+    store = _access_store(get_config())
+    if store is None:
+        print("Access store unavailable (check ACCESS_* config + az login).")
+        return 1
+    grants = store.list_grants()
+    if not grants:
+        print("No self-service grants.")
+        return 0
+    for g in grants:
+        print(f"{g.oid}\t{g.display_name}\t{g.upn}\t{g.granted_utc}")
+    return 0
+
+
+def _cmd_revoke(args) -> int:
+    """Revoke one self-service access grant by Entra OID. Returns an exit code."""
+    store = _access_store(get_config())
+    if store is None:
+        print("Access store unavailable (check ACCESS_* config + az login).")
+        return 1
+    if store.revoke(args.revoke):
+        print(f"revoked {args.revoke}")
+        return 0
+    print(f"oid not found: {args.revoke}")
+    return 1
+
+
 def main() -> None:
     """Main entry point for the Canvas MCP server."""
     parser = argparse.ArgumentParser(
@@ -344,11 +476,29 @@ def main() -> None:
         default=None,
         help="Tool profile: student (~31 tools), educator (~86 tools), all (default: all)"
     )
+    parser.add_argument(
+        "--list-grants",
+        action="store_true",
+        help="List self-service access grants (hosted; needs az login) and exit"
+    )
+    parser.add_argument(
+        "--revoke",
+        metavar="OID",
+        help="Revoke a self-service access grant by Entra OID and exit"
+    )
 
     args = parser.parse_args()
     is_http = args.transport == "streamable-http"
 
     config = get_config()
+
+    # Admin access-approval commands talk only to the overlay store (Azure, via
+    # az login) — not Canvas — so dispatch them before the Canvas-credential /
+    # HTTP-mode validation below, which they don't need.
+    if args.list_grants:
+        raise SystemExit(_cmd_list_grants(args))
+    if args.revoke:
+        raise SystemExit(_cmd_revoke(args))
 
     # HTTP mode: the Canvas URL is server-pinned and per-user tokens arrive via
     # X-Canvas-Token. A server token must NOT be set, or a missing request token

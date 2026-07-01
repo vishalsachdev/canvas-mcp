@@ -174,6 +174,29 @@ class Config:
         self.entra_auth_enabled = _bool_env("ENTRA_AUTH_ENABLED", False)
         self.mcp_entra_allowed_oids = _parse_keys(os.getenv("MCP_ENTRA_ALLOWED_OIDS", ""))
 
+        # --- Self-service access-approval flow (hosted-only; off by default) ---
+        # Feature flag. When false (default) the gate behaves exactly as before
+        # and the /admin/access/* routes 404. See internal access-approval spec.
+        self.access_request_enabled = _bool_env("ACCESS_REQUEST_ENABLED", False)
+        # Azure Table Storage overlay (managed-identity auth; no keys).
+        self.access_table_account = os.getenv("ACCESS_TABLE_ACCOUNT", "")
+        self.access_table_name = os.getenv("ACCESS_TABLE_NAME", "accessoverlay")
+        # Azure Communication Services email.
+        self.acs_endpoint = os.getenv("ACS_ENDPOINT", "")
+        self.acs_sender = os.getenv("ACS_SENDER", "")
+        # Admin notification recipients (comma/space separated).
+        self.access_admin_emails = [
+            e.strip()
+            for e in os.getenv("ACCESS_ADMIN_EMAILS", "").replace(",", " ").split()
+            if e.strip()
+        ]
+        # Public base URL used to build approval links (no trailing slash).
+        self.access_approve_base_url = os.getenv("ACCESS_APPROVE_BASE_URL", "").rstrip("/")
+        # HMAC secret for approval tokens; empty disables the feature (fail-closed).
+        self.access_token_secret = os.getenv("ACCESS_TOKEN_SECRET", "")
+        # Suppress re-emailing the admin for the same OID within this window.
+        self.access_notify_cooldown_hours = _int_env("ACCESS_NOTIFY_COOLDOWN_HOURS", 24)
+
         # Optional metadata
         self.institution_name = os.getenv("INSTITUTION_NAME", "")
         self.timezone = os.getenv("TIMEZONE", "UTC")
