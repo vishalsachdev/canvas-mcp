@@ -18,7 +18,7 @@ def get_tool_function(tool_name: str):
     ``__name__`` (it uses ``functools.wraps``); if that ever changes, lookups
     here would return ``None`` and the assertions below would fail loudly.
     """
-    from mcp.server.fastmcp import FastMCP
+    from fastmcp import FastMCP
 
     from canvas_mcp.tools.courses import register_course_tools
 

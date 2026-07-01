@@ -6,7 +6,7 @@ import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from mcp.server.fastmcp import FastMCP
+from fastmcp import Client, FastMCP
 
 from canvas_mcp.tools.rubrics import (
     build_rubric_create_form_data,
@@ -14,6 +14,12 @@ from canvas_mcp.tools.rubrics import (
     register_rubric_tools,
     validate_rubric_criteria,
 )
+
+
+async def _call_tool(mcp: FastMCP, name: str, arguments: dict):
+    """Call a registered tool in-process, returning the raw CallToolResult."""
+    async with Client(mcp) as client:
+        return await client.call_tool_mcp(name, arguments)
 
 
 class TestRubricValidation:
@@ -201,23 +207,20 @@ class TestRubricTools:
         with patch('canvas_mcp.tools.rubrics.fetch_all_paginated_results', new_callable=AsyncMock) as mock:
             yield mock
 
-    def test_get_rubric_registered(self, mcp):
+    async def test_get_rubric_registered(self, mcp):
         """Verify get_rubric is registered after calling register_rubric_tools."""
         register_rubric_tools(mcp)
-        tool_names = [t.name for t in mcp._tool_manager.list_tools()]
-        assert "get_rubric" in tool_names
+        assert "get_rubric" in await mcp.get_tools()
 
-    def test_create_rubric_registered(self, mcp):
+    async def test_create_rubric_registered(self, mcp):
         """Verify create_rubric is registered after calling register_rubric_tools."""
         register_rubric_tools(mcp)
-        tool_names = [t.name for t in mcp._tool_manager.list_tools()]
-        assert "create_rubric" in tool_names
+        assert "create_rubric" in await mcp.get_tools()
 
-    def test_create_rubric_from_csv_registered(self, mcp):
+    async def test_create_rubric_from_csv_registered(self, mcp):
         """Verify create_rubric_from_csv is registered after calling register_rubric_tools."""
         register_rubric_tools(mcp)
-        tool_names = [t.name for t in mcp._tool_manager.list_tools()]
-        assert "create_rubric_from_csv" in tool_names
+        assert "create_rubric_from_csv" in await mcp.get_tools()
 
     @pytest.mark.asyncio
     async def test_create_rubric_success(self, mcp, mock_canvas_request, mock_course_id, mock_course_code):
@@ -259,13 +262,13 @@ class TestRubricTools:
         })
 
         register_rubric_tools(mcp)
-        result = await mcp.call_tool("create_rubric", {
+        result = await _call_tool(mcp, "create_rubric", {
             "course_identifier": "TEST101",
             "title": "Essay Rubric",
             "criteria": criteria,
         })
 
-        output = result[0][0].text
+        output = result.content[0].text
         assert "7371" in output or "Essay Rubric" in output
 
         # Verify form data was used
@@ -305,7 +308,7 @@ class TestRubricTools:
         })
 
         register_rubric_tools(mcp)
-        result = await mcp.call_tool("create_rubric", {
+        result = await _call_tool(mcp, "create_rubric", {
             "course_identifier": "TEST101",
             "title": "Graded Rubric",
             "criteria": criteria,
@@ -313,7 +316,7 @@ class TestRubricTools:
             "use_for_grading": True,
         })
 
-        output = result[0][0].text
+        output = result.content[0].text
         assert "7372" in output or "Graded Rubric" in output
 
         # Verify association fields were sent
@@ -327,13 +330,13 @@ class TestRubricTools:
     async def test_create_rubric_invalid_criteria(self, mcp, mock_canvas_request, mock_course_id, mock_course_code):
         """create_rubric returns error message for invalid criteria JSON."""
         register_rubric_tools(mcp)
-        result = await mcp.call_tool("create_rubric", {
+        result = await _call_tool(mcp, "create_rubric", {
             "course_identifier": "TEST101",
             "title": "Bad Rubric",
             "criteria": '{"c1": {"points": 10}}',  # missing description
         })
 
-        output = result[0][0].text
+        output = result.content[0].text
         assert "Error" in output
         assert "description" in output.lower()
 
@@ -347,13 +350,13 @@ class TestRubricTools:
         })
 
         register_rubric_tools(mcp)
-        result = await mcp.call_tool("create_rubric", {
+        result = await _call_tool(mcp, "create_rubric", {
             "course_identifier": "TEST101",
             "title": "Failing Rubric",
             "criteria": criteria,
         })
 
-        output = result[0][0].text
+        output = result.content[0].text
         assert "Error" in output
         assert "Unauthorized" in output
 
@@ -381,12 +384,12 @@ class TestRubricTools:
         }
 
         register_rubric_tools(mcp)
-        result = await mcp.call_tool("get_rubric", {
+        result = await _call_tool(mcp, "get_rubric", {
             "course_identifier": "TEST101",
             "rubric_id": 999
         })
 
-        output = result[0][0].text
+        output = result.content[0].text
         assert "Essay Rubric" in output
         assert "_crit1" in output
         assert "_r1" in output
@@ -420,12 +423,12 @@ class TestRubricTools:
         }
 
         register_rubric_tools(mcp)
-        result = await mcp.call_tool("get_rubric", {
+        result = await _call_tool(mcp, "get_rubric", {
             "course_identifier": "TEST101",
             "assignment_id": 456
         })
 
-        output = result[0][0].text
+        output = result.content[0].text
         assert "Final Essay" in output
         assert "Used for Grading: Yes" in output
         assert "Points Possible: 50" in output
@@ -436,19 +439,19 @@ class TestRubricTools:
     async def test_get_rubric_neither_id(self, mcp, mock_course_id, mock_course_code):
         """Test get_rubric with neither ID returns error with usage guidance."""
         register_rubric_tools(mcp)
-        result = await mcp.call_tool("get_rubric", {
+        result = await _call_tool(mcp, "get_rubric", {
             "course_identifier": "TEST101"
         })
 
-        output = result[0][0].text
+        output = result.content[0].text
         assert "Error" in output
         assert "rubric_id" in output
         assert "assignment_id" in output
 
-    def test_list_rubrics_registered(self, mcp):
+    async def test_list_rubrics_registered(self, mcp):
         """Verify list_rubrics is registered (renamed from list_all_rubrics)."""
         register_rubric_tools(mcp)
-        tool_names = [t.name for t in mcp._tool_manager.list_tools()]
+        tool_names = await mcp.get_tools()
         assert "list_rubrics" in tool_names
         assert "list_all_rubrics" not in tool_names
 
@@ -462,12 +465,12 @@ class TestRubricTools:
         ]
 
         register_rubric_tools(mcp)
-        result = await mcp.call_tool("create_rubric_from_csv", {
+        result = await _call_tool(mcp, "create_rubric_from_csv", {
             "course_identifier": "TEST101",
             "csv_content": "Title,Rating 1\nCrit,5",
         })
 
-        output = result[0][0].text
+        output = result.content[0].text
 
         assert mock_canvas_request.call_count == 2
 
@@ -493,12 +496,12 @@ class TestRubricTools:
         mock_canvas_request.return_value = {"error": "Invalid CSV format"}
 
         register_rubric_tools(mcp)
-        result = await mcp.call_tool("create_rubric_from_csv", {
+        result = await _call_tool(mcp, "create_rubric_from_csv", {
             "course_identifier": "TEST101",
             "csv_content": "x",
         })
 
-        output = result[0][0].text
+        output = result.content[0].text
         assert "Error uploading rubric CSV" in output
         assert "Invalid CSV format" in output
         # Upload failed → no status polling
@@ -512,12 +515,12 @@ class TestRubricTools:
         ]
 
         register_rubric_tools(mcp)
-        result = await mcp.call_tool("create_rubric_from_csv", {
+        result = await _call_tool(mcp, "create_rubric_from_csv", {
             "course_identifier": "TEST101",
             "csv_content": "Title,Rating 1\nCrit,5",
         })
 
-        output = result[0][0].text
+        output = result.content[0].text
         # 'failed' is terminal → loop breaks immediately, no GET poll
         assert mock_canvas_request.call_count == 1
         assert "finished with status: failed" in output

@@ -10,7 +10,7 @@ import pytest
 
 def get_student_tool_function(tool_name: str):
     """Get a student tool function by name from the registered tools."""
-    from mcp.server.fastmcp import FastMCP
+    from fastmcp import FastMCP
 
     from canvas_mcp.tools.student_tools import register_student_tools
 

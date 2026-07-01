@@ -68,7 +68,7 @@ def mock_file_validation():
 
 def get_tool_function(tool_name: str):
     """Get a tool function by name from the registered tools."""
-    from mcp.server.fastmcp import FastMCP
+    from fastmcp import FastMCP
 
     from canvas_mcp.tools.files import (
         register_educator_file_tools,
