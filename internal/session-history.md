@@ -4,6 +4,39 @@ Archived session log entries from canvas-mcp CLAUDE.md.
 
 ## Session Log
 
+### 2026-06-30 — #146 closed + compliance doc overhauled for the IT/LRA review + Adam email
+- **Closed #146** (hourly `mcp-remote` re-auth): root cause was the missing `offline_access` scope; fix
+  confirmed live 2026-06-26. Posted a consolidating summary, closed as completed. Folded the OAuth re-auth/
+  hang troubleshooting (incl. the stale `_lock.json` callback-port wedge) into `internal/ops-hosted.local.md`
+  and fixed a **stale client-setup snippet there that was missing `offline_access`** (would have re-introduced
+  the bug). Tracked README pointer added.
+- **Discovered the compliance-doc request from IT is the follow-up to Adam's submitted LRA** (2026-06-18,
+  auto-rated **HIGH** because student data = "Perhaps"; findings advisory). Overhauled `SECURITY-COMPLIANCE.md`:
+  reflected live Entra auth (P0 IT05/FO-36 identity gap → resolved), added a **3-tier risk-graded model**
+  (local-BYO / hosted+licensed-SaaS / hosted+in-tenant; contractual vs technical boundary), reframed §1 to
+  **lead with course-ops-at-scale** (course content, not student records → lower sensitivity), linked the
+  campus Canvas+Gemini-LTI eval as precedent.
+- **Governance:** flagged that the LRA says "uses Azure OpenAI" but as-built the model lives in the user's
+  **client** (server is a tool provider) — the doc now describes this accurately (model-portable). **Untracked
+  `SECURITY-COMPLIANCE.md`** (was public) → gitignored, operator-only; broadened ignore to `internal/*.local.*`.
+- **Email to Adam composed** (Outlook): Aptos-12 body + 2 attachments
+  (`canvas-mcp-architecture.html` flowchart + `canvas-mcp-compliance.pdf`). Made **Aptos 12pt the house email
+  standard** (baked into the `compose-outlook-email` skill). **→ SENT 2026-06-30.**
+- **Regenerated the compliance PDF + added an HTML twin.** Old PDF had a duplicate H1 title + wide tables
+  collapsing to one-word-per-line. New pipeline: `pandoc SECURITY-COMPLIANCE.md → HTML fragment → architecture.html-styled
+  template (table-layout:fixed + `@page` print CSS) → weasyprint CLI → PDF`. Both `canvas-mcp-compliance.html`
+  + `.pdf` now in gitignored `internal/compliance/` (build script in scratchpad; re-run to regenerate). Note:
+  `weasyprint` is CLI-only here (not importable in system python3) — call the binary on the HTML.
+- **Verified the hosted server is live** (`canvas-mcp.disruptionlab.illinois.edu/mcp`): unauth POST → `401` +
+  RFC 9728 `WWW-Authenticate`/PRM challenge (fail-closed gate working), PRM doc resolves `200`, authenticated
+  call via the connected `canvas` client succeeds end-to-end. AADSTS9010010 fix still holding.
+- Next: (1) **Decide the model fork** — correct LRA toward model-portable (recommended) vs. pin hosted to
+  in-tenant Azure OpenAI (Tier 3). (2) When the **ticket # lands**, supplement IT with corrected model framing +
+  diagram + course-ops narrative. (3) **PR #150** (self-service access-approval flow for the hosted server) awaits
+  review. (4) Carry-forward: onboarding-simplification thread (which login-walled page blocked the setup agent);
+  distribute rebuilt `.mcpb` to testers. (5) Backlog: #145 FastMCP switch, #142 MCP SDK v2 (before ~2026-07-27),
+  #106 mypy cleanup.
+
 ### 2026-06-26 — hosted `mcp-remote` clients re-login hourly (#146)
 The hosted-path onboarding template requested Entra scope `api://<app>/access_as_user` **without
 `offline_access`**, so Entra issued a ~1h access token and **no refresh token**. On expiry, `mcp-remote`

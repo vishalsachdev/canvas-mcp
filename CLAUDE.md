@@ -154,6 +154,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] PR #126: `check_enrollment` capability — **merged + shipped in v1.4.0.** Deferred: REST endpoint + teacher-token-sourcing decision
 - [x] Claude Desktop Extension (`.mcpb`) — scaffolded, distributed via GitHub Releases (auto-attached on tag), README install section; shipped in v1.4.0
 - [x] Release **v1.4.0** — GitHub + PyPI + MCP Registry + hosted server + website all live
+- [x] PR #150: self-service access-approval flow for the hosted server — merged 2026-07-01
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
 - [ ] Issue #106: 186 mypy errors uncovered by adding mypy to dev deps — incremental cleanup, module by module
 
@@ -197,35 +198,26 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-06-30 — #146 closed + compliance doc overhauled for the IT/LRA review + Adam email
-- **Closed #146** (hourly `mcp-remote` re-auth): root cause was the missing `offline_access` scope; fix
-  confirmed live 2026-06-26. Posted a consolidating summary, closed as completed. Folded the OAuth re-auth/
-  hang troubleshooting (incl. the stale `_lock.json` callback-port wedge) into `internal/ops-hosted.local.md`
-  and fixed a **stale client-setup snippet there that was missing `offline_access`** (would have re-introduced
-  the bug). Tracked README pointer added.
-- **Discovered the compliance-doc request from IT is the follow-up to Adam's submitted LRA** (2026-06-18,
-  auto-rated **HIGH** because student data = "Perhaps"; findings advisory). Overhauled `SECURITY-COMPLIANCE.md`:
-  reflected live Entra auth (P0 IT05/FO-36 identity gap → resolved), added a **3-tier risk-graded model**
-  (local-BYO / hosted+licensed-SaaS / hosted+in-tenant; contractual vs technical boundary), reframed §1 to
-  **lead with course-ops-at-scale** (course content, not student records → lower sensitivity), linked the
-  campus Canvas+Gemini-LTI eval as precedent.
-- **Governance:** flagged that the LRA says "uses Azure OpenAI" but as-built the model lives in the user's
-  **client** (server is a tool provider) — the doc now describes this accurately (model-portable). **Untracked
-  `SECURITY-COMPLIANCE.md`** (was public) → gitignored, operator-only; broadened ignore to `internal/*.local.*`.
-- **Email to Adam composed** (Outlook): Aptos-12 body + 2 attachments
-  (`canvas-mcp-architecture.html` flowchart + `canvas-mcp-compliance.pdf`). Made **Aptos 12pt the house email
-  standard** (baked into the `compose-outlook-email` skill). **→ SENT 2026-06-30.**
-- **Regenerated the compliance PDF + added an HTML twin.** Old PDF had a duplicate H1 title + wide tables
-  collapsing to one-word-per-line. New pipeline: `pandoc SECURITY-COMPLIANCE.md → HTML fragment → architecture.html-styled
-  template (table-layout:fixed + `@page` print CSS) → weasyprint CLI → PDF`. Both `canvas-mcp-compliance.html`
-  + `.pdf` now in gitignored `internal/compliance/` (build script in scratchpad; re-run to regenerate). Note:
-  `weasyprint` is CLI-only here (not importable in system python3) — call the binary on the HTML.
-- **Verified the hosted server is live** (`canvas-mcp.disruptionlab.illinois.edu/mcp`): unauth POST → `401` +
-  RFC 9728 `WWW-Authenticate`/PRM challenge (fail-closed gate working), PRM doc resolves `200`, authenticated
-  call via the connected `canvas` client succeeds end-to-end. AADSTS9010010 fix still holding.
-- Next: (1) **Decide the model fork** — correct LRA toward model-portable (recommended) vs. pin hosted to
-  in-tenant Azure OpenAI (Tier 3). (2) When the **ticket # lands**, supplement IT with corrected model framing +
-  diagram + course-ops narrative. (3) **PR #150** (self-service access-approval flow for the hosted server) awaits
-  review. (4) Carry-forward: onboarding-simplification thread (which login-walled page blocked the setup agent);
-  distribute rebuilt `.mcpb` to testers. (5) Backlog: #145 FastMCP switch, #142 MCP SDK v2 (before ~2026-07-27),
-  #106 mypy cleanup.
+### 2026-07-01 — PR #150 merged, #151 closed (false-positive DNS alert), broken ruleset fixed
+- **Merged PR #150** (self-service access-approval flow for the hosted Entra-gated server): reviewed
+  and approved, all CI green (554 tests, security suite, CodeQL). Merge was blocked by a **stale
+  required-status-check name** — the repo ruleset required a check literally called `auto-review`,
+  which no longer exists (the workflow job was renamed to `claude-review` at some point without
+  updating the ruleset), so the required check could never be satisfied. Admin-merged to unblock,
+  then **fixed the ruleset** (`gh api .../rulesets/6289606` PUT) to require `claude-review` instead —
+  future PRs won't hit this.
+- **Closed #151** (DNS: CNAME pointed to wrong Azure target) **as not-a-bug.** Verified live via `az`
+  CLI + `dig` + `curl`: the CNAME, hostname binding, and SSL cert are all correct on the current
+  `canvas-mcp` app, and the hosted server answers with the expected `401`/RFC 9728 challenge. The
+  issue's "expected" value (`gies-canvas-mcp-staging.azurewebsites.net`) was the **pre-rename app
+  name** (renamed 2026-06-17; old apps deleted) — `internal/ops-hosted.local.md` already had the
+  correct current CNAME documented. Root cause: **a remote weekly Claude-scheduled agent** flagged
+  the mismatch and the user filed #151 from the Claude mobile app off that alert — the routine's
+  prompt/context is stale post-rename. Fix lives on claude.ai (the routine config), not in this repo;
+  not something I can patch from here.
+- Next: (1) **Update the weekly DNS-check routine on claude.ai** so it stops false-firing — point it at
+  `internal/ops-hosted.local.md`'s documented CNAME or have it verify "resolves to a Verified+SSL-bound
+  app in the subscription" instead of a hardcoded hostname. (2) Carry-forward from 6/30 (unaddressed):
+  decide the model-fork framing for the LRA correction; when IT's ticket # lands, supplement with
+  corrected model framing + diagram; onboarding-simplification thread; distribute rebuilt `.mcpb`.
+  (3) Backlog: #145 FastMCP switch, #142 MCP SDK v2 (before ~2026-07-27), #106 mypy cleanup.
