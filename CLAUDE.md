@@ -212,10 +212,20 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 - **Governance:** flagged that the LRA says "uses Azure OpenAI" but as-built the model lives in the user's
   **client** (server is a tool provider) — the doc now describes this accurately (model-portable). **Untracked
   `SECURITY-COMPLIANCE.md`** (was public) → gitignored, operator-only; broadened ignore to `internal/*.local.*`.
-- **Email to Adam composed** (Outlook, **not sent** — awaiting review): Aptos-12 body + 2 attachments
+- **Email to Adam composed** (Outlook): Aptos-12 body + 2 attachments
   (`canvas-mcp-architecture.html` flowchart + `canvas-mcp-compliance.pdf`). Made **Aptos 12pt the house email
-  standard** (baked into the `compose-outlook-email` skill).
-- Next: (1) **Send the Adam email** after review; decide model fork — correct LRA toward model-portable
-  (recommended) vs. pin hosted to in-tenant Azure OpenAI (Tier 3). (2) When the **ticket # lands**, supplement
-  with corrected model framing + diagram + course-ops narrative. (3) Carry-forward: onboarding-simplification
-  thread (which login-walled page blocked the setup agent); distribute rebuilt `.mcpb` to testers.
+  standard** (baked into the `compose-outlook-email` skill). **→ SENT 2026-06-30.**
+- **Regenerated the compliance PDF + added an HTML twin.** Old PDF had a duplicate H1 title + wide tables
+  collapsing to one-word-per-line. New pipeline: `pandoc SECURITY-COMPLIANCE.md → HTML fragment → architecture.html-styled
+  template (table-layout:fixed + `@page` print CSS) → weasyprint CLI → PDF`. Both `canvas-mcp-compliance.html`
+  + `.pdf` now in gitignored `internal/compliance/` (build script in scratchpad; re-run to regenerate). Note:
+  `weasyprint` is CLI-only here (not importable in system python3) — call the binary on the HTML.
+- **Verified the hosted server is live** (`canvas-mcp.disruptionlab.illinois.edu/mcp`): unauth POST → `401` +
+  RFC 9728 `WWW-Authenticate`/PRM challenge (fail-closed gate working), PRM doc resolves `200`, authenticated
+  call via the connected `canvas` client succeeds end-to-end. AADSTS9010010 fix still holding.
+- Next: (1) **Decide the model fork** — correct LRA toward model-portable (recommended) vs. pin hosted to
+  in-tenant Azure OpenAI (Tier 3). (2) When the **ticket # lands**, supplement IT with corrected model framing +
+  diagram + course-ops narrative. (3) **PR #150** (self-service access-approval flow for the hosted server) awaits
+  review. (4) Carry-forward: onboarding-simplification thread (which login-walled page blocked the setup agent);
+  distribute rebuilt `.mcpb` to testers. (5) Backlog: #145 FastMCP switch, #142 MCP SDK v2 (before ~2026-07-27),
+  #106 mypy cleanup.
