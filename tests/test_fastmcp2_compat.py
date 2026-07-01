@@ -40,7 +40,9 @@ async def test_tool_registration_and_annotations():
         tool = next(t for t in tools if t.name == "sample_tool")
         assert tool.annotations is not None
         assert tool.annotations.readOnlyHint is True
-        result = await client.call_tool("sample_tool", {"course_identifier": "badm_350"})
+        result = await client.call_tool(
+            "sample_tool", {"course_identifier": "badm_350"}
+        )
         assert "ok:badm_350" in str(result.content)
 
 
@@ -79,15 +81,21 @@ async def test_summarize_course_prompt_renders(monkeypatch):
     mcp = FastMCP(name="prompt-test")
     register_resources_and_prompts(mcp)
 
-    with patch(
-        "canvas_mcp.resources.resources.get_course_id",
-        new=AsyncMock(return_value="12345"),
-    ), patch(
-        "canvas_mcp.resources.resources.make_canvas_request",
-        new=AsyncMock(return_value={"name": "Test Course", "course_code": "TST_101"}),
-    ), patch(
-        "canvas_mcp.resources.resources.fetch_all_paginated_results",
-        new=AsyncMock(return_value=[]),
+    with (
+        patch(
+            "canvas_mcp.resources.resources.get_course_id",
+            new=AsyncMock(return_value="12345"),
+        ),
+        patch(
+            "canvas_mcp.resources.resources.make_canvas_request",
+            new=AsyncMock(
+                return_value={"name": "Test Course", "course_code": "TST_101"}
+            ),
+        ),
+        patch(
+            "canvas_mcp.resources.resources.fetch_all_paginated_results",
+            new=AsyncMock(return_value=[]),
+        ),
     ):
         async with Client(mcp) as client:
             result = await client.get_prompt(
