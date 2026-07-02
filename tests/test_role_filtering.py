@@ -1,15 +1,14 @@
 """Tests for role-based tool filtering."""
 
 import pytest
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from canvas_mcp.server import register_all_tools
 
 
 async def _get_tool_names(mcp: FastMCP) -> set[str]:
     """Extract registered tool names from a FastMCP instance."""
-    tools = await mcp.list_tools()
-    return {t.name for t in tools}
+    return set((await mcp.get_tools()).keys())
 
 
 STUDENT_ONLY_TOOLS = {

@@ -3,6 +3,13 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from fastmcp import Client
+
+
+async def _call_tool(mcp, name: str, arguments: dict):
+    """Call a registered tool in-process, returning the raw CallToolResult."""
+    async with Client(mcp) as client:
+        return await client.call_tool_mcp(name, arguments)
 
 
 class TestBulkGradeSubmissions:
@@ -28,14 +35,13 @@ class TestBulkGradeSubmissions:
     @pytest.mark.asyncio
     async def test_bulk_grade_registered_in_assignments(self):
         """Verify bulk_grade_submissions is registered via educator assignment tools."""
-        from mcp.server.fastmcp import FastMCP
+        from fastmcp import FastMCP
 
         from canvas_mcp.tools.assignments import register_educator_assignment_tools
 
         mcp = FastMCP(name="test")
         register_educator_assignment_tools(mcp)
-        tools = await mcp.list_tools()
-        tool_names = {t.name for t in tools}
+        tool_names = set((await mcp.get_tools()).keys())
 
         assert "bulk_grade_submissions" in tool_names
 
@@ -47,38 +53,38 @@ class TestBulkGradeSubmissions:
             "use_rubric_for_grading": True
         }
 
-        from mcp.server.fastmcp import FastMCP
+        from fastmcp import FastMCP
 
         from canvas_mcp.tools.assignments import register_educator_assignment_tools
 
         mcp = FastMCP(name="test")
         register_educator_assignment_tools(mcp)
 
-        result = await mcp.call_tool("bulk_grade_submissions", {
+        result = await _call_tool(mcp, "bulk_grade_submissions", {
             "course_identifier": "TEST101",
             "assignment_id": "999",
             "grades": {"user1": {"grade": 85, "comment": "Good work"}},
             "dry_run": True
         })
 
-        result_text = result[0][0].text if result and result[0] else ""
+        result_text = result.content[0].text if result.content else ""
         assert "DRY RUN" in result_text
 
     @pytest.mark.asyncio
     async def test_bulk_grade_empty_grades(self, mock_course_id):
         """Test error when no grades provided."""
-        from mcp.server.fastmcp import FastMCP
+        from fastmcp import FastMCP
 
         from canvas_mcp.tools.assignments import register_educator_assignment_tools
 
         mcp = FastMCP(name="test")
         register_educator_assignment_tools(mcp)
 
-        result = await mcp.call_tool("bulk_grade_submissions", {
+        result = await _call_tool(mcp, "bulk_grade_submissions", {
             "course_identifier": "TEST101",
             "assignment_id": "999",
             "grades": {}
         })
 
-        result_text = result[0][0].text if result and result[0] else ""
+        result_text = result.content[0].text if result.content else ""
         assert "empty" in result_text.lower() or "error" in result_text.lower()

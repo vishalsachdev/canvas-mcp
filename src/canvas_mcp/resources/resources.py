@@ -1,9 +1,8 @@
 """MCP resources and prompts for Canvas integration."""
 
 from pathlib import Path
-from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from ..core.cache import get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
@@ -65,7 +64,7 @@ def register_resources_and_prompts(mcp: FastMCP) -> None:
         name="summarize-course",
         description="Generate a summary of a Canvas course"
     )
-    async def summarize_course(course_identifier: str) -> list[dict[str, Any]]:
+    async def summarize_course(course_identifier: str) -> str:
         """Generate a summary of a Canvas course."""
         course_id = await get_course_id(course_identifier)
 
@@ -73,7 +72,7 @@ def register_resources_and_prompts(mcp: FastMCP) -> None:
         course_response = await make_canvas_request("get", f"/courses/{course_id}")
 
         if "error" in course_response:
-            return [{"role": "user", "content": f"Error fetching course: {course_response['error']}"}]
+            return f"Error fetching course: {course_response['error']}"
 
         # Get assignments
         assignments_response = await fetch_all_paginated_results(f"/courses/{course_id}/assignments")
@@ -104,9 +103,8 @@ def register_resources_and_prompts(mcp: FastMCP) -> None:
         course_name = course_response.get("name", "Unknown course")
         course_code = course_response.get("course_code", "No code")
 
-        return [
-            {"role": "system", "content": "You are a helpful assistant that summarizes Canvas course information."},
-            {"role": "user", "content": f"""
+        return f"""You are a helpful assistant that summarizes Canvas course information.
+
 Please provide a summary of the Canvas course:
 
 Course: {course_name} ({course_code})
@@ -114,9 +112,7 @@ Code: {course_code}
 Assignments: {assignments_info}
 Modules: {modules_info}
 
-Summarize the key information about this course and suggest what the user might want to know about it.
-            """}
-        ]
+Summarize the key information about this course and suggest what the user might want to know about it."""
 
     @mcp.resource(
         name="code-api-file",

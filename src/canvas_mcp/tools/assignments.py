@@ -5,7 +5,7 @@ import datetime
 from statistics import StatisticsError, mean, median, stdev
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from ..core.anonymization import anonymize_response_data

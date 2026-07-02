@@ -23,7 +23,7 @@ import time
 import uuid
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from .core.config import get_config, validate_config
 from .core.credentials import (
@@ -308,19 +308,14 @@ class CanvasCredentialMiddleware:
             clear_http_request_context()
 
 
-def create_server(
-    host: str = "127.0.0.1",
-    port: int = 8000,
-    transport: str = "stdio",
-) -> FastMCP:
-    """Create and configure the Canvas MCP server."""
+def create_server() -> FastMCP:
+    """Create and configure the Canvas MCP server.
+
+    fastmcp 2.x takes host/port at serve time (run()/uvicorn), not on the
+    constructor — see _run_http_server.
+    """
     config = get_config()
-    kwargs: dict[str, Any] = {"name": config.mcp_server_name}
-    if transport != "stdio":
-        kwargs["host"] = host
-        kwargs["port"] = port
-    mcp = FastMCP(**kwargs)
-    return mcp
+    return FastMCP(name=config.mcp_server_name)
 
 
 def register_all_tools(mcp: FastMCP, role: str = "all") -> None:
@@ -656,9 +651,7 @@ def main() -> None:
     log_info("Use Ctrl+C to stop the server")
 
     # Create and configure server
-    mcp = create_server(
-        host=args.host, port=args.port, transport=args.transport
-    )
+    mcp = create_server()
     # Resolve role: CLI flag > env var > default
     role = args.role or config.canvas_role
     if role not in ("student", "educator", "all"):
@@ -673,7 +666,7 @@ def main() -> None:
 
     try:
         if is_http:
-            _run_http_server(mcp)
+            _run_http_server(mcp, host=args.host, port=args.port)
         else:
             mcp.run()
     except KeyboardInterrupt:
@@ -693,18 +686,21 @@ def main() -> None:
         log_info("Server stopped")
 
 
-def _run_http_server(mcp: FastMCP) -> None:
+def _run_http_server(mcp: FastMCP, host: str, port: int) -> None:
     """Run the MCP server with HTTP transport and credential middleware."""
     import uvicorn
 
-    # Get the Starlette app from FastMCP, then wrap with credential middleware
-    starlette_app = mcp.streamable_http_app()
+    # fastmcp 2.x: http_app() replaces v1 streamable_http_app(); streamable
+    # HTTP is the default transport and the endpoint stays mounted at /mcp.
+    # CanvasCredentialMiddleware passes lifespan scopes through, so the
+    # inner app's lifespan (required by fastmcp 2) still runs under uvicorn.
+    starlette_app = mcp.http_app()
     app = CanvasCredentialMiddleware(starlette_app)
 
     config = uvicorn.Config(
         app,
-        host=mcp.settings.host,
-        port=mcp.settings.port,
+        host=host,
+        port=port,
         log_level="info",
     )
     server = uvicorn.Server(config)

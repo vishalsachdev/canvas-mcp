@@ -11,7 +11,7 @@ import pytest
 # Helper to get tool functions by capturing them during registration
 def get_tool_function(tool_name: str):
     """Get a tool function by name from the registered tools."""
-    from mcp.server.fastmcp import FastMCP
+    from fastmcp import FastMCP
 
     from canvas_mcp.tools.pages import register_page_tools
 

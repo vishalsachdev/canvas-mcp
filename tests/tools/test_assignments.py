@@ -36,7 +36,7 @@ def mock_canvas_api():
 
 def get_tool_function(tool_name: str):
     """Get a tool function by name from the registered tools."""
-    from mcp.server.fastmcp import FastMCP
+    from fastmcp import FastMCP
 
     from canvas_mcp.tools.assignments import (
         register_educator_assignment_tools,

@@ -6,7 +6,7 @@ teacher-scoped Canvas token (a student token yields a clean Canvas 403).
 """
 
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from ..core.enrollment import check_enrollment as _check_enrollment

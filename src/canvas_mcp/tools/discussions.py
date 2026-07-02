@@ -3,7 +3,7 @@
 import json
 import re
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from ..core.anonymization import anonymize_response_data

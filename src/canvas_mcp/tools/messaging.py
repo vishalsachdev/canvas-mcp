@@ -3,7 +3,7 @@
 import sys
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from ..core.client import make_canvas_request

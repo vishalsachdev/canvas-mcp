@@ -5,7 +5,7 @@ editing roles) separate from content editing.
 """
 
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_code, get_course_id

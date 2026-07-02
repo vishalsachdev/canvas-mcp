@@ -9,7 +9,7 @@ import re
 from pathlib import Path
 from typing import Literal
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from ..core.validation import validate_params
