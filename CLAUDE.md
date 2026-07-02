@@ -155,6 +155,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] Claude Desktop Extension (`.mcpb`) — scaffolded, distributed via GitHub Releases (auto-attached on tag), README install section; shipped in v1.4.0
 - [x] Release **v1.4.0** — GitHub + PyPI + MCP Registry + hosted server + website all live
 - [x] PR #150: self-service access-approval flow for the hosted server — merged 2026-07-01
+- [ ] Issue #145 / PR #152: fastmcp 2.x migration — **PR 1 of 2 merged 2026-07-02** (code migration, 560 tests green); PR 2 (Azure staging/Entra validation) still open
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
 - [ ] Issue #106: 186 mypy errors uncovered by adding mypy to dev deps — incremental cleanup, module by module
 
@@ -198,26 +199,24 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-07-01 — PR #150 merged, #151 closed (false-positive DNS alert), broken ruleset fixed
-- **Merged PR #150** (self-service access-approval flow for the hosted Entra-gated server): reviewed
-  and approved, all CI green (554 tests, security suite, CodeQL). Merge was blocked by a **stale
-  required-status-check name** — the repo ruleset required a check literally called `auto-review`,
-  which no longer exists (the workflow job was renamed to `claude-review` at some point without
-  updating the ruleset), so the required check could never be satisfied. Admin-merged to unblock,
-  then **fixed the ruleset** (`gh api .../rulesets/6289606` PUT) to require `claude-review` instead —
-  future PRs won't hit this.
-- **Closed #151** (DNS: CNAME pointed to wrong Azure target) **as not-a-bug.** Verified live via `az`
-  CLI + `dig` + `curl`: the CNAME, hostname binding, and SSL cert are all correct on the current
-  `canvas-mcp` app, and the hosted server answers with the expected `401`/RFC 9728 challenge. The
-  issue's "expected" value (`gies-canvas-mcp-staging.azurewebsites.net`) was the **pre-rename app
-  name** (renamed 2026-06-17; old apps deleted) — `internal/ops-hosted.local.md` already had the
-  correct current CNAME documented. Root cause: **a remote weekly Claude-scheduled agent** flagged
-  the mismatch and the user filed #151 from the Claude mobile app off that alert — the routine's
-  prompt/context is stale post-rename. Fix lives on claude.ai (the routine config), not in this repo;
-  not something I can patch from here.
-- Next: (1) **Update the weekly DNS-check routine on claude.ai** so it stops false-firing — point it at
-  `internal/ops-hosted.local.md`'s documented CNAME or have it verify "resolves to a Verified+SSL-bound
-  app in the subscription" instead of a hardcoded hostname. (2) Carry-forward from 6/30 (unaddressed):
-  decide the model-fork framing for the LRA correction; when IT's ticket # lands, supplement with
-  corrected model framing + diagram; onboarding-simplification thread; distribute rebuilt `.mcpb`.
-  (3) Backlog: #145 FastMCP switch, #142 MCP SDK v2 (before ~2026-07-27), #106 mypy cleanup.
+### 2026-07-02 — Pulled PR #152 (fastmcp 2.x migration, 1 of 2), verified tests green
+- User deleted the stale weekly DNS-check routine on claude.ai (the source of #151's false positive) —
+  no longer a carry-forward item.
+- Session-start gap fixed: `git status`/`gh pr list` only show *pending* remote state — a merged PR
+  that landed between sessions (like #152 here) is invisible to both and only surfaces via an actual
+  `git pull`. Now treating "behind + no local changes" as pull-then-report, not just report.
+- Pulled **PR #152** — "refactor: migrate to fastmcp 2.x (#145, PR 1 of 2)" by contributor
+  `ashcastelinocs124`, merged 2026-07-02. Full code migration off the frozen FastMCP 1.0 bundled in
+  the MCP SDK to standalone fastmcp 2.x (2.14.7): import swap across ~30 files, `streamable_http_app()`
+  → `http_app()`, host/port moved to serve time, tests migrated off v1-only internals (`_tool_manager`)
+  to public `get_tools()` + in-memory `Client`, plus a fix for the `summarize-course` prompt returning
+  malformed raw-JSON `system`-role dicts instead of a string. **PR 2 (not yet opened)** covers Easy
+  Auth/Entra validation on the live Azure staging slot — #145 stays open until that lands.
+- Ran full test suite post-pull: **560 passed, 21 skipped**, confirms no local regression from the
+  migration. One benign warning (fastmcp's bundled JWT provider uses deprecated `authlib.jose`
+  internally — not this repo's code).
+- Next: (1) Watch for PR 2 (fastmcp 2.x Azure staging/Entra validation) to land before #145 fully
+  closes. (2) Carry-forward from 6/30 (still unaddressed): decide the model-fork framing for the LRA
+  correction; when IT's ticket # lands, supplement with corrected model framing + diagram;
+  onboarding-simplification thread; distribute rebuilt `.mcpb`. (3) Backlog: #142 MCP SDK v2 (before
+  ~2026-07-27), #106 mypy cleanup, backlog triage (module templates, bulk creation, page versioning).

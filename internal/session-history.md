@@ -4,6 +4,30 @@ Archived session log entries from canvas-mcp CLAUDE.md.
 
 ## Session Log
 
+### 2026-07-01 — PR #150 merged, #151 closed (false-positive DNS alert), broken ruleset fixed
+- **Merged PR #150** (self-service access-approval flow for the hosted Entra-gated server): reviewed
+  and approved, all CI green (554 tests, security suite, CodeQL). Merge was blocked by a **stale
+  required-status-check name** — the repo ruleset required a check literally called `auto-review`,
+  which no longer exists (the workflow job was renamed to `claude-review` at some point without
+  updating the ruleset), so the required check could never be satisfied. Admin-merged to unblock,
+  then **fixed the ruleset** (`gh api .../rulesets/6289606` PUT) to require `claude-review` instead —
+  future PRs won't hit this.
+- **Closed #151** (DNS: CNAME pointed to wrong Azure target) **as not-a-bug.** Verified live via `az`
+  CLI + `dig` + `curl`: the CNAME, hostname binding, and SSL cert are all correct on the current
+  `canvas-mcp` app, and the hosted server answers with the expected `401`/RFC 9728 challenge. The
+  issue's "expected" value (`gies-canvas-mcp-staging.azurewebsites.net`) was the **pre-rename app
+  name** (renamed 2026-06-17; old apps deleted) — `internal/ops-hosted.local.md` already had the
+  correct current CNAME documented. Root cause: **a remote weekly Claude-scheduled agent** flagged
+  the mismatch and the user filed #151 from the Claude mobile app off that alert — the routine's
+  prompt/context is stale post-rename. Fix lives on claude.ai (the routine config), not in this repo;
+  not something I can patch from here.
+- Next: (1) **Update the weekly DNS-check routine on claude.ai** so it stops false-firing — point it at
+  `internal/ops-hosted.local.md`'s documented CNAME or have it verify "resolves to a Verified+SSL-bound
+  app in the subscription" instead of a hardcoded hostname. (2) Carry-forward from 6/30 (unaddressed):
+  decide the model-fork framing for the LRA correction; when IT's ticket # lands, supplement with
+  corrected model framing + diagram; onboarding-simplification thread; distribute rebuilt `.mcpb`.
+  (3) Backlog: #145 FastMCP switch, #142 MCP SDK v2 (before ~2026-07-27), #106 mypy cleanup.
+
 ### 2026-06-30 — #146 closed + compliance doc overhauled for the IT/LRA review + Adam email
 - **Closed #146** (hourly `mcp-remote` re-auth): root cause was the missing `offline_access` scope; fix
   confirmed live 2026-06-26. Posted a consolidating summary, closed as completed. Folded the OAuth re-auth/
