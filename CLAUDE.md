@@ -199,24 +199,24 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-07-02 — Pulled PR #152 (fastmcp 2.x migration, 1 of 2), verified tests green
-- User deleted the stale weekly DNS-check routine on claude.ai (the source of #151's false positive) —
-  no longer a carry-forward item.
-- Session-start gap fixed: `git status`/`gh pr list` only show *pending* remote state — a merged PR
-  that landed between sessions (like #152 here) is invisible to both and only surfaces via an actual
-  `git pull`. Now treating "behind + no local changes" as pull-then-report, not just report.
-- Pulled **PR #152** — "refactor: migrate to fastmcp 2.x (#145, PR 1 of 2)" by contributor
-  `ashcastelinocs124`, merged 2026-07-02. Full code migration off the frozen FastMCP 1.0 bundled in
-  the MCP SDK to standalone fastmcp 2.x (2.14.7): import swap across ~30 files, `streamable_http_app()`
-  → `http_app()`, host/port moved to serve time, tests migrated off v1-only internals (`_tool_manager`)
-  to public `get_tools()` + in-memory `Client`, plus a fix for the `summarize-course` prompt returning
-  malformed raw-JSON `system`-role dicts instead of a string. **PR 2 (not yet opened)** covers Easy
-  Auth/Entra validation on the live Azure staging slot — #145 stays open until that lands.
-- Ran full test suite post-pull: **560 passed, 21 skipped**, confirms no local regression from the
-  migration. One benign warning (fastmcp's bundled JWT provider uses deprecated `authlib.jose`
-  internally — not this repo's code).
-- Next: (1) Watch for PR 2 (fastmcp 2.x Azure staging/Entra validation) to land before #145 fully
-  closes. (2) Carry-forward from 6/30 (still unaddressed): decide the model-fork framing for the LRA
-  correction; when IT's ticket # lands, supplement with corrected model framing + diagram;
-  onboarding-simplification thread; distribute rebuilt `.mcpb`. (3) Backlog: #142 MCP SDK v2 (before
-  ~2026-07-27), #106 mypy cleanup, backlog triage (module templates, bulk creation, page versioning).
+### 2026-07-02 — Fixed Claude Desktop connector sign-in (Entra manifest), rotated Canvas token
+- Claude Desktop's remote-MCP connector couldn't complete sign-in against the `Canvas MCP API` app
+  registration (`e1443fda-5aa7-4136-a884-d97f64258ef0`). Two manifest fixes applied live via `az ad app
+  update` / `az rest` PATCH (Graph API), no redeploy needed: (1) `isFallbackPublicClient` → `true`
+  ("Allow public client flows") so the device-code flow can issue tokens without a client secret; (2)
+  `api.requestedAccessTokenVersion` → `2` — the app was issuing v1.0-shaped tokens (`sts.windows.net`
+  issuer, `api://...` audience) while the server's validator expected v2.0 tokens, causing a silent
+  audience/issuer mismatch. Neither change touches the Easy Auth trust boundary (OID allowlist);
+  verified working end-to-end. Logged in `internal/ops-hosted.local.md` changelog (gitignored).
+- Separately discovered the local `.env` `CANVAS_API_TOKEN` had expired (2026-07-02T05:00:00Z) and
+  that Illinois requires *applying* for a new Canvas API token via a KB form
+  (answers.uillinois.edu/illinois/internal/150325), not pure self-service via Canvas Settings — saved
+  as `reference_canvas_token_application.md` since this corrects earlier (wrong) guidance given
+  mid-session. Token not yet renewed as of session end.
+- Next: (1) Apply for a fresh Canvas API token via the KB form, then update `canvas-mcp/.env` and the
+  Claude Desktop connector's per-session Canvas-token prompt. (2) Watch for PR 2 of the fastmcp 2.x
+  migration (Azure staging/Entra validation) to land before #145 fully closes — still not opened.
+  (3) Carry-forward from 6/30 (unaddressed): model-fork framing for the LRA correction; onboarding-
+  simplification thread; distribute rebuilt `.mcpb`. (4) Backlog: #142 MCP SDK v2 (~2026-07-27
+  deadline), #106 mypy cleanup, PR #117 (draft, MCP Apps feasibility doc, open since 6/7), backlog
+  triage (module templates, bulk creation, page versioning).
