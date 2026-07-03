@@ -4,6 +4,28 @@ Archived session log entries from canvas-mcp CLAUDE.md.
 
 ## Session Log
 
+### 2026-07-02 — Fixed Claude Desktop connector sign-in (Entra manifest), rotated Canvas token
+- Claude Desktop's remote-MCP connector couldn't complete sign-in against the `Canvas MCP API` app
+  registration (`e1443fda-5aa7-4136-a884-d97f64258ef0`). Two manifest fixes applied live via `az ad app
+  update` / `az rest` PATCH (Graph API), no redeploy needed: (1) `isFallbackPublicClient` → `true`
+  ("Allow public client flows") so the device-code flow can issue tokens without a client secret; (2)
+  `api.requestedAccessTokenVersion` → `2` — the app was issuing v1.0-shaped tokens (`sts.windows.net`
+  issuer, `api://...` audience) while the server's validator expected v2.0 tokens, causing a silent
+  audience/issuer mismatch. Neither change touches the Easy Auth trust boundary (OID allowlist);
+  verified working end-to-end. Logged in `internal/ops-hosted.local.md` changelog (gitignored).
+- Separately discovered the local `.env` `CANVAS_API_TOKEN` had expired (2026-07-02T05:00:00Z) and
+  that Illinois requires *applying* for a new Canvas API token via a KB form
+  (answers.uillinois.edu/illinois/internal/150325), not pure self-service via Canvas Settings — saved
+  as `reference_canvas_token_application.md` since this corrects earlier (wrong) guidance given
+  mid-session. Token not yet renewed as of session end.
+- Next: (1) Apply for a fresh Canvas API token via the KB form, then update `canvas-mcp/.env` and the
+  Claude Desktop connector's per-session Canvas-token prompt. (2) Watch for PR 2 of the fastmcp 2.x
+  migration (Azure staging/Entra validation) to land before #145 fully closes — still not opened.
+  (3) Carry-forward from 6/30 (unaddressed): model-fork framing for the LRA correction; onboarding-
+  simplification thread; distribute rebuilt `.mcpb`. (4) Backlog: #142 MCP SDK v2 (~2026-07-27
+  deadline), #106 mypy cleanup, PR #117 (draft, MCP Apps feasibility doc, open since 6/7), backlog
+  triage (module templates, bulk creation, page versioning).
+
 ### 2026-07-01 — PR #150 merged, #151 closed (false-positive DNS alert), broken ruleset fixed
 - **Merged PR #150** (self-service access-approval flow for the hosted Entra-gated server): reviewed
   and approved, all CI green (554 tests, security suite, CodeQL). Merge was blocked by a **stale
