@@ -14,8 +14,10 @@ COPY README.md ./
 COPY env.template ./
 COPY src/ ./src/
 
-# Install dependencies using uv
-RUN uv pip install --system --no-cache -e .
+# Install dependencies using uv. The [hosted] extra (azure-data-tables,
+# azure-communication-email, azure-identity) is required by the hosted
+# access-approval flow; it is lazily imported, so stdio users are unaffected.
+RUN uv pip install --system --no-cache -e ".[hosted]"
 
 # Create non-root user for security
 RUN adduser --disabled-password --gecos '' mcp && \
