@@ -155,7 +155,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] Claude Desktop Extension (`.mcpb`) — scaffolded, distributed via GitHub Releases (auto-attached on tag), README install section; shipped in v1.4.0
 - [x] Release **v1.4.0** — GitHub + PyPI + MCP Registry + hosted server + website all live
 - [x] PR #150: self-service access-approval flow for the hosted server — merged 2026-07-01
-- [ ] PR #155: `update_discussion_topic` (#154) — draft open; merge → auto-deploy to hosted
+- [x] PR #155: `update_discussion_topic` (#154) — **merged 2026-07-04** (32152e8); #154 closed; auto-deployed to hosted
 - [ ] Issue #145 / PR #152: fastmcp 2.x migration — **PR 1 of 2 merged 2026-07-02** (code migration, 560 tests green); PR 2 (Azure staging/Entra validation) still open
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
 - [ ] Issue #106: 186 mypy errors uncovered by adding mypy to dev deps — incremental cleanup, module by module
@@ -201,13 +201,13 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
 ### 2026-07-04 — `update_discussion_topic` implemented; draft PR #155 open
-- Reviewed #154 (discussion edit gap hit during SBC 511 launch prep), confirmed valid — pages/assignments
+- Reviewed #154 (discussion edit gap), confirmed valid — pages/assignments
   updatable via MCP but graded discussion prompts are not.
 - Implemented educator-only `update_discussion_topic` on `feature/update-discussion-topic`: partial-update
   PUT to `/discussion_topics/:id` (title, message, published, pinned, locked, scheduling); covers
   announcements too. 6 new tests (11 total in test_discussions.py); docs synced (AGENTS.md, tools/README,
   TOOL_MANIFEST). Confirmed local + hosted share one codebase — single registration, transport-only diff.
 - Committed (`fc8df89`), pushed, opened **draft PR #155**.
-- Next: (1) Review/merge PR #155; close #154 on merge. (2) Manual verify on SBC 511 (70438) — apply the
-  Week 1 discussion wording fix via MCP. (3) Run SBC 511 launch audit (still queued from 7/3). (4) PR #153
-  (dockerfile hosted extra), fastmcp 2.x PR 2, #142 MCP SDK v2 deadline ~7/27, #106 mypy cleanup.
+- PR #155 **merged** (32152e8); #154 **closed**; feature branch + 14 other stale local branches pruned.
+- Next: (1) PR #153 (dockerfile hosted extra). (2) fastmcp 2.x PR 2 (Azure staging/Entra validation).
+  (3) #142 MCP SDK v2 deadline ~7/27. (4) #106 mypy cleanup.
