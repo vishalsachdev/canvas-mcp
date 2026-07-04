@@ -4,6 +4,24 @@ Archived session log entries from canvas-mcp CLAUDE.md.
 
 ## Session Log
 
+### 2026-07-03 — Canvas token renewed + verified; SBC 511 launch audit queued
+- Canvas API token renewed (user applied via KB form) and verified: `canvas-mcp-server --test` passes
+  (authenticated as Vishal Sachdev). Also swapped the token inside `~/.claude.json` — the hosted-server
+  MCP entry passes it as an `X-Canvas-Token` header to `mcp-remote`, which is **separate from `.env`**
+  and was still carrying the expired token (the running bridge process holds the header from spawn
+  time, so a session restart is needed before the `canvas` MCP server picks it up).
+- Started a launch-readiness audit (canvas-course-audit skill) — target confirmed as **SBC 511
+  Summer 2026 (course id 70438, unpublished)** — but session ended before the audit ran.
+- Noted: 7 stale `mcp-remote` processes accumulated against the hosted server (one per abandoned
+  client session), each exposing the Canvas token in `ps` output; periodic
+  `pkill -f "mcp-remote.*canvas-mcp.disruptionlab"` sweep worth doing.
+- Next: (1) Run the SBC 511 (70438) launch audit — restart session first so the hosted `canvas` MCP
+  picks up the new token, or script direct Canvas API calls with `.venv/bin/python3` + httpx. (2)
+  Watch for PR 2 of the fastmcp 2.x migration (Azure staging/Entra validation) — still not opened.
+  (3) Carry-forward from 6/30: model-fork framing for the LRA correction; onboarding-simplification
+  thread; distribute rebuilt `.mcpb`. (4) Backlog: #142 MCP SDK v2 (~2026-07-27 deadline), #106 mypy
+  cleanup, PR #117 (draft since 6/7 — decide revive/close), backlog triage.
+
 ### 2026-07-02 — Fixed Claude Desktop connector sign-in (Entra manifest), rotated Canvas token
 - Claude Desktop's remote-MCP connector couldn't complete sign-in against the `Canvas MCP API` app
   registration (`e1443fda-5aa7-4136-a884-d97f64258ef0`). Two manifest fixes applied live via `az ad app
