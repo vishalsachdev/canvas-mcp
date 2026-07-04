@@ -102,26 +102,34 @@ jobs:
         with:
           python-version: '3.11'
       
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .
-      
       - name: Install scanning tools
         run: |
-          pip install pip-audit safety
+          python -m pip install --upgrade pip
+          pip install uv pip-audit safety
       
-      - name: Run pip-audit
+      - name: Export locked dependencies
         run: |
-          pip-audit --format json --output pip-audit-report.json
-        continue-on-error: true
+          # Audit the exact pinned dependency set that actually ships (uv.lock),
+          # including the optional "hosted" extra, rather than a fresh resolve.
+          uv export --frozen --format requirements-txt \
+            --no-emit-project --no-hashes --all-extras > requirements-audit.txt
       
-      - name: Run Safety check
+      - name: Run pip-audit (fails the build on vulnerabilities)
         run: |
-          safety check --json --output safety-report.json
+          # Gate on findings. CVE-2025-69872 (diskcache) is ignored because no
+          # fixed release exists and it is an optional/transitive dependency;
+          # revisit when an upstream fix ships.
+          pip-audit -r requirements-audit.txt \
+            --ignore-vuln CVE-2025-69872 \
+            --format json --output pip-audit-report.json
+      
+      - name: Run Safety check (informational)
+        run: |
+          safety check --json --output safety-report.json || true
         continue-on-error: true
       
       - name: Upload dependency scan results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dependency-scan-reports

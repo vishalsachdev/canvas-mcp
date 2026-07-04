@@ -477,6 +477,12 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     "run",
                     "--rm",
                     "-i",
+                    # Drop all Linux capabilities and block privilege escalation;
+                    # the tsx runtime needs none of them.
+                    "--cap-drop=ALL",
+                    "--security-opt=no-new-privileges",
+                    # Cap process count to contain fork bombs.
+                    "--pids-limit=256",
                 ]
                 if config.ts_sandbox_memory_limit_mb > 0:
                     cmd.extend(["--memory", f"{config.ts_sandbox_memory_limit_mb}m"])
@@ -484,14 +490,21 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     cmd.extend(["--ulimit", f"cpu={config.ts_sandbox_cpu_limit}"])
 
                 cmd.extend([
+                    # Mount the workspace read-only so executed code cannot modify
+                    # host repo files; give it a writable tmpfs for scratch instead.
                     "-v",
-                    f"{repo_root}:/workspace",
+                    f"{repo_root}:/workspace:ro",
+                    "--tmpfs",
+                    "/tmp:rw,noexec,nosuid,size=64m",
                     "-w",
                     "/workspace",
                     "-e",
                     f"CANVAS_API_URL={canvas_api_url}",
+                    # Pass the Canvas token by name only so its value is taken from
+                    # this process's (filtered) environment and never appears in the
+                    # container runtime's argv (visible via ps/proc to other users).
                     "-e",
-                    f"CANVAS_API_TOKEN={_canvas_api_token}",
+                    "CANVAS_API_TOKEN",
                 ])
                 if node_options_container:
                     cmd.extend(["-e", f"NODE_OPTIONS={node_options_container}"])

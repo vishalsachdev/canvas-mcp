@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Migrated to standalone `fastmcp` 2.x** from the frozen FastMCP 1.0 bundled in the MCP SDK (`mcp.server.fastmcp`). No user-facing changes: same tools, same transports, HTTP endpoint unchanged at `/mcp` ([#145](https://github.com/vishalsachdev/canvas-mcp/issues/145)).
 
+### Security
+- **Upgraded dependencies to clear known advisories** (`starlette`, `python-multipart`, `pyjwt`, `cryptography`, `pygments`, `idna`, `pydantic-settings`, `pytest`) via a full `uv.lock` refresh; all HTTP-transport-facing packages now ship fixed versions.
+- **The dependency-scan CI now gates the build.** `pip-audit` runs against the exact locked dependency set (`uv.lock`, incl. the `hosted` extra) and fails on findings, instead of `continue-on-error` passing regardless. (`CVE-2025-69872` in the transitive `diskcache` is ignored pending an upstream fix.)
+- **Hardened the `execute_typescript` container sandbox.** The workspace is now mounted read-only with a writable `tmpfs` for scratch, the container runs with `--cap-drop=ALL`, `--security-opt=no-new-privileges`, and `--pids-limit`, and the Canvas token is passed by env-var name rather than in the container runtime's argv (no longer visible via `ps`/`/proc`).
+- **Added upper version bounds** on direct dependencies (`httpx`, `python-dotenv`, `pydantic`, `uvicorn`) so downstream installs can't silently pull an untested new major.
+
 ### Fixed
 - **`strip_html_tags` no longer concatenates adjacent block elements.** Block-level tags (headings, paragraphs, list items, table rows, `<br>`) now convert to line breaks, so plain-text syllabus/overview output preserves structure instead of merging content across boundaries (e.g. `Grading` and `Final exam...`). Entity decoding now uses the stdlib `html.unescape`, covering smart quotes, dashes, and accents.
 - **`summarize-course` prompt rendered raw JSON.** The prompt returned an out-of-spec `system`-role message that MCP clients received as literal JSON text; it now renders as a single user message ([#145](https://github.com/vishalsachdev/canvas-mcp/issues/145)).
