@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/vishalsachdev-canvas-mcp-badge.png)](https://mseep.ai/app/vishalsachdev-canvas-mcp)
+
 <p align="center">
   <img src="docs/canvas-mcp-header.png" alt="Canvas MCP — AI tools for Canvas LMS" width="800">
 </p>
