@@ -571,6 +571,77 @@
       ]
     },
     {
+      "name": "update_discussion_topic",
+      "category": "educator",
+      "description": "Edit an existing discussion topic or announcement",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "topic_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Discussion topic ID"
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": false,
+          "description": "New title"
+        },
+        {
+          "name": "message",
+          "type": "string",
+          "required": false,
+          "description": "New body content (HTML supported)"
+        },
+        {
+          "name": "published",
+          "type": "boolean",
+          "required": false,
+          "description": "Publish or unpublish the topic"
+        },
+        {
+          "name": "pinned",
+          "type": "boolean",
+          "required": false,
+          "description": "Pin or unpin the topic"
+        },
+        {
+          "name": "locked",
+          "type": "boolean",
+          "required": false,
+          "description": "Lock or unlock the topic"
+        },
+        {
+          "name": "delayed_post_at",
+          "type": "string",
+          "required": false,
+          "description": "ISO 8601 datetime to schedule posting"
+        },
+        {
+          "name": "lock_at",
+          "type": "string",
+          "required": false,
+          "description": "ISO 8601 datetime to auto-lock the discussion"
+        },
+        {
+          "name": "require_initial_post",
+          "type": "boolean",
+          "required": false,
+          "description": "Students must post before seeing others"
+        }
+      ],
+      "returns": "Confirmation with updated fields and topic type",
+      "examples": [
+        "Update the Week 1 discussion prompt to mention Claude and Gemini"
+      ]
+    },
+    {
       "name": "search_canvas_tools",
       "category": "developer",
       "description": "Search available Canvas code API operations by keyword",

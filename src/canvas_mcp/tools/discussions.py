@@ -813,6 +813,107 @@ def register_educator_discussion_tools(mcp: FastMCP):
                f"Title: {topic_title}\n" + \
                f"Created: {created_at}"
 
+    @mcp.tool()
+    @validate_params
+    async def update_discussion_topic(
+        course_identifier: str | int,
+        topic_id: str | int,
+        title: str | None = None,
+        message: str | None = None,
+        published: bool | None = None,
+        pinned: bool | None = None,
+        locked: bool | None = None,
+        delayed_post_at: str | None = None,
+        lock_at: str | None = None,
+        require_initial_post: bool | None = None,
+    ) -> str:
+        """Update an existing discussion topic or announcement.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            topic_id: Discussion topic ID
+            title: New title
+            message: New body content (HTML supported)
+            published: Publish or unpublish the topic
+            pinned: Pin or unpin the topic
+            locked: Lock or unlock the topic
+            delayed_post_at: ISO 8601 datetime to schedule posting
+            lock_at: ISO 8601 datetime to auto-lock the discussion
+            require_initial_post: Students must post before seeing others
+        """
+        course_id = await get_course_id(course_identifier)
+
+        data: dict[str, str | bool] = {}
+
+        if title is not None:
+            data["title"] = title
+
+        if message is not None:
+            data["message"] = message
+
+        if published is not None:
+            data["published"] = published
+
+        if pinned is not None:
+            data["pinned"] = pinned
+
+        if locked is not None:
+            data["locked"] = locked
+
+        if require_initial_post is not None:
+            data["require_initial_post"] = require_initial_post
+
+        if delayed_post_at is not None:
+            parsed_delayed = parse_date(delayed_post_at)
+            if not parsed_delayed:
+                return (
+                    f"Invalid date format for delayed_post_at: '{delayed_post_at}'. "
+                    "Use ISO 8601 format (e.g., '2026-01-26T12:00:00Z')."
+                )
+            data["delayed_post_at"] = parsed_delayed.isoformat()
+
+        if lock_at is not None:
+            parsed_lock = parse_date(lock_at)
+            if not parsed_lock:
+                return (
+                    f"Invalid date format for lock_at: '{lock_at}'. "
+                    "Use ISO 8601 format (e.g., '2026-02-01T23:59:00Z')."
+                )
+            data["lock_at"] = parsed_lock.isoformat()
+
+        if not data:
+            return (
+                "No fields provided to update. Specify at least one field to modify "
+                "(e.g., title, message, published, pinned, locked)."
+            )
+
+        response = await make_canvas_request(
+            "put",
+            f"/courses/{course_id}/discussion_topics/{topic_id}",
+            data=data,
+        )
+
+        if "error" in response:
+            return f"Error updating discussion topic: {response['error']}"
+
+        updated_title = response.get("title", "")
+        is_announcement = response.get("is_announcement", False)
+        updated_published = response.get("published", False)
+        topic_type = "Announcement" if is_announcement else "Discussion"
+
+        course_display = await get_course_code(course_id) or course_identifier
+        updated_fields = list(data.keys())
+
+        result = f"✅ {topic_type} updated successfully!\n\n"
+        result += f"**{updated_title}**\n"
+        result += f"  Course: {course_display}\n"
+        result += f"  Topic ID: {topic_id}\n"
+        result += f"  Type: {topic_type}\n"
+        result += f"  Updated fields: {', '.join(updated_fields)}\n"
+        result += f"  Published: {'Yes' if updated_published else 'No'}\n"
+
+        return result
+
     # ===== ANNOUNCEMENT TOOLS =====
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))

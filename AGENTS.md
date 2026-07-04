@@ -29,8 +29,8 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 ```
 # In .env:
 CANVAS_ROLE=student    # ~32 tools (student + shared)
-CANVAS_ROLE=educator   # ~87 tools (educator + shared)
-CANVAS_ROLE=all        # All 92 tools (default)
+CANVAS_ROLE=educator   # ~88 tools (educator + shared)
+CANVAS_ROLE=all        # All 93 tools (default)
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
@@ -72,6 +72,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `send_conversation` | Message students |
 | `send_peer_review_reminders` | Automated reminder workflow |
 | `create_announcement` | Post course announcements |
+| `update_discussion_topic` | Edit discussion or announcement title/body and settings |
 
 ### Shared Tools (Students & Educators)
 Content access tools available to all authenticated users.
