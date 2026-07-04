@@ -583,6 +583,28 @@ Start a new discussion forum.
 
 ---
 
+#### `update_discussion_topic`
+Edit an existing discussion topic or announcement (title, body, publish state, etc.).
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `topic_id`: Discussion topic ID
+- `title`: New title (optional)
+- `message`: New body content, HTML supported (optional)
+- `published`: Publish or unpublish (optional)
+- `pinned`: Pin or unpin (optional)
+- `locked`: Lock or unlock (optional)
+- `delayed_post_at`: Schedule posting, ISO 8601 (optional)
+- `lock_at`: Auto-lock datetime, ISO 8601 (optional)
+- `require_initial_post`: Require initial post before viewing replies (optional)
+
+**Example:**
+```
+"Update the Week 1 discussion prompt to mention Claude and Gemini"
+```
+
+---
+
 #### `reply_to_discussion_entry`
 Respond to student discussion posts.
 

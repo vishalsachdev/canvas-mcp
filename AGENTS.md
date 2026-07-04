@@ -72,6 +72,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `send_conversation` | Message students |
 | `send_peer_review_reminders` | Automated reminder workflow |
 | `create_announcement` | Post course announcements |
+| `update_discussion_topic` | Edit discussion or announcement title/body and settings |
 
 ### Shared Tools (Students & Educators)
 Content access tools available to all authenticated users.
