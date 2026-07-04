@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **`get_syllabus` tool** — returns the complete Canvas Syllabus tab content without truncation (the overview tools only expose a ~1000-character preview, hiding later sections like grading policies and weighting). Supports `output_format` (`text`/`html`/`both`) and an optional `max_chars` cap that is explicitly marked when applied ([#134](https://github.com/vishalsachdev/canvas-mcp/issues/134)).
 - **`create_rubric_from_csv` tool** — create a rubric from a CSV string via Canvas's native rubric CSV import endpoint, polling the import job to completion. A simpler alternative to the criteria-JSON `create_rubric` API ([#119](https://github.com/vishalsachdev/canvas-mcp/issues/119)).
+- **`update_discussion_topic` tool** — educator-only partial update of an existing discussion topic or announcement (title, message, published/pinned/locked, `delayed_post_at`/`lock_at`, `require_initial_post`) via `PUT /courses/:id/discussion_topics/:topic_id`, mirroring the `update_assignment` pattern ([#154](https://github.com/vishalsachdev/canvas-mcp/issues/154)).
 
 ### Changed
 - **Migrated to standalone `fastmcp` 2.x** from the frozen FastMCP 1.0 bundled in the MCP SDK (`mcp.server.fastmcp`). No user-facing changes: same tools, same transports, HTTP endpoint unchanged at `/mcp` ([#145](https://github.com/vishalsachdev/canvas-mcp/issues/145)).
