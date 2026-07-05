@@ -3,6 +3,7 @@
 import json
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_id
 from ..core.file_validation import sanitize_filename
@@ -13,7 +14,7 @@ from ..core.validation import validate_params
 def register_peer_review_tools(mcp: FastMCP):
     """Register all peer review analytics MCP tools."""
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_peer_review_assignments(
         course_identifier: str | int,
@@ -48,7 +49,7 @@ def register_peer_review_tools(mcp: FastMCP):
         except Exception as e:
             return f"Error in get_peer_review_assignments: {str(e)}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_peer_review_completion_analytics(
         course_identifier: str | int,
@@ -83,7 +84,7 @@ def register_peer_review_tools(mcp: FastMCP):
         except Exception as e:
             return f"Error in get_peer_review_completion_analytics: {str(e)}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def generate_peer_review_report(
         course_identifier: str | int,
@@ -160,7 +161,7 @@ def register_peer_review_tools(mcp: FastMCP):
         except Exception as e:
             return f"Error in generate_peer_review_report: {str(e)}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_peer_review_followup_list(
         course_identifier: str | int,

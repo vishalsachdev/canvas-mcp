@@ -37,6 +37,18 @@ CANVAS_API_URL=https://your-institution.instructure.com/api/v1
 
 Students and educators use the same server but have access to different tools based on Canvas API permissions.
 
+### Tool Profile (Optional)
+Reduce tool overhead by setting a role-based profile. Only tools relevant to the selected role are registered:
+
+```
+# In .env:
+CANVAS_ROLE=student    # ~32 tools (student + shared)
+CANVAS_ROLE=educator   # ~87 tools (educator + shared)
+CANVAS_ROLE=all        # All 88 tools (default)
+```
+
+Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
+
 ## Tool Categories
 
 ### Student Tools
@@ -62,8 +74,12 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `create_assignment` | Create new assignment with due date, submission types, peer reviews |
 | `update_assignment` | Update existing assignment (name, due date, points, published, etc.) |
 | `get_student_analytics` | Individual student performance |
-| `create_rubric` | ⚠️ DISABLED - Canvas API returns 500 errors |
-| `grade_submission_with_rubric` | Grade single submission |
+| `list_rubrics` | List rubrics in a course |
+| `get_rubric` | View rubric details (by rubric_id or assignment_id) |
+| `get_rubric_assessment` | View rubric assessment for a student submission |
+| `create_rubric` | Create rubric with criteria, ratings, and optional assignment association |
+| `associate_rubric` | Associate existing rubric with an assignment |
+| `grade_with_rubric` | Grade single submission with rubric |
 | `bulk_grade_submissions` | Grade multiple submissions efficiently |
 | `send_conversation` | Message students |
 | `send_peer_review_reminders` | Automated reminder workflow |
@@ -119,7 +135,7 @@ Advanced tools for bulk operations and custom logic.
 |----------|---------------------|-----|
 | Single query ("Show my grades") | Traditional MCP tools | Simple, direct |
 | List request ("Show assignments") | Traditional MCP tools | Low token cost |
-| Grade 1-9 submissions | `grade_submission_with_rubric` | Straightforward |
+| Grade 1-9 submissions | `grade_with_rubric` | Straightforward |
 | Grade 10+ submissions | `bulk_grade_submissions` | Concurrent processing |
 | Grade 30+ with custom logic | `execute_typescript` | 99.7% token savings |
 | Complex data processing | `execute_typescript` | Data stays local |
@@ -165,7 +181,7 @@ Is it a simple query?
 ### Educator: Bulk Grading
 ```
 1. "What's the rubric for Assignment 5?"
-   → get_rubric_details(course_id, rubric_id)
+   → get_rubric(course_id, rubric_id=...)
 
 2. "Grade these 50 submissions using the rubric"
    → bulk_grade_submissions(course_id, assignment_id, grades)
@@ -192,7 +208,8 @@ Is it a simple query?
 - Read courses, assignments, grades, discussions, pages
 - Submit grades with or without rubrics
 - Send Canvas messages and announcements
-- Use existing rubrics for grading (create/update rubrics via Canvas UI)
+- Create rubrics programmatically with defined criteria and ratings
+- Use existing rubrics for grading (edit rubrics via Canvas UI if needed)
 - Analyze peer review completion
 - Execute TypeScript for bulk operations
 - Access student data (with FERPA-compliant anonymization option)
@@ -210,12 +227,11 @@ Some Canvas API endpoints have bugs or limitations that prevent certain operatio
 
 | Tool | Issue | Workaround |
 |------|-------|------------|
-| `create_rubric` | Canvas API returns 500 error | Create rubrics via Canvas web UI |
 | `update_rubric` | Partial updates wipe all criteria (full replacement, not PATCH) | Edit rubrics via Canvas web UI |
 
-**Working rubric tools:** `list_all_rubrics`, `get_rubric_details`, `associate_rubric_with_assignment`, `grade_with_rubric`, `bulk_grade_submissions`, `delete_rubric`
+**Working rubric tools:** `create_rubric`, `list_rubrics`, `get_rubric`, `get_rubric_assessment`, `associate_rubric`, `grade_with_rubric`, `bulk_grade_submissions`
 
-**Rubric workaround:** Create/edit rubrics in Canvas UI, then use `associate_rubric_with_assignment` to link them to assignments. Use "Find a Rubric" feature in Canvas to copy rubrics between courses.
+**Rubric workflow:** Use `create_rubric` to create rubrics programmatically. Edit rubrics via Canvas UI when needed, then use `associate_rubric` to link them to assignments.
 
 ### Data Access Rules
 | User Type | Can Access |
@@ -299,6 +315,29 @@ No anonymization needed - students only access their own data via Canvas "self" 
 
 - **Tool Documentation:** `/tools/README.md`
 - **Code API Guide:** `/src/canvas_mcp/code_api/README.md`
-- **Student Guide:** `/docs/STUDENT_GUIDE.md`
-- **Educator Guide:** `/docs/EDUCATOR_GUIDE.md`
+- **Student Guide:** https://canvas-mcp.illinihunt.org/student-guide.html
+- **Educator Guide:** https://canvas-mcp.illinihunt.org/educator-guide.html
 - **Development Guide:** `/CLAUDE.md`
+
+## Claude Memory Lookup
+
+When prior context may matter, search Claude memories at runtime instead of copying memory content into this repo. Use this as a nudge, not a mandatory step for every tiny edit.
+
+- Safe local roots: /Users/vishal/code, /Users/vishal/teaching, /Users/vishal/research, /Users/vishal/admin, /Users/vishal/vault.
+- Do not search Box, iCloud, or other cloud-sync folders for this purpose.
+- Start with global memory: /Users/vishal/.claude/memory/MEMORY.md and /Users/vishal/.claude/projects/-Users-vishal/memory/MEMORY.md.
+- For the current project, derive the likely Claude memory folder from the path. Example: /Users/vishal/code/AgentLab -> /Users/vishal/.claude/projects/-Users-vishal-code-AgentLab/memory/.
+- If the topic could cross projects, search relevant memory files with rg across /Users/vishal/.claude/projects/*/memory/*.md.
+- Prefer memory pointers and summaries over duplicating long memory content here.
+
+## External Actions Require Explicit Approval
+
+Never publish, post, send, delete, deploy, submit, schedule, purchase, or otherwise take an external action without explicit approval from Vishal.
+
+This includes LinkedIn, email, Slack/Teams, Canvas, GitHub PRs/issues/comments, deployments, forms, purchases, and browser-based actions that affect external systems.
+
+Drafting is allowed. Composing into a browser editor is allowed only when asked. Stop before the final action button.
+
+Before any external action, ask: "Do you want me to [exact action] now?" Only proceed after a clear yes to that exact action. Do not treat "looks good," "ok," or "use this" as permission to publish, send, delete, deploy, submit, schedule, purchase, or post.
+
+For LinkedIn posts: prepare the text, optionally paste it into the composer, then stop. Never click Post unless Vishal explicitly says "Post it."

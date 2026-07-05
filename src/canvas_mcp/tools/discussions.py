@@ -4,6 +4,7 @@ import json
 import re
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from ..core.anonymization import anonymize_response_data
 from ..core.cache import get_course_code, get_course_id
@@ -13,12 +14,12 @@ from ..core.logging import log_error, log_warning
 from ..core.validation import validate_params
 
 
-def register_discussion_tools(mcp: FastMCP):
-    """Register all discussion and announcement MCP tools."""
+def register_shared_discussion_tools(mcp: FastMCP):
+    """Register discussion tools accessible to both students and educators."""
 
     # ===== DISCUSSION TOOLS =====
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def list_discussion_topics(course_identifier: str | int,
                                    include_announcements: bool = False) -> str:
@@ -61,7 +62,7 @@ def register_discussion_tools(mcp: FastMCP):
         course_display = await get_course_code(course_id) or course_identifier
         return f"Discussion Topics for Course {course_display}:\n\n" + "\n".join(topics_info)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_discussion_topic_details(course_identifier: str | int,
                                          topic_id: str | int) -> str:
@@ -130,7 +131,7 @@ def register_discussion_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def list_discussion_entries(course_identifier: str | int,
                                     topic_id: str | int,
@@ -365,7 +366,7 @@ def register_discussion_tools(mcp: FastMCP):
 
         return f"Discussion Entries for '{topic_title}' in Course {course_display}:\n\n" + "\n".join(entries_info) + footer
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_discussion_entry_details(course_identifier: str | int,
                                          topic_id: str | int,
@@ -531,7 +532,7 @@ def register_discussion_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_discussion_with_replies(course_identifier: str | int,
                                         topic_id: str | int,
@@ -755,6 +756,10 @@ def register_discussion_tools(mcp: FastMCP):
                f"Reply ID: {reply_id}\n" + \
                f"Message: {truncate_text(message, 200)}"
 
+
+def register_educator_discussion_tools(mcp: FastMCP):
+    """Register educator-only discussion and announcement tools."""
+
     @mcp.tool()
     @validate_params
     async def create_discussion_topic(course_identifier: str | int,
@@ -810,7 +815,7 @@ def register_discussion_tools(mcp: FastMCP):
 
     # ===== ANNOUNCEMENT TOOLS =====
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def list_announcements(course_identifier: str) -> str:
         """List announcements for a specific course.
@@ -897,13 +902,15 @@ def register_discussion_tools(mcp: FastMCP):
 
     # ===== ANNOUNCEMENT DELETION TOOLS =====
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
     @validate_params
     async def delete_announcement(
         course_identifier: str | int,
         announcement_id: str | int
     ) -> str:
         """Delete an announcement from a Canvas course.
+
+        Permanent — Canvas may retain a recycle-bin copy depending on admin settings.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -936,24 +943,38 @@ def register_discussion_tools(mcp: FastMCP):
                "Status: deleted\n" + \
                "Message: Announcement deleted successfully"
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
     @validate_params
     async def bulk_delete_announcements(
         course_identifier: str | int,
         announcement_ids: list[str | int],
-        stop_on_error: bool = False
+        stop_on_error: bool = False,
+        limit: int = 25,
+        dry_run: bool = False
     ) -> str:
         """Delete multiple announcements from a Canvas course.
+
+        Permanent — Canvas may retain a recycle-bin copy depending on admin settings.
 
         Args:
             course_identifier: Course code or Canvas ID
             announcement_ids: List of announcement IDs to delete
             stop_on_error: Stop on first error; if False, continue with remaining (default: False)
+            limit: Max number of announcements to delete in one call (default: 25). Ignored when dry_run=True, so large batches can be previewed safely.
+            dry_run: Fetch titles and report what would be deleted without deleting (default: False)
         """
         course_id = await get_course_id(course_identifier)
 
+        if not dry_run and len(announcement_ids) > limit:
+            return (
+                f"❌ Refusing to delete {len(announcement_ids)} announcements: exceeds limit of {limit}.\n"
+                f"  Pass limit={len(announcement_ids)} (or higher) to override, "
+                f"or use dry_run=True to preview without deleting."
+            )
+
         successful = []
         failed = []
+        previewed = []
 
         for announcement_id in announcement_ids:
             try:
@@ -970,6 +991,13 @@ def register_discussion_tools(mcp: FastMCP):
                     })
                     if stop_on_error:
                         break
+                    continue
+
+                if dry_run:
+                    previewed.append({
+                        "id": str(announcement_id),
+                        "title": announcement.get("title", "Unknown Title")
+                    })
                     continue
 
                 # Proceed with deletion
@@ -1002,13 +1030,30 @@ def register_discussion_tools(mcp: FastMCP):
                     break
 
         # Format results
+        course_display = await get_course_code(course_id) or course_identifier
+
+        if dry_run:
+            result = f"DRY RUN — bulk deletion preview for course {course_display}:\n\n"
+            result += f"Summary: {len(previewed)} would be deleted, {len(failed)} unreachable out of {len(announcement_ids)} total\n\n"
+            if previewed:
+                result += "Would delete:\n"
+                for item in previewed:
+                    result += f"  - ID: {item['id']}, Title: {item['title']}\n"
+                result += "\n"
+            if failed:
+                result += "Could not preview (fetch failed):\n"
+                for item in failed:
+                    result += f"  - ID: {item['id']}, Error: {item['error']}\n"
+                result += "\n"
+            result += "Set dry_run=False to perform actual deletions."
+            return result
+
         summary = {
             "total": len(announcement_ids),
             "successful": len(successful),
             "failed": len(failed)
         }
 
-        course_display = await get_course_code(course_id) or course_identifier
         result = f"Bulk deletion results for course {course_display}:\n\n"
         result += f"Summary: {summary['successful']} successful, {summary['failed']} failed out of {summary['total']} total\n\n"
 
@@ -1028,7 +1073,7 @@ def register_discussion_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
     @validate_params
     async def delete_announcement_with_confirmation(
         course_identifier: str | int,
@@ -1037,6 +1082,8 @@ def register_discussion_tools(mcp: FastMCP):
         dry_run: bool = False
     ) -> str:
         """Delete an announcement with optional safety checks.
+
+        Permanent — Canvas may retain a recycle-bin copy depending on admin settings.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -1094,7 +1141,7 @@ def register_discussion_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
     @validate_params
     async def delete_announcements_by_criteria(
         course_identifier: str | int,
@@ -1103,6 +1150,8 @@ def register_discussion_tools(mcp: FastMCP):
         dry_run: bool = True
     ) -> str:
         """Delete announcements matching specific criteria.
+
+        Permanent — Canvas may retain a recycle-bin copy depending on admin settings.
 
         Args:
             course_identifier: Course code or Canvas ID

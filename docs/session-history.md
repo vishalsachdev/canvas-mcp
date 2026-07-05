@@ -4,6 +4,64 @@ Archived session log entries from canvas-mcp CLAUDE.md.
 
 ## Session Log
 
+### 2026-05-07
+- **Instructure/Canvas breach advisory** (no code changes): ShinyHunters claimed exfiltration of ~275–280M records / 3.65 TB from Instructure across ~8,800 institutions; ransom deadline was today. Exposed: names, emails, student IDs, **private Canvas Inbox messages**. Not exposed (per Instructure): passwords, DOB, gov IDs, financial. Second Instructure breach in 8 months (Sept 2025 was Salesforce social-engineering). **Project impact: none** — canvas-mcp is a client of the Canvas API, not affected by the data exfil. `CANVAS_API_TOKEN` is user-issued via Canvas UI and almost certainly not in the exfil path; rotation is hygiene, not required. No advisory needed in repo docs.
+- **Stats refresh deployed**: Committed pre-session `docs/data/impact.json` refresh and pushed to Cloudflare Pages.
+- Next: Backlog triage (module templates, bulk creation, page versioning) — unchanged from last session. Two v1.3.0 follow-ups still open: split `publish-mcp.yml` (PyPI + MCP Registry jobs with propagation poll), add `ruff` to dev deps in `pyproject.toml`.
+
+### 2026-05-02
+- **Released v1.3.0** (commits `cff934c` + `c2f1438`, tag `v1.3.0`): Bundled four already-merged PRs into a coherent release — `create_rubric` (#100, bracket-notation form-data finally working), `read_course_file` (#90, @DomBarker99), event-loop fix on user-scoped tools (#99, weakref-tracked client/semaphore), and bulk-delete safety (#96, default cap of 25 + dry_run). Drafted CHANGELOG.md (Keep-a-Changelog format) before bumping versions — that scope-pass caught the bulk-delete behavior change for callers passing >25 IDs and got it into the release notes. Bumped 5 release-checklist files; 382 tests pass at 1.3.0; tool count 88 → 90.
+- **CI publish race surfaced**: `publish-mcp.yml` runs PyPI upload + MCP Registry publish in one sequential job. The Registry's PyPI lookup raced PyPI's CDN propagation and 404'd. `gh run rerun --failed` succeeded immediately on retry — no code change. Added a follow-up: split into two jobs with a PyPI-propagation poll between them. Also surfaced a Node 20 deprecation warning for `actions/checkout@v4` + `actions/setup-python@v5` (force-upgraded June 2026).
+- **Session prep**: Pulled 3 backlog commits (#96, #99, #100), committed two carry-forward dirty files (`AGENTS.md` policy additions for memory lookup + external-action approval; `impact.json` April 27 stats refresh). Deleted two 66-day-old `.claude/plans/` files whose targets had all shipped. Cloudflare Pages deployed manually with `unset CF_API_TOKEN && wrangler pages deploy` (the documented workaround for the deprecated env var).
+- **Pre-commit hook surprise**: Fresh venv didn't have `ruff` installed; hook called `uv run ruff` which spawn-failed with "No such file or directory." Installed via `uv pip install ruff`. Should be a dev dep in pyproject.toml.
+- Next: Backlog triage (module templates, bulk creation, page versioning). Address the two follow-ups in Current Focus before the next release.
+
+### 2026-04-21
+- **Merged PR #93** (`chore/drop-unused-fastmcp-dep`, commit `eebac6a`): Weekly maintenance report #91 flagged fastmcp 2.14 → 3.x as a 🔴 high-priority upgrade. Investigation showed the repo imports `from mcp.server.fastmcp import FastMCP` (bundled FastMCP 1.0 inside the official `mcp` SDK v1.26.0) — zero files import the standalone `fastmcp` package. The `fastmcp>=2.14.0` pin was phantom. Replaced with explicit `mcp>=1.26.0,<2` (upper bound per Codex plan review), regenerated uv.lock. Net −794 lines, pruned ~30 unused transitive deps (authlib, cyclopts, pydocket, py-key-value-aio, rich, typer, websockets, etc). All 363 tests pass, stdio + streamable-http transports verified, CI 8/8 green. Admin-merged through branch protection.
+- **Codex integration**: Used `codex:codex-rescue` subagent for plan review (caught need for upper bound + "intentional, not to-be-re-flagged" framing) and `/codex:rescue` for post-push diff review (APPROVE with evidence from uv.lock and upstream mcp docs).
+- **Key learning**: When a maintenance bot flags a dep upgrade, first verify the dep is actually imported. Weekly-report "🔴 High" can be a false positive on a phantom pin.
+- Next: Tag v1.3.0 release for `read_course_file` (still pending from prior session). Backlog triage. Note: `docs/data/impact.json` still dirty from prior session. Deleted the `canvas-mcp-meets-skills-sh` article draft as not relevant.
+
+### 2026-04-18
+- **Merged PR #90** (`read_course_file`, external contributor @DomBarker99): Returns Canvas file content as base64 in MCP response — complements `download_course_file` which writes to the server filesystem (useless for remote MCP topologies). Dual size-cap enforcement (reported + mid-stream), server-side `READ_FILE_MAX_SIZE_MB` clamp. 363 tests pass. Added @DomBarker99 to contributors list. Tool count 87 → 88; educator role 86 → 87.
+- **Repo hygiene audit (-9,260 lines across 5 priorities)**: P0 archived legacy code + rubric plans -3,937. P1 orphan docs (SECURITY_*, course_doc_template, impact-metrics-2026-03-20) -2,421. P2 UIUC security cluster (self-referencing island, no user-facing in-links) -914. P3 duplicate student/educator guides (kept HTML on canvas-mcp.illinihunt.org, rewrote 10 links) -842. Untracked `.claude/` (Claude Code per-project working dir) -1,021.
+- **Misc cleanup**: Moved `session-history.md` → `docs/`. Added defensive `.gitignore` entries for `.DS_Store`, `Thumbs.db`, editor swap files. Cloudflare Pages redeployed with tool count 88.
+- **CLI DRY refactor** (`cli/lib/config-writer.js`, commit `6f24719`): Collapsed `configureJsonClient` + `configureCodexClient` into a single `updateConfigFile` helper taking a `mutate` callback; format-branching (JSON vs TOML) now happens once. −8 net LOC, public API unchanged, 7 tests pass. Triggered by a PR-review tool flagging duplication; dismissed the tool's CRITICAL "hardcoded secrets/injection" finding as a false positive (no secrets, all writes go through `JSON.stringify`/`TOML.stringify`).
+- Next: Tag v1.3.0 release for `read_course_file`. Publish decision on `articles/2026-03-01-canvas-mcp-meets-skills-sh` (staged locally, untracked). Backlog triage.
+
+### 2026-04-10
+- **Rubric tool rationalization** (PR #86): Reduced rubric tools 11 → 6 (total 92 → 87). Deleted 3 broken/unused tools, merged 3 overlapping reads into `get_rubric`, renamed 3 for clarity, moved `bulk_grade_submissions` to assignments.py. Net -540 lines from rubrics.py.
+- **Stale markdown cleanup** (PR #87): Deleted 11 fully-implemented plans, satisfied specs, and dead artifacts. -4,766 lines.
+- **Codebase health audit**: Analyzed all 92 tools against session history — ~50 had no evidence of use. Rubric tools were worst case (2 disabled, 3 undocumented, 3 overlapping).
+- Next: Consider rationalizing peer review tools (9 tools, similar pattern). Deploy docs to Cloudflare Pages (tool count 87). Backlog triage.
+
+### 2026-04-09 (late session)
+- **PR #84 merged**: Role-based tool filtering from external contributor (Promithius-DR). Code reviewed, found 2 bugs (validate_config not resetting invalid role, --config showing wrong role), fixed and merged with --admin.
+- **PR #85 merged**: Windows tsx fix (issue #83). Reviewed Claude + Codex feedback, addressed P1 (npx fallback re-introduces bug) and P2 (global before local resolution order), merged.
+- **CI consolidation**: Merged auto-update-docs into claude-code-review (1 Claude call instead of 2), removed security-summary job. 11 → 8 checks per PR.
+- **GitHub Actions re-enabled**: Fixed fork-aware checkout in workflows, added OAuth token check.
+- **Cleaned up**: Deleted stale github-pages deployment environment.
+
+### 2026-04-09 (earlier session)
+- **Accessibility scanner expanded (4 → 20 checks)**: Upgraded `_check_content_accessibility()` based on DesignPLUS/Pope Tech/WAVE checklist. 20 checks run on every scan.
+- **BADM 350 remediation**: Applied fixes to course 68238 — `scope="col"` to 118 `<th>` elements, contrast fixes, `kl_` → `dp-` class migration.
+
+### 2026-04-06
+- **Security: PR #81 review & merge**: CWE-22 path traversal fix + codebase-wide file I/O hardening (4 additional sites).
+- **Housekeeping**: Archived 6 stale session log entries, deleted 2 completed plans.
+
+### 2026-03-20
+- **InstructureCon 2026 proposal**: Drafted CFP for InstructureCon26 (Louisville, July 21-23).
+- **Impact tracker implemented**: `scripts/collect-impact-stats.sh`, live website section, launchd plist.
+
+### 2026-03-13
+- **Event loop bug fix**: Fixed "Event loop is closed" on first MCP tool call.
+- **Concurrency limiter**: `asyncio.Semaphore` in `make_canvas_request()` (default 10).
+
+### 2026-03-12
+- **CLI npm package**: Published `canvas-mcp` v1.1.0 to npm — `npx canvas-mcp setup` wizard.
+- **Workshop page**: Created `canvas-mcp.illinihunt.org/workshop`.
+
 ### 2026-03-05
 - **Cloudflare Web Analytics**: Added beacon to educator, student, and bulk-grading guide pages (all 5 docs/ HTML pages now covered)
 - **Cloudflare Pages auto-deploy**: Investigated connecting GitHub repo — not possible for Direct Upload projects. Manual deploy via `wrangler pages deploy` for now.

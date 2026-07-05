@@ -23,11 +23,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 canvas-mcp/
 ├── src/canvas_mcp/        # Main application code
 │   ├── core/             # Core utilities (client, config, validation)
-│   ├── tools/            # MCP tool implementations (91 tools across 15 files)
+│   ├── tools/            # MCP tool implementations (88 tools across 15 files)
 │   ├── resources/        # MCP resources and prompts
 │   └── server.py         # FastMCP server entry point
 ├── skills/               # Agent skills for skills.sh (8 skills)
-├── tests/                # 290+ tests (pytest + pytest-asyncio)
+├── tests/                # 328 tests (pytest + pytest-asyncio)
 ├── docs/                 # GitHub Pages site + guides
 ├── tools/                # Tool documentation (README.md, TOOL_MANIFEST.json)
 ├── archive/              # Legacy code (git-ignored)
@@ -191,9 +191,11 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 **When adding a new tool**, update: `tools/README.md` → `AGENTS.md` → `TOOL_MANIFEST.json`. Do NOT update `README.md` unless it's a major feature. Do NOT duplicate tool usage docs in `CLAUDE.md` (architecture only).
 
 ## Current Focus
-- [ ] Re-enable GitHub Actions (account-level billing toggle)
-- [x] Create v1.1.0 GitHub Release (created manually via `gh release create`)
+- [x] Release v1.3.0 — `create_rubric` (#100), `read_course_file` (#90), event-loop fix (#99), bulk-delete safety (#96); tool count 88 → 90; CHANGELOG.md added
+- [x] Follow-up: split publish-mcp.yml into separate PyPI + MCP Registry jobs with PyPI-propagation poll (PR #107)
+- [x] Follow-up: add `ruff`/`black`/`mypy` to dev deps in pyproject.toml; remove unused `requests`; `setup-python@v4 → @v6` (PR #105)
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
+- [ ] Issue #106: 186 mypy errors uncovered by adding mypy to dev deps — incremental cleanup, module by module
 
 ## Roadmap
 - [x] Release v1.0.8 — all CI/CD pipelines passing (PyPI, MCP Registry, GitHub Release)
@@ -202,6 +204,8 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] MCP token optimization — trimmed tool docstrings ~35% (350 lines removed across 15 files)
 - [x] HTTP transport & hosted server — per-request credentials via ContextVar, deployed to VPS at mcp.illinihunt.org
 - [x] Cloudflare Pages migration — site moved from GitHub Pages (blocked by Actions) to Cloudflare Pages
+- [x] Release v1.2.0 — role-based filtering, accessibility remediation, security hardening, contributor acknowledgements
+- [x] Release v1.3.0 — create_rubric, read_course_file, event-loop fix, bulk-delete safety, CHANGELOG.md
 
 ## Backlog
 - [x] Impact tracker: automated weekly stats collection + website section
@@ -213,34 +217,13 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [ ] Page content versioning/history tools
 
 ## Session Log
-> Full history: [session-history.md](./session-history.md)
+> Full history: [docs/session-history.md](./docs/session-history.md)
 
-### 2026-04-09
-- **Accessibility scanner expanded (4 → 20 checks)**: Upgraded `_check_content_accessibility()` in `tools/accessibility.py` based on comprehensive DesignPLUS/Pope Tech/WAVE checklist. New checks: `<th>` missing scope, heading hierarchy skips, orange-on-white contrast, empty links, URL-as-link-text, doc links without file type, video caption flags, underlined non-links, small font sizes, manual bullets, color-only meaning, short/long alt text, filename alt text, redundant alt prefix, legacy `kl_` class detection. All 20 checks run on every `scan_course_content_accessibility` call.
-- **BADM 350 remediation**: Applied fixes to course 68238 via Canvas API scripts — added `scope="col"` to 118 `<th>` elements (22 pages), fixed white-on-orange contrast on front page (5 headers), migrated `kl_` → `dp-` classes on 30 pages per CidiLabs mapping spreadsheet.
-- **README updated**: Expanded accessibility tool description and learning designer section.
-
-### 2026-04-06
-- **Security: PR #81 review & merge**: Reviewed Copilot-generated PR fixing CWE-22 path traversal in `generate_peer_review_report`. Verified fix (basename extraction + directory confinement + symlink guard), ran 292 tests, admin-merged.
-- **Security: codebase-wide file I/O hardening**: Integrated `sanitize_filename()` into PR #81's fix. Ran security audit that found 4 additional CWE-22 sites — applied consistent defense-in-depth pattern:
-  - `peer_review_comments.py`: unsanitized filename → confine to `./exports/`, sanitize + `is_relative_to()`
-  - `files.py`: `save_directory` not resolved → `Path.resolve()` + `is_relative_to()`
-  - `other_tools.py`: PII CSV in relative CWD → resolve `local_maps/` + symlink check
-  - `resources.py`: `str.startswith()` bypass → replaced with `is_relative_to()`
-- **Housekeeping**: Archived 6 stale session log entries (Feb 23 – Mar 5) to session-history.md. Deleted 2 completed plans (impact-tracker, learning-designer-skill).
-- Next: Re-enable GitHub Actions. Backlog triage.
-
-### 2026-03-20
-- **InstructureCon 2026 proposal**: Drafted CFP submission for InstructureCon26 (Louisville, July 21-23). Breakout session format.
-- **Impact tracker implemented**: Built `scripts/collect-impact-stats.sh`, live website section, launchd plist, `/impact-stats` skill.
-- **Impact metrics audit**: Real human PyPI installs ~15/day (50K of 57K were bot traffic).
-
-### 2026-03-13
-- **Event loop bug fix**: Fixed "Event loop is closed" on first MCP tool call. Added `is_closed` check in `_get_http_client()`.
-- **Concurrency limiter**: `asyncio.Semaphore` in `make_canvas_request()` (default 10).
-- **Workshop support**: Enhanced workshop page, configured Canvas course 68866.
-
-### 2026-03-12
-- **CLI npm package**: Published `canvas-mcp` v1.1.0 to npm — `npx canvas-mcp setup` wizard.
-- **Workshop page**: Created `canvas-mcp.illinihunt.org/workshop`. Light theme conversion.
+### 2026-05-14
+- **Cleared both v1.3.0 follow-ups from the carryover queue** by working through the auto-bot maintenance reports (#95/#101/#102). Started with a Codex plan-review pass on the proposed batches — that surfaced two real corrections before any code: the bot was recommending `setup-python@v4 → @v5` but current is `@v6` (Node 24 vs 20), and Batch 1 needed to be a PR, not a direct-to-main push, because of the lockfile regeneration. Final plan: two PRs, both admin-merged after green CI + Codex code-review.
+- **PR #105 (`chore: housekeeping`)**: Added `ruff>=0.9.0`, `black>=25.0.0`, `mypy>=1.15.0` to `[dependency-groups] dev` — all three were already configured in `[tool.*]` sections but never installable; fresh contributors tripped the pre-commit hook. Removed unused `requests>=2.33.1` from runtime deps (verified zero `import requests` across `src/`/`tests/`/`scripts/`/`tools/`/`.github/`). Bumped `actions/setup-python` from `@v4`/`@v5` to `@v6` across all 5 workflow files. Applied `ruff --fix` to clear 7 pre-existing unused-import warnings. 382 tests + ruff clean post-change.
+- **PR #107 (`ci: split publish-mcp`)**: Split the single `publish` job into `publish-pypi` (build/test/upload, exposes resolved version as a job output with leading-`v` stripped) and `publish-registry` (`needs:` PyPI job; polls `https://pypi.org/pypi/canvas-mcp/<version>/json` up to 12× × 30s = 6 min ceiling before calling `mcp-publisher publish`). Eliminates the rerun-after-each-release operational burden caused by the CDN-propagation race that hit v1.3.0. Codex code-review returned zero findings.
+- **Issue #106 filed**: Adding mypy as a real dev dep exposed 186 pre-existing type errors across 19 files (mypy was configured in `[tool.mypy]` but never installable, so no one ever ran it). Tracked for incremental module-by-module cleanup; out of scope for the housekeeping PR.
+- **impact.json refresh**: A 2026-05-11 auto-refresh from the impact-stats skill was waiting at session start (stars 120→128, new referrers from search.brave.com and mcpservers.org). Committed direct to main and deployed to Cloudflare Pages.
+- Next: Backlog triage (module templates, bulk creation, page versioning) — same as last two sessions. After that, Issue #106 (mypy cleanup) and the two test-coverage gaps from the maintenance reports (`discovery.py`, `message_templates.py`).
 

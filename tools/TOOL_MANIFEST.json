@@ -365,7 +365,7 @@
       "notes": "Use dry_run=true first to preview. For complex grading logic, consider execute_typescript instead."
     },
     {
-      "name": "grade_submission_with_rubric",
+      "name": "grade_with_rubric",
       "category": "educator",
       "description": "Grade a single student submission using a rubric",
       "parameters": [
@@ -614,7 +614,7 @@
       "name": "bulk_grading_workflow",
       "description": "Efficiently grade many submissions",
       "steps": [
-        "get_rubric_details(course_id, rubric_id)",
+        "get_rubric(course_id, rubric_id=...)",
         "bulk_grade_submissions(course_id, assignment_id, grades, dry_run=true)",
         "bulk_grade_submissions(course_id, assignment_id, grades, dry_run=false)"
       ]
