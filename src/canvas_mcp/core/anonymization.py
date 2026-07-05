@@ -77,7 +77,8 @@ def anonymize_user_data(user_data: Any) -> Any:
         })
 
         # Keep essential fields for functionality
-        essential_fields = ['id', 'enrollments', 'role', 'created_at', 'updated_at']
+        essential_fields = ['id', 'enrollments',
+                            'role', 'created_at', 'updated_at']
         for field in list(anonymized.keys()):
             if field not in essential_fields and field not in ['name', 'email']:
                 if isinstance(anonymized[field], str) and len(anonymized[field]) > 50:
@@ -112,14 +113,16 @@ def anonymize_discussion_entry(entry_data: Any) -> Any:
         # Anonymize author field if present
         if 'author' in anonymized:
             if isinstance(anonymized['author'], dict):
-                anonymized['author'] = anonymize_user_data(anonymized['author'])
+                anonymized['author'] = anonymize_user_data(
+                    anonymized['author'])
             else:
                 anonymized['author'] = anonymous_id
 
         # Anonymize editor info if present
         if 'editor' in anonymized:
             if isinstance(anonymized['editor'], dict):
-                anonymized['editor'] = anonymize_user_data(anonymized['editor'])
+                anonymized['editor'] = anonymize_user_data(
+                    anonymized['editor'])
             else:
                 anonymized['editor'] = anonymous_id
 
@@ -178,7 +181,10 @@ def anonymize_submission_data(submission_data: Any) -> Any:
             anonymized['user'] = anonymize_user_data(anonymized['user'])
 
         # Remove submission content that might be identifying
-        identifying_fields = ['body', 'url', 'attachments']
+        # Note: 'url' is preserved — for online_url submissions it is the
+        # work product (e.g. a GitHub repo link) required for grading,
+        # not personally identifying information.
+        identifying_fields = ['body', 'attachments']
         for field in identifying_fields:
             if field in anonymized and anonymized[field]:
                 if isinstance(anonymized[field], str):
