@@ -4,6 +4,18 @@ Archived session log entries from canvas-mcp CLAUDE.md.
 
 ## Session Log
 
+### 2026-07-04 — `update_discussion_topic` implemented; draft PR #155 open
+- Reviewed #154 (discussion edit gap), confirmed valid — pages/assignments
+  updatable via MCP but graded discussion prompts are not.
+- Implemented educator-only `update_discussion_topic` on `feature/update-discussion-topic`: partial-update
+  PUT to `/discussion_topics/:id` (title, message, published, pinned, locked, scheduling); covers
+  announcements too. 6 new tests (11 total in test_discussions.py); docs synced (AGENTS.md, tools/README,
+  TOOL_MANIFEST). Confirmed local + hosted share one codebase — single registration, transport-only diff.
+- Committed (`fc8df89`), pushed, opened **draft PR #155**.
+- PR #155 **merged** (32152e8); #154 **closed**; feature branch + 14 other stale local branches pruned.
+- Next: (1) PR #153 (dockerfile hosted extra). (2) fastmcp 2.x PR 2 (Azure staging/Entra validation).
+  (3) #142 MCP SDK v2 deadline ~7/27. (4) #106 mypy cleanup.
+
 ### 2026-07-03 — Canvas token renewed + verified; SBC 511 launch audit queued
 - Canvas API token renewed (user applied via KB form) and verified: `canvas-mcp-server --test` passes
   (authenticated as Vishal Sachdev). Also swapped the token inside `~/.claude.json` — the hosted-server

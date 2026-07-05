@@ -156,7 +156,11 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] Release **v1.4.0** — GitHub + PyPI + MCP Registry + hosted server + website all live
 - [x] PR #150: self-service access-approval flow for the hosted server — merged 2026-07-01
 - [x] PR #155: `update_discussion_topic` (#154) — **merged 2026-07-04** (32152e8); #154 closed; auto-deployed to hosted
+- [x] Release **v1.5.0** (2026-07-05) — 3 new tools (93 total), fastmcp 2.x, security hardening (#156); all channels live (GitHub/PyPI/MCP Registry/hosted/site)
+- [ ] Issue #159: mcp-remote proxy hangs indefinitely on stale hosted session — needs timeout/fail-fast
+- [ ] Issue #142: MCP SDK v2 migration (relax `mcp<2` pin) — **deadline ~2026-07-27**
 - [ ] Issue #145 / PR #152: fastmcp 2.x migration — **PR 1 of 2 merged 2026-07-02** (code migration, 560 tests green); PR 2 (Azure staging/Entra validation) still open
+- [ ] Issue #157: `execute_typescript` sandbox hardening backlog (container-level egress, non-root user, prebuilt tsx image)
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
 - [ ] Issue #106: 186 mypy errors uncovered by adding mypy to dev deps — incremental cleanup, module by module
 
@@ -200,14 +204,17 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-07-04 — `update_discussion_topic` implemented; draft PR #155 open
-- Reviewed #154 (discussion edit gap), confirmed valid — pages/assignments
-  updatable via MCP but graded discussion prompts are not.
-- Implemented educator-only `update_discussion_topic` on `feature/update-discussion-topic`: partial-update
-  PUT to `/discussion_topics/:id` (title, message, published, pinned, locked, scheduling); covers
-  announcements too. 6 new tests (11 total in test_discussions.py); docs synced (AGENTS.md, tools/README,
-  TOOL_MANIFEST). Confirmed local + hosted share one codebase — single registration, transport-only diff.
-- Committed (`fc8df89`), pushed, opened **draft PR #155**.
-- PR #155 **merged** (32152e8); #154 **closed**; feature branch + 14 other stale local branches pruned.
-- Next: (1) PR #153 (dockerfile hosted extra). (2) fastmcp 2.x PR 2 (Azure staging/Entra validation).
-  (3) #142 MCP SDK v2 deadline ~7/27. (4) #106 mypy cleanup.
+### 2026-07-05 — v1.5.0 released; PR queue cleared; 15 stale branches pruned
+- Consolidated review of all open PRs/issues → cleared the whole queue: **#153 merged** (Docker `[hosted]`
+  extra — access-approval flow was silently degraded in the prod image), **#156 merged** (Devin security
+  PR: uv.lock refresh 33→0 advisories, dep-scan CI now gates on the frozen lockfile, `execute_typescript`
+  sandbox hardened — reviewed by me + Codex Security Analyst, both MERGE; residual risks filed as **#157**),
+  **#117 merged** (MCP Apps feasibility doc), **#158 closed** (declined mseep badge). #154/#155 reconciled
+  as merged/closed; 15 stale local branches verified merged-or-superseded and deleted.
+- **Released v1.5.0** (tag `8de8321`): get_syllabus, create_rubric_from_csv, update_discussion_topic,
+  fastmcp 2.x, security hardening; tool count 90→93. All channels green first try — GitHub Release
+  (+.mcpb), PyPI, MCP Registry (no propagation rerun needed this time), Azure prod deploy, Cloudflare
+  Pages deployed + verified live.
+- Next: (1) **#159** (new): mcp-remote proxy hangs on stale hosted session — no timeout/fail-fast.
+  (2) #142 MCP SDK v2 deadline ~7/27. (3) fastmcp 2.x PR 2 (Azure staging/Entra validation).
+  (4) #157 sandbox hardening backlog. (5) #106 mypy cleanup.
