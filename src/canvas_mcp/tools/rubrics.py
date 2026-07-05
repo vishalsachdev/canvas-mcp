@@ -84,17 +84,21 @@ def validate_rubric_criteria(criteria_json: str) -> dict[str, Any]:
             raise ValueError(f"Criterion {criterion_key} must be an object")
 
         if "description" not in criterion_data:
-            raise ValueError(f"Criterion {criterion_key} must have a 'description' field")
+            raise ValueError(
+                f"Criterion {criterion_key} must have a 'description' field")
 
         if "points" not in criterion_data:
-            raise ValueError(f"Criterion {criterion_key} must have a 'points' field")
+            raise ValueError(
+                f"Criterion {criterion_key} must have a 'points' field")
 
         try:
             points = float(criterion_data["points"])
             if points < 0:
-                raise ValueError(f"Criterion {criterion_key} points must be non-negative")
+                raise ValueError(
+                    f"Criterion {criterion_key} points must be non-negative")
         except (ValueError, TypeError) as err:
-            raise ValueError(f"Criterion {criterion_key} points must be a valid number") from err
+            raise ValueError(
+                f"Criterion {criterion_key} points must be a valid number") from err
 
         # Validate ratings if present - handle both object and array formats
         if "ratings" in criterion_data:
@@ -105,42 +109,53 @@ def validate_rubric_criteria(criteria_json: str) -> dict[str, Any]:
                 # Object format: {"1": {...}, "2": {...}}
                 for rating_key, rating_data in ratings.items():
                     if not isinstance(rating_data, dict):
-                        raise ValueError(f"Rating {rating_key} in criterion {criterion_key} must be an object")
+                        raise ValueError(
+                            f"Rating {rating_key} in criterion {criterion_key} must be an object")
 
                     if "description" not in rating_data:
-                        raise ValueError(f"Rating {rating_key} in criterion {criterion_key} must have a 'description' field")
+                        raise ValueError(
+                            f"Rating {rating_key} in criterion {criterion_key} must have a 'description' field")
 
                     if "points" not in rating_data:
-                        raise ValueError(f"Rating {rating_key} in criterion {criterion_key} must have a 'points' field")
+                        raise ValueError(
+                            f"Rating {rating_key} in criterion {criterion_key} must have a 'points' field")
 
                     try:
                         rating_points = float(rating_data["points"])
                         if rating_points < 0:
-                            raise ValueError(f"Rating {rating_key} points must be non-negative")
+                            raise ValueError(
+                                f"Rating {rating_key} points must be non-negative")
                     except (ValueError, TypeError) as err:
-                        raise ValueError(f"Rating {rating_key} points must be a valid number") from err
+                        raise ValueError(
+                            f"Rating {rating_key} points must be a valid number") from err
 
             elif isinstance(ratings, list):
                 # Array format: [{"description": ..., "points": ...}, ...]
                 for i, rating_data in enumerate(ratings):
                     if not isinstance(rating_data, dict):
-                        raise ValueError(f"Rating {i} in criterion {criterion_key} must be an object")
+                        raise ValueError(
+                            f"Rating {i} in criterion {criterion_key} must be an object")
 
                     if "description" not in rating_data:
-                        raise ValueError(f"Rating {i} in criterion {criterion_key} must have a 'description' field")
+                        raise ValueError(
+                            f"Rating {i} in criterion {criterion_key} must have a 'description' field")
 
                     if "points" not in rating_data:
-                        raise ValueError(f"Rating {i} in criterion {criterion_key} must have a 'points' field")
+                        raise ValueError(
+                            f"Rating {i} in criterion {criterion_key} must have a 'points' field")
 
                     try:
                         rating_points = float(rating_data["points"])
                         if rating_points < 0:
-                            raise ValueError(f"Rating {i} points must be non-negative")
+                            raise ValueError(
+                                f"Rating {i} points must be non-negative")
                     except (ValueError, TypeError) as err:
-                        raise ValueError(f"Rating {i} points must be a valid number") from err
+                        raise ValueError(
+                            f"Rating {i} points must be a valid number") from err
 
             else:
-                raise ValueError(f"Criterion {criterion_key} ratings must be an object or array")
+                raise ValueError(
+                    f"Criterion {criterion_key} ratings must be an object or array")
 
     return criteria
 
@@ -239,7 +254,8 @@ def build_criteria_structure(criteria: dict[str, Any]) -> dict[str, Any]:
                         "long_description": rating_data.get("long_description", "")
                     })
 
-            formatted_criteria[str(criterion_key)]["ratings"] = formatted_ratings
+            formatted_criteria[str(criterion_key)
+                               ]["ratings"] = formatted_ratings
 
     return formatted_criteria
 
@@ -275,15 +291,18 @@ def build_rubric_assessment_form_data(
     for criterion_id, assessment in rubric_assessment.items():
         # Points are required
         if "points" in assessment:
-            form_data[f"rubric_assessment[{criterion_id}][points]"] = str(assessment["points"])
+            form_data[f"rubric_assessment[{criterion_id}][points]"] = str(
+                assessment["points"])
 
         # Rating ID is optional but recommended
         if "rating_id" in assessment:
-            form_data[f"rubric_assessment[{criterion_id}][rating_id]"] = str(assessment["rating_id"])
+            form_data[f"rubric_assessment[{criterion_id}][rating_id]"] = str(
+                assessment["rating_id"])
 
         # Comments are optional
         if "comments" in assessment:
-            form_data[f"rubric_assessment[{criterion_id}][comments]"] = str(assessment["comments"])
+            form_data[f"rubric_assessment[{criterion_id}][comments]"] = str(
+                assessment["comments"])
 
     # Add optional overall comment
     if comment:
@@ -567,7 +586,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         # Anonymize submission data to protect student privacy
         try:
-            response = anonymize_response_data(response, data_type="submissions")
+            response = anonymize_response_data(
+                response, data_type="submissions")
         except Exception as e:
             log_error(
                 "Failed to anonymize rubric assessment data",
@@ -586,7 +606,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             assignment_response = await make_canvas_request(
                 "get", f"/courses/{course_id}/assignments/{assignment_id_str}"
             )
-            assignment_name = assignment_response.get("name", "Unknown Assignment") if "error" not in assignment_response else "Unknown Assignment"
+            assignment_name = assignment_response.get(
+                "name", "Unknown Assignment") if "error" not in assignment_response else "Unknown Assignment"
 
             course_display = await get_course_code(course_id) or course_identifier
             return f"No rubric assessment found for user {user_id} on assignment '{assignment_name}' in course {course_display}."
@@ -597,8 +618,10 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             params={"include[]": ["rubric"]}
         )
 
-        assignment_name = assignment_response.get("name", "Unknown Assignment") if "error" not in assignment_response else "Unknown Assignment"
-        rubric_data = assignment_response.get("rubric", []) if "error" not in assignment_response else []
+        assignment_name = assignment_response.get(
+            "name", "Unknown Assignment") if "error" not in assignment_response else "Unknown Assignment"
+        rubric_data = assignment_response.get(
+            "rubric", []) if "error" not in assignment_response else []
 
         # Format rubric assessment
         course_display = await get_course_code(course_id) or course_identifier
@@ -629,7 +652,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                     criterion_info = criterion
                     break
 
-            criterion_description = criterion_info.get("description", f"Criterion {criterion_id}") if criterion_info else f"Criterion {criterion_id}"
+            criterion_description = criterion_info.get(
+                "description", f"Criterion {criterion_id}") if criterion_info else f"Criterion {criterion_id}"
             points = assessment.get("points", 0)
             comments = assessment.get("comments", "")
             rating_id = assessment.get("rating_id")
@@ -656,10 +680,10 @@ def register_rubric_tools(mcp: FastMCP) -> None:
     @mcp.tool()
     @validate_params
     async def grade_with_rubric(course_identifier: str | int,
-                              assignment_id: str | int,
-                              user_id: str | int,
-                              rubric_assessment: dict[str, Any],
-                              comment: str | None = None) -> str:
+                                assignment_id: str | int,
+                                user_id: str | int,
+                                rubric_assessment: dict[str, Any],
+                                comment: str | None = None) -> str:
         """Submit grades using rubric criteria.
 
         IMPORTANT: Criterion IDs often start with underscore (e.g., "_8027").
@@ -685,8 +709,10 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         )
 
         if "error" not in assignment_check:
-            use_rubric_for_grading = assignment_check.get("use_rubric_for_grading", False)
-            if not use_rubric_for_grading:
+            use_rubric_for_grading = assignment_check.get(
+                "use_rubric_for_grading")
+            # Only block when Canvas explicitly returns False (not when the field is absent/None)
+            if use_rubric_for_grading is False:
                 return (
                     "⚠️  ERROR: Rubric is not configured for grading!\n\n"
                     "The rubric exists but 'use_for_grading' is set to FALSE.\n"
@@ -701,7 +727,14 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                 )
 
         # Build form data in Canvas's expected format
-        form_data = build_rubric_assessment_form_data(rubric_assessment, comment)
+        form_data = build_rubric_assessment_form_data(
+            rubric_assessment, comment)
+        # Always include an explicit score so the gradebook is updated even when
+        # use_rubric_for_grading is not enabled on the Canvas instance.
+        total_points_submitted = sum(
+            v.get("points", 0) for v in rubric_assessment.values()
+        )
+        form_data["submission[posted_grade]"] = str(total_points_submitted)
 
         # Submit the grade with rubric assessment using form encoding
         response = await make_canvas_request(
@@ -718,10 +751,12 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         assignment_response = await make_canvas_request(
             "get", f"/courses/{course_id}/assignments/{assignment_id_str}"
         )
-        assignment_name = assignment_response.get("name", "Unknown Assignment") if "error" not in assignment_response else "Unknown Assignment"
+        assignment_name = assignment_response.get(
+            "name", "Unknown Assignment") if "error" not in assignment_response else "Unknown Assignment"
 
         # Calculate total points from rubric assessment
-        total_points = sum(criterion.get("points", 0) for criterion in rubric_assessment.values())
+        total_points = sum(criterion.get("points", 0)
+                           for criterion in rubric_assessment.values())
 
         course_display = await get_course_code(course_id) or course_identifier
 
@@ -798,7 +833,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
                 for j, criterion in enumerate(data, 1):
                     criterion_id = criterion.get("id", "N/A")
-                    description = criterion.get("description", "No description")
+                    description = criterion.get(
+                        "description", "No description")
                     long_description = criterion.get("long_description", "")
                     points = criterion.get("points", 0)
                     ratings = criterion.get("ratings", [])
@@ -812,19 +848,23 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
                     if ratings:
                         # Sort ratings by points (highest to lowest)
-                        sorted_ratings = sorted(ratings, key=lambda x: x.get("points", 0), reverse=True)
+                        sorted_ratings = sorted(
+                            ratings, key=lambda x: x.get("points", 0), reverse=True)
 
                         for rating in sorted_ratings:
-                            rating_description = rating.get("description", "No description")
+                            rating_description = rating.get(
+                                "description", "No description")
                             rating_points = rating.get("points", 0)
                             rating_id = rating.get("id", "N/A")
 
                             result += f"   - {rating_description} ({rating_points} pts) [ID: {rating_id}]\n"
 
                             # Include long description if it exists and differs
-                            rating_long_desc = rating.get("long_description", "")
+                            rating_long_desc = rating.get(
+                                "long_description", "")
                             if rating_long_desc and rating_long_desc != rating_description:
-                                truncated_rating_desc = truncate_text(rating_long_desc, 100)
+                                truncated_rating_desc = truncate_text(
+                                    rating_long_desc, 100)
                                 result += f"     {truncated_rating_desc}\n"
                     else:
                         result += "   No rating scale defined for this criterion.\n"
@@ -967,7 +1007,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         rubric_id_str = str(rubric_id)
         assignment_id_str = str(assignment_id)
 
-        # Update the rubric with association
+        # Update the rubric association
         request_data = {
             "rubric_association": {
                 "association_id": assignment_id_str,
@@ -987,6 +1027,20 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         if "error" in response:
             return f"Error associating rubric with assignment: {response['error']}"
 
+        # Also update the assignment's use_rubric_for_grading flag directly,
+        # since that is the field checked at grade submission time.
+        if use_for_grading:
+            assignment_update = await make_canvas_request(
+                "put",
+                f"/courses/{course_id}/assignments/{assignment_id_str}",
+                data={"assignment": {"use_rubric_for_grading": True}}
+            )
+            if "error" in assignment_update:
+                return (
+                    f"Rubric association updated, but failed to set use_rubric_for_grading on "
+                    f"assignment: {assignment_update['error']}"
+                )
+
         # Get assignment details for confirmation
         assignment_response = await make_canvas_request(
             "get",
@@ -995,7 +1049,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         assignment_name = "Unknown Assignment"
         if "error" not in assignment_response:
-            assignment_name = assignment_response.get("name", "Unknown Assignment")
+            assignment_name = assignment_response.get(
+                "name", "Unknown Assignment")
 
         course_display = await get_course_code(course_id) or course_identifier
 

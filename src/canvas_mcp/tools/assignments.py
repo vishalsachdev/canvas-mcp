@@ -169,10 +169,10 @@ def register_educator_assignment_tools(mcp: FastMCP):
         course_display = await get_course_code(course_id) or course_identifier
 
         return f"Successfully assigned peer review in course {course_display}:\n" + \
-               f"Assignment ID: {assignment_id}\n" + \
-               f"Reviewer ID: {reviewer_id}\n" + \
-               f"Reviewee ID: {reviewee_id}\n" + \
-               f"Submission ID: {submission_id}"
+            f"Assignment ID: {assignment_id}\n" + \
+            f"Reviewer ID: {reviewer_id}\n" + \
+            f"Reviewee ID: {reviewee_id}\n" + \
+            f"Submission ID: {submission_id}"
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
@@ -199,7 +199,8 @@ def register_educator_assignment_tools(mcp: FastMCP):
 
         # Anonymize submission data to protect student privacy
         try:
-            submissions = anonymize_response_data(submissions, data_type="submissions")
+            submissions = anonymize_response_data(
+                submissions, data_type="submissions")
         except Exception as e:
             log_error(
                 "Failed to anonymize submission data in peer reviews",
@@ -283,7 +284,8 @@ def register_educator_assignment_tools(mcp: FastMCP):
 
             for review in reviews:
                 reviewer_id = str(review.get("user_id"))
-                reviewer_name = user_map.get(reviewer_id, f"User {reviewer_id}")
+                reviewer_name = user_map.get(
+                    reviewer_id, f"User {reviewer_id}")
                 workflow_state = review.get("workflow_state", "Unknown")
 
                 output += f"  Reviewer: {reviewer_name} (ID: {reviewer_id})\n"
@@ -330,7 +332,8 @@ def register_educator_assignment_tools(mcp: FastMCP):
 
         # Anonymize submission data to protect student privacy
         try:
-            submissions = anonymize_response_data(submissions, data_type="submissions")
+            submissions = anonymize_response_data(
+                submissions, data_type="submissions")
         except Exception as e:
             log_error(
                 "Failed to anonymize submission data",
@@ -346,10 +349,17 @@ def register_educator_assignment_tools(mcp: FastMCP):
             submitted_at = submission.get("submitted_at", "Not submitted")
             score = submission.get("score", "Not graded")
             grade = submission.get("grade", "Not graded")
+            submission_type = submission.get("submission_type", "none")
+            url = submission.get("url")
+            body = submission.get("body")
 
-            submissions_info.append(
-                f"User ID: {user_id}\nSubmitted: {submitted_at}\nScore: {score}\nGrade: {grade}\n"
-            )
+            entry = f"User ID: {user_id}\nSubmitted: {submitted_at}\nScore: {score}\nGrade: {grade}\nType: {submission_type}"
+            if url:
+                entry += f"\nURL: {url}"
+            if body:
+                entry += f"\nBody: {body}"
+
+            submissions_info.append(entry + "\n")
 
         # Try to get the course code for display
         course_display = await get_course_code(course_id) or course_identifier
@@ -416,7 +426,8 @@ def register_educator_assignment_tools(mcp: FastMCP):
 
         # Anonymize submission data to protect student privacy
         try:
-            submissions = anonymize_response_data(submissions, data_type="submissions")
+            submissions = anonymize_response_data(
+                submissions, data_type="submissions")
         except Exception as e:
             log_error(
                 "Failed to anonymize submission data in analytics",
@@ -436,7 +447,8 @@ def register_educator_assignment_tools(mcp: FastMCP):
         due_date_str = "No due date"
         if due_date:
             try:
-                due_date_obj = datetime.datetime.fromisoformat(due_date.replace('Z', '+00:00'))
+                due_date_obj = datetime.datetime.fromisoformat(
+                    due_date.replace('Z', '+00:00'))
                 due_date_str = due_date_obj.strftime("%Y-%m-%d %H:%M")
                 now = datetime.datetime.now(datetime.timezone.utc)
                 is_past_due = due_date_obj < now
@@ -519,9 +531,11 @@ def register_educator_assignment_tools(mcp: FastMCP):
                 if points_possible > 0:
                     percentage = (score / points_possible) * 100
                     if percentage < 70:
-                        low_scoring_students.append((student_name, score, percentage))
+                        low_scoring_students.append(
+                            (student_name, score, percentage))
                     if percentage > 90:
-                        high_scoring_students.append((student_name, score, percentage))
+                        high_scoring_students.append(
+                            (student_name, score, percentage))
 
             # Update status counts
             if status in submission_stats["status_counts"]:
@@ -591,13 +605,17 @@ def register_educator_assignment_tools(mcp: FastMCP):
         total_students = submission_stats["total_students"]
         submitted = submission_stats["submitted_count"]
         graded = submission_stats["graded_count"]
-        missing = submission_stats["missing_count"] + (total_students - len(submissions))
+        missing = submission_stats["missing_count"] + \
+            (total_students - len(submissions))
         late = submission_stats["late_count"]
 
         # Calculate percentages
-        submitted_pct = (submitted / total_students * 100) if total_students > 0 else 0
-        graded_pct = (graded / total_students * 100) if total_students > 0 else 0
-        missing_pct = (missing / total_students * 100) if total_students > 0 else 0
+        submitted_pct = (submitted / total_students *
+                         100) if total_students > 0 else 0
+        graded_pct = (graded / total_students *
+                      100) if total_students > 0 else 0
+        missing_pct = (missing / total_students *
+                       100) if total_students > 0 else 0
         late_pct = (late / submitted * 100) if submitted > 0 else 0
 
         output += f"  Submitted: {submitted}/{total_students} ({round(submitted_pct, 1)}%)\n"
@@ -675,7 +693,8 @@ def register_educator_assignment_tools(mcp: FastMCP):
         course_id = await get_course_id(course_identifier)
 
         # Validate grading_type if provided
-        valid_grading_types = ["points", "letter_grade", "pass_fail", "percent", "not_graded"]
+        valid_grading_types = ["points", "letter_grade",
+                               "pass_fail", "percent", "not_graded"]
         if grading_type and grading_type not in valid_grading_types:
             return f"Invalid grading_type '{grading_type}'. Must be one of: {', '.join(valid_grading_types)}"
 
@@ -686,7 +705,8 @@ def register_educator_assignment_tools(mcp: FastMCP):
         ]
         submission_types_list = []
         if submission_types:
-            submission_types_list = [s.strip() for s in submission_types.split(",")]
+            submission_types_list = [s.strip()
+                                     for s in submission_types.split(",")]
             for st in submission_types_list:
                 if st not in valid_submission_types:
                     return f"Invalid submission_type '{st}'. Must be one of: {', '.join(valid_submission_types)}"
@@ -742,7 +762,8 @@ def register_educator_assignment_tools(mcp: FastMCP):
             assignment_data["automatic_peer_reviews"] = automatic_peer_reviews
 
         if allowed_extensions:
-            extensions_list = [ext.strip() for ext in allowed_extensions.split(",")]
+            extensions_list = [ext.strip()
+                               for ext in allowed_extensions.split(",")]
             assignment_data["allowed_extensions"] = extensions_list
 
         # Make the API request
@@ -842,7 +863,8 @@ def register_educator_assignment_tools(mcp: FastMCP):
                 "online_text_entry", "online_url", "online_upload",
                 "discussion_topic", "none", "on_paper", "external_tool"
             ]
-            submission_types_list = [s.strip() for s in submission_types.split(",")]
+            submission_types_list = [s.strip()
+                                     for s in submission_types.split(",")]
             for st in submission_types_list:
                 if st not in valid_submission_types:
                     return f"Invalid submission_type '{st}'. Must be one of: {', '.join(valid_submission_types)}"
@@ -872,7 +894,8 @@ def register_educator_assignment_tools(mcp: FastMCP):
 
         # Validate grading_type if provided
         if grading_type is not None:
-            valid_grading_types = ["points", "letter_grade", "pass_fail", "percent", "not_graded"]
+            valid_grading_types = ["points", "letter_grade",
+                                   "pass_fail", "percent", "not_graded"]
             if grading_type not in valid_grading_types:
                 return f"Invalid grading_type '{grading_type}'. Must be one of: {', '.join(valid_grading_types)}"
             assignment_data["grading_type"] = grading_type
@@ -894,7 +917,8 @@ def register_educator_assignment_tools(mcp: FastMCP):
             assignment_data["automatic_peer_reviews"] = automatic_peer_reviews
 
         if allowed_extensions is not None:
-            extensions_list = [ext.strip() for ext in allowed_extensions.split(",")]
+            extensions_list = [ext.strip()
+                               for ext in allowed_extensions.split(",")]
             assignment_data["allowed_extensions"] = extensions_list
 
         # Check if there's anything to update

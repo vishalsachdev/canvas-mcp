@@ -85,6 +85,8 @@ src/canvas_mcp/code_api/tmp*.ts
 src/canvas_mcp/code_api/tmp*.cjs
 .mcp.json
 
+
+/exports
 # OS cruft
 .DS_Store
 Thumbs.db
