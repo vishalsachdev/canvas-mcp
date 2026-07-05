@@ -8,7 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![skills.sh](https://img.shields.io/badge/skills.sh-canvas--mcp-blue)](https://skills.sh)
 
-MCP server for Canvas LMS with **90 tools** and **8 agent skills**. Works with Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh).
+MCP server for Canvas LMS with **93 tools** and **8 agent skills**. Works with Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh).
 
 ```bash
 npx skills add vishalsachdev/canvas-mcp
@@ -23,7 +23,7 @@ npx skills add vishalsachdev/canvas-mcp
   See CLAUDE.md "Documentation Maintenance" for full guidelines.
 -->
 
-Canvas MCP provides **90 tools** for interacting with Canvas LMS. Tools are organized by user type:
+Canvas MCP provides **93 tools** for interacting with Canvas LMS. Tools are organized by user type:
 
 <details>
 <summary><strong>Student Tools</strong> (click to expand)</summary>
@@ -125,17 +125,20 @@ Canvas MCP provides **90 tools** for interacting with Canvas LMS. Tools are orga
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data through any MCP-compatible client.
 
-## Latest Release: v1.4.0
+## Latest Release: v1.5.0
 
-**Released:** June 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
+**Released:** July 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
 
-- **`check_enrollment`** — data-minimizing "is this NetID enrolled in the course?" check; returns only a yes/no plus minimal metadata, never the roster (teacher-scoped, PR #126)
-- **Claude Desktop Extension (`.mcpb`)** — one-click install in Claude Desktop (no terminal, no config-file editing); attached to each GitHub Release
-- **Authenticated institutional hosting** — Microsoft Entra ID (Azure AD) platform authentication for in-tenant App Service deployments ([#115](https://github.com/vishalsachdev/canvas-mcp/issues/115), PR #125)
-- **Security** — HTTP mode now fails closed without an auth gate configured (PR #123)
+- **`get_syllabus`** — full untruncated Canvas Syllabus content, with `text`/`html`/`both` output ([#134](https://github.com/vishalsachdev/canvas-mcp/issues/134))
+- **`create_rubric_from_csv`** — create rubrics from CSV via Canvas's native import, a simpler alternative to criteria-JSON ([#119](https://github.com/vishalsachdev/canvas-mcp/issues/119))
+- **`update_discussion_topic`** — edit existing discussion topics/announcements (title, message, published/pinned/locked, scheduling) ([#154](https://github.com/vishalsachdev/canvas-mcp/issues/154))
+- **fastmcp 2.x migration** — moved off the frozen FastMCP 1.0 bundled in the MCP SDK; same tools, same transports ([#145](https://github.com/vishalsachdev/canvas-mcp/issues/145))
+- **Security** — dependency advisories cleared (33 → 0) with a gating CI scan, and a hardened `execute_typescript` container sandbox (read-only workspace, `--cap-drop=ALL`, token out of argv) (PR #156)
 
 <details>
 <summary>Previous releases</summary>
+
+**v1.4.0** — `check_enrollment` (PR #126), Claude Desktop Extension `.mcpb`, Entra ID authenticated institutional hosting ([#115](https://github.com/vishalsachdev/canvas-mcp/issues/115), PR #125), HTTP fails closed without auth gate (PR #123)
 
 **v1.3.0** — `create_rubric` (PR #100), `read_course_file` ([@DomBarker99](https://github.com/DomBarker99), PR #90), event-loop fix for user-scoped tools (PR #99), bulk-delete safety cap (PR #96), dependency pruning (PR #93)
 
@@ -528,7 +531,7 @@ Quick start guides: [Student](examples/student_quickstart.md) | [Educator](examp
 
 ## Documentation
 
-- **[Tool Documentation](tools/README.md)** — Complete reference for all 90 tools
+- **[Tool Documentation](tools/README.md)** — Complete reference for all 93 tools
 - **[Student Guide](https://canvas-mcp.illinihunt.org/student-guide.html)** — Getting started as a student
 - **[Educator Guide](https://canvas-mcp.illinihunt.org/educator-guide.html)** — FERPA compliance and educator workflows
 - **[Bulk Grading Example](examples/bulk_grading_example.md)** — Token-efficient batch grading walkthrough

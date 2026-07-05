@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.5.0] — 2026-07-04
 
 ### Added
 - **`get_syllabus` tool** — returns the complete Canvas Syllabus tab content without truncation (the overview tools only expose a ~1000-character preview, hiding later sections like grading policies and weighting). Supports `output_format` (`text`/`html`/`both`) and an optional `max_chars` cap that is explicitly marked when applied ([#134](https://github.com/vishalsachdev/canvas-mcp/issues/134)).
@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **`strip_html_tags` no longer concatenates adjacent block elements.** Block-level tags (headings, paragraphs, list items, table rows, `<br>`) now convert to line breaks, so plain-text syllabus/overview output preserves structure instead of merging content across boundaries (e.g. `Grading` and `Final exam...`). Entity decoding now uses the stdlib `html.unescape`, covering smart quotes, dashes, and accents.
 - **`summarize-course` prompt rendered raw JSON.** The prompt returned an out-of-spec `system`-role message that MCP clients received as literal JSON text; it now renders as a single user message ([#145](https://github.com/vishalsachdev/canvas-mcp/issues/145)).
+- **`CANVAS_API_URL` is normalized to its canonical `/api/v1` form** at startup, so values with a trailing slash, missing `/api/v1` suffix, or bare hostname all work instead of producing 404s on every call ([#148](https://github.com/vishalsachdev/canvas-mcp/issues/148)).
+- **`list_courses` honors `CANVAS_ROLE`** and scopes results to active enrollments, so student-profile servers no longer list courses from a teacher's perspective ([#140](https://github.com/vishalsachdev/canvas-mcp/issues/140)).
+- **Docker image installs the `[hosted]` extra** (`azure-data-tables`, `azure-communication-email`, `azure-identity`), so the hosted access-approval flow ([#150](https://github.com/vishalsachdev/canvas-mcp/pull/150)) works in containerized deployments; stdio installs are unaffected ([#153](https://github.com/vishalsachdev/canvas-mcp/pull/153)).
 
 ## [1.4.0] — 2026-06-17
 

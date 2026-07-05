@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 canvas-mcp/
 ├── src/canvas_mcp/        # Main application code
 │   ├── core/             # Core utilities (client, config, validation)
-│   ├── tools/            # MCP tool implementations (92 tools across 17 files)
+│   ├── tools/            # MCP tool implementations (93 tools across 17 files)
 │   ├── resources/        # MCP resources and prompts
 │   └── server.py         # FastMCP server entry point
 ├── skills/               # Agent skills for skills.sh (8 skills)
