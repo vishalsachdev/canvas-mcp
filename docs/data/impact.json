@@ -1,74 +1,74 @@
 {
-  "collected_at": "2026-06-29T14:05:01Z",
+  "collected_at": "2026-07-06T14:00:11Z",
   "github": {
-    "stars": 153,
-    "forks": 45,
-    "contributors": 13,
-    "open_issues": 5,
-    "views_14d": 866,
-    "views_14d_unique": 378,
-    "clones_14d": 1830,
-    "clones_14d_unique": 585,
+    "stars": 154,
+    "forks": 47,
+    "contributors": 15,
+    "open_issues": 4,
+    "views_14d": 1039,
+    "views_14d_unique": 385,
+    "clones_14d": 1886,
+    "clones_14d_unique": 530,
     "referrers": [
       {
         "referrer": "Google",
-        "count": 335,
-        "uniques": 194
+        "count": 374,
+        "uniques": 191
       },
       {
         "referrer": "github.com",
-        "count": 103,
-        "uniques": 60
-      },
-      {
-        "referrer": "reddit.com",
-        "count": 26,
-        "uniques": 20
+        "count": 145,
+        "uniques": 57
       },
       {
         "referrer": "canvas-mcp.illinihunt.org",
-        "count": 22,
-        "uniques": 7
+        "count": 25,
+        "uniques": 8
+      },
+      {
+        "referrer": "reddit.com",
+        "count": 23,
+        "uniques": 15
       },
       {
         "referrer": "Bing",
-        "count": 17,
-        "uniques": 11
+        "count": 19,
+        "uniques": 14
+      },
+      {
+        "referrer": "community.instructure.com",
+        "count": 15,
+        "uniques": 13
       },
       {
         "referrer": "search.brave.com",
-        "count": 17,
-        "uniques": 6
-      },
-      {
-        "referrer": "chatgpt.com",
-        "count": 6,
-        "uniques": 2
-      },
-      {
-        "referrer": "DuckDuckGo",
-        "count": 3,
+        "count": 15,
         "uniques": 3
       },
       {
-        "referrer": "chatwithgpt.substack.com",
-        "count": 2,
+        "referrer": "chatgpt.com",
+        "count": 11,
+        "uniques": 6
+      },
+      {
+        "referrer": "teams.public.onecdn.static.microsoft",
+        "count": 10,
         "uniques": 1
       },
       {
-        "referrer": "glama.ai",
-        "count": 2,
+        "referrer": "mcpworld.com",
+        "count": 4,
         "uniques": 1
       }
     ]
   },
   "pypi": {
-    "last_day": 29,
-    "last_week": 394,
-    "last_month": 849
+    "last_day": 199,
+    "last_week": 401,
+    "last_month": 1185
   },
   "npm": {
-    "last_month": 76
+    "last_month": 74
   },
   "history": [
     {
@@ -223,6 +223,15 @@
       "npm_month": 76,
       "views_unique": 378,
       "clones_unique": 585
+    },
+    {
+      "date": "2026-07-06",
+      "stars": 154,
+      "forks": 47,
+      "pypi_month": 1185,
+      "npm_month": 74,
+      "views_unique": 385,
+      "clones_unique": 530
     }
   ]
 }
