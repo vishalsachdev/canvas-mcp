@@ -204,17 +204,18 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-07-05 — v1.5.0 released; PR queue cleared; 15 stale branches pruned
-- Consolidated review of all open PRs/issues → cleared the whole queue: **#153 merged** (Docker `[hosted]`
-  extra — access-approval flow was silently degraded in the prod image), **#156 merged** (Devin security
-  PR: uv.lock refresh 33→0 advisories, dep-scan CI now gates on the frozen lockfile, `execute_typescript`
-  sandbox hardened — reviewed by me + Codex Security Analyst, both MERGE; residual risks filed as **#157**),
-  **#117 merged** (MCP Apps feasibility doc), **#158 closed** (declined mseep badge). #154/#155 reconciled
-  as merged/closed; 15 stale local branches verified merged-or-superseded and deleted.
-- **Released v1.5.0** (tag `8de8321`): get_syllabus, create_rubric_from_csv, update_discussion_topic,
-  fastmcp 2.x, security hardening; tool count 90→93. All channels green first try — GitHub Release
-  (+.mcpb), PyPI, MCP Registry (no propagation rerun needed this time), Azure prod deploy, Cloudflare
-  Pages deployed + verified live.
-- Next: (1) **#159** (new): mcp-remote proxy hangs on stale hosted session — no timeout/fail-fast.
-  (2) #142 MCP SDK v2 deadline ~7/27. (3) fastmcp 2.x PR 2 (Azure staging/Entra validation).
-  (4) #157 sandbox hardening backlog. (5) #106 mypy cleanup.
+### 2026-07-08 — Tech Services review doc for Azure hosted instance; impact stats refreshed
+- Wrote `internal/tech-services-review.local.md` (gitignored, `internal/*.local.*`) — a standalone
+  write-up of the Azure-hosted Canvas MCP instance (architecture, Entra auth model, allowlist access
+  control, end-user client setup) for Tech Services' review, requested on the LRA thread with Adam King.
+  Live-verified every checkable reference against the actual endpoint (401 challenge + `WWW-Authenticate`,
+  RFC 9728 PRM discovery doc, tenant ID) before sending — all consistent. Proactively flagged the one
+  known gap: ACR image pulls still use admin-user creds instead of the app's Managed Identity (blocked on
+  an Owner granting `AcrPull`).
+- Replied on the "Lightweight Risk Assessment for Canvas MCP" thread with Adam, attached the doc. Sent.
+- Committed routine `docs/data/impact.json` stats refresh (stars 154, forks 47, contributors 15).
+- No code changes this session. Open issues unchanged from last session (see below).
+- Next: (1) **#142** MCP SDK v2 migration — deadline ~2026-07-27, closest external constraint.
+  (2) **#159** mcp-remote proxy hangs on stale hosted session — no timeout/fail-fast.
+  (3) #157 sandbox hardening backlog. (4) #106 mypy cleanup. (5) Follow up with Adam/Tech Services
+  once they've had a chance to review the doc.

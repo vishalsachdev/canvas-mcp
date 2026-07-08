@@ -4,6 +4,18 @@ Archived session log entries from canvas-mcp CLAUDE.md.
 
 ## Session Log
 
+### 2026-07-05 — v1.5.0 released; PR queue cleared; 15 stale branches pruned
+- Consolidated review of all open PRs/issues → cleared the whole queue: **#153 merged** (Docker `[hosted]`
+  extra — access-approval flow was silently degraded in the prod image), **#156 merged** (Devin security
+  PR: uv.lock refresh 33→0 advisories, dep-scan CI now gates on the frozen lockfile, `execute_typescript`
+  sandbox hardened — reviewed by me + Codex Security Analyst, both MERGE; residual risks filed as **#157**),
+  **#117 merged** (MCP Apps feasibility doc), **#158 closed** (declined mseep badge). #154/#155 reconciled
+  as merged/closed; 15 stale local branches verified merged-or-superseded and deleted.
+- **Released v1.5.0** (tag `8de8321`): get_syllabus, create_rubric_from_csv, update_discussion_topic,
+  fastmcp 2.x, security hardening; tool count 90→93. All channels green first try — GitHub Release
+  (+.mcpb), PyPI, MCP Registry (no propagation rerun needed this time), Azure prod deploy, Cloudflare
+  Pages deployed + verified live.
+
 ### 2026-07-04 — `update_discussion_topic` implemented; draft PR #155 open
 - Reviewed #154 (discussion edit gap), confirmed valid — pages/assignments
   updatable via MCP but graded discussion prompts are not.
