@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **HTTP transport now runs stateless (`stateless_http=True`)**, eliminating the stale-session hang for hosted deployments. Previously the server kept an in-memory session table; a host restart (e.g. Azure App Service recycle) dropped it, the next request's `Mcp-Session-Id` drew a 404, and `mcp-remote` hung indefinitely instead of re-initializing. With stateless HTTP every request is self-contained — credentials already arrive per-request via `X-Canvas-Token`, and no tool uses server-initiated session features, so nothing can go stale ([#159](https://github.com/vishalsachdev/canvas-mcp/issues/159)).
+
 ## [1.5.0] — 2026-07-04
 
 ### Added
