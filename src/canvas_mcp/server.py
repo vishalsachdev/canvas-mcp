@@ -694,7 +694,13 @@ def _run_http_server(mcp: FastMCP, host: str, port: int) -> None:
     # HTTP is the default transport and the endpoint stays mounted at /mcp.
     # CanvasCredentialMiddleware passes lifespan scopes through, so the
     # inner app's lifespan (required by fastmcp 2) still runs under uvicorn.
-    starlette_app = mcp.http_app()
+    #
+    # stateless_http=True: every request is self-contained (credentials arrive
+    # per-request via X-Canvas-Token; no tool uses server-initiated session
+    # features), so keeping an in-memory session table only creates a failure
+    # mode — an App Service recycle drops it, and mcp-remote hangs forever on
+    # the resulting stale-session 404 instead of re-initializing (issue #159).
+    starlette_app = mcp.http_app(stateless_http=True)
     app = CanvasCredentialMiddleware(starlette_app)
 
     config = uvicorn.Config(
