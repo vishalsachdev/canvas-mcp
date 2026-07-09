@@ -4,6 +4,18 @@ Archived session log entries from canvas-mcp CLAUDE.md.
 
 ## Session Log
 
+### 2026-07-08 — Tech Services review doc for Azure hosted instance; impact stats refreshed
+- Wrote `internal/tech-services-review.local.md` (gitignored, `internal/*.local.*`) — a standalone
+  write-up of the Azure-hosted Canvas MCP instance (architecture, Entra auth model, allowlist access
+  control, end-user client setup) for Tech Services' review, requested on the LRA thread with Adam King.
+  Live-verified every checkable reference against the actual endpoint (401 challenge + `WWW-Authenticate`,
+  RFC 9728 PRM discovery doc, tenant ID) before sending — all consistent. Proactively flagged the one
+  known gap: ACR image pulls still use admin-user creds instead of the app's Managed Identity (blocked on
+  an Owner granting `AcrPull`).
+- Replied on the "Lightweight Risk Assessment for Canvas MCP" thread with Adam, attached the doc. Sent.
+- Committed routine `docs/data/impact.json` stats refresh (stars 154, forks 47, contributors 15).
+- No code changes this session.
+
 ### 2026-07-05 — v1.5.0 released; PR queue cleared; 15 stale branches pruned
 - Consolidated review of all open PRs/issues → cleared the whole queue: **#153 merged** (Docker `[hosted]`
   extra — access-approval flow was silently degraded in the prod image), **#156 merged** (Devin security

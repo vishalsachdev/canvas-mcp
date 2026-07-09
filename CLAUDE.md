@@ -157,7 +157,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] PR #150: self-service access-approval flow for the hosted server — merged 2026-07-01
 - [x] PR #155: `update_discussion_topic` (#154) — **merged 2026-07-04** (32152e8); #154 closed; auto-deployed to hosted
 - [x] Release **v1.5.0** (2026-07-05) — 3 new tools (93 total), fastmcp 2.x, security hardening (#156); all channels live (GitHub/PyPI/MCP Registry/hosted/site)
-- [ ] Issue #159: mcp-remote proxy hangs indefinitely on stale hosted session — needs timeout/fail-fast
+- [x] Issue #159: mcp-remote proxy hangs on stale hosted session — **fixed 2026-07-09** (PR #160: `stateless_http=True`; deployed + live-verified)
 - [ ] Issue #142: MCP SDK v2 migration (relax `mcp<2` pin) — **deadline ~2026-07-27**
 - [ ] Issue #145 / PR #152: fastmcp 2.x migration — **PR 1 of 2 merged 2026-07-02** (code migration, 560 tests green); PR 2 (Azure staging/Entra validation) still open
 - [ ] Issue #157: `execute_typescript` sandbox hardening backlog (container-level egress, non-root user, prebuilt tsx image)
@@ -204,18 +204,22 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-07-08 — Tech Services review doc for Azure hosted instance; impact stats refreshed
-- Wrote `internal/tech-services-review.local.md` (gitignored, `internal/*.local.*`) — a standalone
-  write-up of the Azure-hosted Canvas MCP instance (architecture, Entra auth model, allowlist access
-  control, end-user client setup) for Tech Services' review, requested on the LRA thread with Adam King.
-  Live-verified every checkable reference against the actual endpoint (401 challenge + `WWW-Authenticate`,
-  RFC 9728 PRM discovery doc, tenant ID) before sending — all consistent. Proactively flagged the one
-  known gap: ACR image pulls still use admin-user creds instead of the app's Managed Identity (blocked on
-  an Owner granting `AcrPull`).
-- Replied on the "Lightweight Risk Assessment for Canvas MCP" thread with Adam, attached the doc. Sent.
-- Committed routine `docs/data/impact.json` stats refresh (stars 154, forks 47, contributors 15).
-- No code changes this session. Open issues unchanged from last session (see below).
+### 2026-07-09 — #159 fixed, deployed, live-verified: hosted HTTP transport now stateless
+- **Root-caused #159** (canvas tool calls hanging forever in long-lived hosted sessions): the server
+  kept fastmcp's default in-memory session table; an App Service recycle dropped it, the next request's
+  `Mcp-Session-Id` drew a fast 404 (verified ~13ms locally), and `mcp-remote` hung on that 404 forever
+  instead of re-initializing per the streamable-HTTP spec. Fix: `_run_http_server` now builds the app
+  with `stateless_http=True` — no session table, nothing to go stale. Safe here because credentials are
+  already per-request (`X-Canvas-Token` → ContextVars) and no tool uses server-initiated session features.
+- **PR #160 merged** (squash `5ec2807`, admin bypass after 8/8 CI checks + clean Codex review; Codex
+  independently confirmed the SDK's 404 behavior and e2e-tested through `CanvasCredentialMiddleware`).
+  3 characterization tests added (stateful-404 vs stateless-200 + regression guard); 569 tests green.
+- **Deployed to hosted prod + live-verified in the strongest form**: this session's own mcp-remote proxy
+  predated the deploy (= genuinely stale session across a server restart, the exact #159 repro) and a
+  tool call succeeded instantly post-deploy. #159 closed.
+- Added a #159 troubleshooting section to `internal/ops-hosted.local.md` (recovery: `/mcp` → reconnect).
+  Killed 12 zombie processes locally (10 stale mcp-remote proxies w/ tokens in argv + 2 orphaned stdio
+  servers from dead terminal sessions).
 - Next: (1) **#142** MCP SDK v2 migration — deadline ~2026-07-27, closest external constraint.
-  (2) **#159** mcp-remote proxy hangs on stale hosted session — no timeout/fail-fast.
-  (3) #157 sandbox hardening backlog. (4) #106 mypy cleanup. (5) Follow up with Adam/Tech Services
-  once they've had a chance to review the doc.
+  (2) #157 sandbox hardening backlog. (3) #106 mypy cleanup. (4) Follow up with Adam/Tech Services on
+  the review doc sent 7/8. (5) The `[Unreleased]` CHANGELOG entry ships with the next release.
