@@ -150,9 +150,9 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] PR #155: `update_discussion_topic` (#154) — **merged 2026-07-04** (32152e8); #154 closed; auto-deployed to hosted
 - [x] Release **v1.5.0** (2026-07-05) — 3 new tools (93 total), fastmcp 2.x, security hardening (#156); all channels live (GitHub/PyPI/MCP Registry/hosted/site)
 - [x] Issue #159: mcp-remote proxy hangs on stale hosted session — **fixed 2026-07-09** (PR #160: `stateless_http=True`; deployed + live-verified)
-- [ ] Issue #142: MCP SDK v2 migration (relax `mcp<2` pin) — **deadline ~2026-07-27**
+- [ ] Issue #142: MCP SDK v2 migration (relax `mcp<2` pin) — **deadline ~2026-07-27**, **assigned to Ash (`ashcastelinocs124`)**
 - [ ] Issue #145 / PR #152: fastmcp 2.x migration — **PR 1 of 2 merged 2026-07-02** (code migration, 560 tests green); PR 2 (Azure staging/Entra validation) still open
-- [ ] Issue #157: `execute_typescript` sandbox hardening backlog (container-level egress, non-root user, prebuilt tsx image)
+- [ ] Issue #157: `execute_typescript` sandbox hardening backlog (container-level egress, non-root user, prebuilt tsx image) — **self-hosted-only now**: tool is DISABLED on both hosted slots (`EXECUTE_TYPESCRIPT_ENABLED=false`, verified 2026-07-10); gate on re-enabling hosted code-exec
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
 - [ ] Issue #106: 186 mypy errors uncovered by adding mypy to dev deps — incremental cleanup, module by module
 
@@ -196,22 +196,22 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-07-09 — #159 fixed, deployed, live-verified: hosted HTTP transport now stateless
-- **Root-caused #159** (canvas tool calls hanging forever in long-lived hosted sessions): the server
-  kept fastmcp's default in-memory session table; an App Service recycle dropped it, the next request's
-  `Mcp-Session-Id` drew a fast 404 (verified ~13ms locally), and `mcp-remote` hung on that 404 forever
-  instead of re-initializing per the streamable-HTTP spec. Fix: `_run_http_server` now builds the app
-  with `stateless_http=True` — no session table, nothing to go stale. Safe here because credentials are
-  already per-request (`X-Canvas-Token` → ContextVars) and no tool uses server-initiated session features.
-- **PR #160 merged** (squash `5ec2807`, admin bypass after 8/8 CI checks + clean Codex review; Codex
-  independently confirmed the SDK's 404 behavior and e2e-tested through `CanvasCredentialMiddleware`).
-  3 characterization tests added (stateful-404 vs stateless-200 + regression guard); 569 tests green.
-- **Deployed to hosted prod + live-verified in the strongest form**: this session's own mcp-remote proxy
-  predated the deploy (= genuinely stale session across a server restart, the exact #159 repro) and a
-  tool call succeeded instantly post-deploy. #159 closed.
-- Added a #159 troubleshooting section to `internal/ops-hosted.local.md` (recovery: `/mcp` → reconnect).
-  Killed 12 zombie processes locally (10 stale mcp-remote proxies w/ tokens in argv + 2 orphaned stdio
-  servers from dead terminal sessions).
-- Next: (1) **#142** MCP SDK v2 migration — deadline ~2026-07-27, closest external constraint.
-  (2) #157 sandbox hardening backlog. (3) #106 mypy cleanup. (4) Follow up with Adam/Tech Services on
-  the review doc sent 7/8. (5) The `[Unreleased]` CHANGELOG entry ships with the next release.
+### 2026-07-10 — /doctor cleanup; #142 assigned; #157 confirmed disabled on hosted, downgraded
+- **Ran `/doctor`**: install healthy (native 2.1.205 = latest), fast hooks, no denials. Applied two
+  user-scope changes to `~/.claude/settings.json` (not this repo): `permissions.defaultMode` → `auto`,
+  and disabled 5 never-used plugins (swift-lsp, cli-anything, claudit, code-review, code-simplifier).
+- **Trimmed always-loaded context**: moved the Release Checklist out of the root `CLAUDE.md` into tracked
+  `internal/release-checklist.md` with a one-line pointer (commit `d221fda`). First attempt wrongly used a
+  gitignored `.claude/skills/` skill — reverted; `.claude/` here is gitignored so team content must live in
+  tracked `internal/`, not a lazy skill. Lesson: lazy-loading only helps if the destination's visibility
+  matches the content's audience.
+- **#142** (MCP SDK v2 migration, ~2026-07-27 deadline) → **assigned to Ash** (`ashcastelinocs124`).
+- **#157 investigated + downgraded to backlog**: confirmed via live `az` that `EXECUTE_TYPESCRIPT_ENABLED=false`
+  on **both** hosted slots (prod + staging), so `execute_typescript` is NOT registered on the multi-tenant
+  server — the remote egress-bypass surface that made item #1 urgent doesn't exist. Now a self-hosted-only
+  concern + a precondition for ever re-enabling hosted code-exec. Documented in `internal/ops-hosted.local.md`
+  (new "Code execution — DISABLED" section) and issue #157 comment. Config-as-deployed ≠ config-as-committed:
+  the disable was an Azure app setting invisible to the repo; only the live check resolved it.
+- Next: (1) **#106** mypy cleanup (186 errors, incremental, module-by-module) — main open item that's yours
+  now that #142 is Ash's. (2) #157 stays backlog (gated on re-enabling hosted code-exec). (3) Follow up with
+  Adam/Tech Services on the review doc sent 7/8. (4) `[Unreleased]` CHANGELOG ships with the next release.

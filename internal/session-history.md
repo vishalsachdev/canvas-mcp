@@ -4,6 +4,23 @@ Archived session log entries from canvas-mcp CLAUDE.md.
 
 ## Session Log
 
+### 2026-07-09 — #159 fixed, deployed, live-verified: hosted HTTP transport now stateless
+- **Root-caused #159** (canvas tool calls hanging forever in long-lived hosted sessions): the server
+  kept fastmcp's default in-memory session table; an App Service recycle dropped it, the next request's
+  `Mcp-Session-Id` drew a fast 404 (verified ~13ms locally), and `mcp-remote` hung on that 404 forever
+  instead of re-initializing per the streamable-HTTP spec. Fix: `_run_http_server` now builds the app
+  with `stateless_http=True` — no session table, nothing to go stale. Safe here because credentials are
+  already per-request (`X-Canvas-Token` → ContextVars) and no tool uses server-initiated session features.
+- **PR #160 merged** (squash `5ec2807`, admin bypass after 8/8 CI checks + clean Codex review; Codex
+  independently confirmed the SDK's 404 behavior and e2e-tested through `CanvasCredentialMiddleware`).
+  3 characterization tests added (stateful-404 vs stateless-200 + regression guard); 569 tests green.
+- **Deployed to hosted prod + live-verified in the strongest form**: this session's own mcp-remote proxy
+  predated the deploy (= genuinely stale session across a server restart, the exact #159 repro) and a
+  tool call succeeded instantly post-deploy. #159 closed.
+- Added a #159 troubleshooting section to `internal/ops-hosted.local.md` (recovery: `/mcp` → reconnect).
+  Killed 12 zombie processes locally (10 stale mcp-remote proxies w/ tokens in argv + 2 orphaned stdio
+  servers from dead terminal sessions).
+
 ### 2026-07-08 — Tech Services review doc for Azure hosted instance; impact stats refreshed
 - Wrote `internal/tech-services-review.local.md` (gitignored, `internal/*.local.*`) — a standalone
   write-up of the Azure-hosted Canvas MCP instance (architecture, Entra auth model, allowlist access
