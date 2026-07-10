@@ -60,15 +60,7 @@ This repo has branch protection on `main` (PR + status checks required), but adm
 
 ## Release Checklist
 
-When bumping the version in `pyproject.toml`, also update:
-- [ ] `src/canvas_mcp/__init__.py` - Update `__version__`
-- [ ] `server.json` - Update both `version` fields (top-level and packages[0]) for MCP Registry
-- [ ] `tools/TOOL_MANIFEST.json` - Update `version` field to match new version
-- [ ] `README.md` - Update "Latest Release" section with new version, date, and changelog
-- [ ] `docs/index.html` - Update version badge, tool count, and meta descriptions (GitHub Pages site)
-- [ ] Create git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
-
-> `manifest.json` (Desktop Extension) does **not** need a manual bump — `create-release.yml` stamps the tag version into it and attaches `canvas-mcp.mcpb` to the GitHub Release automatically. The committed `manifest.json` version is just a default.
+Version-bump procedure (files to update) + publish-race gotchas: **[internal/release-checklist.md](internal/release-checklist.md)**.
 
 ---
 
