@@ -1,7 +1,8 @@
-"""Characterization tests for the fastmcp 2.x APIs this codebase relies on.
+"""Characterization tests for the fastmcp APIs this codebase relies on.
 
-These pin the exact upstream behaviors the migration (issue #145) assumes.
-If a fastmcp upgrade breaks one of these, it breaks the server the same way.
+These pin the exact upstream behaviors the migration (issue #145) assumes,
+originally written against fastmcp 2.x and revalidated on 3.x. If a fastmcp
+upgrade breaks one of these, it breaks the server the same way.
 """
 
 import pytest
@@ -124,7 +125,7 @@ def test_run_http_server_builds_stateless_app(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_summarize_course_prompt_renders(monkeypatch):
-    """The real summarize-course prompt must render through fastmcp 2
+    """The real summarize-course prompt must render through fastmcp
     (a 'system'-role dict, as v1 returned, is rejected at render time)."""
     from unittest.mock import AsyncMock, patch
 

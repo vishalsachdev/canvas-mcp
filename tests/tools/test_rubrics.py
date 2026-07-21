@@ -210,17 +210,17 @@ class TestRubricTools:
     async def test_get_rubric_registered(self, mcp):
         """Verify get_rubric is registered after calling register_rubric_tools."""
         register_rubric_tools(mcp)
-        assert "get_rubric" in await mcp.get_tools()
+        assert "get_rubric" in {t.name for t in await mcp.list_tools()}
 
     async def test_create_rubric_registered(self, mcp):
         """Verify create_rubric is registered after calling register_rubric_tools."""
         register_rubric_tools(mcp)
-        assert "create_rubric" in await mcp.get_tools()
+        assert "create_rubric" in {t.name for t in await mcp.list_tools()}
 
     async def test_create_rubric_from_csv_registered(self, mcp):
         """Verify create_rubric_from_csv is registered after calling register_rubric_tools."""
         register_rubric_tools(mcp)
-        assert "create_rubric_from_csv" in await mcp.get_tools()
+        assert "create_rubric_from_csv" in {t.name for t in await mcp.list_tools()}
 
     @pytest.mark.asyncio
     async def test_create_rubric_success(self, mcp, mock_canvas_request, mock_course_id, mock_course_code):
@@ -451,7 +451,7 @@ class TestRubricTools:
     async def test_list_rubrics_registered(self, mcp):
         """Verify list_rubrics is registered (renamed from list_all_rubrics)."""
         register_rubric_tools(mcp)
-        tool_names = await mcp.get_tools()
+        tool_names = {t.name for t in await mcp.list_tools()}
         assert "list_rubrics" in tool_names
         assert "list_all_rubrics" not in tool_names
 

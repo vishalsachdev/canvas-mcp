@@ -8,7 +8,7 @@ from canvas_mcp.server import register_all_tools
 
 async def _get_tool_names(mcp: FastMCP) -> set[str]:
     """Extract registered tool names from a FastMCP instance."""
-    return set((await mcp.get_tools()).keys())
+    return {tool.name for tool in await mcp.list_tools()}
 
 
 STUDENT_ONLY_TOOLS = {

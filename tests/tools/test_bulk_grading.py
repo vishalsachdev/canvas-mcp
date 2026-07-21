@@ -41,7 +41,7 @@ class TestBulkGradeSubmissions:
 
         mcp = FastMCP(name="test")
         register_educator_assignment_tools(mcp)
-        tool_names = set((await mcp.get_tools()).keys())
+        tool_names = {t.name for t in await mcp.list_tools()}
 
         assert "bulk_grade_submissions" in tool_names
 

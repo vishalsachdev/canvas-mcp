@@ -311,7 +311,7 @@ class CanvasCredentialMiddleware:
 def create_server() -> FastMCP:
     """Create and configure the Canvas MCP server.
 
-    fastmcp 2.x takes host/port at serve time (run()/uvicorn), not on the
+    fastmcp takes host/port at serve time (run()/uvicorn), not on the
     constructor — see _run_http_server.
     """
     config = get_config()
@@ -690,10 +690,10 @@ def _run_http_server(mcp: FastMCP, host: str, port: int) -> None:
     """Run the MCP server with HTTP transport and credential middleware."""
     import uvicorn
 
-    # fastmcp 2.x: http_app() replaces v1 streamable_http_app(); streamable
+    # fastmcp: http_app() replaces v1 streamable_http_app(); streamable
     # HTTP is the default transport and the endpoint stays mounted at /mcp.
     # CanvasCredentialMiddleware passes lifespan scopes through, so the
-    # inner app's lifespan (required by fastmcp 2) still runs under uvicorn.
+    # inner app's lifespan (required by fastmcp) still runs under uvicorn.
     #
     # stateless_http=True: every request is self-contained (credentials arrive
     # per-request via X-Canvas-Token; no tool uses server-initiated session
