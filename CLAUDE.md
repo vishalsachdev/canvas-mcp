@@ -150,8 +150,9 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] PR #155: `update_discussion_topic` (#154) — **merged 2026-07-04** (32152e8); #154 closed; auto-deployed to hosted
 - [x] Release **v1.5.0** (2026-07-05) — 3 new tools (93 total), fastmcp 2.x, security hardening (#156); all channels live (GitHub/PyPI/MCP Registry/hosted/site)
 - [x] Issue #159: mcp-remote proxy hangs on stale hosted session — **fixed 2026-07-09** (PR #160: `stateless_http=True`; deployed + live-verified)
+- [x] Issue #164 / PR #165: FERPA anonymization bypass (safe-endpoint short-circuit) — **fixed, merged, deployed 2026-07-21**; follow-up #166 filed
 - [ ] Issue #142: MCP SDK v2 migration (relax `mcp<2` pin) — **deadline ~2026-07-27**, **assigned to Ash (`ashcastelinocs124`)**
-- [ ] Issue #145 / PR #152: fastmcp 2.x migration — **PR 1 of 2 merged 2026-07-02** (code migration, 560 tests green); PR 2 (Azure staging/Entra validation) still open
+- [ ] Issue #145 / PR #152: fastmcp migration — **now CVE-urgent** (fastmcp 2.14.7 has PYSEC-2026-2475/2476, fix in 3.2.0+; dep-scan CI red on main since 7/19). Re-scope PR 2 (Azure staging/Entra validation) to fastmcp 3.x
 - [ ] Issue #157: `execute_typescript` sandbox hardening backlog (container-level egress, non-root user, prebuilt tsx image) — **self-hosted-only now**: tool is DISABLED on both hosted slots (`EXECUTE_TYPESCRIPT_ENABLED=false`, verified 2026-07-10); gate on re-enabling hosted code-exec
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
 - [ ] Issue #106: 186 mypy errors uncovered by adding mypy to dev deps — incremental cleanup, module by module
@@ -196,22 +197,27 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-07-10 — /doctor cleanup; #142 assigned; #157 confirmed disabled on hosted, downgraded
-- **Ran `/doctor`**: install healthy (native 2.1.205 = latest), fast hooks, no denials. Applied two
-  user-scope changes to `~/.claude/settings.json` (not this repo): `permissions.defaultMode` → `auto`,
-  and disabled 5 never-used plugins (swift-lsp, cli-anything, claudit, code-review, code-simplifier).
-- **Trimmed always-loaded context**: moved the Release Checklist out of the root `CLAUDE.md` into tracked
-  `internal/release-checklist.md` with a one-line pointer (commit `d221fda`). First attempt wrongly used a
-  gitignored `.claude/skills/` skill — reverted; `.claude/` here is gitignored so team content must live in
-  tracked `internal/`, not a lazy skill. Lesson: lazy-loading only helps if the destination's visibility
-  matches the content's audience.
-- **#142** (MCP SDK v2 migration, ~2026-07-27 deadline) → **assigned to Ash** (`ashcastelinocs124`).
-- **#157 investigated + downgraded to backlog**: confirmed via live `az` that `EXECUTE_TYPESCRIPT_ENABLED=false`
-  on **both** hosted slots (prod + staging), so `execute_typescript` is NOT registered on the multi-tenant
-  server — the remote egress-bypass surface that made item #1 urgent doesn't exist. Now a self-hosted-only
-  concern + a precondition for ever re-enabling hosted code-exec. Documented in `internal/ops-hosted.local.md`
-  (new "Code execution — DISABLED" section) and issue #157 comment. Config-as-deployed ≠ config-as-committed:
-  the disable was an Azure app setting invisible to the repo; only the live check resolved it.
-- Next: (1) **#106** mypy cleanup (186 errors, incremental, module-by-module) — main open item that's yours
-  now that #142 is Ash's. (2) #157 stays backlog (gated on re-enabling hosted code-exec). (3) Follow up with
-  Adam/Tech Services on the review doc sent 7/8. (4) `[Unreleased]` CHANGELOG ships with the next release.
+### 2026-07-20/21 — FERPA anonymization bypass fixed (#164/PR #165), merged + deployed; fastmcp CVE flagged
+- **Fixed the high-severity anonymization bypass** carried across weekly reports #162→#163:
+  `_should_anonymize_endpoint()` checked its `/courses`-containing safe-list *before* the student-data
+  list, silently skipping central anonymization for nearly all course-scoped traffic (enrollments,
+  submissions, analytics, discussion `/view`+`/entry_list`). Filed standalone **#164**, fixed on
+  `fix/anonymization-bypass` TDD-style (13 failing tests reproduced the leak surface first). Fix spans
+  both layers: sensitive-first segment-aware endpoint gate (page-slug false-positive guard, querystring
+  strip) **and** anonymizer recursion gaps (discussion `/view` wrapper incl. `new_entries`/`participants`,
+  enrollment nested `user`, `looks_like_user` guard so non-user dicts never get fabricated identity fields).
+- **PR #165 merged** (squash `f2e45ac`, admin bypass) after a 4-agent review round-trip — Codex (P1:
+  `new_entries` leak), Copilot (page-slug substring false-positive), claude bot (fabricated enrollment
+  identity fields) each caught a real, *different* miss; all fixed + tested. 40 tests in new
+  `tests/security/test_anonymization_endpoints.py`; suite 610 green. Auto-deployed to hosted prod (verified).
+- **Follow-up #166 filed**: anonymizer's duck-typed `data_type` routing mis-shapes non-user records +
+  the `ENABLE_DATA_ANONYMIZATION=false` flag being ignored at tool layer.
+- **fastmcp 2.14.7 now carries PYSEC-2026-2475/2476** (fixed only in 3.2.0+) — this is why the
+  Dependency Vulnerability Scan fails on `main` since 7/19. Commented on #145: re-scope PR #152's
+  remaining Azure/Entra validation to fastmcp 3.x, coordinate with Ash's #142.
+- Committed the 7/20 impact-stats refresh + deployed `docs/` to Cloudflare Pages (live-verified).
+- Next: (1) **fastmcp 3.x migration** (#145/#152) — now CVE-urgent, dep-scan red on every PR until done;
+  coordinate with **#142** (Ash, deadline ~7/27, check in this week). (2) **#106** mypy cleanup (idle 68
+  days — post a status comment). (3) Triage remaining #163 medium items (docs coverage gaps #6, ruff in CI
+  #7, stale test counts #9) and close #162/#163 digests. (4) #166 backlog. (5) Adam/Tech Services follow-up
+  on the 7/8 review doc.
