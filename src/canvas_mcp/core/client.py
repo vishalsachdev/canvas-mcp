@@ -105,24 +105,26 @@ def _should_anonymize_endpoint(endpoint: str) -> bool:
       instructor-authored; student content lives under the content endpoints
       matched below.
     """
-    endpoint_lower = endpoint.lower()
+    # Match whole path segments (not substrings) so user-controlled slugs —
+    # e.g. a page named "users" at /courses/{id}/pages/users — can't trip the
+    # sensitive match; a segment directly after 'pages' is a slug, not a route.
+    path = endpoint.lower().split('?', 1)[0]
+    segments = [seg for seg in path.split('/') if seg]
+
+    def has_sensitive_segment(names: set[str]) -> bool:
+        return any(
+            seg in names and not (i > 0 and segments[i - 1] == 'pages')
+            for i, seg in enumerate(segments)
+        )
 
     # Discussion content endpoints carry student posts and names
-    if '/discussion_topics' in endpoint_lower and any(
-        content in endpoint_lower
-        for content in ('/entries', '/view', '/entry_list', '/replies')
+    if 'discussion_topics' in segments and has_sensitive_segment(
+        {'entries', 'view', 'entry_list', 'replies'}
     ):
         return True
 
     # Endpoints whose responses contain student records
-    student_data_endpoints = [
-        '/users',
-        '/submissions',
-        '/enrollments',
-        '/analytics',
-    ]
-
-    return any(student_endpoint in endpoint_lower for student_endpoint in student_data_endpoints)
+    return has_sensitive_segment({'users', 'submissions', 'enrollments', 'analytics'})
 
 
 def _get_http_client() -> httpx.AsyncClient:

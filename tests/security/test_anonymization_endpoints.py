@@ -61,12 +61,21 @@ class TestShouldAnonymizeEndpoint:
         # Topic listings (incl. announcements) are typically instructor-authored;
         # student content lives under /entries|/view|/entry_list|/replies.
         "/courses/123/discussion_topics",
+        # Page slugs are user-controlled: a page named "users"/"submissions"
+        # must not trip the sensitive-segment match (PR #165 review).
+        "/courses/123/pages/users",
+        "/courses/123/pages/submissions",
+        "/courses/123/pages/analytics",
     ])
     def test_non_student_endpoints_not_anonymized(self, endpoint):
         assert _should_anonymize_endpoint(endpoint) is False
 
     def test_case_insensitive(self):
         assert _should_anonymize_endpoint("/COURSES/123/ENROLLMENTS") is True
+
+    def test_querystring_stripped_before_matching(self):
+        assert _should_anonymize_endpoint("/courses/123/enrollments?per_page=100") is True
+        assert _should_anonymize_endpoint("/courses/123/pages?search_term=users") is False
 
     def test_enrollments_map_to_users_data_type(self):
         assert _determine_data_type("/courses/123/enrollments") == "users"
@@ -97,6 +106,10 @@ class TestDiscussionViewAnonymization:
                     ],
                 },
             ],
+            # Returned when the caller passes include_new_entries=1
+            "new_entries": [
+                {"id": 3, "user_id": 102, "user_name": "Bob Learner", "message": "A new post"},
+            ],
         }
 
     def test_view_entries_anonymized(self):
@@ -118,6 +131,12 @@ class TestDiscussionViewAnonymization:
         assert "Alice Student" not in names
         assert "Bob Learner" not in names
 
+    def test_new_entries_anonymized(self):
+        result = anonymize_response_data(self._view_response(), data_type="discussions")
+        entry = result["new_entries"][0]
+        assert entry["user_name"] != "Bob Learner"
+        assert entry["user_name"].startswith("Student_")
+
 
 class TestEnrollmentAnonymization:
     """Enrollment records embed the student in a nested `user` dict."""
@@ -127,6 +146,7 @@ class TestEnrollmentAnonymization:
             "id": 9001,  # enrollment id, not a student id
             "course_id": 123,
             "type": "StudentEnrollment",
+            "sis_user_id": "670001234",
             "user": {
                 "id": 101,
                 "name": "Alice Student",
@@ -138,6 +158,12 @@ class TestEnrollmentAnonymization:
         assert result["user"]["name"] != "Alice Student"
         assert result["user"]["name"].startswith("Student_")
         assert result["user"]["id"] == 101  # IDs preserved for functionality
+        # Wrapper-level identity fields are scrubbed, not fabricated:
+        # no fake name/email keyed to the enrollment's own id (PR #165 review)
+        assert "name" not in result
+        assert "email" not in result
+        assert result["sis_user_id"] is None
+        assert result["type"] == "StudentEnrollment"  # non-identity fields intact
 
     def test_enrollment_list_via_response_data(self):
         enrollments = [{

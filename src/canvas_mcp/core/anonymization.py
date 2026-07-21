@@ -57,9 +57,17 @@ def anonymize_user_data(user_data: Any) -> Any:
     anonymized = user_data.copy()
     user_id = user_data.get('id')
 
-    # Enrollment-shaped records carry the student in a nested `user` dict
+    # Enrollment-shaped records carry the student in a nested `user` dict.
+    # The wrapper itself is NOT a user record — its `id` is the enrollment's
+    # own id, so running the flat-user branch below would fabricate name/email
+    # fields keyed to the wrong id. Anonymize the nested user, scrub the
+    # identity fields Canvas puts on the wrapper, and return.
     if isinstance(anonymized.get('user'), dict):
         anonymized['user'] = anonymize_user_data(anonymized['user'])
+        for identity_field in ('sis_user_id', 'integration_id', 'login_id'):
+            if identity_field in anonymized:
+                anonymized[identity_field] = None
+        return anonymized
 
     if user_id:
         anonymous_id = generate_anonymous_id(user_id)
@@ -158,11 +166,13 @@ def anonymize_discussion_entry(entry_data: Any) -> Any:
             ]
 
     # The /discussion_topics/{id}/view endpoint returns a wrapper dict:
-    # {"view": [entries...], "participants": [users...]} — recurse into both
-    if 'view' in anonymized and isinstance(anonymized['view'], list):
-        anonymized['view'] = [
-            anonymize_discussion_entry(entry) for entry in anonymized['view']
-        ]
+    # {"view": [entries...], "participants": [users...]} plus "new_entries"
+    # when include_new_entries=1 — recurse into all of them
+    for entry_list_key in ('view', 'new_entries'):
+        if entry_list_key in anonymized and isinstance(anonymized[entry_list_key], list):
+            anonymized[entry_list_key] = [
+                anonymize_discussion_entry(entry) for entry in anonymized[entry_list_key]
+            ]
     if 'participants' in anonymized and isinstance(anonymized['participants'], list):
         anonymized['participants'] = [
             anonymize_user_data(participant) for participant in anonymized['participants']
