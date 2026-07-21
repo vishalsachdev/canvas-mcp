@@ -57,7 +57,27 @@ def anonymize_user_data(user_data: Any) -> Any:
     anonymized = user_data.copy()
     user_id = user_data.get('id')
 
-    if user_id:
+    # Enrollment-shaped records carry the student in a nested `user` dict.
+    # The wrapper itself is NOT a user record — its `id` is the enrollment's
+    # own id, so running the flat-user branch below would fabricate name/email
+    # fields keyed to the wrong id. Anonymize the nested user, scrub the
+    # identity fields Canvas puts on the wrapper, and return.
+    if isinstance(anonymized.get('user'), dict):
+        anonymized['user'] = anonymize_user_data(anonymized['user'])
+        for identity_field in ('sis_user_id', 'integration_id', 'login_id'):
+            if identity_field in anonymized:
+                anonymized[identity_field] = None
+        return anonymized
+
+    # Only treat the record as a flat user if it actually carries user-identity
+    # fields — a bare dict with a truthy `id` (e.g. a flat enrollment or todo
+    # item) would otherwise get name/email fabricated from an unrelated id.
+    looks_like_user = any(
+        field in user_data
+        for field in ('name', 'display_name', 'short_name', 'sortable_name', 'email', 'login_id')
+    )
+
+    if user_id and looks_like_user:
         anonymous_id = generate_anonymous_id(user_id)
 
         # Replace sensitive fields
@@ -147,9 +167,23 @@ def anonymize_discussion_entry(entry_data: Any) -> Any:
         )
 
     # Handle nested replies - anonymize recursively
-    if 'recent_replies' in anonymized and isinstance(anonymized['recent_replies'], list):
-        anonymized['recent_replies'] = [
-            anonymize_discussion_entry(reply) for reply in anonymized['recent_replies']
+    for reply_key in ('recent_replies', 'replies'):
+        if reply_key in anonymized and isinstance(anonymized[reply_key], list):
+            anonymized[reply_key] = [
+                anonymize_discussion_entry(reply) for reply in anonymized[reply_key]
+            ]
+
+    # The /discussion_topics/{id}/view endpoint returns a wrapper dict:
+    # {"view": [entries...], "participants": [users...]} plus "new_entries"
+    # when include_new_entries=1 — recurse into all of them
+    for entry_list_key in ('view', 'new_entries'):
+        if entry_list_key in anonymized and isinstance(anonymized[entry_list_key], list):
+            anonymized[entry_list_key] = [
+                anonymize_discussion_entry(entry) for entry in anonymized[entry_list_key]
+            ]
+    if 'participants' in anonymized and isinstance(anonymized['participants'], list):
+        anonymized['participants'] = [
+            anonymize_user_data(participant) for participant in anonymized['participants']
         ]
 
     return anonymized

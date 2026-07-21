@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **Fixed an anonymization bypass for `/courses/`-scoped student-data endpoints.** `_should_anonymize_endpoint()` checked its safe-endpoint list (which includes the substring `/courses`) before the student-data list, so enrollments, submissions, analytics, and discussion-content responses skipped central anonymization for nearly all real traffic. Sensitive checks now run first, discussion `/view`, `/entry_list`, and `/replies` endpoints are matched as student content, and the anonymizer now recurses into the discussion `/view` wrapper (`view`/`participants`/`replies`) and enrollment records' nested `user` dict — two shapes it previously passed through untouched. Added direct unit tests for the endpoint gate, which was previously untested ([#164](https://github.com/vishalsachdev/canvas-mcp/issues/164)).
+
 ### Fixed
 - **HTTP transport now runs stateless (`stateless_http=True`)**, eliminating the stale-session hang for hosted deployments. Previously the server kept an in-memory session table; a host restart (e.g. Azure App Service recycle) dropped it, the next request's `Mcp-Session-Id` drew a 404, and `mcp-remote` hung indefinitely instead of re-initializing. With stateless HTTP every request is self-contained — credentials already arrive per-request via `X-Canvas-Token`, and no tool uses server-initiated session features, so nothing can go stale ([#159](https://github.com/vishalsachdev/canvas-mcp/issues/159)).
 
