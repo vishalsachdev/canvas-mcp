@@ -57,6 +57,10 @@ def anonymize_user_data(user_data: Any) -> Any:
     anonymized = user_data.copy()
     user_id = user_data.get('id')
 
+    # Enrollment-shaped records carry the student in a nested `user` dict
+    if isinstance(anonymized.get('user'), dict):
+        anonymized['user'] = anonymize_user_data(anonymized['user'])
+
     if user_id:
         anonymous_id = generate_anonymous_id(user_id)
 
@@ -147,9 +151,21 @@ def anonymize_discussion_entry(entry_data: Any) -> Any:
         )
 
     # Handle nested replies - anonymize recursively
-    if 'recent_replies' in anonymized and isinstance(anonymized['recent_replies'], list):
-        anonymized['recent_replies'] = [
-            anonymize_discussion_entry(reply) for reply in anonymized['recent_replies']
+    for reply_key in ('recent_replies', 'replies'):
+        if reply_key in anonymized and isinstance(anonymized[reply_key], list):
+            anonymized[reply_key] = [
+                anonymize_discussion_entry(reply) for reply in anonymized[reply_key]
+            ]
+
+    # The /discussion_topics/{id}/view endpoint returns a wrapper dict:
+    # {"view": [entries...], "participants": [users...]} — recurse into both
+    if 'view' in anonymized and isinstance(anonymized['view'], list):
+        anonymized['view'] = [
+            anonymize_discussion_entry(entry) for entry in anonymized['view']
+        ]
+    if 'participants' in anonymized and isinstance(anonymized['participants'], list):
+        anonymized['participants'] = [
+            anonymize_user_data(participant) for participant in anonymized['participants']
         ]
 
     return anonymized

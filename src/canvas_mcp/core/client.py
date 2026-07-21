@@ -90,34 +90,36 @@ def _determine_data_type(endpoint: str) -> str:
 
 
 def _should_anonymize_endpoint(endpoint: str) -> bool:
-    """Determine if an endpoint should have its data anonymized."""
-    # Don't anonymize these endpoints as they don't contain student data
-    safe_endpoints = [
-        '/courses',  # Course info without student data (unless it includes users)
-        '/self',     # User's own profile
-        '/accounts', # Account information
-        '/terms',    # Academic terms
-    ]
+    """Determine if an endpoint should have its data anonymized.
 
+    Sensitive-data checks MUST run before any safe-endpoint reasoning: almost
+    every call here is scoped /courses/{id}/..., so a '/courses' short-circuit
+    checked first silently disables anonymization for the whole codebase
+    (issue #164). Anything not matched as sensitive defaults to False.
+
+    Intentionally NOT matched as sensitive:
+    - /groups listings — carry group names, not student names; generic
+      anonymization would mangle them. Membership goes via /groups/{id}/users,
+      which the '/users' rule covers.
+    - /discussion_topics listings (incl. announcements) — typically
+      instructor-authored; student content lives under the content endpoints
+      matched below.
+    """
     endpoint_lower = endpoint.lower()
 
-    # Always anonymize discussion entries as they contain student posts
-    if '/discussion_topics' in endpoint_lower and '/entries' in endpoint_lower:
+    # Discussion content endpoints carry student posts and names
+    if '/discussion_topics' in endpoint_lower and any(
+        content in endpoint_lower
+        for content in ('/entries', '/view', '/entry_list', '/replies')
+    ):
         return True
 
-    # Check if it's a safe endpoint
-    for safe in safe_endpoints:
-        if safe in endpoint_lower and '/users' not in endpoint_lower:
-            return False
-
-    # Anonymize endpoints that contain student data
+    # Endpoints whose responses contain student records
     student_data_endpoints = [
         '/users',
-        '/discussion',
         '/submissions',
         '/enrollments',
-        '/groups',
-        '/analytics'
+        '/analytics',
     ]
 
     return any(student_endpoint in endpoint_lower for student_endpoint in student_data_endpoints)
