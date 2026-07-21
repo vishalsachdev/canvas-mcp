@@ -151,8 +151,8 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] Release **v1.5.0** (2026-07-05) — 3 new tools (93 total), fastmcp 2.x, security hardening (#156); all channels live (GitHub/PyPI/MCP Registry/hosted/site)
 - [x] Issue #159: mcp-remote proxy hangs on stale hosted session — **fixed 2026-07-09** (PR #160: `stateless_http=True`; deployed + live-verified)
 - [x] Issue #164 / PR #165: FERPA anonymization bypass (safe-endpoint short-circuit) — **fixed, merged, deployed 2026-07-21**; follow-up #166 filed
-- [ ] Issue #142: MCP SDK v2 migration (relax `mcp<2` pin) — **deadline ~2026-07-27**, **assigned to Ash (`ashcastelinocs124`)**
-- [ ] Issue #145 / PR #152: fastmcp migration — **now CVE-urgent** (fastmcp 2.14.7 has PYSEC-2026-2475/2476, fix in 3.2.0+; dep-scan CI red on main since 7/19). Re-scope PR 2 (Azure staging/Entra validation) to fastmcp 3.x
+- [ ] Issue #142: MCP SDK v2 migration — **blocked upstream**: fastmcp 3.4.4 pins `mcp<2.0`, so relaxing our pin can't resolve. Re-scoped via issue comment 7/21 (verify our v2-readiness, track fastmcp upstream). **Assigned to Ash (`ashcastelinocs124`), orig. deadline ~2026-07-27 — confirm plan with Ash**
+- [x] Issue #145 / PR #167: fastmcp 3.4.4 migration — **DONE 2026-07-21** (CVEs PYSEC-2026-2475/2476 resolved; dep-scan green; staging-validated then prod-deployed + live-verified; #145 closed)
 - [ ] Issue #157: `execute_typescript` sandbox hardening backlog (container-level egress, non-root user, prebuilt tsx image) — **self-hosted-only now**: tool is DISABLED on both hosted slots (`EXECUTE_TYPESCRIPT_ENABLED=false`, verified 2026-07-10); gate on re-enabling hosted code-exec
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
 - [ ] Issue #106: 186 mypy errors uncovered by adding mypy to dev deps — incremental cleanup, module by module
@@ -197,27 +197,27 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-07-20/21 — FERPA anonymization bypass fixed (#164/PR #165), merged + deployed; fastmcp CVE flagged
-- **Fixed the high-severity anonymization bypass** carried across weekly reports #162→#163:
-  `_should_anonymize_endpoint()` checked its `/courses`-containing safe-list *before* the student-data
-  list, silently skipping central anonymization for nearly all course-scoped traffic (enrollments,
-  submissions, analytics, discussion `/view`+`/entry_list`). Filed standalone **#164**, fixed on
-  `fix/anonymization-bypass` TDD-style (13 failing tests reproduced the leak surface first). Fix spans
-  both layers: sensitive-first segment-aware endpoint gate (page-slug false-positive guard, querystring
-  strip) **and** anonymizer recursion gaps (discussion `/view` wrapper incl. `new_entries`/`participants`,
-  enrollment nested `user`, `looks_like_user` guard so non-user dicts never get fabricated identity fields).
-- **PR #165 merged** (squash `f2e45ac`, admin bypass) after a 4-agent review round-trip — Codex (P1:
-  `new_entries` leak), Copilot (page-slug substring false-positive), claude bot (fabricated enrollment
-  identity fields) each caught a real, *different* miss; all fixed + tested. 40 tests in new
-  `tests/security/test_anonymization_endpoints.py`; suite 610 green. Auto-deployed to hosted prod (verified).
-- **Follow-up #166 filed**: anonymizer's duck-typed `data_type` routing mis-shapes non-user records +
-  the `ENABLE_DATA_ANONYMIZATION=false` flag being ignored at tool layer.
-- **fastmcp 2.14.7 now carries PYSEC-2026-2475/2476** (fixed only in 3.2.0+) — this is why the
-  Dependency Vulnerability Scan fails on `main` since 7/19. Commented on #145: re-scope PR #152's
-  remaining Azure/Entra validation to fastmcp 3.x, coordinate with Ash's #142.
-- Committed the 7/20 impact-stats refresh + deployed `docs/` to Cloudflare Pages (live-verified).
-- Next: (1) **fastmcp 3.x migration** (#145/#152) — now CVE-urgent, dep-scan red on every PR until done;
-  coordinate with **#142** (Ash, deadline ~7/27, check in this week). (2) **#106** mypy cleanup (idle 68
-  days — post a status comment). (3) Triage remaining #163 medium items (docs coverage gaps #6, ruff in CI
-  #7, stale test counts #9) and close #162/#163 digests. (4) #166 backlog. (5) Adam/Tech Services follow-up
-  on the 7/8 review doc.
+### 2026-07-21 — fastmcp 3.4.4 shipped (#145 closed via PR #167); GRC follow-up email to Adam
+- **fastmcp 2.14.7 → 3.4.4 (PR #167, merged + deployed)**: the CVE-urgent migration (PYSEC-2026-2475/2476)
+  landed same-day. Only breaking change that touched us: `get_tools()` (dict) → `list_tools()` (list),
+  6 test call sites; `test_fastmcp2_compat.py` → `test_fastmcp_compat.py`. Suite 610 green; dep-scan CI
+  **green on main for the first time since 7/19**; codex + claude-review both clean. Validated on the Azure
+  **staging slot first** (Entra 401+PRM challenge, authenticated handshake reporting 3.4.4, live tool
+  dispatch), then merged (admin, no human reviewer) → auto prod deploy → re-verified live. #145 closed.
+- **#142 re-scoped (comment posted for Ash)**: fastmcp 3.4.4 still pins `mcp<2.0`, so the MCP SDK v2
+  bump is blocked *upstream*, not by our pin — plan should be "verify our v2-readiness + track fastmcp".
+- **Deploy gotchas captured in `internal/ops-hosted.local.md`**: pushing `staging` as a *new* branch does
+  NOT fire the path-filtered deploy trigger (use `gh workflow run deploy-staging.yml --ref staging`);
+  staging slot host is `canvas-mcp-staging.azurewebsites.net` (workflow header comment has stale pre-rename host).
+- **Vishal's Canvas API token expired 2026-07-18** — discovered during staging validation (server relays
+  Canvas's 401 correctly). Hosted client + local `.env` both affected; needs regeneration (Illinois KB form).
+- **Adam/GRC follow-up email sent** (in-thread reply on "Lightweight Risk Assessment for Canvas MCP",
+  via thunderbird bridge-subprocess fallback after the MCP server failed tool fetch): summary of the 7/20
+  GRC/privacy review meeting with Jonathan Dial + Michael Wrobel (Tier-3-only scope, de-identification
+  terminology, Splunk logging rec, codebase → Windberg/Port security reviews, license check). Draft:
+  `internal/compliance/2026-07-21-adam-grc-meeting-update.txt`. Vishal trimmed + sent; he owns follow-ups.
+- Next: (1) **Regenerate Canvas API token** (expired 7/18 — hosted client broken since Friday). (2) Ping
+  **Ash re #142** plan + ~7/27 deadline. (3) Triage #163 medium items (docs coverage #6, ruff in CI #7,
+  stale test counts #9), close #162/#163 digests. (4) **#106** mypy status comment (idle 68+ days).
+  (5) #166 anonymizer backlog. (6) GRC next steps when Jonathan's privacy report lands (registrar,
+  license check, Windberg/Port code handoff).
