@@ -69,7 +69,15 @@ def anonymize_user_data(user_data: Any) -> Any:
                 anonymized[identity_field] = None
         return anonymized
 
-    if user_id:
+    # Only treat the record as a flat user if it actually carries user-identity
+    # fields — a bare dict with a truthy `id` (e.g. a flat enrollment or todo
+    # item) would otherwise get name/email fabricated from an unrelated id.
+    looks_like_user = any(
+        field in user_data
+        for field in ('name', 'display_name', 'short_name', 'sortable_name', 'email', 'login_id')
+    )
+
+    if user_id and looks_like_user:
         anonymous_id = generate_anonymous_id(user_id)
 
         # Replace sensitive fields

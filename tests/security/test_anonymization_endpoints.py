@@ -165,6 +165,15 @@ class TestEnrollmentAnonymization:
         assert result["sis_user_id"] is None
         assert result["type"] == "StudentEnrollment"  # non-identity fields intact
 
+    def test_flat_non_user_record_not_fabricated(self):
+        # A flat enrollment (no include[]=user) or todo item has an id that
+        # belongs to no user — the flat-user branch must not fabricate
+        # name/email from it.
+        flat_enrollment = {"id": 9003, "course_id": 123, "type": "StudentEnrollment"}
+        result = anonymize_user_data(flat_enrollment)
+        assert "name" not in result
+        assert "email" not in result
+
     def test_enrollment_list_via_response_data(self):
         enrollments = [{
             "id": 9002,
