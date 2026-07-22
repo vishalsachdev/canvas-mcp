@@ -4,6 +4,31 @@ Archived session log entries from canvas-mcp CLAUDE.md.
 
 ## Session Log
 
+### 2026-07-20/21 — FERPA anonymization bypass fixed (#164/PR #165), merged + deployed; fastmcp CVE flagged
+- **Fixed the high-severity anonymization bypass** carried across weekly reports #162→#163:
+  `_should_anonymize_endpoint()` checked its `/courses`-containing safe-list *before* the student-data
+  list, silently skipping central anonymization for nearly all course-scoped traffic (enrollments,
+  submissions, analytics, discussion `/view`+`/entry_list`). Filed standalone **#164**, fixed on
+  `fix/anonymization-bypass` TDD-style (13 failing tests reproduced the leak surface first). Fix spans
+  both layers: sensitive-first segment-aware endpoint gate (page-slug false-positive guard, querystring
+  strip) **and** anonymizer recursion gaps (discussion `/view` wrapper incl. `new_entries`/`participants`,
+  enrollment nested `user`, `looks_like_user` guard so non-user dicts never get fabricated identity fields).
+- **PR #165 merged** (squash `f2e45ac`, admin bypass) after a 4-agent review round-trip — Codex (P1:
+  `new_entries` leak), Copilot (page-slug substring false-positive), claude bot (fabricated enrollment
+  identity fields) each caught a real, *different* miss; all fixed + tested. 40 tests in new
+  `tests/security/test_anonymization_endpoints.py`; suite 610 green. Auto-deployed to hosted prod (verified).
+- **Follow-up #166 filed**: anonymizer's duck-typed `data_type` routing mis-shapes non-user records +
+  the `ENABLE_DATA_ANONYMIZATION=false` flag being ignored at tool layer.
+- **fastmcp 2.14.7 now carries PYSEC-2026-2475/2476** (fixed only in 3.2.0+) — this is why the
+  Dependency Vulnerability Scan fails on `main` since 7/19. Commented on #145: re-scope PR #152's
+  remaining Azure/Entra validation to fastmcp 3.x, coordinate with Ash's #142.
+- Committed the 7/20 impact-stats refresh + deployed `docs/` to Cloudflare Pages (live-verified).
+- Next: (1) **fastmcp 3.x migration** (#145/#152) — now CVE-urgent, dep-scan red on every PR until done;
+  coordinate with **#142** (Ash, deadline ~7/27, check in this week). (2) **#106** mypy cleanup (idle 68
+  days — post a status comment). (3) Triage remaining #163 medium items (docs coverage gaps #6, ruff in CI
+  #7, stale test counts #9) and close #162/#163 digests. (4) #166 backlog. (5) Adam/Tech Services follow-up
+  on the 7/8 review doc.
+
 ### 2026-07-10 — /doctor cleanup; #142 assigned; #157 confirmed disabled on hosted, downgraded
 - **Ran `/doctor`**: install healthy (native 2.1.205 = latest), fast hooks, no denials. Applied two
   user-scope changes to `~/.claude/settings.json` (not this repo): `permissions.defaultMode` → `auto`,

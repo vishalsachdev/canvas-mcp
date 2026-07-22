@@ -25,6 +25,7 @@ build/
 
 # Environment variables
 .env
+.env.bak-*
 
 # IDE specific files
 .vscode/
