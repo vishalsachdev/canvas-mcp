@@ -4,6 +4,8 @@
 
 # Canvas MCP Server
 
+[![MCP Toplist](https://mcptoplist.com/badge/io.github.vishalsachdev%2Fcanvas-mcp.svg)](https://mcptoplist.com/server/io.github.vishalsachdev%2Fcanvas-mcp)
+
 <!--mcp-name: io.github.vishalsachdev/canvas-mcp-->
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![skills.sh](https://img.shields.io/badge/skills.sh-canvas--mcp-blue)](https://skills.sh)
