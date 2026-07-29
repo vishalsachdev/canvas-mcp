@@ -59,6 +59,18 @@ USER_ONLY_NULL_FIELDS = frozenset({
     'locale',
 })
 
+
+def _is_avatar_field(key_lower: str) -> bool:
+    """Whether a key names an avatar image reference in any Canvas variant.
+
+    Canvas scatters avatar URLs under many names (``avatar_url``,
+    ``avatar_image_url``, ``assessor_avatar_url``, ``avatar_path``); suffix
+    matching catches the variants an explicit list would miss.
+    """
+    return 'avatar' in key_lower and (
+        key_lower.endswith('url') or key_lower.endswith('path')
+    )
+
 #: Keys searched, in order, for the id that a record's identity fields are
 #: keyed to. ``id`` is only used when the record itself looks like a user
 #: (otherwise it is an enrollment/comment/submission id and keying to it would
@@ -224,8 +236,10 @@ def scrub_identity(node: Any, inherited_id: Any = None, user_context: bool = Fal
     for key, value in node.items():
         key_lower = key.lower() if isinstance(key, str) else key
 
-        if key_lower in NULL_FIELDS or (
-            key_lower in USER_ONLY_NULL_FIELDS and looks_user
+        if (
+            key_lower in NULL_FIELDS
+            or (isinstance(key_lower, str) and _is_avatar_field(key_lower))
+            or (key_lower in USER_ONLY_NULL_FIELDS and looks_user)
         ):
             scrubbed[key] = None
             continue

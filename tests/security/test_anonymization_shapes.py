@@ -430,3 +430,21 @@ class TestUserOnlyNullFields:
         result = anonymize_response_data(course, data_type="general")
         assert result["time_zone"] == "America/Chicago"
         assert result["name"] == "BADM 350 Fall 2026"
+
+
+class TestAvatarSuffixMatching:
+    """Live replay found avatar URLs surviving under variant key names
+    (assessor_avatar_url, avatar_path) not covered by the explicit list."""
+
+    @pytest.mark.parametrize("key", [
+        "avatar_url", "avatar_image_url", "assessor_avatar_url", "avatar_path",
+    ])
+    def test_avatar_variant_nulled(self, key):
+        record = {"id": 101, "user_id": 101, key: "https://canvas/avatars/101"}
+        result = anonymize_response_data(record, data_type="submissions")
+        assert result[key] is None
+
+    def test_non_avatar_url_preserved(self):
+        record = {"id": 5, "html_url": "https://canvas/courses/1/users/101"}
+        result = anonymize_response_data(record, data_type="general")
+        assert result["html_url"] == "https://canvas/courses/1/users/101"
