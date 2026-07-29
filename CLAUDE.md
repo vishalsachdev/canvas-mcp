@@ -152,7 +152,12 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] Issue #159: mcp-remote proxy hangs on stale hosted session — **fixed 2026-07-09** (PR #160: `stateless_http=True`; deployed + live-verified)
 - [x] Issue #164 / PR #165: FERPA anonymization bypass (safe-endpoint short-circuit) — **fixed, merged, deployed 2026-07-21**; follow-up #166 filed
 - [x] Issue #166: anonymizer recursive identity scrub — **fixed, merged (PR #177), deployed to hosted 2026-07-29**; follow-up #179 (layer consolidation)
-- [ ] **#170 Tier 1 student write tools** (UMich decision factor, publicly committed ~1-1.5wk → v1.6.0) + #171 identity tools (`get_my_enrollments`/`get_my_profile`) as companion
+- [x] **#170 Tier 1 student write tools** — **built + review-hardened 2026-07-30** on
+  `feature/student-write-tools` (13 commits, 750 tests green, 10 codex rounds to clean).
+  **Not pushed, no PR, #170 comment drafted but not posted** — all three are public actions on a
+  repo UMich is watching, so they need a decision. Policy carrier is the course syllabus
+  (page carrier deliberately removed — see session log). Draft: `internal/issue-170-followup-draft.md`
+- [ ] #171 identity tools (`get_my_enrollments`/`get_my_profile`) as companion to #170
 - [ ] Issue #142: MCP SDK v2 migration — **blocked upstream**: fastmcp 3.4.4 pins `mcp<2.0`, so relaxing our pin can't resolve. Re-scoped via issue comment 7/21 (verify our v2-readiness, track fastmcp upstream). **Assigned to Ash (`ashcastelinocs124`), orig. deadline ~2026-07-27 — confirm plan with Ash**
 - [x] Issue #145 / PR #167: fastmcp 3.4.4 migration — **DONE 2026-07-21** (CVEs PYSEC-2026-2475/2476 resolved; dep-scan green; staging-validated then prod-deployed + live-verified; #145 closed)
 - [ ] Issue #157: `execute_typescript` sandbox hardening backlog (container-level egress, non-root user, prebuilt tsx image) — **self-hosted-only now**: tool is DISABLED on both hosted slots (`EXECUTE_TYPESCRIPT_ENABLED=false`, verified 2026-07-10); gate on re-enabling hosted code-exec
@@ -199,36 +204,36 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-07-29 — UMich evaluation response: triage blitz, #166 PII fix shipped, hosted spec drafted
-- **UMich context (drives everything)**: Zhen Qian (UMich ITS) email — deploying MCP stores this Fall,
-  evaluating canvas-mcp vs DMontgomery40/mcp-canvas-lms; issues #170-172 are from U-M accounts and
-  **#170 (student update tools) is their stated decision factor**. In-thread reply drafted in Thunderbird
-  (Zoom yes, Aug 4+ availability) — **verify it was sent**.
-- **Parallel-agent triage (opus/sonnet fleet)**: #170 answered publicly (Tier 1 student-write tools,
-  `STUDENT_WRITE_TOOLS` empty-default allowlist, structural self-scoping, quiz-taking deliberately gated;
-  ~1-1.5wk → next minor release — public commitment); #171 diagnosed (self-identity capability gap →
-  `get_my_enrollments`/`get_my_profile` planned, fix spec in agent report); #172 scoped (Classic-vs-New
-  Quizzes question posted); spam PR #169 declined (author owns mcptoplist.com, 50+ bulk PRs); digests
-  #162/#163 closed, #168 = live tracker; spun out #173 (TOOL_MANIFEST 24/93) + #175 (ruff in CI);
-  #174 (stale test count) fixed same-day by external PR #176 (merged); Ash nudged on overdue #142.
-- **#166 anonymizer fix — merged (PR #177) + deployed to hosted**: investigation found the leak half was
-  worse than filed — 3 live nested PII leaks (enrollments[].sis_user_id in list_users, submission_comments
-  author names/emails, assessor_name). Fix = recursive `scrub_identity` baseline, never-add-keys invariant,
-  corroborated-name guard, `/submissions/self` carve-out. Verified 3 ways: 658 tests (+48 new in
-  test_anonymization_shapes.py), codex review (its one P2 fixed), **live acceptance replay vs a real course:
-  PASS** (576 changes all classified, 0 over-reach, 0 PII survivors). Follow-up #179 filed (tool-layer call
-  consolidation). **UNFILED on purpose** (undisclosed leak): `/pages` endpoint ungated → `last_edited_by`
-  names/avatars pass through — fix quietly in next PR (details in `internal/hosted-spec-draft/REVIEW.md`).
-- **PR #178 merged + deployed — safer defaults**: `EXECUTE_TYPESCRIPT_ENABLED` now defaults **false**
-  everywhere (**behavior change** for stdio code-exec users — release-notes line needed); Docker image now
-  ships `ENABLE_DATA_ANONYMIZATION=true`.
-- **Hosted deployment spec for UMich/UCI**: drafted + sanitization-audited (zero literal leaks from
-  ops-hosted.local.md, grep-verified); B1-B3 approved as written, B4/B7 resolved via #178. Preserved in
-  gitignored `internal/hosted-spec-draft/`. Plan: share standalone with Zhen/UCI post-Zoom → land as
-  `deploy/azure/` (NOT docs/ — Cloudflare publish root).
-- Canvas token confirmed rotated + live (200 on /users/self); hosted client header already synced.
-- Next: (1) **Send the Zhen reply** (Thunderbird compose window) + schedule Zoom (Aug 4+). (2) **#170 Tier 1
-  implementation** (~1-1.5wk, publicly committed) + #171 identity tools as companion PR. (3) Quiet `/pages`
-  gating fix. (4) Watch #170/#171/#172 for zqian/khagyard replies (Classic-vs-New Quizzes answer gates #172).
-  (5) Release v1.6.0 when Tier 1 lands (include #177/#178 in notes; behavior-change line for code-exec).
-  (6) #142/Ash — escalate if no reply to the 7/29 nudge. (7) #179, #173, #175 backlog; #106 status comment.
+### 2026-07-30 — Tier 1 student write tools built and review-hardened (#170)
+- **Zhen (UMich) replied** (7/29 18:42; our reply did send at 18:13). Tier 1 scope and the
+  `STUDENT_WRITE_TOOLS` model both endorsed; **assignment submission is the only pilot blocker**;
+  **Zoom moved to mid-September**, so design discussion happens in the issue threads. Two new
+  requirements: genuinely binary file upload (a competing project OCR'd their JPEG), and
+  **per-course faculty agency** — an instructor must be able to allow agent reads but block writes
+  in their own course. Their deployment is a **central multi-replica HTTP service** on an unnamed
+  commercial platform, so per-course policy has to live in this library, not their infra.
+- **Tier 1 implemented on `feature/student-write-tools`** (13 commits, ~3.6K lines, NOT pushed):
+  `get_my_submission`, `submit_assignment` (text/URL/binary upload), `comment_on_my_submission`,
+  `mark_module_item_done`. Three layered gates: `STUDENT_WRITE_TOOLS` operator ceiling (**default
+  empty**, unlisted tools never register), a per-course instructor policy, and an HMAC-signed
+  single-use confirmation token bound to caller + payload + attempt state.
+- **Policy carrier = the course SYLLABUS, and that is load-bearing.** A course-page carrier was
+  built and then **deleted**: `editing_roles` says who may edit a page *now*, not who wrote it, so a
+  student who can create pages could author `agent_writes: allow` and lock it teacher-only in the
+  same breath. Authorship cannot be established from a student's own token. A test asserts the
+  config attributes are gone so the option cannot return.
+- **10 rounds of `codex review --base main`** before clean. It caught things worth remembering:
+  the submit endpoint is **not** `/self`-scoped (Canvas honours `submission[user_id]`), `file_paths`
+  is **arbitrary server file disclosure** over HTTP transport, `tools or None` turned an empty
+  `allow_tools` into "allow everything", a double-submit race I introduced while fixing an earlier
+  finding, and a shared token secret (added in round 3) that round 5 showed enables concurrent
+  double-redemption — so tokens are per-process and hosted deployments need **session affinity**.
+- **750 tests pass** (21 skipped); 90 are feature-specific, including a real JPEG byte-equality
+  fixture and races simulated from inside the upload call.
+- `internal/issue-170-followup-draft.md` written and revised to match the shipped design.
+  **NOT posted.** It openly corrects two things already told to UMich (the `/self` claim and the
+  page-carrier proposal) and asks them two questions: default posture when a course states no
+  policy, and whether a student-visible syllabus policy is acceptable.
+- Next: (1) **review + post the #170 comment**; decide whether to push the branch / open the PR
+  (both are public actions on a repo UMich is watching). (2) #171 identity tools as companion.
+  (3) Quiet `/pages` gating fix. (4) v1.6.0 when Tier 1 lands. (5) #142/Ash escalation.

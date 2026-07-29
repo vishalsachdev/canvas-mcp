@@ -4,6 +4,41 @@ Archived session log entries from canvas-mcp CLAUDE.md.
 
 ## Session Log
 
+### 2026-07-29 — UMich evaluation response: triage blitz, #166 PII fix shipped, hosted spec drafted
+- **UMich context (drives everything)**: Zhen Qian (UMich ITS) email — deploying MCP stores this Fall,
+  evaluating canvas-mcp vs DMontgomery40/mcp-canvas-lms; issues #170-172 are from U-M accounts and
+  **#170 (student update tools) is their stated decision factor**. In-thread reply drafted in Thunderbird
+  (Zoom yes, Aug 4+ availability) — **verify it was sent**.
+- **Parallel-agent triage (opus/sonnet fleet)**: #170 answered publicly (Tier 1 student-write tools,
+  `STUDENT_WRITE_TOOLS` empty-default allowlist, structural self-scoping, quiz-taking deliberately gated;
+  ~1-1.5wk → next minor release — public commitment); #171 diagnosed (self-identity capability gap →
+  `get_my_enrollments`/`get_my_profile` planned, fix spec in agent report); #172 scoped (Classic-vs-New
+  Quizzes question posted); spam PR #169 declined (author owns mcptoplist.com, 50+ bulk PRs); digests
+  #162/#163 closed, #168 = live tracker; spun out #173 (TOOL_MANIFEST 24/93) + #175 (ruff in CI);
+  #174 (stale test count) fixed same-day by external PR #176 (merged); Ash nudged on overdue #142.
+- **#166 anonymizer fix — merged (PR #177) + deployed to hosted**: investigation found the leak half was
+  worse than filed — 3 live nested PII leaks (enrollments[].sis_user_id in list_users, submission_comments
+  author names/emails, assessor_name). Fix = recursive `scrub_identity` baseline, never-add-keys invariant,
+  corroborated-name guard, `/submissions/self` carve-out. Verified 3 ways: 658 tests (+48 new in
+  test_anonymization_shapes.py), codex review (its one P2 fixed), **live acceptance replay vs a real course:
+  PASS** (576 changes all classified, 0 over-reach, 0 PII survivors). Follow-up #179 filed (tool-layer call
+  consolidation). **UNFILED on purpose** (undisclosed leak): `/pages` endpoint ungated → `last_edited_by`
+  names/avatars pass through — fix quietly in next PR (details in `internal/hosted-spec-draft/REVIEW.md`).
+- **PR #178 merged + deployed — safer defaults**: `EXECUTE_TYPESCRIPT_ENABLED` now defaults **false**
+  everywhere (**behavior change** for stdio code-exec users — release-notes line needed); Docker image now
+  ships `ENABLE_DATA_ANONYMIZATION=true`.
+- **Hosted deployment spec for UMich/UCI**: drafted + sanitization-audited (zero literal leaks from
+  ops-hosted.local.md, grep-verified); B1-B3 approved as written, B4/B7 resolved via #178. Preserved in
+  gitignored `internal/hosted-spec-draft/`. Plan: share standalone with Zhen/UCI post-Zoom → land as
+  `deploy/azure/` (NOT docs/ — Cloudflare publish root).
+- Canvas token confirmed rotated + live (200 on /users/self); hosted client header already synced.
+- Next: (1) **Send the Zhen reply** (Thunderbird compose window) + schedule Zoom (Aug 4+). (2) **#170 Tier 1
+  implementation** (~1-1.5wk, publicly committed) + #171 identity tools as companion PR. (3) Quiet `/pages`
+  gating fix. (4) Watch #170/#171/#172 for zqian/khagyard replies (Classic-vs-New Quizzes answer gates #172).
+  (5) Release v1.6.0 when Tier 1 lands (include #177/#178 in notes; behavior-change line for code-exec).
+  (6) #142/Ash — escalate if no reply to the 7/29 nudge. (7) #179, #173, #175 backlog; #106 status comment.
+
+
 ### 2026-07-20/21 — FERPA anonymization bypass fixed (#164/PR #165), merged + deployed; fastmcp CVE flagged
 - **Fixed the high-severity anonymization bypass** carried across weekly reports #162→#163:
   `_should_anonymize_endpoint()` checked its `/courses`-containing safe-list *before* the student-data
