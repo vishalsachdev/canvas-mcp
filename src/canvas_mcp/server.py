@@ -58,6 +58,7 @@ from .tools import (
     register_shared_messaging_tools,
     register_shared_module_tools,
     register_student_tools,
+    register_student_write_tools,
 )
 
 
@@ -340,6 +341,9 @@ def register_all_tools(mcp: FastMCP, role: str = "all") -> None:
     # Student-specific tools
     if role in ("student", "all"):
         register_student_tools(mcp)
+        # Tier 1 writes register only for tools the operator named in
+        # STUDENT_WRITE_TOOLS (default: none). See tools/student_write.py.
+        register_student_write_tools(mcp)
 
     # Educator-specific tools
     if role in ("educator", "all"):

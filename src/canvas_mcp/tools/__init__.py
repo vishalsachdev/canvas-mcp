@@ -25,6 +25,7 @@ from .peer_review_comments import register_peer_review_comment_tools
 from .peer_reviews import register_peer_review_tools
 from .rubrics import register_rubric_tools
 from .student_tools import register_student_tools
+from .student_write import register_student_write_tools
 
 __all__ = [
     'register_accessibility_tools',
@@ -50,4 +51,5 @@ __all__ = [
     'register_shared_messaging_tools',
     'register_shared_module_tools',
     'register_student_tools',
+    'register_student_write_tools',
 ]

@@ -16,6 +16,17 @@ _INVALID_FLOAT_ENV_VARS: dict[str, str] = {}
 
 VALID_SANDBOX_MODES = frozenset({"auto", "local", "container"})
 
+# Canonical names of the student write tools an operator may enable via
+# STUDENT_WRITE_TOOLS. Declared here rather than in the tools package so config
+# stays free of imports from it. Quiz-taking is deliberately absent: it is an
+# academic-integrity decision gated behind its own separate flag, not something
+# an operator can switch on by naming it in this allowlist.
+STUDENT_WRITE_TOOL_NAMES = frozenset({
+    "submit_assignment",
+    "comment_on_my_submission",
+    "mark_module_item_done",
+})
+
 
 def _parse_keys(raw: str) -> frozenset[str]:
     """Parse a comma/whitespace-separated list of access keys into a set."""
@@ -206,6 +217,40 @@ class Config:
         # Role-based tool filtering
         self.canvas_role = os.getenv("CANVAS_ROLE", "all").lower()
 
+        # --- Student write tools (#170) ---
+        # Campus-wide operator ceiling. Empty (the default) means NO student write
+        # tool is registered, so an unlisted tool never enters the MCP tool list at
+        # all. Accepts comma- and/or space-separated tool names.
+        self.student_write_tools = frozenset(
+            name.strip()
+            for name in os.getenv("STUDENT_WRITE_TOOLS", "").replace(",", " ").split()
+            if name.strip()
+        )
+        # Per-course instructor policy. Can further restrict (never expand) the
+        # operator ceiling above.
+        self.course_agent_policy_enabled = _bool_env("COURSE_AGENT_POLICY_ENABLED", True)
+        # Which Canvas artifact carries the policy. "syllabus" is the default and
+        # the only structurally sound option: students cannot edit syllabus_body
+        # under any standard role. "page" is offered for operators who prefer to
+        # keep the syllabus clean, but a Canvas Page can be student-editable
+        # (editing_roles), so the page reader refuses to trust anything not
+        # restricted to teachers.
+        self.course_agent_policy_source = os.getenv(
+            "COURSE_AGENT_POLICY_SOURCE", "syllabus"
+        ).strip().lower()
+        self.course_agent_policy_page = os.getenv(
+            "COURSE_AGENT_POLICY_PAGE", "agent-policy"
+        ).strip()
+        # Posture when a course has no policy artifact. Institutional decision, so
+        # it is operator-configurable; "deny" is the safe default.
+        self.course_agent_policy_default = os.getenv(
+            "COURSE_AGENT_POLICY_DEFAULT", "deny"
+        ).strip().lower()
+        # Denials cache longer than grants. A stale grant is a revocation window on
+        # an attempt-consuming action, so it is deliberately short.
+        self.course_agent_policy_allow_ttl = _int_env("COURSE_AGENT_POLICY_ALLOW_TTL", 30)
+        self.course_agent_policy_deny_ttl = _int_env("COURSE_AGENT_POLICY_DENY_TTL", 300)
+
 
 # Global configuration instance
 _config: Config | None = None
@@ -317,6 +362,32 @@ def validate_config() -> bool:
             f"defaulting to 'all' (got '{config.canvas_role}')"
         )
         config.canvas_role = "all"
+
+    # Student write policy: an unrecognized posture must fail closed, not fall
+    # through to something permissive.
+    valid_postures = ("allow", "deny")
+    if config.course_agent_policy_default not in valid_postures:
+        log_warning(
+            f"COURSE_AGENT_POLICY_DEFAULT should be one of {', '.join(valid_postures)}; "
+            f"defaulting to 'deny' (got '{config.course_agent_policy_default}')"
+        )
+        config.course_agent_policy_default = "deny"
+
+    valid_policy_sources = ("syllabus", "page")
+    if config.course_agent_policy_source not in valid_policy_sources:
+        log_warning(
+            "COURSE_AGENT_POLICY_SOURCE should be one of "
+            f"{', '.join(valid_policy_sources)}; defaulting to 'syllabus' "
+            f"(got '{config.course_agent_policy_source}')"
+        )
+        config.course_agent_policy_source = "syllabus"
+
+    unknown_write_tools = config.student_write_tools - STUDENT_WRITE_TOOL_NAMES
+    if unknown_write_tools:
+        log_warning(
+            "STUDENT_WRITE_TOOLS names unknown tools; they will be ignored: "
+            f"{', '.join(sorted(unknown_write_tools))}"
+        )
 
     for env_name, env_value in _INVALID_INT_ENV_VARS.items():
         log_warning(
