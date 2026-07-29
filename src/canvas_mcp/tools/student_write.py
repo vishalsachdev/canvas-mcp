@@ -68,17 +68,21 @@ _SUPPORTED_TYPES = ("online_text_entry", "online_url", "online_upload")
 # preview and answer, short enough that course state cannot drift far.
 _CONFIRM_TTL_SECONDS = 300
 
-# Signing key for confirmation tokens. Tokens are self-contained and verified by
-# signature rather than looked up in a table, because a hosted deployment runs
-# several workers: a table-based token issued by one worker would be rejected as
-# unknown by another, and would not survive a restart inside the confirm window.
+# Signing key for confirmation tokens, generated per process and deliberately
+# NOT shareable between workers.
 #
-# An operator running multiple replicas must set STUDENT_WRITE_TOKEN_SECRET so
-# every replica signs alike. Left unset, each process generates its own key,
-# which is correct for stdio and for a single worker.
-_TOKEN_SECRET = (
-    os.getenv("STUDENT_WRITE_TOKEN_SECRET", "").encode() or secrets.token_bytes(32)
-)
+# A shared key would let the same token verify on every replica, and since the
+# claim that makes a confirmation single-use is process-local, two workers could
+# then accept the same token concurrently and both submit, spending two of the
+# student's attempts. Enforcing single-use across replicas would require shared
+# atomic state (Redis or a database), which this library should not require.
+#
+# So a token is redeemable only on the process that issued it. A hosted
+# deployment should use session affinity to keep a student's preview and confirm
+# on one worker; without affinity, a confirmation may be rejected and the
+# student simply previews again. That is an inconvenience. Silently spending a
+# second attempt is not.
+_TOKEN_SECRET = secrets.token_bytes(32)
 
 # Replay guard: fingerprint -> the time its claim can be forgotten. Entries only
 # need to outlive the token that created them, so they expire rather than
@@ -155,12 +159,20 @@ def _check_token(token: str, fingerprint: str) -> str | None:
     ).hexdigest()[:32]
     if not hmac.compare_digest(mac, expected):
         return (
-            "❌ The submission changed since the preview (content or attempt "
-            "count differs), or the token is not yours. Nothing was submitted. "
-            "Preview again."
+            "❌ This confirmation does not match. Either the submission changed "
+            "since the preview (content or attempt count differs), or the "
+            "preview was handled by a different server process. Nothing was "
+            "submitted. Preview again and confirm the new token."
         )
     if expiry < time.time():
         return "❌ That confirmation expired. Run the preview again."
+
+    # Purge before the membership test, not only inside the reservation. An
+    # uncertain submission error deliberately keeps its claim, and a later
+    # preview of unchanged content at an unchanged attempt count produces the
+    # same fingerprint — so without purging here, a quiet process would keep
+    # rejecting that retry long after the claim should have lapsed.
+    _purge_redeemed()
     if fingerprint in _redeemed:
         return (
             "❌ That confirmation was already used. Nothing was submitted. "

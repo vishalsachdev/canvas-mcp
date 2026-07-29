@@ -474,7 +474,88 @@ class TestErrorClassification:
         assert policy.allow_writes is True
 
     @pytest.mark.asyncio
-    async def test_genuine_404_is_treated_as_absent(self):
+    async def test_inaccessible_course_denies_and_is_not_cached(self):
+        """A 404 on the course means this caller cannot see it, not "no policy".
+
+        Caching that as an absence would let one caller without access install a
+        global verdict, and under a permissive default that verdict would
+        override an instructor's explicit denial.
+        """
+        from canvas_mcp.core.course_policy import _policy_cache
+
+        reset_policy_cache()
+        with patch.dict(
+            "os.environ", {"COURSE_AGENT_POLICY_DEFAULT": "allow"}, clear=False
+        ):
+            reset_config()
+            with patch(
+                "canvas_mcp.core.course_policy.make_canvas_request",
+                new=AsyncMock(return_value={"error": "HTTP error: 404"}),
+            ):
+                policy = await get_course_policy("999")
+            assert policy.allow_writes is False
+            assert "999" not in _policy_cache
+
+            # An instructor's actual denial is what a real student then sees.
+            with patch(
+                "canvas_mcp.core.course_policy.make_canvas_request",
+                new=AsyncMock(
+                    return_value={"syllabus_body": "agent_writes: deny"}
+                ),
+            ):
+                real = await get_course_policy("999")
+        assert real.allow_writes is False
+        assert real.source == "course_artifact"
+
+    @pytest.mark.asyncio
+    async def test_ambiguous_page_404_is_not_cached(self):
+        """In page mode a 404 could be "no page" or "no access". Never cache it."""
+        from canvas_mcp.core.course_policy import _policy_cache
+
+        reset_policy_cache()
+        with patch.dict(
+            "os.environ",
+            {"COURSE_AGENT_POLICY_SOURCE": "page", "COURSE_AGENT_POLICY_DEFAULT": "allow"},
+            clear=False,
+        ):
+            reset_config()
+            with patch(
+                "canvas_mcp.core.course_policy.make_canvas_request",
+                new=AsyncMock(return_value={"error": "HTTP error: 404"}),
+            ):
+                policy = await get_course_policy("777")
+        assert policy.allow_writes is True  # default posture honoured
+        assert policy.source == "default_uncached"
+        assert "777" not in _policy_cache
+
+    @pytest.mark.asyncio
+    async def test_unmarked_syllabus_is_a_cacheable_absence(self):
+        """A successful course read with no marker IS caller-independent."""
+        from canvas_mcp.core.course_policy import _policy_cache
+
+        reset_policy_cache()
+        with patch.dict(
+            "os.environ", {"COURSE_AGENT_POLICY_DEFAULT": "deny"}, clear=False
+        ):
+            reset_config()
+            with patch(
+                "canvas_mcp.core.course_policy.make_canvas_request",
+                new=AsyncMock(return_value={"syllabus_body": "<p>Welcome</p>"}),
+            ):
+                policy = await get_course_policy("555")
+        assert policy.allow_writes is False
+        assert policy.source == "default"
+        assert "555" in _policy_cache
+
+    @pytest.mark.asyncio
+    async def test_syllabus_mode_404_denies_rather_than_assuming_absence(self):
+        """Deliberately stricter than an earlier version of this test.
+
+        In syllabus mode the request is for the COURSE, so a 404 means this
+        caller cannot see the course — not that the course states no policy.
+        Reading it as an absence would, under a permissive default, hand a
+        caller without access an allow (and cache it for everyone).
+        """
         reset_policy_cache()
         with patch.dict(
             "os.environ", {"COURSE_AGENT_POLICY_DEFAULT": "allow"}, clear=False
@@ -485,8 +566,8 @@ class TestErrorClassification:
                 new=AsyncMock(return_value={"error": "HTTP error: 404"}),
             ):
                 policy = await get_course_policy("123")
-        assert policy.allow_writes is True
-        assert policy.source == "default"
+        assert policy.allow_writes is False
+        assert policy.source == "read_error"
 
 
 class TestLayering:

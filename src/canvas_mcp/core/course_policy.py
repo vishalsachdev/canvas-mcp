@@ -176,9 +176,20 @@ def _has_policy_marker(text: str) -> bool:
 async def _read_policy_text(course_id: str) -> tuple[str | None, str]:
     """Fetch the raw policy text for a course.
 
-    Returns ``(text, status)`` where status is one of ``ok`` (text found),
-    ``absent`` (no artifact, apply default), ``error`` (undetermined, deny) or
-    ``untrusted`` (artifact exists but its provenance cannot be trusted, deny).
+    Returns ``(text, status)``:
+
+    * ``ok`` — text found
+    * ``absent`` — the course was read and states no policy; apply the default
+    * ``absent_ambiguous`` — looked absent, but might instead mean this caller
+      cannot see it; apply the default WITHOUT caching (see below)
+    * ``error`` — undetermined; deny
+    * ``untrusted`` — an artifact exists but its provenance cannot be trusted; deny
+
+    The ``absent`` / ``absent_ambiguous`` split exists because Canvas answers 404
+    both for "this thing does not exist" and for "you cannot see this". Caching
+    the second under the course id alone would let one caller who lacks access
+    install a global verdict for everyone — and where the default is permissive,
+    that verdict would override an instructor's explicit denial.
     """
     config = get_config()
 
@@ -188,7 +199,11 @@ async def _read_policy_text(course_id: str) -> tuple[str | None, str]:
         )
         if isinstance(response, dict) and "error" in response:
             message = str(response["error"])
-            return None, "absent" if _is_not_found(message) else "error"
+            if not _is_not_found(message):
+                return None, "error"
+            # Could be "no such page" or "no access to this course". Honour the
+            # default posture, but never cache a guess.
+            return None, "absent_ambiguous"
 
         # Provenance guard. A page a student could edit is not an instructor
         # statement, regardless of what it says.
@@ -217,9 +232,15 @@ async def _read_policy_text(course_id: str) -> tuple[str | None, str]:
         "get", f"/courses/{course_id}", params={"include[]": ["syllabus_body"]}
     )
     if isinstance(response, dict) and "error" in response:
-        message = str(response["error"])
-        return None, "absent" if _is_not_found(message) else "error"
+        # A 404 on the COURSE itself means this caller cannot see the course at
+        # all, which is a fact about the caller and not about policy. Deny, and
+        # do not let it become a cached verdict for everyone else. (The write
+        # would fail against Canvas anyway.)
+        return None, "error"
 
+    # The course read succeeded, so an unmarked syllabus is genuinely "this
+    # course states no policy" rather than something this caller cannot see.
+    # That conclusion is caller-independent, so it is safe to cache.
     body = str(response.get("syllabus_body") or "")
     if not _has_policy_marker(body):
         return None, "absent"
@@ -260,6 +281,10 @@ async def get_course_policy(course_id: str | int) -> CoursePolicy:
         policy = parse_policy_body(text)
     elif status == "absent":
         policy = _default_policy()
+    elif status == "absent_ambiguous":
+        # Apply the default, but return before the cache write below: this
+        # verdict may reflect only what THIS caller can see.
+        return _default_policy()._replace(source="default_uncached")
     elif status == "untrusted":
         policy = CoursePolicy(
             allow_writes=False,
