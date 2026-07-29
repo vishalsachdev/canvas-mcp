@@ -105,6 +105,36 @@ class TestOperatorCeiling:
         assert "submit_assignment" not in tools
 
 
+def make_responder(assignment, submission=None, submit_result=None, upload=None):
+    """Answer Canvas calls by endpoint rather than by call order.
+
+    Ordered side_effect lists are brittle here: the confirm path re-reads
+    attempt state immediately before submitting, so the number of GETs is an
+    implementation detail that tests should not encode.
+    """
+    submission = submission if submission is not None else {"attempt": 0}
+    posts = []
+
+    async def responder(method, endpoint, **kwargs):
+        if method == "get":
+            if endpoint.endswith("/submissions/self"):
+                return submission
+            return assignment
+        if endpoint.endswith("/submissions/self/files"):
+            return upload or {
+                "upload_url": "https://storage.example/x",
+                "upload_params": {},
+            }
+        posts.append({"endpoint": endpoint, "data": kwargs.get("data")})
+        return submit_result or {
+            "submitted_at": "2026-07-30T10:00:00Z",
+            "attempt": (submission.get("attempt") or 0) + 1,
+        }
+
+    responder.posts = posts
+    return responder
+
+
 def _mock_assignment(**overrides):
     base = {
         "id": 42,
@@ -149,24 +179,18 @@ class TestSubmitAssignment:
             STUDENT_WRITE_TOOLS="submit_assignment",
             COURSE_AGENT_POLICY_ENABLED="false",
         )
+        responder = make_responder(_mock_assignment(), {"attempt": 1})
         with patch(
             "canvas_mcp.tools.student_write.get_course_id",
             new=AsyncMock(return_value="123"),
         ), patch(
-            "canvas_mcp.tools.student_write.make_canvas_request", new_callable=AsyncMock
-        ) as request:
-            request.side_effect = [_mock_assignment(), {"attempt": 1}]
+            "canvas_mcp.tools.student_write.make_canvas_request", new=responder
+        ):
             preview = await tools["submit_assignment"](
                 course_identifier="TEST", assignment_id=42,
                 submission_type="online_text_entry", body="hello",
             )
             token = preview.split("confirmation_token='")[1].split("'")[0]
-
-            request.side_effect = [
-                _mock_assignment(),
-                {"attempt": 1},
-                {"submitted_at": "2026-07-30T10:00:00Z", "attempt": 2},
-            ]
             result = await tools["submit_assignment"](
                 course_identifier="TEST", assignment_id=42,
                 submission_type="online_text_entry", body="hello",
@@ -174,9 +198,8 @@ class TestSubmitAssignment:
             )
 
         assert "✅ Submitted." in result
-        post = [c for c in request.call_args_list if c.args[0] == "post"]
-        assert len(post) == 1
-        assert post[0].args[1] == "/courses/123/assignments/42/submissions"
+        assert len(responder.posts) == 1
+        assert responder.posts[0]["endpoint"] == "/courses/123/assignments/42/submissions"
 
     @pytest.mark.asyncio
     async def test_token_is_single_use(self):
@@ -188,19 +211,14 @@ class TestSubmitAssignment:
             "canvas_mcp.tools.student_write.get_course_id",
             new=AsyncMock(return_value="123"),
         ), patch(
-            "canvas_mcp.tools.student_write.make_canvas_request", new_callable=AsyncMock
-        ) as request:
-            request.side_effect = [_mock_assignment(), {"attempt": 1}]
+            "canvas_mcp.tools.student_write.make_canvas_request",
+            new=make_responder(_mock_assignment(), {"attempt": 1}),
+        ):
             preview = await tools["submit_assignment"](
                 course_identifier="TEST", assignment_id=42,
                 submission_type="online_text_entry", body="hello",
             )
             token = preview.split("confirmation_token='")[1].split("'")[0]
-
-            request.side_effect = [
-                _mock_assignment(), {"attempt": 1}, {"attempt": 2},
-                _mock_assignment(), {"attempt": 1},
-            ]
             await tools["submit_assignment"](
                 course_identifier="TEST", assignment_id=42,
                 submission_type="online_text_entry", body="hello",
@@ -577,6 +595,106 @@ class TestConfirmationIntegrity:
         assert "does not match" in result
         assert not [c for c in request.call_args_list if c.args[0] == "post"]
 
+    @pytest.mark.asyncio
+    async def test_attempt_landing_during_upload_aborts_the_submit(self):
+        """State is re-verified after uploads, immediately before the POST.
+
+        A file upload is a multi-step round trip per file. Another submission can
+        land during it, so confirming against the attempt count read before the
+        uploads would spend an attempt the student never agreed to.
+        """
+        tools = get_tools(
+            STUDENT_WRITE_TOOLS="submit_assignment",
+            COURSE_AGENT_POLICY_ENABLED="false",
+        )
+        import base64
+
+        encoded = base64.b64encode(JPEG_BYTES).decode()
+        assignment = _mock_assignment(submission_types=["online_upload"])
+        state = {"attempt": 0}
+        posts = []
+
+        async def responder(method, endpoint, **kwargs):
+            if method == "get":
+                if endpoint.endswith("/submissions/self"):
+                    return dict(state)
+                return assignment
+            if endpoint.endswith("/submissions/self/files"):
+                return {"upload_url": "https://storage.example/x", "upload_params": {}}
+            posts.append(endpoint)
+            return {"submitted_at": "2026-07-30T10:00:00Z", "attempt": 2}
+
+        async def storage_then_race(**kwargs):
+            # Someone else submits while this upload is in flight.
+            state["attempt"] = 1
+            return {"id": 999}
+
+        with patch(
+            "canvas_mcp.tools.student_write.get_course_id",
+            new=AsyncMock(return_value="123"),
+        ), patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new=responder
+        ), patch(
+            "canvas_mcp.tools.student_write.upload_file_to_storage",
+            new=storage_then_race,
+        ):
+            preview = await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_upload",
+                file_contents=[{"name": "photo.jpg", "content_base64": encoded}],
+            )
+            token = preview.split("confirmation_token='")[1].split("'")[0]
+            result = await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_upload",
+                file_contents=[{"name": "photo.jpg", "content_base64": encoded}],
+                confirmation_token=token,
+            )
+
+        assert "changed while this was being prepared" in result
+        assert not posts, "submitted despite the attempt count moving"
+
+    @pytest.mark.asyncio
+    async def test_unreadable_state_at_submit_time_aborts(self):
+        tools = get_tools(
+            STUDENT_WRITE_TOOLS="submit_assignment",
+            COURSE_AGENT_POLICY_ENABLED="false",
+        )
+        calls = {"n": 0}
+        posts = []
+
+        async def responder(method, endpoint, **kwargs):
+            if method == "get":
+                if endpoint.endswith("/submissions/self"):
+                    calls["n"] += 1
+                    # Fine during the preview, broken at submit time.
+                    if calls["n"] > 1:
+                        return {"error": "HTTP error: 500"}
+                    return {"attempt": 0}
+                return _mock_assignment()
+            posts.append(endpoint)
+            return {"attempt": 1}
+
+        with patch(
+            "canvas_mcp.tools.student_write.get_course_id",
+            new=AsyncMock(return_value="123"),
+        ), patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new=responder
+        ):
+            preview = await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_text_entry", body="hello",
+            )
+            token = preview.split("confirmation_token='")[1].split("'")[0]
+            result = await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_text_entry", body="hello",
+                confirmation_token=token,
+            )
+
+        assert "attempt count" in result
+        assert not posts
+
     def test_token_does_not_verify_under_a_forged_signature(self):
         import canvas_mcp.tools.student_write as sw
 
@@ -678,27 +796,21 @@ class TestUploadFailureHandling:
         async def nested_storage(**kwargs):
             return {"attachment": {"id": 4242}}
 
+        responder = make_responder(assignment)
         with patch(
             "canvas_mcp.tools.student_write.get_course_id",
             new=AsyncMock(return_value="123"),
         ), patch(
-            "canvas_mcp.tools.student_write.make_canvas_request", new_callable=AsyncMock
-        ) as request, patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new=responder
+        ), patch(
             "canvas_mcp.tools.student_write.upload_file_to_storage", new=nested_storage
         ):
-            request.side_effect = [assignment, {"attempt": 0}]
             preview = await tools["submit_assignment"](
                 course_identifier="TEST", assignment_id=42,
                 submission_type="online_upload",
                 file_contents=[{"name": "photo.jpg", "content_base64": encoded}],
             )
             token = preview.split("confirmation_token='")[1].split("'")[0]
-
-            request.side_effect = [
-                assignment, {"attempt": 0},
-                {"upload_url": "https://storage.example/x", "upload_params": {}},
-                {"submitted_at": "2026-07-30T10:00:00Z", "attempt": 1},
-            ]
             result = await tools["submit_assignment"](
                 course_identifier="TEST", assignment_id=42,
                 submission_type="online_upload",
@@ -707,8 +819,7 @@ class TestUploadFailureHandling:
             )
 
         assert "✅ Submitted." in result
-        post = [c for c in request.call_args_list if c.args[0] == "post"][-1]
-        assert post.kwargs["data"]["submission[file_ids][]"] == ["4242"]
+        assert responder.posts[-1]["data"]["submission[file_ids][]"] == ["4242"]
 
 
 class TestBinaryUpload:
@@ -736,25 +847,17 @@ class TestBinaryUpload:
             "canvas_mcp.tools.student_write.get_course_id",
             new=AsyncMock(return_value="123"),
         ), patch(
-            "canvas_mcp.tools.student_write.make_canvas_request", new_callable=AsyncMock
-        ) as request, patch(
+            "canvas_mcp.tools.student_write.make_canvas_request",
+            new=make_responder(_mock_assignment(submission_types=["online_upload"])),
+        ), patch(
             "canvas_mcp.tools.student_write.upload_file_to_storage", new=fake_storage
         ):
-            assignment = _mock_assignment(submission_types=["online_upload"])
-            request.side_effect = [assignment, {"attempt": 0}]
             preview = await tools["submit_assignment"](
                 course_identifier="TEST", assignment_id=42,
                 submission_type="online_upload",
                 file_contents=[{"name": "photo.jpg", "content_base64": encoded}],
             )
             token = preview.split("confirmation_token='")[1].split("'")[0]
-
-            request.side_effect = [
-                assignment,
-                {"attempt": 0},
-                {"upload_url": "https://storage.example/x", "upload_params": {}},
-                {"submitted_at": "2026-07-30T10:00:00Z", "attempt": 1},
-            ]
             result = await tools["submit_assignment"](
                 course_identifier="TEST", assignment_id=42,
                 submission_type="online_upload",

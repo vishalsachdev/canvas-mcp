@@ -183,6 +183,21 @@ def parse_policy_body(body: str) -> CoursePolicy:
         tools = frozenset(
             name.strip() for name in raw_tools.replace(",", " ").split() if name.strip()
         )
+        # An OMITTED allow_tools means "no extra narrowing". A PRESENT but empty
+        # one means the instructor either named nothing or left the line
+        # unfinished. Collapsing the two with `tools or None` would turn the most
+        # restrictive possible directive into the least restrictive one, so an
+        # empty list denies instead.
+        if _KEY_ALLOW_TOOLS in values and not tools:
+            return CoursePolicy(
+                allow_writes=False,
+                allow_tools=None,
+                note=note or (
+                    "The course's agent policy allows agent writes but lists no "
+                    "permitted tools. Ask your instructor to complete it."
+                ),
+                source="course_artifact_empty_allowlist",
+            )
         return CoursePolicy(True, tools or None, note, "course_artifact")
 
     if raw_writes == "deny":

@@ -456,6 +456,55 @@ def _prepare_files(
     return prepared, None
 
 
+async def _attempt_state_changed(
+    course_id: str,
+    assignment_id: str,
+    submission_type: str,
+    payload_digest: str,
+    confirmed_fingerprint: str,
+) -> str | None:
+    """Confirm attempt state still matches what the confirmation committed to.
+
+    Returns an error message if it drifted, or None if the write may proceed.
+    Re-reading both the assignment and the submission is two extra requests on a
+    rare, irreversible, attempt-consuming operation, which is a trade worth
+    making. If the state cannot be re-read, that is treated as drift: proceeding
+    would mean submitting without the guarantee the student was promised.
+    """
+    assignment = await make_canvas_request(
+        "get", f"/courses/{course_id}/assignments/{assignment_id}"
+    )
+    submission = await make_canvas_request(
+        "get", f"/courses/{course_id}/assignments/{assignment_id}/submissions/self"
+    )
+    if (
+        not isinstance(assignment, dict)
+        or "error" in assignment
+        or not isinstance(submission, dict)
+        or "error" in submission
+    ):
+        return (
+            "❌ Could not re-check your attempt count just before submitting, so "
+            "nothing was submitted. Try again shortly."
+        )
+
+    current = _fingerprint(
+        course_id,
+        assignment_id,
+        submission_type,
+        payload_digest,
+        submission.get("attempt") or 0,
+        assignment.get("allowed_attempts"),
+    )
+    if current != confirmed_fingerprint:
+        return (
+            "❌ Your submission state changed while this was being prepared "
+            "(another submission landed, or the attempt limit changed). Nothing "
+            "was submitted. Check get_my_submission, then preview again."
+        )
+    return None
+
+
 async def _upload_one(
     course_id: str, assignment_id: str, prepared: _PreparedFile
 ) -> tuple[str | None, str | None]:
@@ -790,6 +839,19 @@ def register_student_write_tools(mcp: FastMCP) -> None:
                 data["comment[text_comment]"] = comment
 
             assert_no_identity_override(data)
+
+            # Re-verify attempt state immediately before the write. Everything
+            # above involves awaited work — the policy read, and for uploads a
+            # multi-step round trip per file — during which another submission
+            # can land or an instructor can change allowed_attempts. Confirming
+            # against state read before all that would spend an attempt the
+            # student never agreed to.
+            drift_error = await _attempt_state_changed(
+                course_id, str(assignment_id), submission_type, digest, fingerprint
+            )
+            if drift_error:
+                _release_confirmation(fingerprint)
+                return drift_error
 
             # The claim taken above stands from here on. Even if this call
             # errors, the token is not released: Canvas may have accepted the

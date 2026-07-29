@@ -116,27 +116,35 @@ class TestNoIdentityOverride:
             "id": 42, "name": "Essay", "submission_types": ["online_text_entry"],
             "allowed_attempts": -1,
         }
+        posts = []
+
+        async def responder(method, endpoint, **kwargs):
+            if method == "get":
+                if endpoint.endswith("/submissions/self"):
+                    return {"attempt": 0}
+                return assignment
+            posts.append(kwargs.get("data"))
+            return {"submitted_at": "2026-07-30T10:00:00Z", "attempt": 1}
+
         with patch(
             "canvas_mcp.tools.student_write.get_course_id",
             new=AsyncMock(return_value="123"),
         ), patch(
-            "canvas_mcp.tools.student_write.make_canvas_request", new_callable=AsyncMock
-        ) as request:
-            request.side_effect = [assignment, {"attempt": 0}]
+            "canvas_mcp.tools.student_write.make_canvas_request", new=responder
+        ):
             preview = await tools["submit_assignment"](
                 course_identifier="T", assignment_id=42,
                 submission_type="online_text_entry", body="essay",
             )
             token = preview.split("confirmation_token='")[1].split("'")[0]
-            request.side_effect = [assignment, {"attempt": 0}, {"attempt": 1}]
             await tools["submit_assignment"](
                 course_identifier="T", assignment_id=42,
                 submission_type="online_text_entry", body="essay",
                 confirmation_token=token,
             )
 
-        post = [c for c in request.call_args_list if c.args[0] == "post"][0]
-        sent = post.kwargs["data"]
+        assert posts, "nothing was submitted"
+        sent = posts[0]
         assert set(sent) <= {
             "submission[submission_type]", "submission[body]",
             "submission[url]", "submission[file_ids][]", "comment[text_comment]",
@@ -413,6 +421,24 @@ class TestPolicyParsing:
         )
         assert policy.allow_writes is False
         assert policy.source == "course_artifact_conflict"
+
+    def test_present_but_empty_allow_tools_denies(self):
+        """The most restrictive directive must not become the least restrictive.
+
+        `tools or None` collapsed an empty allowlist into "no narrowing", i.e.
+        every operator-enabled tool. An instructor who wrote `allow_tools:` and
+        stopped, or deliberately named nothing, would have been granting
+        everything.
+        """
+        policy = parse_policy_body("agent_writes: allow\nallow_tools:")
+        assert policy.allow_writes is False
+        assert policy.source == "course_artifact_empty_allowlist"
+
+    def test_omitted_allow_tools_means_no_narrowing(self):
+        """Absent is different from present-but-empty."""
+        policy = parse_policy_body("agent_writes: allow")
+        assert policy.allow_writes is True
+        assert policy.allow_tools is None
 
     def test_malformed_policy_denies(self):
         """A typo must never become a grant."""
