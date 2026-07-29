@@ -82,6 +82,13 @@ def reset_policy_cache() -> None:
     _policy_cache.clear()
 
 
+def _evict_expired_policies() -> None:
+    """Drop timed-out cache entries so the map cannot grow without bound."""
+    now = time.monotonic()
+    for key in [k for k, (expiry, _) in _policy_cache.items() if expiry < now]:
+        _policy_cache.pop(key, None)
+
+
 def _is_not_found(error_message: str) -> bool:
     """Distinguish "no policy artifact" from "the read failed".
 
@@ -284,6 +291,10 @@ async def get_course_policy(course_id: str | int) -> CoursePolicy:
         if policy.allow_writes
         else config.course_agent_policy_deny_ttl
     )
+    # Evict on write. Callers choose the course id, so on a long-running hosted
+    # server a stream of made-up ids would otherwise grow this map forever, even
+    # though every one of those lookups was denied.
+    _evict_expired_policies()
     _policy_cache[key] = (time.monotonic() + ttl, policy)
     return policy
 

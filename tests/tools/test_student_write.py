@@ -20,6 +20,9 @@ from canvas_mcp.tools.student_write import (
 # A real 1x1 JPEG. Used to prove binary content survives the upload path byte
 # for byte, which is the specific failure another implementation hit (it OCR'd
 # the image and demanded text instead).
+# Comfortably past the confirmation TTL.
+_EXPIRED_BY = 10_000
+
 JPEG_BYTES = bytes.fromhex(
     "ffd8ffe000104a46494600010100000100010000ffdb00430008060607060508070707"
     "0909080a0c140d0c0b0b0c1912130f141d1a1f1e1d1a1c1c20242e2720222c231c1c28"
@@ -209,7 +212,7 @@ class TestSubmitAssignment:
                 confirmation_token=token,
             )
 
-        assert "already-used" in second
+        assert "already used" in second
 
     @pytest.mark.asyncio
     async def test_changed_content_voids_token(self):
@@ -290,7 +293,7 @@ class TestSubmitAssignment:
                 confirmation_token="made-up-token",
             )
 
-        assert "Unknown or already-used" in result
+        assert "malformed" in result
 
     @pytest.mark.asyncio
     async def test_group_assignment_refused(self):
@@ -427,40 +430,40 @@ class TestConfirmationIntegrity:
         assert "Nothing was submitted" in result
         assert not [c for c in request.call_args_list if c.args[0] == "post"]
 
-    @pytest.mark.asyncio
-    async def test_abandoned_previews_are_purged(self):
-        """Otherwise the map grows without bound on a long-running server."""
+    def test_abandoned_previews_hold_no_server_state(self):
+        """Tokens are self-contained, so an abandoned preview costs nothing.
+
+        The previous design kept every issued token in a process-global map,
+        which a caller could grow without bound by previewing and never
+        confirming. Signed tokens remove the map entirely.
+        """
         import canvas_mcp.tools.student_write as sw
 
-        tools = get_tools(
-            STUDENT_WRITE_TOOLS="submit_assignment",
-            COURSE_AGENT_POLICY_ENABLED="false",
-        )
-        with patch(
-            "canvas_mcp.tools.student_write.get_course_id",
-            new=AsyncMock(return_value="123"),
-        ), patch(
-            "canvas_mcp.tools.student_write.make_canvas_request", new_callable=AsyncMock
-        ) as request:
-            request.side_effect = [_mock_assignment(), {"attempt": 1}]
-            await tools["submit_assignment"](
-                course_identifier="TEST", assignment_id=42,
-                submission_type="online_text_entry", body="abandoned",
-            )
-            assert len(sw._pending_confirmations) == 1
-            # Age the outstanding record past its TTL.
-            stale = next(iter(sw._pending_confirmations))
-            _, fingerprint = sw._pending_confirmations[stale]
-            sw._pending_confirmations[stale] = (0.0, fingerprint)
+        for _ in range(1000):
+            sw._issue_token("some-fingerprint")
+        assert not sw._redeemed
 
-            request.side_effect = [_mock_assignment(), {"attempt": 1}]
-            await tools["submit_assignment"](
-                course_identifier="TEST", assignment_id=42,
-                submission_type="online_text_entry", body="fresh",
-            )
+    def test_expired_token_is_rejected(self):
+        import time as time_module
 
-        assert stale not in sw._pending_confirmations
-        assert len(sw._pending_confirmations) == 1
+        import canvas_mcp.tools.student_write as sw
+
+        expired = sw._issue_token("fp", now=time_module.time() - _EXPIRED_BY)
+        assert "expired" in (sw._check_token(expired, "fp") or "")
+
+    def test_token_does_not_verify_against_a_different_payload(self):
+        import canvas_mcp.tools.student_write as sw
+
+        token = sw._issue_token("fingerprint-a")
+        assert sw._check_token(token, "fingerprint-a") is None
+        assert sw._check_token(token, "fingerprint-b") is not None
+
+    def test_token_does_not_verify_under_a_forged_signature(self):
+        import canvas_mcp.tools.student_write as sw
+
+        token = sw._issue_token("fp")
+        expiry, _, _mac = token.partition(".")
+        assert sw._check_token(f"{expiry}.{'0' * 32}", "fp") is not None
 
 
 class TestPreviewShowsWhatIsAuthorized:
@@ -536,7 +539,10 @@ class TestUploadFailureHandling:
             )
 
         assert "Nothing was submitted" in result
-        assert token in sw._pending_confirmations, "token burned on an upload failure"
+        # The token must survive: the failure had nothing to do with the
+        # student's content, so it should not cost them a fresh preview.
+        assert not sw._redeemed, "token retired despite nothing being submitted"
+        assert token  # issued and still syntactically usable for a retry
 
     @pytest.mark.asyncio
     async def test_id_recovered_from_nested_attachment_shape(self):

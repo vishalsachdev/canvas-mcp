@@ -143,6 +143,92 @@ class TestNoIdentityOverride:
         }, f"unexpected outbound fields: {set(sent)}"
 
 
+class TestConfirmationIsCallerBound:
+    """On a hosted server every request carries a different student's token."""
+
+    def test_fingerprint_differs_per_caller(self):
+        """Otherwise one student could redeem another's confirmation.
+
+        Without caller binding, two students at the same attempt number on the
+        same assignment produce the same fingerprint, so a token issued to one
+        would verify for the other.
+        """
+        import canvas_mcp.tools.student_write as sw
+
+        class _Creds:
+            def __init__(self, token):
+                self.api_token = token
+
+        with patch.object(sw, "get_request_credentials", return_value=_Creds("aaa")):
+            first = sw._fingerprint("1", "2", "online_text_entry", "digest", 0)
+        with patch.object(sw, "get_request_credentials", return_value=_Creds("bbb")):
+            second = sw._fingerprint("1", "2", "online_text_entry", "digest", 0)
+
+        assert first != second
+
+    def test_token_issued_to_one_student_fails_for_another(self):
+        import canvas_mcp.tools.student_write as sw
+
+        class _Creds:
+            def __init__(self, token):
+                self.api_token = token
+
+        with patch.object(sw, "get_request_credentials", return_value=_Creds("aaa")):
+            fingerprint = sw._fingerprint("1", "2", "online_text_entry", "d", 0)
+            token = sw._issue_token(fingerprint)
+        with patch.object(sw, "get_request_credentials", return_value=_Creds("bbb")):
+            other = sw._fingerprint("1", "2", "online_text_entry", "d", 0)
+
+        assert sw._check_token(token, fingerprint) is None
+        assert sw._check_token(token, other) is not None
+
+    def test_caller_identity_does_not_expose_the_credential(self):
+        """The handle must not be the token, nor reversible to it."""
+        import canvas_mcp.tools.student_write as sw
+
+        class _Creds:
+            api_token = "super-secret-canvas-token"
+
+        with patch.object(sw, "get_request_credentials", return_value=_Creds()):
+            identity = sw._caller_identity()
+
+        assert "super-secret-canvas-token" not in identity
+        assert len(identity) == 64  # sha256 hex
+
+
+class TestInlineFilenames:
+    """A hosted caller supplies the filename, so it is untrusted input."""
+
+    def test_path_traversal_in_a_supplied_name_is_stripped(self):
+        from canvas_mcp.tools.student_write import _prepare_files
+
+        prepared, error = _prepare_files(
+            None,
+            [{"name": "../../essay.pdf", "content_base64": "cGRmYnl0ZXM="}],
+        )
+        assert error is None
+        assert ".." not in prepared[0].name
+        assert "/" not in prepared[0].name
+
+    def test_disallowed_extension_is_refused(self):
+        from canvas_mcp.tools.student_write import _prepare_files
+
+        _, error = _prepare_files(
+            None, [{"name": "payload.exe", "content_base64": "TVo="}]
+        )
+        assert error is not None
+        assert "not an allowed file type" in error
+
+    def test_odd_extension_returns_an_error_not_an_exception(self):
+        from canvas_mcp.tools.student_write import _prepare_files
+
+        for name in ["noextension", "trailing.", "x" * 300 + ".pdf", ".hidden"]:
+            _, error = _prepare_files(
+                None, [{"name": name, "content_base64": "YWJj"}]
+            )
+            assert isinstance(error, (str, type(None)))
+
+
 class TestHostedFileIngress:
     """file_paths reads the SERVER's disk. That must not be reachable remotely."""
 

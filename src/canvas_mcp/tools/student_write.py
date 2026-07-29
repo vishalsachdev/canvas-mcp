@@ -31,6 +31,7 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
+import hmac
 import os
 import secrets
 import tempfile
@@ -47,10 +48,13 @@ from ..core.course_policy import (
     assert_no_identity_override,
     check_student_write_allowed,
 )
-from ..core.credentials import is_http_request_active
+from ..core.credentials import get_request_credentials, is_http_request_active
 from ..core.dates import format_date
 from ..core.file_validation import (
+    ALLOWED_EXTENSIONS,
     DEFAULT_MAX_FILE_SIZE_BYTES,
+    detect_mime_type,
+    sanitize_filename,
     validate_file_for_upload,
 )
 from ..core.validation import validate_params
@@ -64,13 +68,88 @@ _SUPPORTED_TYPES = ("online_text_entry", "online_url", "online_upload")
 # preview and answer, short enough that course state cannot drift far.
 _CONFIRM_TTL_SECONDS = 300
 
-# token -> (expires_at_monotonic, payload_fingerprint)
-_pending_confirmations: dict[str, tuple[float, str]] = {}
+# Signing key for confirmation tokens. Tokens are self-contained and verified by
+# signature rather than looked up in a table, because a hosted deployment runs
+# several workers: a table-based token issued by one worker would be rejected as
+# unknown by another, and would not survive a restart inside the confirm window.
+#
+# An operator running multiple replicas must set STUDENT_WRITE_TOKEN_SECRET so
+# every replica signs alike. Left unset, each process generates its own key,
+# which is correct for stdio and for a single worker.
+_TOKEN_SECRET = (
+    os.getenv("STUDENT_WRITE_TOKEN_SECRET", "").encode() or secrets.token_bytes(32)
+)
+
+# Best-effort replay guard: fingerprints already redeemed by THIS process.
+# Single-use cannot be enforced across replicas without shared state, but replay
+# is separately defeated by the attempt number inside the fingerprint — once a
+# submission succeeds the attempt increments and the old token matches nothing.
+_redeemed: set[str] = set()
 
 
 def reset_pending_confirmations() -> None:
-    """Discard outstanding confirmation tokens (used by tests)."""
-    _pending_confirmations.clear()
+    """Discard redeemed-token state (used by tests)."""
+    _redeemed.clear()
+
+
+def _issue_token(fingerprint: str, now: float | None = None) -> str:
+    """Mint a confirmation token committing to ``fingerprint`` until it expires."""
+    expiry = int((now if now is not None else time.time()) + _CONFIRM_TTL_SECONDS)
+    mac = hmac.new(
+        _TOKEN_SECRET, f"{expiry}|{fingerprint}".encode(), hashlib.sha256
+    ).hexdigest()[:32]
+    return f"{expiry}.{mac}"
+
+
+def _check_token(token: str, fingerprint: str) -> str | None:
+    """Verify a token against the current request. Returns an error, or None.
+
+    The signature covers the fingerprint, which in turn covers the caller's own
+    credential, the target, the exact payload and the observed attempt count. So
+    a token cannot be moved to another student, another assignment, or different
+    content: any of those changes the fingerprint and the signature stops
+    matching.
+    """
+    expiry_text, _, mac = token.partition(".")
+    if not mac:
+        return (
+            "❌ That confirmation token is malformed. Run the preview again."
+        )
+    try:
+        expiry = int(expiry_text)
+    except ValueError:
+        return "❌ That confirmation token is malformed. Run the preview again."
+
+    expected = hmac.new(
+        _TOKEN_SECRET, f"{expiry}|{fingerprint}".encode(), hashlib.sha256
+    ).hexdigest()[:32]
+    if not hmac.compare_digest(mac, expected):
+        return (
+            "❌ The submission changed since the preview (content or attempt "
+            "count differs), or the token is not yours. Nothing was submitted. "
+            "Preview again."
+        )
+    if expiry < time.time():
+        return "❌ That confirmation expired. Run the preview again."
+    if fingerprint in _redeemed:
+        return (
+            "❌ That confirmation was already used. Nothing was submitted. "
+            "Run the preview again."
+        )
+    return None
+
+
+def _caller_identity() -> str:
+    """A stable, non-reversible handle for whoever is calling.
+
+    Hosted deployments pass a per-user Canvas token on every request, so this
+    distinguishes students without ever storing or logging the credential. In
+    stdio mode there is a single user and the constant is fine.
+    """
+    credentials = get_request_credentials()
+    if credentials is None:
+        return "stdio"
+    return hashlib.sha256(credentials.api_token.encode()).hexdigest()
 
 
 class _PreparedFile:
@@ -98,13 +177,21 @@ def _fingerprint(
     payload_digest: str,
     attempt: int,
 ) -> str:
-    """Bind a confirmation to exactly what was previewed.
+    """Bind a confirmation to exactly what was previewed, and to who previewed it.
 
     Including the observed attempt number means a submission that lands between
     preview and confirm invalidates the token rather than silently consuming a
     second attempt.
+
+    Including the caller identity matters on a hosted server, where each request
+    carries its own Canvas token: without it, a token issued to one student could
+    be redeemed by another whose attempt number happened to match, so the
+    confirmation would no longer authorize the account that saw the preview.
     """
-    raw = f"{course_id}|{assignment_id}|{submission_type}|{payload_digest}|{attempt}"
+    raw = (
+        f"{_caller_identity()}|{course_id}|{assignment_id}|"
+        f"{submission_type}|{payload_digest}|{attempt}"
+    )
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -142,16 +229,6 @@ def _digest_payload(
     return hasher.hexdigest()
 
 
-def _purge_expired_confirmations() -> None:
-    """Drop timed-out confirmation records.
-
-    Without this, an abandoned preview lingers for the life of the process, so
-    a caller could grow the map without bound simply by previewing repeatedly
-    and never confirming.
-    """
-    now = time.monotonic()
-    for token in [t for t, (expiry, _) in _pending_confirmations.items() if expiry < now]:
-        _pending_confirmations.pop(token, None)
 
 
 def _describe_attempts(assignment: dict, submission: dict) -> str:
@@ -222,18 +299,24 @@ def _prepare_files(
         except (binascii.Error, ValueError):
             return [], f"❌ '{name}' is not valid base64."
 
-        # Validate the *name* (extension allowlist, sanitization) by writing to a
-        # temp file, so inline uploads get exactly the same checks as local ones.
-        handle_fd, temp_path = tempfile.mkstemp(suffix=os.path.splitext(name)[1])
-        try:
-            with os.fdopen(handle_fd, "wb") as handle:
-                handle.write(content)
-            result = validate_file_for_upload(temp_path)
-            if not result.valid:
-                return [], f"❌ Cannot submit '{name}': {result.error}"
-            prepared.append(_PreparedFile(name, content, result.mime_type))
-        finally:
-            os.unlink(temp_path)
+        # Validate the name the CLIENT actually supplied. An earlier version
+        # checked a temp file's random basename instead, which meant the
+        # sanitized result was discarded and a name like "../essay.pdf" reached
+        # Canvas untouched (and an odd extension could make mkstemp raise
+        # instead of returning a clean validation error).
+        safe_name = sanitize_filename(name)
+        extension = os.path.splitext(safe_name)[1].lower()
+        if extension not in ALLOWED_EXTENSIONS:
+            return [], (
+                f"❌ Cannot submit '{name}': '{extension or 'no extension'}' is "
+                "not an allowed file type."
+            )
+        if len(content) > DEFAULT_MAX_FILE_SIZE_BYTES:
+            return [], f"❌ '{name}' exceeds the maximum upload size."
+
+        prepared.append(
+            _PreparedFile(safe_name, content, detect_mime_type(safe_name))
+        )
 
     return prepared, None
 
@@ -477,12 +560,7 @@ def register_student_write_tools(mcp: FastMCP) -> None:
             )
 
             if not confirmation_token:
-                _purge_expired_confirmations()
-                token = secrets.token_urlsafe(16)
-                _pending_confirmations[token] = (
-                    time.monotonic() + _CONFIRM_TTL_SECONDS,
-                    fingerprint,
-                )
+                token = _issue_token(fingerprint)
 
                 preview = [
                     "📋 Submission preview — NOTHING has been submitted yet.",
@@ -520,26 +598,14 @@ def register_student_write_tools(mcp: FastMCP) -> None:
                 )
                 return "\n".join(preview)
 
-            # Validate the token WITHOUT consuming it yet. Uploads happen before
-            # the submit call, and burning the token on an upload failure would
-            # force the student through a fresh preview for a problem that had
-            # nothing to do with their content. It is consumed just before the
-            # POST instead, which keeps it genuinely single-use.
-            record = _pending_confirmations.get(confirmation_token)
-            if record is None:
-                return (
-                    "❌ Unknown or already-used confirmation token. Run the "
-                    "preview again and confirm the fresh token."
-                )
-            expires_at, expected = record
-            if expires_at < time.monotonic():
-                _pending_confirmations.pop(confirmation_token, None)
-                return "❌ That confirmation expired. Run the preview again."
-            if expected != fingerprint:
-                return (
-                    "❌ The submission changed since the preview (content or "
-                    "attempt count differs). Nothing was submitted. Preview again."
-                )
+            # Verify WITHOUT marking it redeemed yet. Uploads happen before the
+            # submit call, and retiring the token on an upload failure would
+            # force the student through a fresh preview over a problem that had
+            # nothing to do with their content. It is retired just before the
+            # POST instead.
+            token_error = _check_token(confirmation_token, fingerprint)
+            if token_error:
+                return token_error
 
             # Re-check policy at the moment of the write, so an instructor's
             # change between preview and confirm takes effect.
@@ -572,13 +638,9 @@ def register_student_write_tools(mcp: FastMCP) -> None:
 
             assert_no_identity_override(data)
 
-            # Consume the token now, immediately before the only call that can
+            # Retire the token now, immediately before the only call that can
             # actually spend an attempt.
-            if _pending_confirmations.pop(confirmation_token, None) is None:
-                return (
-                    "❌ That confirmation was already used. Nothing was "
-                    "submitted. Run the preview again."
-                )
+            _redeemed.add(fingerprint)
 
             response = await make_canvas_request(
                 "post",
