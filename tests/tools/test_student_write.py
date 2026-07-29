@@ -463,6 +463,129 @@ class TestConfirmationIntegrity:
         assert len(sw._pending_confirmations) == 1
 
 
+class TestPreviewShowsWhatIsAuthorized:
+    """The token covers the whole body, so the preview must show the whole body."""
+
+    @pytest.mark.asyncio
+    async def test_long_essay_is_not_truncated_in_the_preview(self):
+        tools = get_tools(
+            STUDENT_WRITE_TOOLS="submit_assignment",
+            COURSE_AGENT_POLICY_ENABLED="false",
+        )
+        essay = "Paragraph. " * 300  # well past any excerpt limit
+        with patch(
+            "canvas_mcp.tools.student_write.get_course_id",
+            new=AsyncMock(return_value="123"),
+        ), patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new_callable=AsyncMock
+        ) as request:
+            request.side_effect = [_mock_assignment(), {"attempt": 0}]
+            preview = await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_text_entry", body=essay,
+            )
+
+        assert essay in preview, "the student must see everything the token authorizes"
+        assert "..." not in preview.split("Content (")[1][:len(essay) + 50]
+
+
+class TestUploadFailureHandling:
+    """An upload problem must not cost the student their confirmation."""
+
+    @pytest.mark.asyncio
+    async def test_upload_failure_preserves_the_token(self):
+        import canvas_mcp.tools.student_write as sw
+
+        tools = get_tools(
+            STUDENT_WRITE_TOOLS="submit_assignment",
+            COURSE_AGENT_POLICY_ENABLED="false",
+        )
+        import base64
+
+        encoded = base64.b64encode(JPEG_BYTES).decode()
+        assignment = _mock_assignment(submission_types=["online_upload"])
+
+        async def failing_storage(**kwargs):
+            return {"error": "Upload timed out"}
+
+        with patch(
+            "canvas_mcp.tools.student_write.get_course_id",
+            new=AsyncMock(return_value="123"),
+        ), patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new_callable=AsyncMock
+        ) as request, patch(
+            "canvas_mcp.tools.student_write.upload_file_to_storage", new=failing_storage
+        ):
+            request.side_effect = [assignment, {"attempt": 0}]
+            preview = await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_upload",
+                file_contents=[{"name": "photo.jpg", "content_base64": encoded}],
+            )
+            token = preview.split("confirmation_token='")[1].split("'")[0]
+
+            request.side_effect = [
+                assignment, {"attempt": 0},
+                {"upload_url": "https://storage.example/x", "upload_params": {}},
+            ]
+            result = await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_upload",
+                file_contents=[{"name": "photo.jpg", "content_base64": encoded}],
+                confirmation_token=token,
+            )
+
+        assert "Nothing was submitted" in result
+        assert token in sw._pending_confirmations, "token burned on an upload failure"
+
+    @pytest.mark.asyncio
+    async def test_id_recovered_from_nested_attachment_shape(self):
+        """Canvas storage does not always answer with a top-level id."""
+        tools = get_tools(
+            STUDENT_WRITE_TOOLS="submit_assignment",
+            COURSE_AGENT_POLICY_ENABLED="false",
+        )
+        import base64
+
+        encoded = base64.b64encode(JPEG_BYTES).decode()
+        assignment = _mock_assignment(submission_types=["online_upload"])
+
+        async def nested_storage(**kwargs):
+            return {"attachment": {"id": 4242}}
+
+        with patch(
+            "canvas_mcp.tools.student_write.get_course_id",
+            new=AsyncMock(return_value="123"),
+        ), patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new_callable=AsyncMock
+        ) as request, patch(
+            "canvas_mcp.tools.student_write.upload_file_to_storage", new=nested_storage
+        ):
+            request.side_effect = [assignment, {"attempt": 0}]
+            preview = await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_upload",
+                file_contents=[{"name": "photo.jpg", "content_base64": encoded}],
+            )
+            token = preview.split("confirmation_token='")[1].split("'")[0]
+
+            request.side_effect = [
+                assignment, {"attempt": 0},
+                {"upload_url": "https://storage.example/x", "upload_params": {}},
+                {"submitted_at": "2026-07-30T10:00:00Z", "attempt": 1},
+            ]
+            result = await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_upload",
+                file_contents=[{"name": "photo.jpg", "content_base64": encoded}],
+                confirmation_token=token,
+            )
+
+        assert "✅ Submitted." in result
+        post = [c for c in request.call_args_list if c.args[0] == "post"][-1]
+        assert post.kwargs["data"]["submission[file_ids][]"] == ["4242"]
+
+
 class TestBinaryUpload:
     """Michigan's requirement A: real binary files, not text."""
 

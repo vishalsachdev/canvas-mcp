@@ -45,6 +45,7 @@ _KEY_ALLOW_TOOLS = "allow_tools"
 _KEY_NOTE = "note"
 
 _TAG_RE = re.compile(r"<[^>]+>")
+_HTTP_STATUS_RE = re.compile(r"^HTTP error:\s*(\d{3})\b")
 _KV_RE = re.compile(r"^\s*([a-z_]+)\s*:\s*(.*?)\s*$", re.IGNORECASE)
 
 # The only editing_roles value that makes a Page trustworthy as an instructor
@@ -90,8 +91,14 @@ def _is_not_found(error_message: str) -> bool:
     posture applies, while any other failure means the policy is *unknown* and
     must deny. Collapsing the two would let a Canvas outage grant writes
     everywhere the default is permissive.
+
+    The status is therefore parsed from the front of the message rather than
+    searched for anywhere in it. A substring test would read
+    ``"HTTP error: 500, Details: {'message': 'upstream 404...'}"`` as an absent
+    artifact and, under a permissive default, turn a server error into a grant.
     """
-    return "404" in error_message
+    match = _HTTP_STATUS_RE.match(error_message.strip())
+    return bool(match) and match.group(1) == "404"
 
 
 def _strip_html(body: str) -> str:

@@ -285,8 +285,22 @@ async def _upload_one(
     if isinstance(stored, dict) and "error" in stored:
         return None, f"❌ Upload failed for '{prepared.name}': {stored['error']}"
 
-    file_id = stored.get("id")
+    # Canvas storage answers in more than one shape. A 200/201 whose body is
+    # empty or non-JSON yields {"success": true} with no id, and a redirect
+    # confirmation can nest the file under "attachment". Check each documented
+    # shape before concluding the upload produced nothing usable.
+    file_id = (
+        stored.get("id")
+        or (stored.get("attachment") or {}).get("id")
+        or (stored.get("file") or {}).get("id")
+    )
     if not file_id:
+        if stored.get("success"):
+            return None, (
+                f"❌ '{prepared.name}' uploaded, but Canvas returned no file ID "
+                "to attach it with, so the submission was not sent. Check "
+                "whether the file appears in Canvas before retrying."
+            )
         return None, f"❌ Canvas did not return a file ID for '{prepared.name}'."
     return str(file_id), None
 
@@ -484,9 +498,12 @@ def register_student_write_tools(mcp: FastMCP) -> None:
                 preview.append("")
 
                 if submission_type == "online_text_entry":
+                    # Shown in full, deliberately. The token authorizes the whole
+                    # body, so truncating here would ask the student to confirm
+                    # text they were never shown — which is exactly the thing
+                    # this preview exists to prevent.
                     text = body or ""
-                    excerpt = text[:500] + ("..." if len(text) > 500 else "")
-                    preview.append(f"Content ({len(text)} chars):\n{excerpt}")
+                    preview.append(f"Content ({len(text)} chars):\n{text}")
                 elif submission_type == "online_url":
                     preview.append(f"URL: {url}")
                 else:
@@ -503,7 +520,12 @@ def register_student_write_tools(mcp: FastMCP) -> None:
                 )
                 return "\n".join(preview)
 
-            record = _pending_confirmations.pop(confirmation_token, None)
+            # Validate the token WITHOUT consuming it yet. Uploads happen before
+            # the submit call, and burning the token on an upload failure would
+            # force the student through a fresh preview for a problem that had
+            # nothing to do with their content. It is consumed just before the
+            # POST instead, which keeps it genuinely single-use.
+            record = _pending_confirmations.get(confirmation_token)
             if record is None:
                 return (
                     "❌ Unknown or already-used confirmation token. Run the "
@@ -511,6 +533,7 @@ def register_student_write_tools(mcp: FastMCP) -> None:
                 )
             expires_at, expected = record
             if expires_at < time.monotonic():
+                _pending_confirmations.pop(confirmation_token, None)
                 return "❌ That confirmation expired. Run the preview again."
             if expected != fingerprint:
                 return (
@@ -538,7 +561,9 @@ def register_student_write_tools(mcp: FastMCP) -> None:
                         course_id, str(assignment_id), item
                     )
                     if upload_error:
-                        return upload_error
+                        # Token deliberately left intact: nothing was submitted,
+                        # so the student can retry without re-previewing.
+                        return f"{upload_error}\nNothing was submitted."
                     file_ids.append(file_id)
                 data["submission[file_ids][]"] = file_ids
 
@@ -546,6 +571,14 @@ def register_student_write_tools(mcp: FastMCP) -> None:
                 data["comment[text_comment]"] = comment
 
             assert_no_identity_override(data)
+
+            # Consume the token now, immediately before the only call that can
+            # actually spend an attempt.
+            if _pending_confirmations.pop(confirmation_token, None) is None:
+                return (
+                    "❌ That confirmation was already used. Nothing was "
+                    "submitted. Run the preview again."
+                )
 
             response = await make_canvas_request(
                 "post",

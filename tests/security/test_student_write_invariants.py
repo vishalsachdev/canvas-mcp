@@ -322,6 +322,53 @@ class TestPolicyResolution:
         assert policy.allow_writes is True
 
 
+class TestErrorClassification:
+    """Only a real 404 may be read as "no policy artifact"."""
+
+    @pytest.mark.parametrize(
+        "error_message",
+        [
+            "HTTP error: 500, Details: {'message': 'upstream 404 from origin'}",
+            "HTTP error: 403",
+            "HTTP error: 429",
+            "Request failed: connection reset after 404 retries",
+            "Max retries exceeded",
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_non_404_failures_still_deny_under_permissive_default(
+        self, error_message
+    ):
+        """A substring test for "404" would turn a 500 into a grant."""
+        reset_policy_cache()
+        with patch.dict(
+            "os.environ", {"COURSE_AGENT_POLICY_DEFAULT": "allow"}, clear=False
+        ):
+            reset_config()
+            with patch(
+                "canvas_mcp.core.course_policy.make_canvas_request",
+                new=AsyncMock(return_value={"error": error_message}),
+            ):
+                policy = await get_course_policy("123")
+        assert policy.allow_writes is False
+        assert policy.source == "read_error"
+
+    @pytest.mark.asyncio
+    async def test_genuine_404_is_treated_as_absent(self):
+        reset_policy_cache()
+        with patch.dict(
+            "os.environ", {"COURSE_AGENT_POLICY_DEFAULT": "allow"}, clear=False
+        ):
+            reset_config()
+            with patch(
+                "canvas_mcp.core.course_policy.make_canvas_request",
+                new=AsyncMock(return_value={"error": "HTTP error: 404"}),
+            ):
+                policy = await get_course_policy("123")
+        assert policy.allow_writes is True
+        assert policy.source == "default"
+
+
 class TestLayering:
     """A course artifact can restrict within the operator ceiling, never past it."""
 
