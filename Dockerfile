@@ -28,9 +28,11 @@ RUN adduser --disabled-password --gecos '' mcp && \
 # callers supply their own token per request via the X-Canvas-Token header.
 # Code execution (execute_typescript) ships OFF by default for this network-facing
 # image; opt in with -e EXECUTE_TYPESCRIPT_ENABLED=true only behind real auth.
+# Anonymization ships ON — institutional deployments must opt OUT deliberately
+# (set -e ENABLE_DATA_ANONYMIZATION=false) after their own privacy review.
 # Example (stdio/local): docker run -e CANVAS_API_TOKEN=xyz -e CANVAS_API_URL=https://... canvas-mcp
 ENV MCP_SERVER_NAME="canvas-mcp" \
-    ENABLE_DATA_ANONYMIZATION="false" \
+    ENABLE_DATA_ANONYMIZATION="true" \
     ANONYMIZATION_DEBUG="false" \
     EXECUTE_TYPESCRIPT_ENABLED="false"
 
