@@ -440,6 +440,40 @@ class TestErrorClassification:
         assert policy.source == "read_error"
 
     @pytest.mark.asyncio
+    async def test_read_errors_are_never_cached(self):
+        """One bad caller must not deny writes for a whole course.
+
+        A read error reflects the caller's request (expired token, not enrolled,
+        transient failure), not a property of the course. Caching it under the
+        course id alone would let any caller block every legitimate student in
+        that course for a full deny TTL.
+        """
+        from canvas_mcp.core.course_policy import _policy_cache
+
+        reset_policy_cache()
+        with patch.dict(
+            "os.environ", {"STUDENT_WRITE_TOOLS": ALL_WRITE_TOOLS}, clear=False
+        ):
+            reset_config()
+            with patch(
+                "canvas_mcp.core.course_policy.make_canvas_request",
+                new=AsyncMock(return_value={"error": "HTTP error: 401"}),
+            ):
+                denied = await get_course_policy("123")
+            assert denied.allow_writes is False
+            assert "123" not in _policy_cache, "read error poisoned the cache"
+
+            # A legitimate caller immediately afterwards sees the real policy.
+            with patch(
+                "canvas_mcp.core.course_policy.make_canvas_request",
+                new=AsyncMock(
+                    return_value={"syllabus_body": "agent_writes: allow"}
+                ),
+            ):
+                policy = await get_course_policy("123")
+        assert policy.allow_writes is True
+
+    @pytest.mark.asyncio
     async def test_genuine_404_is_treated_as_absent(self):
         reset_policy_cache()
         with patch.dict(

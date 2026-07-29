@@ -286,6 +286,15 @@ async def get_course_policy(course_id: str | int) -> CoursePolicy:
             source="read_error",
         )
 
+    # A read failure is a property of THIS caller's request, not of the course:
+    # it can mean an expired token, a caller not enrolled, or a transient error.
+    # Caching it under the course id alone would let one bad caller deny writes
+    # for every legitimate student in that course for a full deny TTL. So it is
+    # never cached; the retry cost is small and falls only on the caller who
+    # actually hit the error.
+    if policy.source == "read_error":
+        return policy
+
     ttl = (
         config.course_agent_policy_allow_ttl
         if policy.allow_writes

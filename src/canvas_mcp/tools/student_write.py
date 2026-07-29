@@ -80,16 +80,46 @@ _TOKEN_SECRET = (
     os.getenv("STUDENT_WRITE_TOKEN_SECRET", "").encode() or secrets.token_bytes(32)
 )
 
-# Best-effort replay guard: fingerprints already redeemed by THIS process.
-# Single-use cannot be enforced across replicas without shared state, but replay
-# is separately defeated by the attempt number inside the fingerprint — once a
-# submission succeeds the attempt increments and the old token matches nothing.
-_redeemed: set[str] = set()
+# Replay guard: fingerprint -> the time its claim can be forgotten. Entries only
+# need to outlive the token that created them, so they expire rather than
+# accumulating for the lifetime of the process.
+#
+# This is per-process. Single-use cannot be enforced across replicas without
+# shared state, but replay is separately defeated by the attempt number inside
+# the fingerprint: once a submission succeeds the attempt increments and the old
+# token matches nothing.
+_redeemed: dict[str, float] = {}
 
 
 def reset_pending_confirmations() -> None:
     """Discard redeemed-token state (used by tests)."""
     _redeemed.clear()
+
+
+def _purge_redeemed() -> None:
+    """Forget claims whose tokens have expired anyway."""
+    now = time.time()
+    for fingerprint in [f for f, expiry in _redeemed.items() if expiry < now]:
+        _redeemed.pop(fingerprint, None)
+
+
+def _reserve_confirmation(fingerprint: str) -> bool:
+    """Atomically claim a confirmation. False if it was already claimed.
+
+    There is deliberately no ``await`` between the membership test and the
+    write, which is what makes this atomic on the event loop. Without that,
+    two overlapping confirmations could both pass and both submit.
+    """
+    _purge_redeemed()
+    if fingerprint in _redeemed:
+        return False
+    _redeemed[fingerprint] = time.time() + _CONFIRM_TTL_SECONDS
+    return True
+
+
+def _release_confirmation(fingerprint: str) -> None:
+    """Give a claim back after a path that ended without submitting."""
+    _redeemed.pop(fingerprint, None)
 
 
 def _issue_token(fingerprint: str, now: float | None = None) -> str:
@@ -598,14 +628,21 @@ def register_student_write_tools(mcp: FastMCP) -> None:
                 )
                 return "\n".join(preview)
 
-            # Verify WITHOUT marking it redeemed yet. Uploads happen before the
-            # submit call, and retiring the token on an upload failure would
-            # force the student through a fresh preview over a problem that had
-            # nothing to do with their content. It is retired just before the
-            # POST instead.
             token_error = _check_token(confirmation_token, fingerprint)
             if token_error:
                 return token_error
+
+            # Claim the confirmation BEFORE any awaited work. File uploads sit
+            # between here and the submit call, so two overlapping confirmations
+            # could otherwise both pass validation during those uploads and both
+            # submit, spending two attempts. Reserving first makes that
+            # impossible; every path that ends without submitting releases it
+            # again, so a failed upload still does not cost a fresh preview.
+            if not _reserve_confirmation(fingerprint):
+                return (
+                    "❌ That confirmation was already used. Nothing was "
+                    "submitted. Run the preview again."
+                )
 
             # Re-check policy at the moment of the write, so an instructor's
             # change between preview and confirm takes effect.
@@ -613,6 +650,7 @@ def register_student_write_tools(mcp: FastMCP) -> None:
                 course_id, "submit_assignment"
             )
             if not allowed:
+                _release_confirmation(fingerprint)
                 return f"❌ Submission blocked. {reason}"
 
             data: dict[str, Any] = {"submission[submission_type]": submission_type}
@@ -627,8 +665,9 @@ def register_student_write_tools(mcp: FastMCP) -> None:
                         course_id, str(assignment_id), item
                     )
                     if upload_error:
-                        # Token deliberately left intact: nothing was submitted,
-                        # so the student can retry without re-previewing.
+                        # Release the claim: nothing was submitted, so the
+                        # student can retry without re-previewing.
+                        _release_confirmation(fingerprint)
                         return f"{upload_error}\nNothing was submitted."
                     file_ids.append(file_id)
                 data["submission[file_ids][]"] = file_ids
@@ -638,10 +677,10 @@ def register_student_write_tools(mcp: FastMCP) -> None:
 
             assert_no_identity_override(data)
 
-            # Retire the token now, immediately before the only call that can
-            # actually spend an attempt.
-            _redeemed.add(fingerprint)
-
+            # The claim taken above stands from here on. Even if this call
+            # errors, the token is not released: Canvas may have accepted the
+            # submission and only lost the reply, and a blind retry would spend
+            # a second attempt.
             response = await make_canvas_request(
                 "post",
                 f"/courses/{course_id}/assignments/{assignment_id}/submissions",

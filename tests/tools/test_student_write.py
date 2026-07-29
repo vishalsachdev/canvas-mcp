@@ -458,6 +458,78 @@ class TestConfirmationIntegrity:
         assert sw._check_token(token, "fingerprint-a") is None
         assert sw._check_token(token, "fingerprint-b") is not None
 
+    def test_reservation_is_exclusive(self):
+        import canvas_mcp.tools.student_write as sw
+
+        assert sw._reserve_confirmation("fp") is True
+        assert sw._reserve_confirmation("fp") is False
+
+    def test_released_reservation_can_be_reclaimed(self):
+        import canvas_mcp.tools.student_write as sw
+
+        assert sw._reserve_confirmation("fp") is True
+        sw._release_confirmation("fp")
+        assert sw._reserve_confirmation("fp") is True
+
+    def test_redeemed_claims_expire(self):
+        """Otherwise memory grows with the lifetime submission count."""
+        import canvas_mcp.tools.student_write as sw
+
+        sw._reserve_confirmation("old")
+        sw._redeemed["old"] = 0.0  # already past
+        sw._reserve_confirmation("new")
+        assert "old" not in sw._redeemed
+        assert "new" in sw._redeemed
+
+    @pytest.mark.asyncio
+    async def test_concurrent_confirmations_submit_only_once(self):
+        """Two overlapping confirms must not both spend an attempt.
+
+        The reservation is taken before any awaited work precisely so that the
+        gap between validating a token and claiming it cannot be interleaved.
+        """
+        import asyncio
+
+        tools = get_tools(
+            STUDENT_WRITE_TOOLS="submit_assignment",
+            COURSE_AGENT_POLICY_ENABLED="false",
+        )
+        assignment = _mock_assignment()
+        posts = []
+
+        async def responder(method, endpoint, **kwargs):
+            if method == "get" and endpoint.endswith("/submissions/self"):
+                return {"attempt": 1}
+            if method == "get":
+                return assignment
+            posts.append(endpoint)
+            return {"submitted_at": "2026-07-30T10:00:00Z", "attempt": 2}
+
+        with patch(
+            "canvas_mcp.tools.student_write.get_course_id",
+            new=AsyncMock(return_value="123"),
+        ), patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new=responder
+        ):
+            preview = await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_text_entry", body="hello",
+            )
+            token = preview.split("confirmation_token='")[1].split("'")[0]
+
+            results = await asyncio.gather(*[
+                tools["submit_assignment"](
+                    course_identifier="TEST", assignment_id=42,
+                    submission_type="online_text_entry", body="hello",
+                    confirmation_token=token,
+                )
+                for _ in range(2)
+            ])
+
+        assert len(posts) == 1, f"submitted {len(posts)} times, expected exactly 1"
+        assert sum("✅ Submitted." in r for r in results) == 1
+        assert sum("already used" in r for r in results) == 1
+
     def test_token_does_not_verify_under_a_forged_signature(self):
         import canvas_mcp.tools.student_write as sw
 
