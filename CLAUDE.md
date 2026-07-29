@@ -27,7 +27,7 @@ canvas-mcp/
 │   ├── resources/        # MCP resources and prompts
 │   └── server.py         # FastMCP server entry point
 ├── skills/               # Agent skills for skills.sh (8 skills)
-├── tests/                # 328 tests (pytest + pytest-asyncio)
+├── tests/                # 550+ tests (pytest + pytest-asyncio)
 ├── docs/                 # GitHub Pages site + guides
 ├── tools/                # Tool documentation (README.md, TOOL_MANIFEST.json)
 ├── archive/              # Legacy code (git-ignored)
