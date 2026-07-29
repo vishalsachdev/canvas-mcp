@@ -147,9 +147,11 @@ class Config:
         self.ts_sandbox_timeout_sec = _int_env("TS_SANDBOX_TIMEOUT_SEC", 120)
         self.ts_sandbox_container_image = os.getenv("TS_SANDBOX_CONTAINER_IMAGE", "node:20-alpine")
 
-        # Code execution kill switch — set EXECUTE_TYPESCRIPT_ENABLED=false to
-        # disable the execute_typescript tool without changing CANVAS_ROLE.
-        self.execute_typescript_enabled = _bool_env("EXECUTE_TYPESCRIPT_ENABLED", True)
+        # Code execution is opt-in — set EXECUTE_TYPESCRIPT_ENABLED=true to
+        # enable the execute_typescript tool (independent of CANVAS_ROLE).
+        # Off by default: arbitrary code execution should be a deliberate
+        # operator choice, not something a default install exposes (#157).
+        self.execute_typescript_enabled = _bool_env("EXECUTE_TYPESCRIPT_ENABLED", False)
 
         # HTTP access-key gate (v1, multi-user). Comma- or whitespace-separated
         # list of accepted keys; an HTTP caller must present a matching

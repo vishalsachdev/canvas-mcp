@@ -69,24 +69,68 @@ def _get_request_semaphore() -> asyncio.Semaphore:
     return _request_semaphore
 
 
-def _determine_data_type(endpoint: str) -> str:
-    """Determine the type of data based on the API endpoint."""
-    endpoint_lower = endpoint.lower()
+def _path_segments(endpoint: str) -> list[str]:
+    """Lower-cased, query-stripped path segments of a Canvas API endpoint."""
+    path = endpoint.lower().split('?', 1)[0]
+    return [seg for seg in path.split('/') if seg]
 
-    if '/users' in endpoint_lower:
+
+def _is_route_segment(segments: list[str], index: int) -> bool:
+    """Whether segments[index] is a route keyword rather than a user slug.
+
+    A segment directly after 'pages' is a user-controlled page slug — e.g. a
+    page named "users" at /courses/{id}/pages/users — and must never be treated
+    as a route keyword.
+    """
+    return not (index > 0 and segments[index - 1] == 'pages')
+
+
+def _has_route_segment(segments: list[str], names: set[str]) -> bool:
+    """Whether any route (non-slug) segment matches one of `names`."""
+    return any(
+        seg in names and _is_route_segment(segments, i)
+        for i, seg in enumerate(segments)
+    )
+
+
+def _self_submission_indices(segments: list[str]) -> set[int]:
+    """Indices of 'submissions' route segments followed by the literal 'self'.
+
+    Anchored on the literal 'self' segment IMMEDIATELY after a 'submissions'
+    route segment. A looser match (e.g. 'self' anywhere in the path) would
+    recreate the #164 bypass class, where a broad short-circuit silently
+    disabled anonymization for unrelated student-data endpoints.
+    """
+    return {
+        i
+        for i, seg in enumerate(segments)
+        if seg == 'submissions'
+        and _is_route_segment(segments, i)
+        and i + 1 < len(segments)
+        and segments[i + 1] == 'self'
+    }
+
+
+def _determine_data_type(endpoint: str) -> str:
+    """Determine the type of data based on the API endpoint.
+
+    Segment-aware (query string stripped, page slugs excluded) so that a
+    substring match on a user-controlled slug cannot mis-route a response into
+    the wrong typed handler.
+    """
+    segments = _path_segments(endpoint)
+
+    if _has_route_segment(segments, {'users'}):
         return 'users'
-    elif '/discussion_topics' in endpoint_lower and '/entries' in endpoint_lower:
+    if _has_route_segment(segments, {'discussion_topics', 'discussion_entries'}):
         return 'discussions'
-    elif '/discussion' in endpoint_lower:
-        return 'discussions'
-    elif '/submissions' in endpoint_lower:
+    if _has_route_segment(segments, {'submissions'}):
         return 'submissions'
-    elif '/assignments' in endpoint_lower:
+    if _has_route_segment(segments, {'assignments'}):
         return 'assignments'
-    elif '/enrollments' in endpoint_lower:
+    if _has_route_segment(segments, {'enrollments'}):
         return 'users'  # Enrollments contain user data
-    else:
-        return 'general'
+    return 'general'
 
 
 def _should_anonymize_endpoint(endpoint: str) -> bool:
@@ -104,27 +148,27 @@ def _should_anonymize_endpoint(endpoint: str) -> bool:
     - /discussion_topics listings (incl. announcements) — typically
       instructor-authored; student content lives under the content endpoints
       matched below.
+    - /submissions/self — the caller's OWN submission. Anonymizing it redacts
+      body/url/attachments, so a student cannot read back what they submitted
+      (issue #166). Only the literal 'self' sub-route is excluded; any other
+      sensitive segment in the same path still forces anonymization.
     """
-    # Match whole path segments (not substrings) so user-controlled slugs —
-    # e.g. a page named "users" at /courses/{id}/pages/users — can't trip the
-    # sensitive match; a segment directly after 'pages' is a slug, not a route.
-    path = endpoint.lower().split('?', 1)[0]
-    segments = [seg for seg in path.split('/') if seg]
+    segments = _path_segments(endpoint)
 
-    def has_sensitive_segment(names: set[str]) -> bool:
-        return any(
-            seg in names and not (i > 0 and segments[i - 1] == 'pages')
-            for i, seg in enumerate(segments)
-        )
+    # Drop only the 'submissions' segment of a /submissions/self route; every
+    # other sensitive segment keeps its effect.
+    self_indices = _self_submission_indices(segments)
+    if self_indices:
+        segments = [seg for i, seg in enumerate(segments) if i not in self_indices]
 
     # Discussion content endpoints carry student posts and names
-    if 'discussion_topics' in segments and has_sensitive_segment(
-        {'entries', 'view', 'entry_list', 'replies'}
+    if 'discussion_topics' in segments and _has_route_segment(
+        segments, {'entries', 'view', 'entry_list', 'replies'}
     ):
         return True
 
     # Endpoints whose responses contain student records
-    return has_sensitive_segment({'users', 'submissions', 'enrollments', 'analytics'})
+    return _has_route_segment(segments, {'users', 'submissions', 'enrollments', 'analytics'})
 
 
 def _get_http_client() -> httpx.AsyncClient:

@@ -156,3 +156,17 @@ def test_config_normalizes_canvas_api_url(monkeypatch):
     monkeypatch.setenv("CANVAS_API_URL", "https://canvas.school.edu")
     config_module.reset_config()
     assert config_module.get_config().canvas_api_url == "https://canvas.school.edu/api/v1"
+
+
+def test_execute_typescript_disabled_by_default(monkeypatch):
+    """Code execution is opt-in (#157): a default install must not expose it."""
+    monkeypatch.delenv("EXECUTE_TYPESCRIPT_ENABLED", raising=False)
+    config_module.reset_config()
+    assert config_module.get_config().execute_typescript_enabled is False
+
+
+def test_anonymization_enabled_by_default(monkeypatch):
+    """FERPA anonymization is opt-out, never opt-in."""
+    monkeypatch.delenv("ENABLE_DATA_ANONYMIZATION", raising=False)
+    config_module.reset_config()
+    assert config_module.get_config().enable_data_anonymization is True
