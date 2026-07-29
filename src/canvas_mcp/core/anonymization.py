@@ -12,6 +12,108 @@ from typing import Any
 # Global anonymization mapping cache
 _anonymization_cache: dict[str, str] = {}
 
+# --------------------------------------------------------------------------
+# Field policy for the recursive identity scrubber (issue #166)
+# --------------------------------------------------------------------------
+
+#: Person-name fields that are unambiguous: whenever one of these keys is
+#: present it holds a human's name/handle, never a file or object label.
+STRICT_IDENTITY_FIELDS = frozenset({
+    'short_name',
+    'sortable_name',
+    'user_name',
+    'author_name',
+    'assessor_name',
+    'grader_name',
+    'email',
+    'login_id',
+})
+
+#: Name fields that are ambiguous — Canvas uses them for courses, groups,
+#: modules, pages and file attachments as well as for people. These are only
+#: rewritten when the containing dict carries a corroborating user signal
+#: (see ``USER_SIGNAL_FIELDS`` / ``USER_CONTAINER_KEYS`` / user-ish id keys).
+AMBIGUOUS_IDENTITY_FIELDS = frozenset({'name', 'display_name'})
+
+#: All identity fields, for callers that just want the union.
+IDENTITY_FIELDS = STRICT_IDENTITY_FIELDS | AMBIGUOUS_IDENTITY_FIELDS
+
+#: Fields that carry direct identifiers / imagery and are nulled outright.
+#: ``pronouns`` lives here rather than in IDENTITY_FIELDS: replacing it with a
+#: pseudonym would be nonsense, dropping the value is the correct behaviour.
+NULL_FIELDS = frozenset({
+    'sis_user_id',
+    'integration_id',
+    'sis_login_id',
+    'avatar_url',
+    'avatar_image_url',
+    'bio',
+    'pronouns',
+})
+
+#: Keys searched, in order, for the id that a record's identity fields are
+#: keyed to. ``id`` is only used when the record itself looks like a user
+#: (otherwise it is an enrollment/comment/submission id and keying to it would
+#: mis-attribute the pseudonym).
+USER_ID_KEYS = ('user_id', 'author_id', 'assessor_id', 'grader_id')
+
+#: Presence of any of these keys corroborates "this dict describes a person".
+USER_SIGNAL_FIELDS = frozenset({
+    'sortable_name',
+    'short_name',
+    'login_id',
+    'email',
+    'sis_user_id',
+    'sis_login_id',
+    'avatar_url',
+    'avatar_image_url',
+    'enrollments',
+})
+
+#: Keys that positively identify a record as NOT a person. Course objects also
+#: carry an ``enrollments`` list, which would otherwise corroborate them as a
+#: user and get the course title rewritten as a student pseudonym.
+NON_USER_MARKER_FIELDS = frozenset({
+    'course_code',
+    'sis_course_id',
+    'enrollment_term_id',
+})
+
+#: Dict keys whose *value* is by convention a user record.
+USER_CONTAINER_KEYS = frozenset({
+    'user',
+    'author',
+    'assessor',
+    'grader',
+    'editor',
+    'submitter',
+    'participant',
+    'student',
+    'observed_user',
+})
+
+#: Free-text fields that get PII regex scrubbing wherever they are found.
+FREE_TEXT_FIELDS = frozenset({'message', 'comment', 'comments', 'body'})
+
+#: data_type values the router knows about. An explicit value outside this set
+#: (e.g. the legacy "test_endpoint" / "general") falls back to duck-typing;
+#: an explicit value *inside* it suppresses duck-typing entirely.
+KNOWN_DATA_TYPES = frozenset({'users', 'discussions', 'submissions', 'assignments'})
+
+_EMAIL_RE = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b')
+_PHONE_RE = re.compile(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b')
+_SSN_RE = re.compile(r'\b\d{3}-\d{2}-\d{4}\b')
+
+
+def scrub_free_text(value: Any) -> Any:
+    """Redact emails, phone numbers and SSNs from a free-text string."""
+    if not isinstance(value, str) or not value:
+        return value
+    value = _SSN_RE.sub('[SSN_REDACTED]', value)
+    value = _EMAIL_RE.sub('[EMAIL_REDACTED]', value)
+    value = _PHONE_RE.sub('[PHONE_REDACTED]', value)
+    return value
+
 
 def generate_anonymous_id(real_id: str | int, prefix: str = "Student") -> str:
     """Generate a consistent anonymous ID for a given real ID.
@@ -42,250 +144,237 @@ def generate_anonymous_id(real_id: str | int, prefix: str = "Student") -> str:
     return anonymous_id
 
 
-def anonymize_user_data(user_data: Any) -> Any:
-    """Anonymize a single user record.
+def _looks_like_user_record(record: dict[str, Any], user_context: bool) -> bool:
+    """Whether `record` describes a person (vs. a course/group/file/module).
+
+    Corroboration is required before rewriting the ambiguous `name` /
+    `display_name` keys, so that non-user objects keep their labels.
+    """
+    if any(field in record for field in NON_USER_MARKER_FIELDS):
+        return False
+    if user_context:
+        return True
+    if any(field in record for field in USER_SIGNAL_FIELDS):
+        return True
+    return any(record.get(key) not in (None, '') for key in USER_ID_KEYS)
+
+
+def _record_identity_id(record: dict[str, Any], user_context: bool) -> Any:
+    """The id the record's identity fields should be pseudonymised against."""
+    for key in USER_ID_KEYS:
+        value = record.get(key)
+        if value not in (None, ''):
+            return value
+    if _looks_like_user_record(record, user_context):
+        own_id = record.get('id')
+        if own_id not in (None, ''):
+            return own_id
+    return None
+
+
+def scrub_identity(node: Any, inherited_id: Any = None, user_context: bool = False) -> Any:
+    """Recursively remove personal identity from an arbitrary Canvas payload.
+
+    This is the *baseline* protection applied to every response the endpoint
+    gate marks as sensitive. It walks lists and dicts uniformly, so identity
+    fields nested at any depth (``enrollments[].sis_user_id``,
+    ``submission_comments[].author.display_name``,
+    ``full_rubric_assessment.assessor_name``) are scrubbed rather than passed
+    through by a top-level-only typed handler (issue #166).
+
+    Invariants:
+    - It NEVER adds a key that was not already present (no fabricated
+      email/login_id/sortable_name on records that never had them).
+    - Identity fields are keyed to the nearest enclosing user id, so the same
+      student maps to the same pseudonym across a response.
+    - It is idempotent: scrubbed output is a fixed point.
 
     Args:
-        user_data: Dictionary containing user information
+        node: Any JSON-ish value (dict, list or primitive).
+        inherited_id: Id of the nearest enclosing user-ish record, used when a
+            nested dict carries a name but no id of its own.
+        user_context: True when the node was reached through a key that is by
+            convention a user record (``user``, ``author``, ``assessor``, ...).
 
     Returns:
-        Anonymized user data with sensitive fields removed/replaced
+        A scrubbed copy of `node`.
+    """
+    if isinstance(node, list):
+        return [scrub_identity(item, inherited_id, user_context) for item in node]
+
+    if not isinstance(node, dict):
+        return node
+
+    looks_user = _looks_like_user_record(node, user_context)
+    identity_id = _record_identity_id(node, user_context)
+    if identity_id in (None, ''):
+        identity_id = inherited_id
+
+    anonymous_id = generate_anonymous_id(identity_id) if identity_id not in (None, '') else None
+
+    scrubbed: dict[str, Any] = {}
+    for key, value in node.items():
+        key_lower = key.lower() if isinstance(key, str) else key
+
+        if key_lower in NULL_FIELDS:
+            scrubbed[key] = None
+            continue
+
+        if key_lower in STRICT_IDENTITY_FIELDS or (
+            key_lower in AMBIGUOUS_IDENTITY_FIELDS and looks_user
+        ):
+            scrubbed[key] = _pseudonymise_field(key_lower, value, anonymous_id)
+            continue
+
+        # Canvas sometimes returns a bare name string where a user object is
+        # expected (e.g. "author": "Bob Smith") — that is an identity value.
+        if key_lower in USER_CONTAINER_KEYS and isinstance(value, str):
+            scrubbed[key] = _pseudonymise_field('name', value, anonymous_id)
+            continue
+
+        if key_lower in FREE_TEXT_FIELDS and isinstance(value, str):
+            scrubbed[key] = scrub_free_text(value)
+            continue
+
+        scrubbed[key] = scrub_identity(
+            value,
+            inherited_id=identity_id,
+            user_context=(key_lower in USER_CONTAINER_KEYS),
+        )
+
+    return scrubbed
+
+
+def _pseudonymise_field(key_lower: str, value: Any, anonymous_id: str | None) -> Any:
+    """Replace one identity field's value, preserving None/empty as-is."""
+    if value is None or value == '':
+        return value
+    if anonymous_id is None:
+        return "[REDACTED]"
+    if key_lower == 'email':
+        return f"{anonymous_id.lower()}@example.edu"
+    if key_lower == 'login_id':
+        return anonymous_id.lower()
+    return anonymous_id
+
+
+def anonymize_user_data(user_data: Any) -> Any:
+    """Anonymize a single user (or user-wrapping) record.
+
+    Thin wrapper over :func:`scrub_identity` kept for API compatibility. The
+    record is treated as user context, so a bare `name` on it is rewritten.
     """
     if not isinstance(user_data, dict):
         return user_data
-
-    anonymized = user_data.copy()
-    user_id = user_data.get('id')
-
-    # Enrollment-shaped records carry the student in a nested `user` dict.
-    # The wrapper itself is NOT a user record — its `id` is the enrollment's
-    # own id, so running the flat-user branch below would fabricate name/email
-    # fields keyed to the wrong id. Anonymize the nested user, scrub the
-    # identity fields Canvas puts on the wrapper, and return.
-    if isinstance(anonymized.get('user'), dict):
-        anonymized['user'] = anonymize_user_data(anonymized['user'])
-        for identity_field in ('sis_user_id', 'integration_id', 'login_id'):
-            if identity_field in anonymized:
-                anonymized[identity_field] = None
-        return anonymized
-
-    # Only treat the record as a flat user if it actually carries user-identity
-    # fields — a bare dict with a truthy `id` (e.g. a flat enrollment or todo
-    # item) would otherwise get name/email fabricated from an unrelated id.
-    looks_like_user = any(
-        field in user_data
-        for field in ('name', 'display_name', 'short_name', 'sortable_name', 'email', 'login_id')
-    )
-
-    if user_id and looks_like_user:
-        anonymous_id = generate_anonymous_id(user_id)
-
-        # Replace sensitive fields
-        anonymized.update({
-            'name': anonymous_id,
-            'display_name': anonymous_id,
-            'short_name': anonymous_id,
-            'sortable_name': anonymous_id,
-            'email': f"{anonymous_id.lower()}@example.edu",
-            'login_id': anonymous_id.lower(),
-            'sis_user_id': None,
-            'integration_id': None,
-            'avatar_url': None,
-            'bio': None,
-            'time_zone': None,
-            'locale': None
-        })
-
-        # Keep essential fields for functionality
-        essential_fields = ['id', 'enrollments', 'role', 'created_at', 'updated_at']
-        for field in list(anonymized.keys()):
-            if field not in essential_fields and field not in ['name', 'email']:
-                if isinstance(anonymized[field], str) and len(anonymized[field]) > 50:
-                    # Remove potentially identifying long text fields
-                    anonymized[field] = "[REDACTED]"
-
-    return anonymized
+    return scrub_identity(user_data, user_context=True)
 
 
 def anonymize_discussion_entry(entry_data: Any) -> Any:
-    """Anonymize a discussion entry.
+    """Anonymize a discussion entry (or the /view wrapper dict).
 
-    Args:
-        entry_data: Dictionary containing discussion entry data
-
-    Returns:
-        Anonymized discussion entry
+    Thin wrapper over :func:`scrub_identity`; nested replies, ``view``,
+    ``new_entries`` and ``participants`` are handled by the uniform recursion.
     """
     if not isinstance(entry_data, dict):
         return entry_data
+    return scrub_identity(entry_data)
 
-    anonymized = entry_data.copy()
-    user_id = entry_data.get('user_id')
 
-    if user_id:
-        anonymous_id = generate_anonymous_id(user_id)
+def _redact_submission_content(submission: dict[str, Any]) -> dict[str, Any]:
+    """Redact submitted content (body/url/attachments) on a submission record."""
+    user_id = submission.get('user_id')
+    if not user_id:
+        return submission
 
-        # Replace all user-identifying fields
-        anonymized['user_name'] = anonymous_id
-        anonymized['display_name'] = anonymous_id
-
-        # Anonymize author field if present
-        if 'author' in anonymized:
-            if isinstance(anonymized['author'], dict):
-                anonymized['author'] = anonymize_user_data(anonymized['author'])
+    anonymous_id = generate_anonymous_id(user_id)
+    redacted = submission.copy()
+    for field in ('body', 'url', 'attachments'):
+        if field in redacted and redacted[field]:
+            if isinstance(redacted[field], str):
+                redacted[field] = f"[CONTENT_REDACTED_FOR_{anonymous_id}]"
             else:
-                anonymized['author'] = anonymous_id
-
-        # Anonymize editor info if present
-        if 'editor' in anonymized:
-            if isinstance(anonymized['editor'], dict):
-                anonymized['editor'] = anonymize_user_data(anonymized['editor'])
-            else:
-                anonymized['editor'] = anonymous_id
-
-    # Keep message content but remove any potentially identifying information
-    if 'message' in anonymized and anonymized['message']:
-        # Remove email addresses from content
-        anonymized['message'] = re.sub(
-            r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
-            '[EMAIL_REDACTED]',
-            anonymized['message']
-        )
-
-        # Remove phone numbers
-        anonymized['message'] = re.sub(
-            r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b',
-            '[PHONE_REDACTED]',
-            anonymized['message']
-        )
-
-        # Remove social security numbers
-        anonymized['message'] = re.sub(
-            r'\b\d{3}-\d{2}-\d{4}\b',
-            '[SSN_REDACTED]',
-            anonymized['message']
-        )
-
-    # Handle nested replies - anonymize recursively
-    for reply_key in ('recent_replies', 'replies'):
-        if reply_key in anonymized and isinstance(anonymized[reply_key], list):
-            anonymized[reply_key] = [
-                anonymize_discussion_entry(reply) for reply in anonymized[reply_key]
-            ]
-
-    # The /discussion_topics/{id}/view endpoint returns a wrapper dict:
-    # {"view": [entries...], "participants": [users...]} plus "new_entries"
-    # when include_new_entries=1 — recurse into all of them
-    for entry_list_key in ('view', 'new_entries'):
-        if entry_list_key in anonymized and isinstance(anonymized[entry_list_key], list):
-            anonymized[entry_list_key] = [
-                anonymize_discussion_entry(entry) for entry in anonymized[entry_list_key]
-            ]
-    if 'participants' in anonymized and isinstance(anonymized['participants'], list):
-        anonymized['participants'] = [
-            anonymize_user_data(participant) for participant in anonymized['participants']
-        ]
-
-    return anonymized
+                redacted[field] = "[CONTENT_REDACTED]"
+    return redacted
 
 
 def anonymize_submission_data(submission_data: Any) -> Any:
-    """Anonymize submission data.
-
-    Args:
-        submission_data: Dictionary containing submission information
-
-    Returns:
-        Anonymized submission data
-    """
+    """Anonymize submission data (identity scrub + submitted-content redaction)."""
     if not isinstance(submission_data, dict):
         return submission_data
+    return _redact_submission_content(scrub_identity(submission_data))
 
-    anonymized = submission_data.copy()
-    user_id = submission_data.get('user_id')
 
-    if user_id:
-        anonymous_id = generate_anonymous_id(user_id)
-
-        # Replace identifying fields
-        if 'user' in anonymized:
-            anonymized['user'] = anonymize_user_data(anonymized['user'])
-
-        # Remove submission content that might be identifying
-        identifying_fields = ['body', 'url', 'attachments']
-        for field in identifying_fields:
-            if field in anonymized and anonymized[field]:
-                if isinstance(anonymized[field], str):
-                    anonymized[field] = f"[CONTENT_REDACTED_FOR_{anonymous_id}]"
-                else:
-                    anonymized[field] = "[CONTENT_REDACTED]"
-
-    return anonymized
+def _truncate_long_description(assignment: dict[str, Any]) -> dict[str, Any]:
+    """Truncate very long assignment descriptions that may embed student info."""
+    description = assignment.get('description')
+    if isinstance(description, str) and len(description) > 1000:
+        truncated = assignment.copy()
+        truncated['description'] = "[LONG_DESCRIPTION_REDACTED_FOR_PRIVACY]"
+        return truncated
+    return assignment
 
 
 def anonymize_assignment_data(assignment_data: Any) -> Any:
-    """Anonymize assignment data (keep assignment details, remove student-specific info).
-
-    Args:
-        assignment_data: Dictionary containing assignment information
-
-    Returns:
-        Anonymized assignment data
-    """
+    """Anonymize assignment data (keep assignment details, drop student info)."""
     if not isinstance(assignment_data, dict):
         return assignment_data
+    return _truncate_long_description(scrub_identity(assignment_data))
 
-    # For assignments, we typically keep the assignment details
-    # but remove any embedded user-specific information
-    anonymized = assignment_data.copy()
 
-    # Remove potentially identifying description content
-    if 'description' in anonymized and anonymized['description']:
-        # Keep structure but indicate redaction for very long descriptions
-        if len(anonymized['description']) > 1000:
-            anonymized['description'] = "[LONG_DESCRIPTION_REDACTED_FOR_PRIVACY]"
+def _resolve_record_type(record: dict[str, Any], data_type: str) -> str:
+    """Resolve which typed refinement applies to `record`.
 
-    return anonymized
+    An explicit, known `data_type` always wins — duck-typing is only consulted
+    when the caller did not state a type. This stops e.g. an assignment record
+    that happens to carry a `message` key from being treated as a discussion
+    entry, or a course record's `name` from being rewritten as a student's.
+    """
+    if data_type in KNOWN_DATA_TYPES:
+        return data_type
+    if 'submitted_at' in record:
+        return 'submissions'
+    if 'due_at' in record:
+        return 'assignments'
+    if 'message' in record:
+        return 'discussions'
+    return 'general'
+
+
+def _apply_type_refinements(data: Any, data_type: str) -> Any:
+    """Apply the record-level refinements layered on top of the identity scrub."""
+    if isinstance(data, list):
+        return [_apply_type_refinements(item, data_type) for item in data]
+    if not isinstance(data, dict):
+        return data
+
+    resolved = _resolve_record_type(data, data_type)
+    if resolved == 'submissions':
+        return _redact_submission_content(data)
+    if resolved == 'assignments':
+        return _truncate_long_description(data)
+    return data
 
 
 def anonymize_response_data(data: Any, data_type: str = "general") -> Any:
     """Main function to anonymize Canvas API response data.
 
+    Two passes, in order:
+
+    1. :func:`scrub_identity` — the recursive baseline. Runs on every payload
+       regardless of shape or `data_type`, so unknown/nested shapes still get
+       identity protection (fail-closed).
+    2. Typed refinements — submitted-content redaction for submissions and
+       long-description truncation for assignments, applied per record.
+
     Args:
         data: The data to anonymize (can be dict, list, or other types)
-        data_type: Type of data being anonymized for specific handling
+        data_type: Type of data being anonymized for specific handling. Values
+            outside :data:`KNOWN_DATA_TYPES` fall back to duck-typing.
 
     Returns:
         Anonymized data structure
     """
-    if isinstance(data, dict):
-        if data_type == "users" or 'name' in data and 'email' in data:
-            return anonymize_user_data(data)
-        elif data_type == "discussions" or 'message' in data:
-            return anonymize_discussion_entry(data)
-        elif data_type == "submissions" or 'submitted_at' in data:
-            return anonymize_submission_data(data)
-        elif data_type == "assignments" or 'due_at' in data:
-            return anonymize_assignment_data(data)
-        else:
-            # Generic anonymization
-            anonymized = {}
-            for key, value in data.items():
-                if key.lower() in ['name', 'email', 'login_id', 'sis_user_id']:
-                    if 'id' in data:
-                        anonymized[key] = generate_anonymous_id(data['id'])
-                    else:
-                        anonymized[key] = "[REDACTED]"
-                else:
-                    anonymized[key] = anonymize_response_data(value, data_type)
-            return anonymized
-
-    elif isinstance(data, list):
-        return [anonymize_response_data(item, data_type) for item in data]
-
-    else:
-        # For primitive types, return as-is
-        return data
+    return _apply_type_refinements(scrub_identity(data), data_type)
 
 
 def create_anonymization_summary(original_count: int, anonymized_count: int, data_type: str) -> str:
