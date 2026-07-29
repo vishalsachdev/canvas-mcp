@@ -6,18 +6,22 @@ concept of "agent access", so the policy is expressed as a Canvas-native
 artifact that the instructor controls.
 
 Choosing the carrier is the whole security question here, because the policy is
-read using the *student's own token*. The artifact must therefore be one the
-student cannot author or alter:
+read using the *student's own token*. The artifact must be one the student
+cannot author or alter, and there is exactly one such option:
 
-* **Syllabus (default).** ``syllabus_body`` is editable only by instructors and
-  admins under every standard Canvas role, and readable by enrolled students.
-  That makes instructor authorship structural rather than assumed.
-* **Page (opt-in).** A course Page is friendlier, but Canvas Pages carry an
-  ``editing_roles`` setting that can be ``students``, ``members`` or ``public``,
-  and in many courses a student may create a page before any instructor does.
-  Reading such a page through the student's own token proves nothing about who
-  wrote it. So when this mode is selected the reader **refuses to trust** any
-  page whose ``editing_roles`` is not restricted to teachers.
+**The syllabus.** ``syllabus_body`` is editable only by instructors and admins
+under every standard Canvas role, and readable by enrolled students. That makes
+instructor authorship structural rather than assumed.
+
+A course Page was considered and deliberately **rejected**, which is worth
+recording so it is not reintroduced. Pages carry an ``editing_roles`` setting,
+and the obvious guard is to trust only teacher-only pages. That guard does not
+work: ``editing_roles`` describes who may edit a page *now*, not who wrote it.
+In a course where students may create pages, a student can create the policy
+page containing ``agent_writes: allow`` and set it teacher-only in the same
+breath, locking themselves out *after* authoring the content that governs them.
+Authorship cannot be established from a student's own token, so a Page can
+never be a trustworthy authorization source here, however it is screened.
 
 Layering holds strictly: ``STUDENT_WRITE_TOOLS`` is the campus-wide operator
 ceiling. A course policy may only further restrict within it, never expand it,
@@ -48,11 +52,6 @@ _TAG_RE = re.compile(r"<[^>]+>")
 _HTTP_STATUS_RE = re.compile(r"^HTTP error:\s*(\d{3})\b")
 _KV_RE = re.compile(r"^\s*([a-z_]+)\s*:\s*(.*?)\s*$", re.IGNORECASE)
 
-# The only editing_roles value that makes a Page trustworthy as an instructor
-# statement. Canvas returns a comma-separated string; this is matched as an
-# exact set so that a missing, empty, or unfamiliar value fails closed rather
-# than slipping past a denylist.
-_TRUSTED_EDIT_ROLES = frozenset({"teachers"})
 
 
 class CoursePolicy(NamedTuple):
@@ -136,19 +135,51 @@ def parse_policy_body(body: str) -> CoursePolicy:
     ``agent_writes`` line is treated as "no policy stated" by the caller, not as
     a malformed policy.
     """
-    values: dict[str, str] = {}
+    # Collect EVERY occurrence of each key rather than the first. Keeping only
+    # the first would let an instructor who appends "agent_writes: deny" below an
+    # earlier "agent_writes: allow" have their revocation silently discarded,
+    # which is the worst possible direction for this to fail.
+    values: dict[str, list[str]] = {}
     for line in _strip_html(body).splitlines():
         match = _KV_RE.match(line)
         if match:
             key = match.group(1).lower()
             if key in (_KEY_AGENT_WRITES, _KEY_ALLOW_TOOLS, _KEY_NOTE):
-                values.setdefault(key, match.group(2).strip())
+                values.setdefault(key, []).append(match.group(2).strip())
 
-    note = values.get(_KEY_NOTE, "")
-    raw_writes = values.get(_KEY_AGENT_WRITES, "").lower()
+    note = (values.get(_KEY_NOTE) or [""])[0]
+    write_directives = {v.lower() for v in values.get(_KEY_AGENT_WRITES, [])}
+
+    # Contradictory directives are ambiguous, and ambiguity denies. An explicit
+    # denial anywhere in the policy must never be overridden by an allow.
+    if len(write_directives) > 1:
+        return CoursePolicy(
+            allow_writes=False,
+            allow_tools=None,
+            note=note or (
+                "The course's agent policy states more than one conflicting "
+                "value. Ask your instructor to correct it."
+            ),
+            source="course_artifact_conflict",
+        )
+
+    raw_writes = next(iter(write_directives), "")
 
     if raw_writes == "allow":
-        raw_tools = values.get(_KEY_ALLOW_TOOLS, "")
+        tool_directives = set(values.get(_KEY_ALLOW_TOOLS, []))
+        # Same rule as above: contradictory narrowing is ambiguous, so deny
+        # rather than guess which line the instructor meant.
+        if len(tool_directives) > 1:
+            return CoursePolicy(
+                allow_writes=False,
+                allow_tools=None,
+                note=note or (
+                    "The course's agent policy lists allow_tools more than once "
+                    "with different values. Ask your instructor to correct it."
+                ),
+                source="course_artifact_conflict",
+            )
+        raw_tools = next(iter(tool_directives), "")
         tools = frozenset(
             name.strip() for name in raw_tools.replace(",", " ").split() if name.strip()
         )
@@ -180,54 +211,9 @@ async def _read_policy_text(course_id: str) -> tuple[str | None, str]:
 
     * ``ok`` — text found
     * ``absent`` — the course was read and states no policy; apply the default
-    * ``absent_ambiguous`` — looked absent, but might instead mean this caller
-      cannot see it; apply the default WITHOUT caching (see below)
-    * ``error`` — undetermined; deny
-    * ``untrusted`` — an artifact exists but its provenance cannot be trusted; deny
-
-    The ``absent`` / ``absent_ambiguous`` split exists because Canvas answers 404
-    both for "this thing does not exist" and for "you cannot see this". Caching
-    the second under the course id alone would let one caller who lacks access
-    install a global verdict for everyone — and where the default is permissive,
-    that verdict would override an instructor's explicit denial.
+    * ``error`` — undetermined, or this caller cannot see the course; deny
     """
-    config = get_config()
-
-    if config.course_agent_policy_source == "page":
-        response = await make_canvas_request(
-            "get", f"/courses/{course_id}/pages/{config.course_agent_policy_page}"
-        )
-        if isinstance(response, dict) and "error" in response:
-            message = str(response["error"])
-            if not _is_not_found(message):
-                return None, "error"
-            # Could be "no such page" or "no access to this course". Honour the
-            # default posture, but never cache a guess.
-            return None, "absent_ambiguous"
-
-        # Provenance guard. A page a student could edit is not an instructor
-        # statement, regardless of what it says.
-        #
-        # This is an allowlist, not a denylist, and deliberately so. Screening
-        # only for known-bad role names would trust a page whose editing_roles
-        # is missing, empty, or some value Canvas adds later — exactly the
-        # ambiguous cases a fail-closed check exists to catch.
-        roles = {
-            role.strip()
-            for role in str(response.get("editing_roles") or "").lower().split(",")
-            if role.strip()
-        }
-        if roles != _TRUSTED_EDIT_ROLES:
-            log_warning(
-                "Ignoring course agent policy page: not explicitly teacher-only",
-                course_id=course_id,
-                editing_roles=sorted(roles) or ["<missing>"],
-            )
-            return None, "untrusted"
-
-        return str(response.get("body") or ""), "ok"
-
-    # Default: the syllabus, which students cannot edit.
+    # The syllabus, which students cannot edit.
     response = await make_canvas_request(
         "get", f"/courses/{course_id}", params={"include[]": ["syllabus_body"]}
     )
@@ -281,10 +267,6 @@ async def get_course_policy(course_id: str | int) -> CoursePolicy:
         policy = parse_policy_body(text)
     elif status == "absent":
         policy = _default_policy()
-    elif status == "absent_ambiguous":
-        # Apply the default, but return before the cache write below: this
-        # verdict may reflect only what THIS caller can see.
-        return _default_policy()._replace(source="default_uncached")
     elif status == "untrusted":
         policy = CoursePolicy(
             allow_writes=False,

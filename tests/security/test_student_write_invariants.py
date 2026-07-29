@@ -210,14 +210,55 @@ class TestInlineFilenames:
         assert ".." not in prepared[0].name
         assert "/" not in prepared[0].name
 
-    def test_disallowed_extension_is_refused(self):
+    def test_the_assignment_decides_which_types_are_allowed(self):
+        """The instructor's allowed_extensions is the authority, not a global list.
+
+        An earlier version enforced a hard-coded allowlist here, which could only
+        ever disagree with the instructor, and which rejected ordinary student
+        work such as .heic photos.
+        """
         from canvas_mcp.tools.student_write import _prepare_files
 
         _, error = _prepare_files(
-            None, [{"name": "payload.exe", "content_base64": "TVo="}]
+            None,
+            [{"name": "photo.heic", "content_base64": "YWJj"}],
+            allowed_extensions=frozenset({".pdf"}),
         )
         assert error is not None
-        assert "not an allowed file type" in error
+        assert "does not accept" in error
+        assert ".pdf" in error, "the student should be told what IS accepted"
+
+    def test_types_the_assignment_permits_are_accepted(self):
+        from canvas_mcp.tools.student_write import _prepare_files
+
+        prepared, error = _prepare_files(
+            None,
+            [{"name": "photo.heic", "content_base64": "YWJj"}],
+            allowed_extensions=frozenset({".heic", ".jpg"}),
+        )
+        assert error is None
+        assert prepared[0].name == "photo.heic"
+
+    def test_unrestricted_assignments_accept_any_type(self):
+        """No global allowlist: .heic and .tex must both go through."""
+        from canvas_mcp.tools.student_write import _prepare_files
+
+        for name in ["photo.heic", "paper.tex", "data.dta"]:
+            prepared, error = _prepare_files(
+                None, [{"name": name, "content_base64": "YWJj"}]
+            )
+            assert error is None, f"{name} was rejected with no assignment restriction"
+            assert prepared[0].name == name
+
+    def test_canvas_extension_format_is_normalized(self):
+        """Canvas stores allowed_extensions without dots and in mixed case."""
+        from canvas_mcp.tools.student_write import _normalize_extensions
+
+        assert _normalize_extensions(["PDF", "docx", ".Heic"]) == frozenset(
+            {".pdf", ".docx", ".heic"}
+        )
+        assert _normalize_extensions([]) is None
+        assert _normalize_extensions(None) is None
 
     def test_odd_extension_returns_an_error_not_an_exception(self):
         from canvas_mcp.tools.student_write import _prepare_files
@@ -343,6 +384,36 @@ class TestPolicyParsing:
         assert policy.allow_writes is True
         assert policy.note == "go ahead"
 
+    def test_a_later_deny_is_never_discarded(self):
+        """An appended revocation must not be swallowed by an earlier allow.
+
+        Keeping only the first occurrence of a key would let an instructor who
+        adds "agent_writes: deny" below an existing "agent_writes: allow" have
+        their revocation silently ignored, which is the worst direction for this
+        to fail.
+        """
+        policy = parse_policy_body("agent_writes: allow\nagent_writes: deny")
+        assert policy.allow_writes is False
+        assert policy.source == "course_artifact_conflict"
+
+    def test_conflict_denies_in_either_order(self):
+        assert parse_policy_body(
+            "agent_writes: deny\nagent_writes: allow"
+        ).allow_writes is False
+
+    def test_repeating_the_same_directive_is_not_a_conflict(self):
+        policy = parse_policy_body("agent_writes: allow\nagent_writes: allow")
+        assert policy.allow_writes is True
+
+    def test_conflicting_allow_tools_denies(self):
+        policy = parse_policy_body(
+            "agent_writes: allow\n"
+            "allow_tools: submit_assignment\n"
+            "allow_tools: mark_module_item_done"
+        )
+        assert policy.allow_writes is False
+        assert policy.source == "course_artifact_conflict"
+
     def test_malformed_policy_denies(self):
         """A typo must never become a grant."""
         assert parse_policy_body("agent_writes: yes please").allow_writes is False
@@ -390,79 +461,44 @@ class TestPolicyResolution:
         assert get_config().course_agent_policy_default == "deny"
 
     @pytest.mark.asyncio
-    async def test_syllabus_is_the_default_carrier(self):
-        """The carrier must be one students cannot edit."""
-        reset_config()
-        assert get_config().course_agent_policy_source == "syllabus"
+    async def test_the_syllabus_is_the_only_carrier(self):
+        """There is deliberately no way to select a weaker policy carrier.
 
-    @pytest.mark.asyncio
-    async def test_student_editable_page_is_not_trusted(self):
-        """A page a student could have written is not an instructor statement."""
-        with patch.dict(
-            "os.environ",
-            {"COURSE_AGENT_POLICY_SOURCE": "page", "COURSE_AGENT_POLICY_DEFAULT": "allow"},
-            clear=False,
-        ):
-            reset_config()
-            with patch(
-                "canvas_mcp.core.course_policy.make_canvas_request",
-                new=AsyncMock(
-                    return_value={
-                        "body": "agent_writes: allow",
-                        "editing_roles": "teachers,students",
-                    }
-                ),
-            ):
-                policy = await get_course_policy("123")
-        assert policy.allow_writes is False
-        assert policy.source == "untrusted_artifact"
-
-    @pytest.mark.parametrize(
-        "editing_roles",
-        [None, "", "teachers,students", "students", "anyone", "members", "public"],
-    )
-    @pytest.mark.asyncio
-    async def test_page_is_trusted_only_when_explicitly_teacher_only(self, editing_roles):
-        """Ambiguity must fail closed.
-
-        A denylist of known-bad role names would trust a page whose
-        editing_roles is missing, empty, or a value Canvas introduces later.
+        A course-page carrier was implemented and then removed: editing_roles
+        describes who may edit a page NOW, not who wrote it, so a student who
+        can create pages could author the policy and lock it teacher-only
+        afterwards. Authorship cannot be established from a student's own token,
+        so a page can never be trustworthy here however it is screened. This
+        test exists to keep that option from being reintroduced as a config knob.
         """
-        reset_policy_cache()
-        with patch.dict(
-            "os.environ",
-            {"COURSE_AGENT_POLICY_SOURCE": "page", "COURSE_AGENT_POLICY_DEFAULT": "allow"},
-            clear=False,
-        ):
-            reset_config()
-            page = {"body": "agent_writes: allow"}
-            if editing_roles is not None:
-                page["editing_roles"] = editing_roles
-            with patch(
-                "canvas_mcp.core.course_policy.make_canvas_request",
-                new=AsyncMock(return_value=page),
-            ):
-                policy = await get_course_policy("123")
-        assert policy.allow_writes is False
-        assert policy.source == "untrusted_artifact"
+        reset_config()
+        config = get_config()
+        assert not hasattr(config, "course_agent_policy_source")
+        assert not hasattr(config, "course_agent_policy_page")
 
     @pytest.mark.asyncio
-    async def test_teacher_only_page_is_trusted(self):
+    async def test_policy_is_read_from_the_course_syllabus(self):
+        reset_policy_cache()
+        seen = {}
+
+        async def recorder(method, endpoint, **kwargs):
+            seen["endpoint"] = endpoint
+            seen["params"] = kwargs.get("params")
+            return {"syllabus_body": "agent_writes: allow"}
+
         with patch.dict(
-            "os.environ", {"COURSE_AGENT_POLICY_SOURCE": "page"}, clear=False
+            "os.environ", {"STUDENT_WRITE_TOOLS": ALL_WRITE_TOOLS}, clear=False
         ):
             reset_config()
             with patch(
-                "canvas_mcp.core.course_policy.make_canvas_request",
-                new=AsyncMock(
-                    return_value={
-                        "body": "agent_writes: allow",
-                        "editing_roles": "teachers",
-                    }
-                ),
+                "canvas_mcp.core.course_policy.make_canvas_request", new=recorder
             ):
                 policy = await get_course_policy("123")
+
         assert policy.allow_writes is True
+        assert seen["endpoint"] == "/courses/123"
+        assert "syllabus_body" in seen["params"]["include[]"]
+        assert "pages" not in seen["endpoint"]
 
 
 class TestErrorClassification:
@@ -563,27 +599,6 @@ class TestErrorClassification:
                 real = await get_course_policy("999")
         assert real.allow_writes is False
         assert real.source == "course_artifact"
-
-    @pytest.mark.asyncio
-    async def test_ambiguous_page_404_is_not_cached(self):
-        """In page mode a 404 could be "no page" or "no access". Never cache it."""
-        from canvas_mcp.core.course_policy import _policy_cache
-
-        reset_policy_cache()
-        with patch.dict(
-            "os.environ",
-            {"COURSE_AGENT_POLICY_SOURCE": "page", "COURSE_AGENT_POLICY_DEFAULT": "allow"},
-            clear=False,
-        ):
-            reset_config()
-            with patch(
-                "canvas_mcp.core.course_policy.make_canvas_request",
-                new=AsyncMock(return_value={"error": "HTTP error: 404"}),
-            ):
-                policy = await get_course_policy("777")
-        assert policy.allow_writes is True  # default posture honoured
-        assert policy.source == "default_uncached"
-        assert "777" not in _policy_cache
 
     @pytest.mark.asyncio
     async def test_unmarked_syllabus_is_a_cacheable_absence(self):

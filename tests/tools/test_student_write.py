@@ -530,6 +530,53 @@ class TestConfirmationIntegrity:
         assert sum("✅ Submitted." in r for r in results) == 1
         assert sum("already used" in r for r in results) == 1
 
+    def test_fingerprint_covers_the_attempt_limit(self):
+        """An instructor can change allowed_attempts between preview and confirm.
+
+        A preview that said "unlimited" must not be confirmable against a
+        freshly capped assignment, spending what is now the final attempt.
+        """
+        import canvas_mcp.tools.student_write as sw
+
+        unlimited = sw._fingerprint("1", "2", "online_text_entry", "d", 0, -1)
+        capped = sw._fingerprint("1", "2", "online_text_entry", "d", 0, 1)
+        assert unlimited != capped
+
+    @pytest.mark.asyncio
+    async def test_changed_attempt_limit_voids_the_token(self):
+        tools = get_tools(
+            STUDENT_WRITE_TOOLS="submit_assignment",
+            COURSE_AGENT_POLICY_ENABLED="false",
+        )
+        with patch(
+            "canvas_mcp.tools.student_write.get_course_id",
+            new=AsyncMock(return_value="123"),
+        ), patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new_callable=AsyncMock
+        ) as request:
+            request.side_effect = [
+                _mock_assignment(allowed_attempts=-1), {"attempt": 0},
+            ]
+            preview = await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_text_entry", body="hello",
+            )
+            assert "unlimited" in preview
+            token = preview.split("confirmation_token='")[1].split("'")[0]
+
+            # Instructor caps attempts in the meantime.
+            request.side_effect = [
+                _mock_assignment(allowed_attempts=1), {"attempt": 0},
+            ]
+            result = await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_text_entry", body="hello",
+                confirmation_token=token,
+            )
+
+        assert "does not match" in result
+        assert not [c for c in request.call_args_list if c.args[0] == "post"]
+
     def test_token_does_not_verify_under_a_forged_signature(self):
         import canvas_mcp.tools.student_write as sw
 
@@ -743,7 +790,8 @@ class TestBinaryUpload:
         assert "not valid base64" in result
 
     @pytest.mark.asyncio
-    async def test_disallowed_extension_rejected(self):
+    async def test_assignment_restriction_is_enforced_end_to_end(self):
+        """The instructor's allowed_extensions reaches the upload check."""
         tools = get_tools(
             STUDENT_WRITE_TOOLS="submit_assignment",
             COURSE_AGENT_POLICY_ENABLED="false",
@@ -757,14 +805,17 @@ class TestBinaryUpload:
             "canvas_mcp.tools.student_write.make_canvas_request", new_callable=AsyncMock
         ) as request:
             request.side_effect = [
-                _mock_assignment(submission_types=["online_upload"]),
+                _mock_assignment(
+                    submission_types=["online_upload"], allowed_extensions=["pdf"]
+                ),
                 {"attempt": 0},
             ]
             result = await tools["submit_assignment"](
                 course_identifier="TEST", assignment_id=42,
                 submission_type="online_upload",
                 file_contents=[
-                    {"name": "evil.exe", "content_base64": base64.b64encode(b"MZ").decode()}
+                    {"name": "notes.txt", "content_base64": base64.b64encode(b"hi").decode()}
                 ],
             )
-        assert "Cannot submit" in result
+        assert "does not accept" in result
+        assert not [c for c in request.call_args_list if c.args[0] == "post"]

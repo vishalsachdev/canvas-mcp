@@ -51,11 +51,9 @@ from ..core.course_policy import (
 from ..core.credentials import get_request_credentials, is_http_request_active
 from ..core.dates import format_date
 from ..core.file_validation import (
-    ALLOWED_EXTENSIONS,
     DEFAULT_MAX_FILE_SIZE_BYTES,
     detect_mime_type,
     sanitize_filename,
-    validate_file_for_upload,
 )
 from ..core.validation import validate_params
 
@@ -233,6 +231,7 @@ def _fingerprint(
     submission_type: str,
     payload_digest: str,
     attempt: int,
+    allowed_attempts: int | None = None,
 ) -> str:
     """Bind a confirmation to exactly what was previewed, and to who previewed it.
 
@@ -244,10 +243,16 @@ def _fingerprint(
     carries its own Canvas token: without it, a token issued to one student could
     be redeemed by another whose attempt number happened to match, so the
     confirmation would no longer authorize the account that saw the preview.
+
+    Including the attempt *limit* as well as the count matters because an
+    instructor can change ``allowed_attempts`` in between. A preview that said
+    "unlimited" could otherwise be confirmed against a freshly capped assignment
+    and spend what is now the final attempt, with the student having agreed to
+    something different.
     """
     raw = (
         f"{_caller_identity()}|{course_id}|{assignment_id}|"
-        f"{submission_type}|{payload_digest}|{attempt}"
+        f"{submission_type}|{payload_digest}|{attempt}|{allowed_attempts}"
     )
     return hashlib.sha256(raw.encode()).hexdigest()
 
@@ -306,9 +311,53 @@ def _describe_attempts(assignment: dict, submission: dict) -> str:
     return f"Attempts: {used} of {allowed} used, {remaining} remaining.{warning}"
 
 
+def _normalize_extensions(raw: list[str] | None) -> frozenset[str] | None:
+    """Normalize an assignment's ``allowed_extensions`` into ``{'.pdf', ...}``.
+
+    Canvas stores these without leading dots and with inconsistent case. An
+    empty or absent list means the assignment does not restrict types.
+    """
+    if not raw:
+        return None
+    return frozenset(
+        f".{str(ext).strip().lstrip('.').lower()}" for ext in raw if str(ext).strip()
+    )
+
+
+def _check_submission_name(
+    name: str, allowed_extensions: frozenset[str] | None
+) -> tuple[str, str | None]:
+    """Sanitize a filename and check it against the ASSIGNMENT's own rules.
+
+    Returns ``(safe_name, error)``.
+
+    Deliberately no global extension allowlist. The instructor's
+    ``allowed_extensions`` on the assignment is the legitimate statement of what
+    that assignment accepts; a separate hard-coded list can only disagree with
+    it, and the one previously used here rejected ordinary student work such as
+    ``.heic`` photos and ``.tex`` sources. Sanitization is still applied, since
+    a malicious *path* is a real attack whereas an unusual extension is not.
+    """
+    safe_name = sanitize_filename(name)
+    if not safe_name or safe_name in (".", ".."):
+        return "", f"❌ '{name}' is not a usable filename."
+
+    if allowed_extensions is not None:
+        extension = os.path.splitext(safe_name)[1].lower()
+        if extension not in allowed_extensions:
+            accepted = ", ".join(sorted(allowed_extensions))
+            return "", (
+                f"❌ This assignment does not accept "
+                f"'{extension or 'files without an extension'}'. "
+                f"It accepts: {accepted}"
+            )
+    return safe_name, None
+
+
 def _prepare_files(
     file_paths: list[str] | None,
     file_contents: list[dict[str, str]] | None,
+    allowed_extensions: frozenset[str] | None = None,
 ) -> tuple[list[_PreparedFile], str | None]:
     """Resolve either ingress mode into raw bytes.
 
@@ -343,18 +392,31 @@ def _prepare_files(
     running_bytes = 0
 
     for path in file_paths or []:
-        result = validate_file_for_upload(path)
-        if not result.valid:
-            return [], f"❌ Cannot submit '{path}': {result.error}"
-        running_bytes += result.file_size
+        if not os.path.isfile(path):
+            return [], f"❌ Cannot submit '{path}': no such file."
+        try:
+            file_size = os.path.getsize(path)
+        except OSError as exc:
+            return [], f"❌ Could not read '{path}': {exc}"
+        if file_size > DEFAULT_MAX_FILE_SIZE_BYTES:
+            return [], f"❌ '{path}' exceeds the maximum upload size."
+        running_bytes += file_size
         if running_bytes > _MAX_TOTAL_UPLOAD_BYTES:
             return [], _too_large_message()
+
+        safe_name, name_error = _check_submission_name(
+            os.path.basename(path), allowed_extensions
+        )
+        if name_error:
+            return [], name_error
         try:
             with open(path, "rb") as handle:
                 content = handle.read()
         except OSError as exc:
             return [], f"❌ Could not read '{path}': {exc}"
-        prepared.append(_PreparedFile(result.sanitized_name, content, result.mime_type))
+        prepared.append(
+            _PreparedFile(safe_name, content, detect_mime_type(safe_name))
+        )
 
     for entry in file_contents or []:
         name = str(entry.get("name") or "").strip()
@@ -380,15 +442,10 @@ def _prepare_files(
         # Validate the name the CLIENT actually supplied. An earlier version
         # checked a temp file's random basename instead, which meant the
         # sanitized result was discarded and a name like "../essay.pdf" reached
-        # Canvas untouched (and an odd extension could make mkstemp raise
-        # instead of returning a clean validation error).
-        safe_name = sanitize_filename(name)
-        extension = os.path.splitext(safe_name)[1].lower()
-        if extension not in ALLOWED_EXTENSIONS:
-            return [], (
-                f"❌ Cannot submit '{name}': '{extension or 'no extension'}' is "
-                "not an allowed file type."
-            )
+        # Canvas untouched.
+        safe_name, name_error = _check_submission_name(name, allowed_extensions)
+        if name_error:
+            return [], name_error
         if len(content) > DEFAULT_MAX_FILE_SIZE_BYTES:
             return [], f"❌ '{name}' exceeds the maximum upload size."
 
@@ -628,13 +685,22 @@ def register_student_write_tools(mcp: FastMCP) -> None:
                 )
             attempt = submission.get("attempt") or 0
 
-            prepared, prep_error = _prepare_files(file_paths, file_contents)
+            prepared, prep_error = _prepare_files(
+                file_paths,
+                file_contents,
+                _normalize_extensions(assignment.get("allowed_extensions")),
+            )
             if prep_error:
                 return prep_error
 
             digest = _digest_payload(body, url, comment, prepared)
             fingerprint = _fingerprint(
-                course_id, str(assignment_id), submission_type, digest, attempt
+                course_id,
+                str(assignment_id),
+                submission_type,
+                digest,
+                attempt,
+                assignment.get("allowed_attempts"),
             )
 
             if not confirmation_token:

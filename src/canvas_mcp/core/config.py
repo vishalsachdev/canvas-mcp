@@ -229,18 +229,6 @@ class Config:
         # Per-course instructor policy. Can further restrict (never expand) the
         # operator ceiling above.
         self.course_agent_policy_enabled = _bool_env("COURSE_AGENT_POLICY_ENABLED", True)
-        # Which Canvas artifact carries the policy. "syllabus" is the default and
-        # the only structurally sound option: students cannot edit syllabus_body
-        # under any standard role. "page" is offered for operators who prefer to
-        # keep the syllabus clean, but a Canvas Page can be student-editable
-        # (editing_roles), so the page reader refuses to trust anything not
-        # restricted to teachers.
-        self.course_agent_policy_source = os.getenv(
-            "COURSE_AGENT_POLICY_SOURCE", "syllabus"
-        ).strip().lower()
-        self.course_agent_policy_page = os.getenv(
-            "COURSE_AGENT_POLICY_PAGE", "agent-policy"
-        ).strip()
         # Posture when a course has no policy artifact. Institutional decision, so
         # it is operator-configurable; "deny" is the safe default.
         self.course_agent_policy_default = os.getenv(
@@ -372,15 +360,6 @@ def validate_config() -> bool:
             f"defaulting to 'deny' (got '{config.course_agent_policy_default}')"
         )
         config.course_agent_policy_default = "deny"
-
-    valid_policy_sources = ("syllabus", "page")
-    if config.course_agent_policy_source not in valid_policy_sources:
-        log_warning(
-            "COURSE_AGENT_POLICY_SOURCE should be one of "
-            f"{', '.join(valid_policy_sources)}; defaulting to 'syllabus' "
-            f"(got '{config.course_agent_policy_source}')"
-        )
-        config.course_agent_policy_source = "syllabus"
 
     unknown_write_tools = config.student_write_tools - STUDENT_WRITE_TOOL_NAMES
     if unknown_write_tools:

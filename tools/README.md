@@ -116,8 +116,11 @@ the second call, carrying the token from the preview, actually submits.
 dates, attempts remaining, and exactly what would be sent. On the second, the
 submission result including whether Canvas marked it late.
 
-**Files are sent as raw bytes** of any allowed type. Images and PDFs are uploaded
-as-is, never converted to text or run through OCR.
+**Files are sent as raw bytes.** Images and PDFs are uploaded as-is, never
+converted to text or run through OCR. There is no global list of permitted
+extensions: whatever the assignment's own `allowed_extensions` permits is
+accepted, so `.heic` photos and `.tex` sources work wherever the instructor
+allows them. Limits are 100 MB per file, 100 MB and 20 files per submission.
 
 **Not supported:** group assignments (submitting would bind your whole group) and
 quizzes (a separate institutional decision).
@@ -183,10 +186,16 @@ note: Allowed for the weekly labs. Ask me before using it on the final project.
 `COURSE_AGENT_POLICY_DEFAULT` decides what happens in a course that says nothing:
 `deny` (the default, instructors opt in) or `allow` (instructors opt out).
 
-Operators who would rather not put this in the syllabus can set
-`COURSE_AGENT_POLICY_SOURCE=page` and use a course page instead. That option is
-weaker and the server knows it: a Canvas page can be student-editable, so any
-page whose `editing_roles` is not teacher-only is ignored rather than trusted.
+The syllabus is the only supported carrier, and that is deliberate. Students can
+read it but cannot edit it, so instructor authorship is structural rather than
+assumed. A course-page carrier was built and then removed: a page's
+`editing_roles` tells you who may edit it *now*, not who wrote it, so a student
+who can create pages could author the policy and set it teacher-only in the same
+breath. Authorship cannot be established from a student's own token.
+
+Anything ambiguous denies: a malformed policy, contradictory directives (an
+`agent_writes: deny` appended under an earlier `allow`), a failed read, or a
+course this caller cannot see.
 
 ---
 
