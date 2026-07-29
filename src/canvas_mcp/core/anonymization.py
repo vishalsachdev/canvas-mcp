@@ -51,6 +51,14 @@ NULL_FIELDS = frozenset({
     'pronouns',
 })
 
+#: Profile fields nulled only on records that look like a person. Courses and
+#: terms also carry ``time_zone`` (and could carry ``locale``), where the value
+#: is institutional, not personal — nulling it there would be over-reach.
+USER_ONLY_NULL_FIELDS = frozenset({
+    'time_zone',
+    'locale',
+})
+
 #: Keys searched, in order, for the id that a record's identity fields are
 #: keyed to. ``id`` is only used when the record itself looks like a user
 #: (otherwise it is an enrollment/comment/submission id and keying to it would
@@ -216,7 +224,9 @@ def scrub_identity(node: Any, inherited_id: Any = None, user_context: bool = Fal
     for key, value in node.items():
         key_lower = key.lower() if isinstance(key, str) else key
 
-        if key_lower in NULL_FIELDS:
+        if key_lower in NULL_FIELDS or (
+            key_lower in USER_ONLY_NULL_FIELDS and looks_user
+        ):
             scrubbed[key] = None
             continue
 

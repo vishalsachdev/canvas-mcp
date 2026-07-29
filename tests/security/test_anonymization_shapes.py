@@ -402,3 +402,31 @@ class TestSelfSubmissionEndpoint:
         ) is False
         redacted = anonymize_response_data(submission, data_type="submissions")
         assert redacted["body"].startswith("[CONTENT_REDACTED")
+
+
+class TestUserOnlyNullFields:
+    """time_zone/locale are personal on user records, institutional elsewhere
+    (codex review P2: the old anonymize_user_data nulled both on users)."""
+
+    def test_user_time_zone_and_locale_nulled(self):
+        user = {
+            "id": 101,
+            "name": "Jane Doe",
+            "sortable_name": "Doe, Jane",
+            "time_zone": "America/Chicago",
+            "locale": "en",
+        }
+        result = anonymize_response_data(user, data_type="users")
+        assert result["time_zone"] is None
+        assert result["locale"] is None
+
+    def test_course_time_zone_preserved(self):
+        course = {
+            "id": 12,
+            "name": "BADM 350 Fall 2026",
+            "course_code": "BADM350",
+            "time_zone": "America/Chicago",
+        }
+        result = anonymize_response_data(course, data_type="general")
+        assert result["time_zone"] == "America/Chicago"
+        assert result["name"] == "BADM 350 Fall 2026"
