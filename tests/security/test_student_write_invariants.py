@@ -229,6 +229,63 @@ class TestInlineFilenames:
             assert isinstance(error, (str, type(None)))
 
 
+class TestUploadResourceBounds:
+    """A per-file cap alone lets one request exhaust server memory."""
+
+    def test_file_count_is_capped(self):
+        import base64
+
+        from canvas_mcp.tools.student_write import _MAX_UPLOAD_FILES, _prepare_files
+
+        tiny = base64.b64encode(b"x").decode()
+        _, error = _prepare_files(
+            None,
+            [
+                {"name": f"f{i}.txt", "content_base64": tiny}
+                for i in range(_MAX_UPLOAD_FILES + 1)
+            ],
+        )
+        assert error is not None
+        assert "Too many files" in error
+
+    def test_aggregate_size_is_capped_without_decoding(self):
+        """Many individually-legal files must not add up to an illegal request.
+
+        The check runs on the encoded length, so an oversized request is refused
+        before its bytes are ever materialized.
+        """
+        from canvas_mcp.tools.student_write import (
+            _MAX_TOTAL_UPLOAD_BYTES,
+            _prepare_files,
+        )
+
+        # Six ~20MB claims: each under the per-file cap, together over the total.
+        chunk = "A" * ((20 * 1024 * 1024) // 3 * 4)
+        _, error = _prepare_files(
+            None,
+            [{"name": f"f{i}.pdf", "content_base64": chunk} for i in range(6)],
+        )
+        assert error is not None
+        assert "total more than" in error
+        assert _MAX_TOTAL_UPLOAD_BYTES > 0
+
+    def test_a_normal_submission_still_works(self):
+        """The bounds must not break the ordinary case."""
+        import base64
+
+        from canvas_mcp.tools.student_write import _prepare_files
+
+        prepared, error = _prepare_files(
+            None,
+            [
+                {"name": "essay.pdf", "content_base64": base64.b64encode(b"pdf").decode()},
+                {"name": "chart.png", "content_base64": base64.b64encode(b"png").decode()},
+            ],
+        )
+        assert error is None
+        assert [p.name for p in prepared] == ["essay.pdf", "chart.png"]
+
+
 class TestHostedFileIngress:
     """file_paths reads the SERVER's disk. That must not be reachable remotely."""
 

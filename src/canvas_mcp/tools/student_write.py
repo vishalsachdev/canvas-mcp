@@ -64,6 +64,21 @@ from ..core.validation import validate_params
 # flag, and discussion participation already has dedicated tools.
 _SUPPORTED_TYPES = ("online_text_entry", "online_url", "online_upload")
 
+# Whole-request upload bounds. These exist on top of the per-file limit in
+# core/file_validation, which on its own would allow an unlimited number of
+# maximum-size files in a single call. Both are checked before any file content
+# is decoded or read.
+_MAX_UPLOAD_FILES = 20
+_MAX_TOTAL_UPLOAD_BYTES = DEFAULT_MAX_FILE_SIZE_BYTES
+
+
+def _too_large_message() -> str:
+    limit_mb = _MAX_TOTAL_UPLOAD_BYTES // (1024 * 1024)
+    return (
+        f"❌ Those files total more than the {limit_mb} MB allowed for one "
+        "submission. Submit fewer or smaller files, or upload them in Canvas."
+    )
+
 # How long a confirmation token stays valid. Long enough for a human to read a
 # preview and answer, short enough that course state cannot drift far.
 _CONFIRM_TTL_SECONDS = 300
@@ -314,10 +329,26 @@ def _prepare_files(
             "the file with 'file_contents' as base64 instead."
         )
 
+    # Bound the whole request, not just each file. A per-file cap alone lets a
+    # caller send an unlimited NUMBER of maximum-size files, and the preview
+    # decodes and holds them all before any confirmation is required, so one
+    # authenticated request could exhaust a shared server's memory.
+    total_files = len(file_paths or []) + len(file_contents or [])
+    if total_files > _MAX_UPLOAD_FILES:
+        return [], (
+            f"❌ Too many files ({total_files}). At most {_MAX_UPLOAD_FILES} may "
+            "be submitted at once."
+        )
+
+    running_bytes = 0
+
     for path in file_paths or []:
         result = validate_file_for_upload(path)
         if not result.valid:
             return [], f"❌ Cannot submit '{path}': {result.error}"
+        running_bytes += result.file_size
+        if running_bytes > _MAX_TOTAL_UPLOAD_BYTES:
+            return [], _too_large_message()
         try:
             with open(path, "rb") as handle:
                 content = handle.read()
@@ -331,10 +362,15 @@ def _prepare_files(
         if not name or not encoded:
             return [], "Error: each file_contents entry needs 'name' and 'content_base64'"
 
-        # Bound the decoded size before decoding. base64 inflates by 4/3, so the
-        # encoded length is a safe proxy and avoids materializing a huge buffer.
-        if len(encoded) // 4 * 3 > DEFAULT_MAX_FILE_SIZE_BYTES:
+        # Bound sizes BEFORE decoding. base64 inflates by 4/3, so the encoded
+        # length is a safe proxy, and checking it first means an oversized
+        # request is rejected without ever allocating the buffer it describes.
+        approx_size = len(encoded) // 4 * 3
+        if approx_size > DEFAULT_MAX_FILE_SIZE_BYTES:
             return [], f"❌ '{name}' exceeds the maximum upload size."
+        running_bytes += approx_size
+        if running_bytes > _MAX_TOTAL_UPLOAD_BYTES:
+            return [], _too_large_message()
 
         try:
             content = base64.b64decode(encoded, validate=True)
