@@ -23,6 +23,11 @@
       "id": "developer",
       "name": "Developer Tools",
       "description": "Bulk operations, code execution, and tool discovery"
+    },
+    {
+      "id": "student_write",
+      "name": "Student Write Tools",
+      "description": "Tools that act on Canvas for the student. Off by default: enabled per-tool by the operator via STUDENT_WRITE_TOOLS, and further restrictable per course by an instructor."
     }
   ],
   "tools": [
@@ -725,8 +730,159 @@
           "description": "Only count active enrollments"
         }
       ],
-      "returns": "Yes/no plus minimal enrollment metadata (state, role, matched field) — never the roster",
+      "returns": "Yes/no plus minimal enrollment metadata (state, role, matched field) \u2014 never the roster",
       "notes": "Data-minimizing roster-membership check for external access gating. Requires a teacher-scoped token; a student token yields a clean Canvas 403."
+    },
+    {
+      "name": "get_my_submission",
+      "category": "student",
+      "description": "Get your own submission for one assignment, including attempts used",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "assignment_id",
+          "type": "string",
+          "required": true,
+          "description": "Canvas assignment ID"
+        }
+      ],
+      "returns": "Status, submitted time, due/lock dates, attempts used vs allowed, grade, comments",
+      "examples": [
+        "Did my essay go through?",
+        "How many attempts do I have left?"
+      ]
+    },
+    {
+      "name": "submit_assignment",
+      "category": "student_write",
+      "description": "Submit your own assignment. Consumes an attempt. Requires a confirmation token from a preview call.",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "assignment_id",
+          "type": "string",
+          "required": true,
+          "description": "Canvas assignment ID"
+        },
+        {
+          "name": "submission_type",
+          "type": "string",
+          "required": true,
+          "description": "online_text_entry, online_url, or online_upload"
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": false,
+          "description": "Content for online_text_entry"
+        },
+        {
+          "name": "url",
+          "type": "string",
+          "required": false,
+          "description": "URL for online_url"
+        },
+        {
+          "name": "file_paths",
+          "type": "array",
+          "required": false,
+          "description": "Local file paths, any type (local stdio servers only)"
+        },
+        {
+          "name": "file_contents",
+          "type": "array",
+          "required": false,
+          "description": "Inline files as [{name, content_base64}] (required on hosted servers)"
+        },
+        {
+          "name": "comment",
+          "type": "string",
+          "required": false,
+          "description": "Optional comment to include"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Token from the preview call; omit to preview"
+        }
+      ],
+      "returns": "A preview plus confirmation token on the first call; the submission result on the second",
+      "examples": [
+        "Submit my essay to assignment 4821",
+        "Yes, submit it"
+      ],
+      "notes": "Disabled unless the operator lists it in STUDENT_WRITE_TOOLS, and an instructor can block it per course. Group assignments and quizzes are not supported."
+    },
+    {
+      "name": "comment_on_my_submission",
+      "category": "student_write",
+      "description": "Add a comment to your own submission",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "assignment_id",
+          "type": "string",
+          "required": true,
+          "description": "Canvas assignment ID"
+        },
+        {
+          "name": "comment",
+          "type": "string",
+          "required": true,
+          "description": "The comment text"
+        }
+      ],
+      "returns": "Confirmation the comment was added",
+      "examples": [
+        "Add a note to my submission explaining the late turn-in"
+      ],
+      "notes": "Disabled unless the operator lists it in STUDENT_WRITE_TOOLS."
+    },
+    {
+      "name": "mark_module_item_done",
+      "category": "student_write",
+      "description": "Mark a module item done for yourself",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "module_id",
+          "type": "string",
+          "required": true,
+          "description": "Canvas module ID"
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "required": true,
+          "description": "Canvas module item ID"
+        }
+      ],
+      "returns": "Confirmation the item was marked done",
+      "examples": [
+        "Mark the week 3 reading as done"
+      ],
+      "notes": "Disabled unless the operator lists it in STUDENT_WRITE_TOOLS."
     }
   ],
   "workflows": [

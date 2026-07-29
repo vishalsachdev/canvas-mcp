@@ -64,6 +64,132 @@ Check your submission status across assignments.
 
 ---
 
+#### `get_my_submission`
+View your own submission for a single assignment, including how many attempts
+you have used and any instructor comments.
+
+**Parameters:**
+- `course_identifier` (required): Course code or Canvas ID
+- `assignment_id` (required): Canvas assignment ID
+
+**Example:**
+```
+"Did my essay for BADM 350 go through?"
+"How many attempts do I have left on assignment 4821?"
+```
+
+**Returns:** Status, submitted time, due and lock dates, attempts used vs allowed,
+grade if any, and submission comments.
+
+---
+
+### Student Write Tools
+
+> **Off by default.** These tools only exist if the server operator enabled them
+> via `STUDENT_WRITE_TOOLS`, and an instructor can additionally block them in
+> their own course. See [Student write configuration](#student-write-configuration).
+
+#### `submit_assignment`
+Submit one of your own assignments. **Consumes an attempt.**
+
+This is a deliberate two-call flow. The first call previews and submits nothing;
+the second call, carrying the token from the preview, actually submits.
+
+**Parameters:**
+- `course_identifier` (required): Course code or Canvas ID
+- `assignment_id` (required): Canvas assignment ID
+- `submission_type` (required): `online_text_entry`, `online_url`, or `online_upload`
+- `body` (for text entry): The content to submit
+- `url` (for URL submissions): The URL
+- `file_paths` (for uploads, local servers only): Local file paths, any file type
+- `file_contents` (for uploads, hosted servers): `[{"name": ..., "content_base64": ...}]`
+- `comment` (optional): A comment to include with the submission
+- `confirmation_token` (optional): Token from the preview call; omit to preview
+
+**Example:**
+```
+"Submit my essay draft to assignment 4821"        → returns a preview
+"Yes, submit it"                                   → confirms with the token
+```
+
+**Returns:** On the first call, a preview showing the assignment, due and lock
+dates, attempts remaining, and exactly what would be sent. On the second, the
+submission result including whether Canvas marked it late.
+
+**Files are sent as raw bytes** of any allowed type. Images and PDFs are uploaded
+as-is, never converted to text or run through OCR.
+
+**Not supported:** group assignments (submitting would bind your whole group) and
+quizzes (a separate institutional decision).
+
+---
+
+#### `comment_on_my_submission`
+Add a comment to your own submission.
+
+**Parameters:**
+- `course_identifier` (required): Course code or Canvas ID
+- `assignment_id` (required): Canvas assignment ID
+- `comment` (required): The comment text
+
+**Example:**
+```
+"Add a note to my submission explaining the late turn-in"
+```
+
+---
+
+#### `mark_module_item_done`
+Mark a module item complete for yourself, for modules using "mark as done"
+requirements.
+
+**Parameters:**
+- `course_identifier` (required): Course code or Canvas ID
+- `module_id` (required): Canvas module ID
+- `item_id` (required): Canvas module item ID
+
+---
+
+#### Student write configuration
+
+Two independent gates, and the second can only ever narrow the first.
+
+**1. Operator ceiling — `STUDENT_WRITE_TOOLS`**
+
+Comma- or space-separated tool names. Empty (the default) means no student write
+tool is registered at all.
+
+```bash
+STUDENT_WRITE_TOOLS=submit_assignment,comment_on_my_submission
+```
+
+**2. Per-course instructor policy**
+
+An instructor states their course's stance in the course syllabus (the default
+carrier, because students cannot edit it):
+
+```
+agent_writes: deny
+```
+
+or, to allow with limits:
+
+```
+agent_writes: allow
+allow_tools: submit_assignment
+note: Allowed for the weekly labs. Ask me before using it on the final project.
+```
+
+`COURSE_AGENT_POLICY_DEFAULT` decides what happens in a course that says nothing:
+`deny` (the default, instructors opt in) or `allow` (instructors opt out).
+
+Operators who would rather not put this in the syllabus can set
+`COURSE_AGENT_POLICY_SOURCE=page` and use a course page instead. That option is
+weaker and the server knows it: a Canvas page can be student-editable, so any
+page whose `editing_roles` is not teacher-only is ignored rather than trusted.
+
+---
+
 ### Academic Performance
 
 #### `get_my_course_grades`

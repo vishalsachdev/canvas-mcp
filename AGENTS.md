@@ -47,6 +47,36 @@ Personal academic tracking using Canvas "self" endpoints. Students only see thei
 | `get_my_submission_status` | What's submitted vs missing |
 | `get_my_course_grades` | Current grades across courses |
 | `get_my_peer_reviews_todo` | Pending peer reviews to complete |
+| `get_my_submission` | Your submission for one assignment, with attempts used |
+
+### Student Write Tools (off by default)
+Let an agent act on Canvas for the student rather than only read. **None of these
+are available unless the server operator enables them**, and an individual
+instructor can still block them in their own course.
+
+| Tool | Purpose |
+|------|---------|
+| `submit_assignment` | Submit your own assignment (text, URL, or any file type) |
+| `comment_on_my_submission` | Comment on your own submission |
+| `mark_module_item_done` | Mark a module item done for yourself |
+
+Three things to know before using them:
+
+1. **They may not exist.** Operators enable them individually via
+   `STUDENT_WRITE_TOOLS`, which defaults to empty. A disabled tool is absent
+   from the tool list entirely, so treat its absence as normal.
+2. **An instructor can turn them off per course.** If a write comes back blocked,
+   that is the course's stated policy. Relay the reason to the student and do not
+   look for a way around it.
+3. **`submit_assignment` is two calls.** The first returns a preview and a
+   confirmation token, and submits nothing. **Show the preview to the student and
+   get their answer** before calling again with the token. The token is
+   single-use and dies if the content or attempt count changed, so do not cache
+   or reuse one. Submitting spends an attempt the student may not be able to
+   recover.
+
+Quiz-taking is deliberately not offered. Group assignments are refused, because
+submitting would bind classmates who never agreed to it.
 
 ### Educator Tools
 Course management, grading, and analytics. Requires instructor/TA role.
