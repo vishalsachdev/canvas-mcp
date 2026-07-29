@@ -311,6 +311,18 @@ def _describe_attempts(assignment: dict, submission: dict) -> str:
     return f"Attempts: {used} of {allowed} used, {remaining} remaining.{warning}"
 
 
+def _decoded_size(encoded: str) -> int:
+    """How many bytes a base64 string will decode to, computed without decoding.
+
+    Used to reject an oversized upload before allocating it. The naive
+    ``len(encoded) // 4 * 3`` overshoots by the number of padding characters, so
+    a file whose decoded size is exactly the documented limit would be refused;
+    subtracting the trailing '=' makes this exact for well-formed input.
+    """
+    padding = len(encoded) - len(encoded.rstrip("="))
+    return max(0, len(encoded) // 4 * 3 - padding)
+
+
 def _normalize_extensions(raw: list[str] | None) -> frozenset[str] | None:
     """Normalize an assignment's ``allowed_extensions`` into ``{'.pdf', ...}``.
 
@@ -424,10 +436,10 @@ def _prepare_files(
         if not name or not encoded:
             return [], "Error: each file_contents entry needs 'name' and 'content_base64'"
 
-        # Bound sizes BEFORE decoding. base64 inflates by 4/3, so the encoded
-        # length is a safe proxy, and checking it first means an oversized
-        # request is rejected without ever allocating the buffer it describes.
-        approx_size = len(encoded) // 4 * 3
+        # Bound sizes BEFORE decoding, so an oversized request is rejected
+        # without ever allocating the buffer it describes.
+        encoded = encoded.strip()
+        approx_size = _decoded_size(encoded)
         if approx_size > DEFAULT_MAX_FILE_SIZE_BYTES:
             return [], f"❌ '{name}' exceeds the maximum upload size."
         running_bytes += approx_size
@@ -456,21 +468,34 @@ def _prepare_files(
     return prepared, None
 
 
-async def _attempt_state_changed(
+async def _final_preflight(
     course_id: str,
     assignment_id: str,
     submission_type: str,
     payload_digest: str,
     confirmed_fingerprint: str,
 ) -> str | None:
-    """Confirm attempt state still matches what the confirmation committed to.
+    """Re-verify EVERY precondition immediately before the submit call.
 
-    Returns an error message if it drifted, or None if the write may proceed.
-    Re-reading both the assignment and the submission is two extra requests on a
-    rare, irreversible, attempt-consuming operation, which is a trade worth
-    making. If the state cannot be re-read, that is treated as drift: proceeding
-    would mean submitting without the guarantee the student was promised.
+    Returns an error message if anything has changed, or None if the write may
+    proceed.
+
+    This exists because arbitrary time passes between the earlier checks and the
+    POST: the policy read, and for uploads a multi-step round trip per file. Any
+    precondition checked earlier can have changed in that window, so all of them
+    are re-checked here rather than only the attempt count. Three extra requests
+    on a rare, irreversible, attempt-consuming operation is a trade worth making.
+
+    If the state cannot be re-read, that counts as changed. Proceeding would mean
+    submitting without the guarantee the student was promised.
     """
+    # The instructor may have revoked agent writes while uploads were running,
+    # and the earlier grant may have been served from a cache that has since
+    # expired. The authoritative check is the last one before the write.
+    allowed, reason = await check_student_write_allowed(course_id, "submit_assignment")
+    if not allowed:
+        return f"❌ Submission blocked. {reason}"
+
     assignment = await make_canvas_request(
         "get", f"/courses/{course_id}/assignments/{assignment_id}"
     )
@@ -486,6 +511,16 @@ async def _attempt_state_changed(
         return (
             "❌ Could not re-check your attempt count just before submitting, so "
             "nothing was submitted. Try again shortly."
+        )
+
+    # The assignment may have become a group assignment in the meantime, which
+    # the tool refuses outright: submitting would bind classmates who never
+    # agreed to it and spend a shared attempt.
+    if assignment.get("group_category_id"):
+        return (
+            "❌ This became a group assignment while the submission was being "
+            "prepared, so nothing was submitted. Agent-assisted submission is "
+            "not supported for group assignments. Please submit it in Canvas."
         )
 
     current = _fingerprint(
@@ -840,18 +875,16 @@ def register_student_write_tools(mcp: FastMCP) -> None:
 
             assert_no_identity_override(data)
 
-            # Re-verify attempt state immediately before the write. Everything
-            # above involves awaited work — the policy read, and for uploads a
-            # multi-step round trip per file — during which another submission
-            # can land or an instructor can change allowed_attempts. Confirming
-            # against state read before all that would spend an attempt the
-            # student never agreed to.
-            drift_error = await _attempt_state_changed(
+            # Re-verify every precondition immediately before the write. See
+            # _final_preflight: arbitrary time has passed since the earlier
+            # checks, so policy, group status and attempt state are all rechecked
+            # rather than trusted.
+            preflight_error = await _final_preflight(
                 course_id, str(assignment_id), submission_type, digest, fingerprint
             )
-            if drift_error:
+            if preflight_error:
                 _release_confirmation(fingerprint)
-                return drift_error
+                return preflight_error
 
             # The claim taken above stands from here on. Even if this call
             # errors, the token is not released: Canvas may have accepted the

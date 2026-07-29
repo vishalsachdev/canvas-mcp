@@ -318,6 +318,39 @@ class TestUploadResourceBounds:
         assert "total more than" in error
         assert _MAX_TOTAL_UPLOAD_BYTES > 0
 
+    def test_pre_decode_size_estimate_is_exact(self):
+        """The size check must not overshoot, or it rejects legal uploads.
+
+        The naive len(encoded)//4*3 overshoots by the padding count, so a file
+        whose decoded size is exactly the documented limit would be refused
+        before it was ever decoded. Checked across all three padding cases.
+        """
+        import base64
+
+        from canvas_mcp.tools.student_write import _decoded_size
+
+        for length in range(0, 40):
+            payload = b"x" * length
+            encoded = base64.b64encode(payload).decode()
+            assert _decoded_size(encoded) == length, (
+                f"estimate wrong for {length} bytes "
+                f"(padding={encoded.count('=')})"
+            )
+
+    def test_boundary_file_is_not_rejected_by_the_estimate(self):
+        """Exercise the limit comparison itself without allocating 100 MB."""
+        import base64
+
+        from canvas_mcp.tools.student_write import _decoded_size
+
+        # Worst case for the naive formula: two padding characters.
+        payload = b"x" * 100
+        encoded = base64.b64encode(payload).decode()
+        assert encoded.endswith("=="), "expected two padding characters"
+        assert _decoded_size(encoded) == 100
+        # The naive formula would have said 102 and could refuse a limit-sized file.
+        assert len(encoded) // 4 * 3 == 102
+
     def test_a_normal_submission_still_works(self):
         """The bounds must not break the ordinary case."""
         import base64

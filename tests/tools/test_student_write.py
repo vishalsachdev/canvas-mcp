@@ -695,6 +695,121 @@ class TestConfirmationIntegrity:
         assert "attempt count" in result
         assert not posts
 
+    @pytest.mark.asyncio
+    async def test_policy_revoked_during_upload_aborts_the_submit(self):
+        """The authoritative policy check is the last one before the write.
+
+        An instructor can revoke agent writes while uploads are running, and the
+        grant used earlier may have come from a cache that has since expired.
+        """
+        import base64
+
+        tools = get_tools(STUDENT_WRITE_TOOLS="submit_assignment")
+        encoded = base64.b64encode(JPEG_BYTES).decode()
+        assignment = _mock_assignment(submission_types=["online_upload"])
+        posts = []
+        syllabus = {"body": "agent_writes: allow"}
+
+        async def policy_reader(method, endpoint, **kwargs):
+            return {"syllabus_body": syllabus["body"]}
+
+        async def responder(method, endpoint, **kwargs):
+            if method == "get":
+                if endpoint.endswith("/submissions/self"):
+                    return {"attempt": 0}
+                return assignment
+            if endpoint.endswith("/submissions/self/files"):
+                return {"upload_url": "https://storage.example/x", "upload_params": {}}
+            posts.append(endpoint)
+            return {"attempt": 1}
+
+        async def storage_then_revoke(**kwargs):
+            # Instructor revokes while the bytes are in flight.
+            syllabus["body"] = "agent_writes: deny"
+            reset_policy_cache()
+            return {"id": 999}
+
+        with patch(
+            "canvas_mcp.tools.student_write.get_course_id",
+            new=AsyncMock(return_value="123"),
+        ), patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new=responder
+        ), patch(
+            "canvas_mcp.core.course_policy.make_canvas_request", new=policy_reader
+        ), patch(
+            "canvas_mcp.tools.student_write.upload_file_to_storage",
+            new=storage_then_revoke,
+        ):
+            preview = await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_upload",
+                file_contents=[{"name": "photo.jpg", "content_base64": encoded}],
+            )
+            token = preview.split("confirmation_token='")[1].split("'")[0]
+            result = await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_upload",
+                file_contents=[{"name": "photo.jpg", "content_base64": encoded}],
+                confirmation_token=token,
+            )
+
+        assert "blocked" in result
+        assert not posts, "submitted after the instructor revoked agent writes"
+
+    @pytest.mark.asyncio
+    async def test_becoming_a_group_assignment_during_upload_aborts(self):
+        """The group refusal must hold at submit time, not only at preview."""
+        import base64
+
+        tools = get_tools(
+            STUDENT_WRITE_TOOLS="submit_assignment",
+            COURSE_AGENT_POLICY_ENABLED="false",
+        )
+        encoded = base64.b64encode(JPEG_BYTES).decode()
+        state = {"assignment": _mock_assignment(submission_types=["online_upload"])}
+        posts = []
+
+        async def responder(method, endpoint, **kwargs):
+            if method == "get":
+                if endpoint.endswith("/submissions/self"):
+                    return {"attempt": 0}
+                return state["assignment"]
+            if endpoint.endswith("/submissions/self/files"):
+                return {"upload_url": "https://storage.example/x", "upload_params": {}}
+            posts.append(endpoint)
+            return {"attempt": 1}
+
+        async def storage_then_convert(**kwargs):
+            state["assignment"] = _mock_assignment(
+                submission_types=["online_upload"], group_category_id=7
+            )
+            return {"id": 999}
+
+        with patch(
+            "canvas_mcp.tools.student_write.get_course_id",
+            new=AsyncMock(return_value="123"),
+        ), patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new=responder
+        ), patch(
+            "canvas_mcp.tools.student_write.upload_file_to_storage",
+            new=storage_then_convert,
+        ):
+            preview = await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_upload",
+                file_contents=[{"name": "photo.jpg", "content_base64": encoded}],
+            )
+            token = preview.split("confirmation_token='")[1].split("'")[0]
+            result = await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_upload",
+                file_contents=[{"name": "photo.jpg", "content_base64": encoded}],
+                confirmation_token=token,
+            )
+
+        assert "group assignment" in result
+        assert not posts, "submitted on behalf of a group"
+
     def test_token_does_not_verify_under_a_forged_signature(self):
         import canvas_mcp.tools.student_write as sw
 
