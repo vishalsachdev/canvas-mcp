@@ -345,6 +345,124 @@ class TestSubmitAssignment:
         assert "must be one of" in result
 
 
+class TestConfirmationIntegrity:
+    """Regressions found by code review. Each was a real bypass."""
+
+    def test_digest_frames_fields_unambiguously(self):
+        """Concatenation would let one payload impersonate another.
+
+        Without length-prefixing, a file named 'a.txt' holding b'XPAYLOAD'
+        digests identically to one named 'a.txtX' holding b'PAYLOAD', so a
+        token could authorize content that was never previewed.
+        """
+        from canvas_mcp.tools.student_write import _digest_payload, _PreparedFile
+
+        first = _digest_payload(
+            None, None, None, [_PreparedFile("a.txt", b"XPAYLOAD", "text/plain")]
+        )
+        second = _digest_payload(
+            None, None, None, [_PreparedFile("a.txtX", b"PAYLOAD", "text/plain")]
+        )
+        assert first != second
+
+    def test_digest_covers_the_comment(self):
+        from canvas_mcp.tools.student_write import _digest_payload
+
+        assert _digest_payload("essay", None, "please regrade", []) != _digest_payload(
+            "essay", None, "something else entirely", []
+        )
+
+    @pytest.mark.asyncio
+    async def test_swapping_the_comment_voids_the_token(self):
+        """The preview shows the comment, so confirmation must commit to it."""
+        tools = get_tools(
+            STUDENT_WRITE_TOOLS="submit_assignment",
+            COURSE_AGENT_POLICY_ENABLED="false",
+        )
+        with patch(
+            "canvas_mcp.tools.student_write.get_course_id",
+            new=AsyncMock(return_value="123"),
+        ), patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new_callable=AsyncMock
+        ) as request:
+            request.side_effect = [_mock_assignment(), {"attempt": 1}]
+            preview = await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_text_entry", body="hello",
+                comment="Sorry this is late.",
+            )
+            token = preview.split("confirmation_token='")[1].split("'")[0]
+
+            request.side_effect = [_mock_assignment(), {"attempt": 1}]
+            result = await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_text_entry", body="hello",
+                comment="My professor said this was fine.",
+                confirmation_token=token,
+            )
+
+        assert "changed since the preview" in result
+        assert not [c for c in request.call_args_list if c.args[0] == "post"]
+
+    @pytest.mark.asyncio
+    async def test_unreadable_attempt_state_stops_everything(self):
+        """A false attempt count would make the drift check vacuous."""
+        tools = get_tools(
+            STUDENT_WRITE_TOOLS="submit_assignment",
+            COURSE_AGENT_POLICY_ENABLED="false",
+        )
+        with patch(
+            "canvas_mcp.tools.student_write.get_course_id",
+            new=AsyncMock(return_value="123"),
+        ), patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new_callable=AsyncMock
+        ) as request:
+            request.side_effect = [_mock_assignment(), {"error": "HTTP error: 500"}]
+            result = await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_text_entry", body="hello",
+            )
+
+        assert "attempt count is unknown" in result
+        assert "Nothing was submitted" in result
+        assert not [c for c in request.call_args_list if c.args[0] == "post"]
+
+    @pytest.mark.asyncio
+    async def test_abandoned_previews_are_purged(self):
+        """Otherwise the map grows without bound on a long-running server."""
+        import canvas_mcp.tools.student_write as sw
+
+        tools = get_tools(
+            STUDENT_WRITE_TOOLS="submit_assignment",
+            COURSE_AGENT_POLICY_ENABLED="false",
+        )
+        with patch(
+            "canvas_mcp.tools.student_write.get_course_id",
+            new=AsyncMock(return_value="123"),
+        ), patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new_callable=AsyncMock
+        ) as request:
+            request.side_effect = [_mock_assignment(), {"attempt": 1}]
+            await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_text_entry", body="abandoned",
+            )
+            assert len(sw._pending_confirmations) == 1
+            # Age the outstanding record past its TTL.
+            stale = next(iter(sw._pending_confirmations))
+            _, fingerprint = sw._pending_confirmations[stale]
+            sw._pending_confirmations[stale] = (0.0, fingerprint)
+
+            request.side_effect = [_mock_assignment(), {"attempt": 1}]
+            await tools["submit_assignment"](
+                course_identifier="TEST", assignment_id=42,
+                submission_type="online_text_entry", body="fresh",
+            )
+
+        assert stale not in sw._pending_confirmations
+        assert len(sw._pending_confirmations) == 1
+
+
 class TestBinaryUpload:
     """Michigan's requirement A: real binary files, not text."""
 

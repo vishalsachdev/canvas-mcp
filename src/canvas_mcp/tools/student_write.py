@@ -109,18 +109,49 @@ def _fingerprint(
 
 
 def _digest_payload(
-    body: str | None, url: str | None, files: list[_PreparedFile]
+    body: str | None,
+    url: str | None,
+    comment: str | None,
+    files: list[_PreparedFile],
 ) -> str:
-    """Hash the exact content that would be submitted."""
+    """Hash the exact content that would be submitted.
+
+    Every field is length-prefixed rather than concatenated, because plain
+    concatenation is ambiguous: a file named ``a.txt`` holding ``XPAYLOAD``
+    would hash identically to one named ``a.txtX`` holding ``PAYLOAD``. That
+    would let a token approve content other than what was previewed, which is
+    precisely the guarantee this digest exists to provide.
+
+    ``comment`` is covered too. The preview displays it, so a confirmation that
+    did not commit to it could swap in text the student never saw before it
+    reached their instructor.
+    """
     hasher = hashlib.sha256()
-    hasher.update((body or "").encode())
-    hasher.update(b"\x00")
-    hasher.update((url or "").encode())
+
+    def absorb(chunk: bytes) -> None:
+        hasher.update(len(chunk).to_bytes(8, "big"))
+        hasher.update(chunk)
+
+    absorb((body or "").encode())
+    absorb((url or "").encode())
+    absorb((comment or "").encode())
+    absorb(len(files).to_bytes(8, "big"))
     for prepared in files:
-        hasher.update(b"\x00")
-        hasher.update(prepared.name.encode())
-        hasher.update(prepared.content)
+        absorb(prepared.name.encode())
+        absorb(prepared.content)
     return hasher.hexdigest()
+
+
+def _purge_expired_confirmations() -> None:
+    """Drop timed-out confirmation records.
+
+    Without this, an abandoned preview lingers for the life of the process, so
+    a caller could grow the map without bound simply by previewing repeatedly
+    and never confirming.
+    """
+    now = time.monotonic()
+    for token in [t for t, (expiry, _) in _pending_confirmations.items() if expiry < now]:
+        _pending_confirmations.pop(token, None)
 
 
 def _describe_attempts(assignment: dict, submission: dict) -> str:
@@ -405,20 +436,34 @@ def register_student_write_tools(mcp: FastMCP) -> None:
                 "get",
                 f"/courses/{course_id}/assignments/{assignment_id}/submissions/self",
             )
+            # Attempt state is not optional context here: it is what the preview
+            # reports and what the confirmation commits to. Substituting zero on
+            # a failed read would show the student a false attempt count and
+            # make the drift check vacuous, so stop instead.
             if not isinstance(submission, dict) or "error" in submission:
-                submission = {}
+                detail = (
+                    submission.get("error")
+                    if isinstance(submission, dict)
+                    else "unexpected response from Canvas"
+                )
+                return (
+                    "❌ Could not read your current submission state, so the "
+                    f"attempt count is unknown: {detail}\n"
+                    "Nothing was submitted. Try again shortly."
+                )
             attempt = submission.get("attempt") or 0
 
             prepared, prep_error = _prepare_files(file_paths, file_contents)
             if prep_error:
                 return prep_error
 
-            digest = _digest_payload(body, url, prepared)
+            digest = _digest_payload(body, url, comment, prepared)
             fingerprint = _fingerprint(
                 course_id, str(assignment_id), submission_type, digest, attempt
             )
 
             if not confirmation_token:
+                _purge_expired_confirmations()
                 token = secrets.token_urlsafe(16)
                 _pending_confirmations[token] = (
                     time.monotonic() + _CONFIRM_TTL_SECONDS,

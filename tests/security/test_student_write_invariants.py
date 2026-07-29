@@ -274,6 +274,35 @@ class TestPolicyResolution:
         assert policy.allow_writes is False
         assert policy.source == "untrusted_artifact"
 
+    @pytest.mark.parametrize(
+        "editing_roles",
+        [None, "", "teachers,students", "students", "anyone", "members", "public"],
+    )
+    @pytest.mark.asyncio
+    async def test_page_is_trusted_only_when_explicitly_teacher_only(self, editing_roles):
+        """Ambiguity must fail closed.
+
+        A denylist of known-bad role names would trust a page whose
+        editing_roles is missing, empty, or a value Canvas introduces later.
+        """
+        reset_policy_cache()
+        with patch.dict(
+            "os.environ",
+            {"COURSE_AGENT_POLICY_SOURCE": "page", "COURSE_AGENT_POLICY_DEFAULT": "allow"},
+            clear=False,
+        ):
+            reset_config()
+            page = {"body": "agent_writes: allow"}
+            if editing_roles is not None:
+                page["editing_roles"] = editing_roles
+            with patch(
+                "canvas_mcp.core.course_policy.make_canvas_request",
+                new=AsyncMock(return_value=page),
+            ):
+                policy = await get_course_policy("123")
+        assert policy.allow_writes is False
+        assert policy.source == "untrusted_artifact"
+
     @pytest.mark.asyncio
     async def test_teacher_only_page_is_trusted(self):
         with patch.dict(

@@ -47,10 +47,11 @@ _KEY_NOTE = "note"
 _TAG_RE = re.compile(r"<[^>]+>")
 _KV_RE = re.compile(r"^\s*([a-z_]+)\s*:\s*(.*?)\s*$", re.IGNORECASE)
 
-# Editing roles that keep a Page out of student hands. Canvas returns a
-# comma-separated string; anything mentioning students/members/public means the
-# artifact is not trustworthy as an instructor statement.
-_UNTRUSTED_EDIT_ROLES = ("student", "member", "public")
+# The only editing_roles value that makes a Page trustworthy as an instructor
+# statement. Canvas returns a comma-separated string; this is matched as an
+# exact set so that a missing, empty, or unfamiliar value fails closed rather
+# than slipping past a denylist.
+_TRUSTED_EDIT_ROLES = frozenset({"teachers"})
 
 
 class CoursePolicy(NamedTuple):
@@ -177,12 +178,21 @@ async def _read_policy_text(course_id: str) -> tuple[str | None, str]:
 
         # Provenance guard. A page a student could edit is not an instructor
         # statement, regardless of what it says.
-        editing_roles = str(response.get("editing_roles") or "").lower()
-        if any(role in editing_roles for role in _UNTRUSTED_EDIT_ROLES):
+        #
+        # This is an allowlist, not a denylist, and deliberately so. Screening
+        # only for known-bad role names would trust a page whose editing_roles
+        # is missing, empty, or some value Canvas adds later — exactly the
+        # ambiguous cases a fail-closed check exists to catch.
+        roles = {
+            role.strip()
+            for role in str(response.get("editing_roles") or "").lower().split(",")
+            if role.strip()
+        }
+        if roles != _TRUSTED_EDIT_ROLES:
             log_warning(
-                "Ignoring course agent policy page: it is not teacher-only",
+                "Ignoring course agent policy page: not explicitly teacher-only",
                 course_id=course_id,
-                editing_roles=editing_roles,
+                editing_roles=sorted(roles) or ["<missing>"],
             )
             return None, "untrusted"
 
