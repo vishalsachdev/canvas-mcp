@@ -117,3 +117,4 @@ internal/mcpb-hosted/
 
 # Local agent skills (not part of the public package)
 .agents/
+internal/hosted-spec-draft/

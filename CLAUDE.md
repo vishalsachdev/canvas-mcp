@@ -151,6 +151,8 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] Release **v1.5.0** (2026-07-05) — 3 new tools (93 total), fastmcp 2.x, security hardening (#156); all channels live (GitHub/PyPI/MCP Registry/hosted/site)
 - [x] Issue #159: mcp-remote proxy hangs on stale hosted session — **fixed 2026-07-09** (PR #160: `stateless_http=True`; deployed + live-verified)
 - [x] Issue #164 / PR #165: FERPA anonymization bypass (safe-endpoint short-circuit) — **fixed, merged, deployed 2026-07-21**; follow-up #166 filed
+- [x] Issue #166: anonymizer recursive identity scrub — **fixed, merged (PR #177), deployed to hosted 2026-07-29**; follow-up #179 (layer consolidation)
+- [ ] **#170 Tier 1 student write tools** (UMich decision factor, publicly committed ~1-1.5wk → v1.6.0) + #171 identity tools (`get_my_enrollments`/`get_my_profile`) as companion
 - [ ] Issue #142: MCP SDK v2 migration — **blocked upstream**: fastmcp 3.4.4 pins `mcp<2.0`, so relaxing our pin can't resolve. Re-scoped via issue comment 7/21 (verify our v2-readiness, track fastmcp upstream). **Assigned to Ash (`ashcastelinocs124`), orig. deadline ~2026-07-27 — confirm plan with Ash**
 - [x] Issue #145 / PR #167: fastmcp 3.4.4 migration — **DONE 2026-07-21** (CVEs PYSEC-2026-2475/2476 resolved; dep-scan green; staging-validated then prod-deployed + live-verified; #145 closed)
 - [ ] Issue #157: `execute_typescript` sandbox hardening backlog (container-level egress, non-root user, prebuilt tsx image) — **self-hosted-only now**: tool is DISABLED on both hosted slots (`EXECUTE_TYPESCRIPT_ENABLED=false`, verified 2026-07-10); gate on re-enabling hosted code-exec
@@ -197,27 +199,36 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-07-21 — fastmcp 3.4.4 shipped (#145 closed via PR #167); GRC follow-up email to Adam
-- **fastmcp 2.14.7 → 3.4.4 (PR #167, merged + deployed)**: the CVE-urgent migration (PYSEC-2026-2475/2476)
-  landed same-day. Only breaking change that touched us: `get_tools()` (dict) → `list_tools()` (list),
-  6 test call sites; `test_fastmcp2_compat.py` → `test_fastmcp_compat.py`. Suite 610 green; dep-scan CI
-  **green on main for the first time since 7/19**; codex + claude-review both clean. Validated on the Azure
-  **staging slot first** (Entra 401+PRM challenge, authenticated handshake reporting 3.4.4, live tool
-  dispatch), then merged (admin, no human reviewer) → auto prod deploy → re-verified live. #145 closed.
-- **#142 re-scoped (comment posted for Ash)**: fastmcp 3.4.4 still pins `mcp<2.0`, so the MCP SDK v2
-  bump is blocked *upstream*, not by our pin — plan should be "verify our v2-readiness + track fastmcp".
-- **Deploy gotchas captured in `internal/ops-hosted.local.md`**: pushing `staging` as a *new* branch does
-  NOT fire the path-filtered deploy trigger (use `gh workflow run deploy-staging.yml --ref staging`);
-  staging slot host is `canvas-mcp-staging.azurewebsites.net` (workflow header comment has stale pre-rename host).
-- **Vishal's Canvas API token expired 2026-07-18** — discovered during staging validation (server relays
-  Canvas's 401 correctly). Hosted client + local `.env` both affected; needs regeneration (Illinois KB form).
-- **Adam/GRC follow-up email sent** (in-thread reply on "Lightweight Risk Assessment for Canvas MCP",
-  via thunderbird bridge-subprocess fallback after the MCP server failed tool fetch): summary of the 7/20
-  GRC/privacy review meeting with Jonathan Dial + Michael Wrobel (Tier-3-only scope, de-identification
-  terminology, Splunk logging rec, codebase → Windberg/Port security reviews, license check). Draft:
-  `internal/compliance/2026-07-21-adam-grc-meeting-update.txt`. Vishal trimmed + sent; he owns follow-ups.
-- Next: (1) **Regenerate Canvas API token** (expired 7/18 — hosted client broken since Friday). (2) Ping
-  **Ash re #142** plan + ~7/27 deadline. (3) Triage #163 medium items (docs coverage #6, ruff in CI #7,
-  stale test counts #9), close #162/#163 digests. (4) **#106** mypy status comment (idle 68+ days).
-  (5) #166 anonymizer backlog. (6) GRC next steps when Jonathan's privacy report lands (registrar,
-  license check, Windberg/Port code handoff).
+### 2026-07-29 — UMich evaluation response: triage blitz, #166 PII fix shipped, hosted spec drafted
+- **UMich context (drives everything)**: Zhen Qian (UMich ITS) email — deploying MCP stores this Fall,
+  evaluating canvas-mcp vs DMontgomery40/mcp-canvas-lms; issues #170-172 are from U-M accounts and
+  **#170 (student update tools) is their stated decision factor**. In-thread reply drafted in Thunderbird
+  (Zoom yes, Aug 4+ availability) — **verify it was sent**.
+- **Parallel-agent triage (opus/sonnet fleet)**: #170 answered publicly (Tier 1 student-write tools,
+  `STUDENT_WRITE_TOOLS` empty-default allowlist, structural self-scoping, quiz-taking deliberately gated;
+  ~1-1.5wk → next minor release — public commitment); #171 diagnosed (self-identity capability gap →
+  `get_my_enrollments`/`get_my_profile` planned, fix spec in agent report); #172 scoped (Classic-vs-New
+  Quizzes question posted); spam PR #169 declined (author owns mcptoplist.com, 50+ bulk PRs); digests
+  #162/#163 closed, #168 = live tracker; spun out #173 (TOOL_MANIFEST 24/93) + #175 (ruff in CI);
+  #174 (stale test count) fixed same-day by external PR #176 (merged); Ash nudged on overdue #142.
+- **#166 anonymizer fix — merged (PR #177) + deployed to hosted**: investigation found the leak half was
+  worse than filed — 3 live nested PII leaks (enrollments[].sis_user_id in list_users, submission_comments
+  author names/emails, assessor_name). Fix = recursive `scrub_identity` baseline, never-add-keys invariant,
+  corroborated-name guard, `/submissions/self` carve-out. Verified 3 ways: 658 tests (+48 new in
+  test_anonymization_shapes.py), codex review (its one P2 fixed), **live acceptance replay vs a real course:
+  PASS** (576 changes all classified, 0 over-reach, 0 PII survivors). Follow-up #179 filed (tool-layer call
+  consolidation). **UNFILED on purpose** (undisclosed leak): `/pages` endpoint ungated → `last_edited_by`
+  names/avatars pass through — fix quietly in next PR (details in `internal/hosted-spec-draft/REVIEW.md`).
+- **PR #178 merged + deployed — safer defaults**: `EXECUTE_TYPESCRIPT_ENABLED` now defaults **false**
+  everywhere (**behavior change** for stdio code-exec users — release-notes line needed); Docker image now
+  ships `ENABLE_DATA_ANONYMIZATION=true`.
+- **Hosted deployment spec for UMich/UCI**: drafted + sanitization-audited (zero literal leaks from
+  ops-hosted.local.md, grep-verified); B1-B3 approved as written, B4/B7 resolved via #178. Preserved in
+  gitignored `internal/hosted-spec-draft/`. Plan: share standalone with Zhen/UCI post-Zoom → land as
+  `deploy/azure/` (NOT docs/ — Cloudflare publish root).
+- Canvas token confirmed rotated + live (200 on /users/self); hosted client header already synced.
+- Next: (1) **Send the Zhen reply** (Thunderbird compose window) + schedule Zoom (Aug 4+). (2) **#170 Tier 1
+  implementation** (~1-1.5wk, publicly committed) + #171 identity tools as companion PR. (3) Quiet `/pages`
+  gating fix. (4) Watch #170/#171/#172 for zqian/khagyard replies (Classic-vs-New Quizzes answer gates #172).
+  (5) Release v1.6.0 when Tier 1 lands (include #177/#178 in notes; behavior-change line for code-exec).
+  (6) #142/Ash — escalate if no reply to the 7/29 nudge. (7) #179, #173, #175 backlog; #106 status comment.
