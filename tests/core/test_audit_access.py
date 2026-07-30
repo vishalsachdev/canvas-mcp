@@ -1,4 +1,5 @@
 import pytest
+
 import canvas_mcp.core.audit as audit
 
 

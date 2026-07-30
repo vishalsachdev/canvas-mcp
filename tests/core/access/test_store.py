@@ -1,5 +1,8 @@
 from canvas_mcp.core.access.store import (
-    AccessStore, InMemoryBackend, Requester, ConcurrencyConflict,
+    AccessStore,
+    ConcurrencyConflict,
+    InMemoryBackend,
+    Requester,
 )
 
 REQ = Requester(oid="oid-1", upn="j@x.edu", display_name="Jane Doe")

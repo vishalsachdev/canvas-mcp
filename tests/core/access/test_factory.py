@@ -1,11 +1,18 @@
 from types import SimpleNamespace
+
 from canvas_mcp.core.access import factory
 
 
 def _cfg(**kw):
-    base = dict(access_request_enabled=True, access_token_secret="s",
-                access_table_account="acct", access_table_name="t",
-                acs_endpoint="https://acs", acs_sender="x@d", access_admin_emails=["a@x"])
+    base = {
+        "access_request_enabled": True,
+        "access_token_secret": "s",
+        "access_table_account": "acct",
+        "access_table_name": "t",
+        "acs_endpoint": "https://acs",
+        "acs_sender": "x@d",
+        "access_admin_emails": ["a@x"],
+    }
     base.update(kw)
     return SimpleNamespace(**base)
 

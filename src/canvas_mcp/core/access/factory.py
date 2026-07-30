@@ -62,7 +62,7 @@ class _AzureTableBackend:
             raise ConcurrencyConflict(str(exc)) from exc
 
     def query(self, pk):
-        flt = "PartitionKey eq '%s'" % pk.replace("'", "''")
+        flt = "PartitionKey eq '{}'".format(pk.replace("'", "''"))
         return [_entity_to_row(e) for e in self._t.query_entities(flt)]
 
     def delete(self, pk, rk):
@@ -93,6 +93,7 @@ def build_email_sender(config):
     # without the [hosted] extra is unaffected; degrade to None on any failure.
     try:
         import asyncio
+
         from azure.communication.email import EmailClient
         from azure.identity import DefaultAzureCredential
         client = EmailClient(config.acs_endpoint, DefaultAzureCredential())

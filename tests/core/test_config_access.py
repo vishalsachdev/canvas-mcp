@@ -1,4 +1,5 @@
 import pytest
+
 from canvas_mcp.core.config import get_config, reset_config
 
 
