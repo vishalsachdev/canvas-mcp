@@ -1103,24 +1103,28 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         rubric_id_str = str(rubric_id)
         assignment_id_str = str(assignment_id)
 
-        # Update the rubric with association
+        # Canvas needs bracket-notation FORM data on the dedicated
+        # rubric_associations endpoint (#181). The previous implementation sent a
+        # nested JSON body to PUT /courses/:id/rubrics/:id; Canvas returned 200
+        # because the rubric itself is valid, but the association was never
+        # created, so the tool reported success while nothing attached to the
+        # assignment. This mirrors _ensure_course_bookmark, which works.
         request_data = {
-            "rubric_association": {
-                "association_id": assignment_id_str,
-                "association_type": "Assignment",
-                "use_for_grading": use_for_grading,
-                "purpose": purpose
-            }
+            "rubric_association[rubric_id]": rubric_id_str,
+            "rubric_association[association_id]": assignment_id_str,
+            "rubric_association[association_type]": "Assignment",
+            "rubric_association[use_for_grading]": "1" if use_for_grading else "0",
+            "rubric_association[purpose]": purpose,
         }
 
-        # Make the API request
         response = await make_canvas_request(
-            "put",
-            f"/courses/{course_id}/rubrics/{rubric_id_str}",
-            data=request_data
+            "post",
+            f"/courses/{course_id}/rubric_associations",
+            data=request_data,
+            use_form_data=True,
         )
 
-        if "error" in response:
+        if isinstance(response, dict) and "error" in response:
             return f"Error associating rubric with assignment: {response['error']}"
 
         # Get assignment details for confirmation
@@ -1135,10 +1139,27 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         course_display = await get_course_code(course_id) or course_identifier
 
+        # A 200 carrying no association id means Canvas accepted the request but
+        # created nothing. Reporting success there is exactly the #181/#180
+        # failure: the user is told it worked and finds nothing in the UI.
+        association_id = (response or {}).get("id") if isinstance(response, dict) else None
+        if not association_id:
+            return (
+                "⚠️  Could not confirm the rubric was associated with the "
+                "assignment. Canvas accepted the request but returned no "
+                "association, so the rubric will most likely not appear on the "
+                "assignment page.\n\n"
+                f"Course: {course_display}\n"
+                f"Assignment: {assignment_name} (ID: {assignment_id})\n"
+                f"Rubric ID: {rubric_id}\n"
+                "Verify in Canvas before relying on this association.\n"
+            )
+
         result = "Rubric associated with assignment successfully!\n\n"
         result += f"Course: {course_display}\n"
         result += f"Assignment: {assignment_name} (ID: {assignment_id})\n"
         result += f"Rubric ID: {rubric_id}\n"
+        result += f"Association ID: {association_id}\n"
         result += f"Used for Grading: {'Yes' if use_for_grading else 'No'}\n"
         result += f"Purpose: {purpose}\n"
 

@@ -637,5 +637,156 @@ class TestRubricTools:
         assert "Created Rubric ID" not in output
 
 
+class TestAssociateRubric:
+    """Regression coverage for #181: association silently never attached."""
+
+    @pytest.fixture
+    def mcp(self):
+        return FastMCP("test-associate-rubric")
+
+    @pytest.fixture
+    def mock_canvas_request(self):
+        with patch('canvas_mcp.tools.rubrics.make_canvas_request', new_callable=AsyncMock) as mock:
+            yield mock
+
+    @pytest.fixture
+    def mock_course_id(self):
+        with patch('canvas_mcp.tools.rubrics.get_course_id', new_callable=AsyncMock) as mock:
+            mock.return_value = 505
+            yield mock
+
+    @pytest.fixture
+    def mock_course_code(self):
+        with patch('canvas_mcp.tools.rubrics.get_course_code', new_callable=AsyncMock) as mock:
+            mock.return_value = "UIUC_MCP_Test_Course"
+            yield mock
+
+    async def test_associate_rubric_registered(self, mcp):
+        register_rubric_tools(mcp)
+        assert "associate_rubric" in {t.name for t in await mcp.list_tools()}
+
+    @pytest.mark.asyncio
+    async def test_uses_rubric_associations_endpoint_with_form_data(
+        self, mcp, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        """#181: must POST bracket-notation form data to /rubric_associations.
+
+        The original implementation sent a nested JSON body to
+        ``PUT /courses/:id/rubrics/:id``. Canvas answered 200 (the rubric
+        itself is valid) but never created the association, so the tool
+        reported success while nothing attached to the assignment.
+        """
+        mock_canvas_request.side_effect = [
+            {"id": 99, "rubric_id": 361, "association_id": 5030,
+             "association_type": "Assignment", "purpose": "grading"},
+            {"id": 5030, "name": "Assignment 2"},
+        ]
+
+        register_rubric_tools(mcp)
+        await _call_tool(mcp, "associate_rubric", {
+            "course_identifier": "UIUC_MCP_Test_Course",
+            "rubric_id": 361,
+            "assignment_id": 5030,
+        })
+
+        create = mock_canvas_request.call_args_list[0]
+        assert create.args[0] == "post"
+        assert create.args[1].endswith("/courses/505/rubric_associations")
+        assert create.kwargs["use_form_data"] is True
+
+        sent = create.kwargs["data"]
+        assert sent["rubric_association[rubric_id]"] == "361"
+        assert sent["rubric_association[association_id]"] == "5030"
+        assert sent["rubric_association[association_type]"] == "Assignment"
+        assert sent["rubric_association[purpose]"] == "grading"
+        # Flat bracket keys only — a nested dict would be JSON-encoded by httpx
+        assert not any(isinstance(v, dict) for v in sent.values())
+
+    @pytest.mark.asyncio
+    async def test_use_for_grading_encoded_as_form_boolean(
+        self, mcp, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        """Python bools must be sent as Canvas form booleans, not ``True``."""
+        mock_canvas_request.side_effect = [
+            {"id": 99, "association_id": 5030},
+            {"id": 5030, "name": "Assignment 2"},
+        ]
+
+        register_rubric_tools(mcp)
+        await _call_tool(mcp, "associate_rubric", {
+            "course_identifier": "UIUC_MCP_Test_Course",
+            "rubric_id": 361,
+            "assignment_id": 5030,
+            "use_for_grading": True,
+        })
+
+        sent = mock_canvas_request.call_args_list[0].kwargs["data"]
+        assert sent["rubric_association[use_for_grading]"] == "1"
+
+    @pytest.mark.asyncio
+    async def test_reports_error_when_association_call_fails(
+        self, mcp, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        mock_canvas_request.return_value = {"error": "not authorized"}
+
+        register_rubric_tools(mcp)
+        result = await _call_tool(mcp, "associate_rubric", {
+            "course_identifier": "UIUC_MCP_Test_Course",
+            "rubric_id": 361,
+            "assignment_id": 5030,
+        })
+
+        output = result.content[0].text
+        assert "not authorized" in output
+        assert "successfully" not in output.lower()
+
+    @pytest.mark.asyncio
+    async def test_never_claims_success_without_an_association_id(
+        self, mcp, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        """#181's core failure: success reported on an association that isn't there.
+
+        A 200 with no association id means Canvas accepted the request but
+        created nothing. Same principle as #180 — never report success on a
+        state the user cannot see in the Canvas UI.
+        """
+        mock_canvas_request.side_effect = [
+            {},
+            {"id": 5030, "name": "Assignment 2"},
+        ]
+
+        register_rubric_tools(mcp)
+        result = await _call_tool(mcp, "associate_rubric", {
+            "course_identifier": "UIUC_MCP_Test_Course",
+            "rubric_id": 361,
+            "assignment_id": 5030,
+        })
+
+        output = result.content[0].text
+        assert "associated with assignment successfully" not in output
+        assert "could not confirm" in output.lower()
+
+    @pytest.mark.asyncio
+    async def test_success_output_reports_association_id(
+        self, mcp, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        mock_canvas_request.side_effect = [
+            {"id": 99, "association_id": 5030, "association_type": "Assignment"},
+            {"id": 5030, "name": "Assignment 2"},
+        ]
+
+        register_rubric_tools(mcp)
+        result = await _call_tool(mcp, "associate_rubric", {
+            "course_identifier": "UIUC_MCP_Test_Course",
+            "rubric_id": 361,
+            "assignment_id": 5030,
+        })
+
+        output = result.content[0].text
+        assert "successfully" in output.lower()
+        assert "Assignment 2" in output
+        assert "99" in output
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
