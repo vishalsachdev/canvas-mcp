@@ -447,15 +447,29 @@ Uses bracket-notation form-data encoding required by the Canvas rubric API.
 ---
 
 #### `create_rubric_from_csv`
-Create a rubric in a course from a CSV string using Canvas's native rubric CSV import endpoint. Uploads the CSV, then polls the import job until it succeeds or fails.
+Create one or more rubrics in a course from a CSV string using Canvas's native rubric CSV import endpoint. Uploads the CSV, then polls the import job until it reaches a terminal state.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
-- `csv_content`: The CSV content as a string (e.g. `"Title,Rating 1,Rating 2\nCriterion 1,10,5"`)
+- `csv_content`: The CSV content as a string. **A `Rubric Name` column is required** — Canvas rejects the import without it.
+
+**Required CSV format:**
+
+```csv
+Rubric Name,Criteria Name,Criteria Description,Criteria Enable Range,Rating Name,Rating Description,Rating Points,Rating Name,Rating Description,Rating Points
+Essay Rubric,Clarity,Is the argument clear,false,Excellent,Very clear,10,Poor,Unclear,2
+```
+
+Repeat the `Rating Name,Rating Description,Rating Points` triple for each rating level. Use a distinct `Rubric Name` per row to create multiple rubrics in one import.
+
+**Two behaviours worth knowing:**
+
+- **Imported rubrics land in Canvas's `Draft` state and are NOT returned by `list_rubrics`.** They *are* visible in the course's Rubrics page. Do not treat an empty `list_rubrics` result as evidence the import failed.
+- Canvas returns `succeeded_with_errors` when the file parses but some rows are rejected. That is a terminal state, not a transient one, and it can mean **zero** rubrics were created — check the reported error messages rather than assuming partial success.
 
 **Example:**
 ```
-"Create a rubric in CS101 from this CSV: Title,Excellent,Poor / Clarity,10,2"
+"Create a rubric in CS101 from this CSV: Rubric Name,Criteria Name,Criteria Description,Criteria Enable Range,Rating Name,Rating Description,Rating Points / Essay Rubric,Clarity,Is it clear,false,Excellent,Very clear,10"
 ```
 
 ---
