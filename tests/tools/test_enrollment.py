@@ -225,12 +225,29 @@ class TestIdentifierVisibilityGuard:
         assert result.matched_on == "login_id"
 
     @pytest.mark.asyncio
-    async def test_partial_visibility_yields_a_real_no_for_a_stranger(
+    async def test_partial_visibility_yields_indeterminate_for_a_stranger(
         self, mock_course_id, mock_request
     ):
-        """Visible identifiers + no match = trustworthy NO, not indeterminate."""
+        """A NO is only trustworthy when every row could have matched.
+
+        This previously asserted a definitive NO, which was the same false
+        negative the guard exists to prevent: the requested NetID could be
+        sitting in the row whose identifiers Canvas stripped.
+        """
         mock_request.return_value = [
             _enr_permission_stripped(uid=1),
+            _enr(login_id="alice"),
+        ]
+        with pytest.raises(EnrollmentCheckUnavailable):
+            await check_enrollment("BADM 350", "jdoe")
+
+    @pytest.mark.asyncio
+    async def test_full_visibility_yields_a_real_no_for_a_stranger(
+        self, mock_course_id, mock_request
+    ):
+        """Every row visible + no match = trustworthy NO."""
+        mock_request.return_value = [
+            _enr(login_id="bob"),
             _enr(login_id="alice"),
         ]
         result = await check_enrollment("BADM 350", "jdoe")

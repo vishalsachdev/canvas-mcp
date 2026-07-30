@@ -67,7 +67,12 @@ def register_self_identity_tools(mcp: FastMCP):
             "per_page": 100,
         }
         if include_concluded:
+            # Both filters have to widen together. Leaving enrollment_state as
+            # "active" while broadening the course state means Canvas still drops
+            # every completed enrollment, so include_concluded would silently do
+            # nothing.
             params["state[]"] = ["available", "completed"]
+            params["enrollment_state"] = ["active", "completed"]
 
         courses = await fetch_all_paginated_results("/courses", params)
 

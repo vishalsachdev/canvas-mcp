@@ -123,10 +123,15 @@ def _self_submission_indices(segments: list[str]) -> set[int]:
 #   users/self/courses/... -> may embed other users
 #   courses/*/enrollments, courses/*/users -> rosters
 #   users/<other-id>/profile -> somebody else
+#   users/self/enrollments -> looks self-only by its path but is NOT. Canvas
+#       expands it with include[]=observed_users, which returns OTHER students'
+#       records on observer enrollments. This gate sees only the path and cannot
+#       see request parameters, so exempting the path would let those bypass
+#       anonymization whenever that include is present. get_my_enrollments
+#       deliberately reads /courses instead, so nothing needs this exemption.
 _SELF_ONLY_ENDPOINTS = frozenset({
     "users/self",
     "users/self/profile",
-    "users/self/enrollments",
 })
 
 

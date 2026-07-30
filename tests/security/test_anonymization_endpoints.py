@@ -96,7 +96,6 @@ class TestSelfOnlyEndpointExemption:
     @pytest.mark.parametrize("endpoint", [
         "/users/self",
         "/users/self/profile",
-        "/users/self/enrollments",
         "users/self/profile",              # leading slash is optional
         "/users/self/profile?include[]=x",  # query string stripped first
         "/USERS/SELF/PROFILE",             # case-insensitive
@@ -113,6 +112,9 @@ class TestSelfExemptionDoesNotLeakToOtherPaths:
     @pytest.mark.parametrize("endpoint", [
         # Other people, reached through the caller's own /users/self namespace.
         "/users/self/observees",
+        # Looks self-only, but Canvas expands it with include[]=observed_users,
+        # which returns OTHER students. The gate cannot see request params.
+        "/users/self/enrollments",
         "/users/self/observees/55",
         "/users/self/courses/123/users",
         "/users/self/enrollments/999",   # a specific enrollment, not the list
@@ -134,14 +136,21 @@ class TestSelfExemptionDoesNotLeakToOtherPaths:
     def test_still_anonymized(self, endpoint):
         assert _should_anonymize_endpoint(endpoint) is True
 
-    def test_allowlist_is_exactly_three_paths(self):
-        """Growing this set is a FERPA decision, not a refactor."""
+    def test_allowlist_is_exactly_two_paths(self):
+        """Growing this set is a FERPA decision, not a refactor.
+
+        `users/self/enrollments` was in this set and was deliberately removed:
+        Canvas expands it with `include[]=observed_users`, which returns other
+        students' records on observer enrollments. The gate sees only the path
+        and cannot inspect request parameters, so exempting it would let those
+        records bypass anonymization. `get_my_enrollments` reads `/courses`
+        instead, so nothing depends on the exemption.
+        """
         from canvas_mcp.core.client import _SELF_ONLY_ENDPOINTS
 
         assert _SELF_ONLY_ENDPOINTS == frozenset({
             "users/self",
             "users/self/profile",
-            "users/self/enrollments",
         })
 
 

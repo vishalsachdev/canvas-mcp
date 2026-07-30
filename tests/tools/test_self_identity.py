@@ -141,12 +141,26 @@ class TestGetMyEnrollments:
         assert params["per_page"] == 100
 
     @pytest.mark.asyncio
-    async def test_include_concluded_adds_completed_state(self):
+    async def test_include_concluded_widens_both_filters(self):
+        """Both filters must widen together or the flag silently does nothing.
+
+        Broadening the course `state[]` while leaving `enrollment_state` pinned
+        to "active" means Canvas still drops every completed enrollment, so a
+        caller asking for concluded history would get only active courses back
+        and have no way to tell.
+        """
         _, mock_fetch = await self._call(
             [_course(enrollments=[_enrollment()])], include_concluded=True
         )
         params = mock_fetch.call_args[0][1]
         assert params["state[]"] == ["available", "completed"]
+        assert params["enrollment_state"] == ["active", "completed"]
+
+    @pytest.mark.asyncio
+    async def test_default_run_keeps_enrollment_state_active(self):
+        _, mock_fetch = await self._call([_course(enrollments=[_enrollment()])])
+        params = mock_fetch.call_args[0][1]
+        assert params["enrollment_state"] == "active"
 
     @pytest.mark.asyncio
     async def test_default_scope_is_stated_explicitly(self):

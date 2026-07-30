@@ -102,12 +102,21 @@ def _exposes_identifier(user: dict) -> bool:
 
 
 def _identifiers_visible(enrollments: list[dict]) -> bool:
-    """Whether ANY user in the roster exposes login_id or sis_user_id.
+    """Whether EVERY user in the roster exposes login_id or sis_user_id.
 
-    One visible identifier is enough — partial visibility means the fields are
-    not permission-stripped, so a non-match is a genuine non-match.
+    ``all``, not ``any``, and that distinction is the whole point of the guard.
+    With ``any``, a roster mixing visible and hidden identifiers passes as soon
+    as one unrelated row is readable. If the NetID being asked about happens to
+    be one of the hidden rows, matching fails and we return a confident "not
+    enrolled" again, recreating the exact false negative this guard exists to
+    prevent.
+
+    A negative answer is only trustworthy when every candidate row *could* have
+    matched. Canvas strips these fields per-permission rather than per-row, so
+    in practice this rarely differs; where it does differ, indeterminate is the
+    correct answer.
     """
-    return any(
+    return all(
         _exposes_identifier(enrollment.get("user") or {})
         for enrollment in enrollments
     )
@@ -186,17 +195,25 @@ async def check_enrollment(
                         error=str(enrollments.get("error")))
         raise RuntimeError(str(enrollments.get("error")))
 
-    # A NON-EMPTY roster in which nobody exposes an identifier means the fields
-    # were permission-stripped, not that the person is absent. Refuse to guess.
+    match = _match_enrollment(enrollments, net_id, active_only)
+
+    # Match first, and only question visibility when the answer would be NO.
+    #
+    # A positive match is trustworthy however much of the rest of the roster is
+    # hidden: we found the person. A NEGATIVE is a claim about rows we may not
+    # have been able to read, so it is only trustworthy when EVERY row exposed a
+    # matchable identifier. Otherwise the requested NetID may be sitting in a
+    # row whose identifiers Canvas stripped, and "no" would be the exact false
+    # negative this guard exists to prevent.
+    #
     # An EMPTY roster is a real, trustworthy "nobody is enrolled".
-    if enrollments and not _identifiers_visible(enrollments):
+    if match is None and enrollments and not _identifiers_visible(enrollments):
         log_data_access("GET", f"/courses/{course_id}/enrollments", "indeterminate")
         raise EnrollmentCheckUnavailable(
-            "Canvas returned the roster but withheld login_id and sis_user_id on "
-            "every user, so this NetID cannot be matched."
+            "Canvas withheld login_id and sis_user_id on at least one user in "
+            "this roster, so a 'not enrolled' answer cannot be trusted."
         )
 
-    match = _match_enrollment(enrollments, net_id, active_only)
     log_data_access("GET", f"/courses/{course_id}/enrollments", "success")
 
     if match is None:
