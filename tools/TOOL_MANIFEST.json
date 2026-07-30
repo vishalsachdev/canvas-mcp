@@ -27,6 +27,36 @@
   ],
   "tools": [
     {
+      "name": "get_my_profile",
+      "category": "shared",
+      "description": "Get your own Canvas identity (user ID, name, login ID)",
+      "parameters": [],
+      "returns": "Your Canvas user ID, name, and login ID (email and SIS ID deliberately omitted)",
+      "examples": [
+        "Who am I in Canvas?",
+        "What's my Canvas user ID?"
+      ]
+    },
+    {
+      "name": "get_my_enrollments",
+      "category": "shared",
+      "description": "List the courses you are enrolled in, with your role in each. Needs no roster permission",
+      "parameters": [
+        {
+          "name": "include_concluded",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Also include concluded/completed courses"
+        }
+      ],
+      "returns": "Course code, name, ID, and all of your roles per course",
+      "examples": [
+        "What courses am I in?",
+        "Am I a student or a TA in BADM 350?"
+      ]
+    },
+    {
       "name": "get_my_upcoming_assignments",
       "category": "student",
       "description": "Get your upcoming assignments across all courses",

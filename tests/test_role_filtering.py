@@ -54,7 +54,14 @@ SHARED_TOOLS = {
     "mark_conversations_read",
     # discovery
     "search_canvas_tools",
+    # self-identity (issue #171) — caller-scoped, no roster permission needed
+    "get_my_enrollments",
+    "get_my_profile",
 }
+
+# These two answer only about the authenticated caller, so unlike
+# check_enrollment they must be available under EVERY profile.
+SELF_IDENTITY_TOOLS = {"get_my_enrollments", "get_my_profile"}
 
 # A sample of educator-only tools to check (not exhaustive, just representative)
 EDUCATOR_ONLY_SAMPLE = {
@@ -160,6 +167,23 @@ class TestRoleFiltering:
         combined = student_tools | educator_tools
         missing = all_tools - combined
         assert not missing, f"Tools in 'all' but missing from student+educator: {missing}"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("role", ["student", "educator", "all"])
+    async def test_self_identity_tools_registered_for_every_role(self, role):
+        """They need no roster permission, so no profile may omit them (#171)."""
+        mcp = FastMCP(name=f"test-{role}")
+        register_all_tools(mcp, role=role)
+        tools = await _get_tool_names(mcp)
+        for tool in SELF_IDENTITY_TOOLS:
+            assert tool in tools, f"Role '{role}' should include {tool}"
+
+    @pytest.mark.asyncio
+    async def test_check_enrollment_stays_educator_only(self):
+        """Contrast: the roster-reading tool is NOT a self-identity tool."""
+        mcp = FastMCP(name="test-student")
+        register_all_tools(mcp, role="student")
+        assert "check_enrollment" not in await _get_tool_names(mcp)
 
     @pytest.mark.asyncio
     async def test_student_tool_count(self):

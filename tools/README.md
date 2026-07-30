@@ -16,6 +16,43 @@ This document provides a comprehensive overview of all tools available in the Ca
 
 These tools provide students with personal academic tracking and organization capabilities using Canvas API's "self" endpoints.
 
+### Self-Identity
+
+Available under **every** role profile (student, educator, all) — these describe only the authenticated caller, so they need no roster permission.
+
+#### `get_my_profile`
+Get your own Canvas identity.
+
+**Parameters:** none
+
+**Example:**
+```
+"Who am I in Canvas?"
+"What's my Canvas user ID?"
+```
+
+**Returns:** Your Canvas user ID, name, and login ID. `primary_email` and `sis_user_id` are deliberately omitted — neither is needed to identify you to other tools, and both are needlessly sensitive in a transcript.
+
+---
+
+#### `get_my_enrollments`
+List the courses **you** are enrolled in, with your role in each.
+
+**Parameters:**
+- `include_concluded` (optional): Also include concluded/completed courses (default `false` = active only)
+
+**Example:**
+```
+"What courses am I in?"
+"Am I a student or a TA in BADM 350?"
+```
+
+**Returns:** Course code, name, ID, and your role(s) per course. Reports **all** roles when you hold more than one enrollment in a course (e.g. TA and student).
+
+Use this — not [`check_enrollment`](#check_enrollment) — for any question about your own enrollment. `check_enrollment` reads the course roster, which requires roster-admin rights your token probably does not have.
+
+---
+
 ### Personal Organization
 
 #### `get_my_upcoming_assignments`
@@ -417,7 +454,9 @@ Multi-dimensional student performance analysis.
 ---
 
 #### `check_enrollment`
-Check whether a specific NetID is enrolled in a course. Answers a roster-membership question about an externally-supplied person (not the caller) and returns **only** a yes/no plus minimal enrollment metadata — never the roster, names, or grades. Requires a teacher-scoped Canvas token (a student token returns a clean Canvas 403).
+Check whether a specific NetID is enrolled in a course. Answers a roster-membership question about an externally-supplied person (not the caller) and returns **only** a yes/no plus minimal enrollment metadata — never the roster, names, or grades. Requires a Canvas token with roster-admin rights.
+
+> **A token without roster rights does not fail loudly.** Canvas returns HTTP 200 with the full roster and silently omits `login_id`/`sis_user_id` from every user, so the NetID can never match. This tool detects that and answers **INDETERMINATE**, never "no" — permission-blindness is not absence. To ask about *yourself*, use [`get_my_enrollments`](#get_my_enrollments) instead, which needs no roster permission.
 
 **Parameters:**
 - `course_identifier`: Course code, numeric ID, or SIS ID

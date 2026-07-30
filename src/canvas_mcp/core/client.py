@@ -111,6 +111,35 @@ def _self_submission_indices(segments: list[str]) -> set[int]:
     }
 
 
+# Endpoints that describe ONLY the authenticated caller. Anonymizing these
+# corrupts the caller's own identity (they would be told their name is
+# "Student_<hash>"), which is a data-integrity bug, not a privacy win: FERPA
+# protects a student's record FROM OTHERS, never from themselves.
+#
+# This is a deliberate loosening of a FERPA control, so it is an EXACT
+# full-joined-path allowlist, never a prefix or substring rule. A looser form is
+# exactly how #164/#166 happened. Notably NOT exempt (all still anonymized):
+#   users/self/observees   -> other people (the observed students)
+#   users/self/courses/... -> may embed other users
+#   courses/*/enrollments, courses/*/users -> rosters
+#   users/<other-id>/profile -> somebody else
+#   users/self/enrollments -> looks self-only by its path but is NOT. Canvas
+#       expands it with include[]=observed_users, which returns OTHER students'
+#       records on observer enrollments. This gate sees only the path and cannot
+#       see request parameters, so exempting the path would let those bypass
+#       anonymization whenever that include is present. get_my_enrollments
+#       deliberately reads /courses instead, so nothing needs this exemption.
+_SELF_ONLY_ENDPOINTS = frozenset({
+    "users/self",
+    "users/self/profile",
+})
+
+
+def _is_self_only_endpoint(segments: list[str]) -> bool:
+    """Whether the path is EXACTLY one of the caller-only endpoints."""
+    return "/".join(segments) in _SELF_ONLY_ENDPOINTS
+
+
 def _determine_data_type(endpoint: str) -> str:
     """Determine the type of data based on the API endpoint.
 
@@ -152,8 +181,15 @@ def _should_anonymize_endpoint(endpoint: str) -> bool:
       body/url/attachments, so a student cannot read back what they submitted
       (issue #166). Only the literal 'self' sub-route is excluded; any other
       sensitive segment in the same path still forces anonymization.
+    - the exact self-only paths in _SELF_ONLY_ENDPOINTS — the caller's OWN
+      identity (issue #171). Exact full-path match only.
     """
     segments = _path_segments(endpoint)
+
+    # Caller-only identity endpoints: exact-path allowlist, checked before the
+    # sensitive-segment rules because 'users' would otherwise match.
+    if _is_self_only_endpoint(segments):
+        return False
 
     # Drop only the 'submissions' segment of a /submissions/self route; every
     # other sensitive segment keeps its effect.

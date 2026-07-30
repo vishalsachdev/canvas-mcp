@@ -36,6 +36,21 @@ _ROLE_TO_TYPE = {
 }
 
 
+class EnrollmentCheckUnavailable(RuntimeError):
+    """Canvas answered the roster read but withheld the identifier fields.
+
+    **Permission-blindness is not absence.** Canvas gates ``user.login_id`` and
+    ``user.sis_user_id`` on roster-admin rights. A token without those rights
+    (e.g. a student-scoped token) still gets ``HTTP 200`` plus the full roster —
+    only every ``user`` object comes back reduced to
+    ``{created_at, id, name, short_name, sortable_name}``. There is no error to
+    catch, so the NetID match simply never succeeds and a naive implementation
+    reports a confident, wrong ``NO``.
+
+    Raised instead, so the caller can say "indeterminate" rather than "no".
+    """
+
+
 @dataclass(frozen=True)
 class EnrollmentResult:
     """Minimal, data-minimizing answer to "is net_id enrolled in course?"."""
@@ -71,6 +86,40 @@ def _match_enrollment(
         if sis_user_id and needle == sis_user_id:
             return enrollment, "sis_user_id"
     return None
+
+
+def _exposes_identifier(user: dict) -> bool:
+    """Whether this roster user actually carries a matchable identifier.
+
+    Requires a non-empty value, not merely the key: Canvas may return the key
+    with ``null`` for a user whose pseudonym the caller cannot see, which is
+    just as unmatchable as omitting it.
+    """
+    return bool(
+        (user.get("login_id") or "").strip()
+        or (user.get("sis_user_id") or "").strip()
+    )
+
+
+def _identifiers_visible(enrollments: list[dict]) -> bool:
+    """Whether EVERY user in the roster exposes login_id or sis_user_id.
+
+    ``all``, not ``any``, and that distinction is the whole point of the guard.
+    With ``any``, a roster mixing visible and hidden identifiers passes as soon
+    as one unrelated row is readable. If the NetID being asked about happens to
+    be one of the hidden rows, matching fails and we return a confident "not
+    enrolled" again, recreating the exact false negative this guard exists to
+    prevent.
+
+    A negative answer is only trustworthy when every candidate row *could* have
+    matched. Canvas strips these fields per-permission rather than per-row, so
+    in practice this rarely differs; where it does differ, indeterminate is the
+    correct answer.
+    """
+    return all(
+        _exposes_identifier(enrollment.get("user") or {})
+        for enrollment in enrollments
+    )
 
 
 async def _fetch_enrollments_raw(course_id: str, params: dict) -> list[dict] | dict:
@@ -115,8 +164,10 @@ async def check_enrollment(
 
     Raises:
         ValueError: invalid net_id / role, or the course can't be resolved.
-        RuntimeError: Canvas rejected the roster read (e.g. a student-scoped token
-            yields a clean 403 rather than a partial answer).
+        EnrollmentCheckUnavailable: Canvas returned a roster but withheld the
+            identifier fields on every user, so no answer can be trusted.
+            Permission-blindness is not absence — see the exception's docstring.
+        RuntimeError: Canvas rejected the roster read outright.
     """
     if not _NETID_RE.match(net_id or ""):
         raise ValueError(
@@ -145,6 +196,24 @@ async def check_enrollment(
         raise RuntimeError(str(enrollments.get("error")))
 
     match = _match_enrollment(enrollments, net_id, active_only)
+
+    # Match first, and only question visibility when the answer would be NO.
+    #
+    # A positive match is trustworthy however much of the rest of the roster is
+    # hidden: we found the person. A NEGATIVE is a claim about rows we may not
+    # have been able to read, so it is only trustworthy when EVERY row exposed a
+    # matchable identifier. Otherwise the requested NetID may be sitting in a
+    # row whose identifiers Canvas stripped, and "no" would be the exact false
+    # negative this guard exists to prevent.
+    #
+    # An EMPTY roster is a real, trustworthy "nobody is enrolled".
+    if match is None and enrollments and not _identifiers_visible(enrollments):
+        log_data_access("GET", f"/courses/{course_id}/enrollments", "indeterminate")
+        raise EnrollmentCheckUnavailable(
+            "Canvas withheld login_id and sis_user_id on at least one user in "
+            "this roster, so a 'not enrolled' answer cannot be trusted."
+        )
+
     log_data_access("GET", f"/courses/{course_id}/enrollments", "success")
 
     if match is None:

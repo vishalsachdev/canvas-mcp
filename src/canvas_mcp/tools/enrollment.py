@@ -2,13 +2,19 @@
 
 Thin wrapper over ``core.enrollment.check_enrollment`` — answers "is this NetID
 enrolled in course X?" with a minimal yes/no, never the roster. Requires a
-teacher-scoped Canvas token (a student token yields a clean Canvas 403).
+Canvas token with roster-admin rights.
+
+A token WITHOUT those rights does not fail loudly: Canvas returns HTTP 200 with
+the full roster and silently omits ``login_id``/``sis_user_id`` from every user.
+That case is reported as INDETERMINATE, never as "NO" — see
+``core.enrollment.EnrollmentCheckUnavailable``.
 """
 
 
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from ..core.enrollment import EnrollmentCheckUnavailable
 from ..core.enrollment import check_enrollment as _check_enrollment
 from ..core.validation import validate_params
 
@@ -28,7 +34,11 @@ def register_enrollment_tools(mcp: FastMCP):
 
         Answers a roster-membership question about an externally-supplied person
         (NOT the caller). Returns only a yes/no plus minimal enrollment metadata —
-        never the roster, names, or grades. Requires a teacher-scoped Canvas token.
+        never the roster, names, or grades. Requires a Canvas token with
+        roster-admin rights; without them the answer is INDETERMINATE, never "no".
+
+        To ask about YOURSELF, use get_my_enrollments instead — it needs no
+        roster permission and cannot return an indeterminate answer.
 
         Args:
             course_identifier: Course code, numeric ID, or SIS ID.
@@ -43,10 +53,25 @@ def register_enrollment_tools(mcp: FastMCP):
             )
         except ValueError as exc:
             return f"Error: {exc}"
+        # Must precede the RuntimeError arm — EnrollmentCheckUnavailable is a
+        # RuntimeError subclass, and conflating the two would reintroduce a
+        # misleading answer.
+        except EnrollmentCheckUnavailable as exc:
+            return (
+                f"INDETERMINATE — cannot tell whether {net_id} is enrolled in "
+                f"course {course_identifier}. {exc} This token lacks roster-admin "
+                "rights, so Canvas withheld the identifier fields it would be "
+                "matched against; answering 'no' here would be wrong, because "
+                "permission-blindness is not absence. Retry with a token that has "
+                "roster access, or — if you are asking about YOURSELF — use "
+                "get_my_enrollments, which needs no roster permission."
+            )
         except RuntimeError as exc:
             return (
-                f"Canvas error checking enrollment: {exc}. "
-                "This tool requires a teacher-scoped token with roster access."
+                f"Canvas rejected the roster read: {exc}. This tool requires a "
+                "token with roster-admin access to the course; the result is "
+                "unknown, not negative. If you are asking about YOURSELF, use "
+                "get_my_enrollments instead."
             )
 
         if result.enrolled:
