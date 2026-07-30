@@ -152,14 +152,22 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] Issue #159: mcp-remote proxy hangs on stale hosted session — **fixed 2026-07-09** (PR #160: `stateless_http=True`; deployed + live-verified)
 - [x] Issue #164 / PR #165: FERPA anonymization bypass (safe-endpoint short-circuit) — **fixed, merged, deployed 2026-07-21**; follow-up #166 filed
 - [x] Issue #166: anonymizer recursive identity scrub — **fixed, merged (PR #177), deployed to hosted 2026-07-29**; follow-up #179 (layer consolidation)
-- [x] **#170 Tier 1 student write tools** — **built + review-hardened 2026-07-30** on
-  `feature/student-write-tools` (13 commits, 750 tests green, 10 codex rounds to clean).
-  **#170 design comment POSTED 2026-07-30** ([comment 5125231050](https://github.com/vishalsachdev/canvas-mcp/issues/170#issuecomment-5125231050));
-  it corrects two earlier public claims (the `/self`-scoping claim, the page-carrier proposal),
-  explains 5 tools → 4, and asks UMich two questions (default posture; syllabus visible to students).
-  **Branch still NOT pushed, no PR** — awaiting decision. Policy carrier is the course syllabus
-  (page carrier deliberately removed — see session log). Record: `internal/issue-170-followup-draft.md`
-- [ ] #171 identity tools (`get_my_enrollments`/`get_my_profile`) as companion to #170
+- [x] **#170 Tier 1 student write tools — MERGED to main 2026-07-30 (PR #185)**, deploying with
+  v1.6.0. 10 codex rounds to clean; policy carrier is the course syllabus (page carrier deliberately
+  removed). Hosted instance verified write-free (CANVAS_ROLE=educator + STUDENT_WRITE_TOOLS unset;
+  policy recorded in internal/ops-hosted.local.md). Issue #170 stays OPEN for UMich's two answers
+  (default posture; syllabus visibility) + their test results. Design record:
+  `internal/issue-170-followup-draft.md`
+- [x] **#171 identity tools — MERGED (PR #183)**; #171 closed. check_enrollment now returns
+  INDETERMINATE instead of a confident false NO on permission-stripped rosters
+- [x] **#180 rubric visibility — MERGED (PR #182)**; #180 closed. Course-bookmark association +
+  never report success on an orphaned rubric
+- [x] **#179 gap-closure half — MERGED (PR #184)**: anonymization tiers (full/identity/free_text);
+  /conversations + /pages gated (live replay: 97 inbox records, 0 surviving emails); missed email
+  keys covered; anonymization-map tool fixed. **#179 stays OPEN** for the tool-layer call
+  consolidation (status comment on issue)
+- [ ] Release **v1.6.0**: tag when ready — notes need #177/#178 (code-exec behavior change),
+  #182/#183/#184/#185; then wrangler deploy of docs/ (site still says 93 tools, repo says 95+)
 - [ ] Issue #142: MCP SDK v2 migration — **blocked upstream**: fastmcp 3.4.4 pins `mcp<2.0`, so relaxing our pin can't resolve. Re-scoped via issue comment 7/21 (verify our v2-readiness, track fastmcp upstream). **Assigned to Ash (`ashcastelinocs124`), orig. deadline ~2026-07-27 — confirm plan with Ash**
 - [x] Issue #145 / PR #167: fastmcp 3.4.4 migration — **DONE 2026-07-21** (CVEs PYSEC-2026-2475/2476 resolved; dep-scan green; staging-validated then prod-deployed + live-verified; #145 closed)
 - [ ] Issue #157: `execute_typescript` sandbox hardening backlog (container-level egress, non-root user, prebuilt tsx image) — **self-hosted-only now**: tool is DISABLED on both hosted slots (`EXECUTE_TYPESCRIPT_ENABLED=false`, verified 2026-07-10); gate on re-enabling hosted code-exec
