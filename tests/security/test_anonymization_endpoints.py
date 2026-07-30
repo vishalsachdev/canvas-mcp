@@ -84,6 +84,67 @@ class TestShouldAnonymizeEndpoint:
         assert _determine_data_type("/courses/123/discussion_topics/9/view") == "discussions"
 
 
+class TestSelfOnlyEndpointExemption:
+    """The caller's OWN identity is exempt (issue #171) — by EXACT path only.
+
+    Anonymizing these corrupts the caller's own record (they get told their name
+    is "Student_<hash>"). FERPA protects a record from OTHERS, never from its
+    subject. But this is a loosening of a privacy control, so the allowlist is an
+    exact full-path match; the non-regression class below is the real test.
+    """
+
+    @pytest.mark.parametrize("endpoint", [
+        "/users/self",
+        "/users/self/profile",
+        "/users/self/enrollments",
+        "users/self/profile",              # leading slash is optional
+        "/users/self/profile?include[]=x",  # query string stripped first
+        "/USERS/SELF/PROFILE",             # case-insensitive
+        "/users/self/profile/",            # trailing slash
+    ])
+    def test_self_only_endpoints_exempt(self, endpoint):
+        assert _should_anonymize_endpoint(endpoint) is False
+
+
+class TestSelfExemptionDoesNotLeakToOtherPaths:
+    """Anti-bypass. #164 and #166 were both over-broad 'safe endpoint' rules;
+    every path here must STILL anonymize."""
+
+    @pytest.mark.parametrize("endpoint", [
+        # Other people, reached through the caller's own /users/self namespace.
+        "/users/self/observees",
+        "/users/self/observees/55",
+        "/users/self/courses/123/users",
+        "/users/self/enrollments/999",   # a specific enrollment, not the list
+        "/users/self/profile/extra",
+        # Rosters.
+        "/courses/123/enrollments",
+        "/courses/123/users",
+        "/sections/45/enrollments",
+        # Somebody else's profile.
+        "/users/456/profile",
+        "/users/456",
+        "/users/self_service/profile",
+        # A user literally named/slugged "self" elsewhere in the path.
+        "/courses/self/users",
+        # Prefix/suffix games.
+        "/api/v1/users/self/profile",
+        "/accounts/1/users/self/profile",
+    ])
+    def test_still_anonymized(self, endpoint):
+        assert _should_anonymize_endpoint(endpoint) is True
+
+    def test_allowlist_is_exactly_three_paths(self):
+        """Growing this set is a FERPA decision, not a refactor."""
+        from canvas_mcp.core.client import _SELF_ONLY_ENDPOINTS
+
+        assert _SELF_ONLY_ENDPOINTS == frozenset({
+            "users/self",
+            "users/self/profile",
+            "users/self/enrollments",
+        })
+
+
 class TestDiscussionViewAnonymization:
     """The /view endpoint returns {"view": [...], "participants": [...]} —
     both lists carry student names and must be anonymized recursively."""
