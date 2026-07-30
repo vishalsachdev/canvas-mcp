@@ -680,6 +680,7 @@ async def fetch_all_paginated_results(
     endpoint: str,
     params: dict[str, Any] | None = None,
     skip_anonymization: bool = False,
+    api_root: Literal["rest", "quiz"] = API_ROOT_REST,
 ) -> Any:
     """Fetch all results from a paginated Canvas API endpoint.
 
@@ -693,6 +694,13 @@ async def fetch_all_paginated_results(
             whose whole purpose is to see real identities — the local
             pseudonym-map export. Anonymizing that fetch maps pseudonyms to
             pseudonyms, which is not a privacy win, just a broken tool.
+        api_root: Which Canvas API root to call ("rest" => /api/v<N>,
+            "quiz" => /api/quiz/v1). Only the base URL changes; the
+            anonymization gate keys off ``endpoint``, so an alternate root
+            cannot route around it. Paginated quiz-root callers must use this
+            rather than looping over ``make_canvas_request`` themselves, or they
+            lose the single-anonymization-pass-over-the-complete-dataset
+            property this function exists to provide.
     """
     if params is None:
         params = {}
@@ -707,7 +715,9 @@ async def fetch_all_paginated_results(
     while True:
         current_params = {**params, "page": page}
         # Skip anonymization on individual pages - we'll anonymize the complete dataset
-        response = await make_canvas_request("get", endpoint, params=current_params, skip_anonymization=True)
+        response = await make_canvas_request(
+            "get", endpoint, params=current_params, skip_anonymization=True, api_root=api_root
+        )
 
         if isinstance(response, dict) and "error" in response:
             log_error(f"Error fetching page {page}", error=response['error'])
