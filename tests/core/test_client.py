@@ -98,3 +98,87 @@ class TestMakeCanvasRequestApiRoot:
         mock_anonymize.assert_called_once_with(
             {"id": 101, "name": "Alice"}, "/courses/42/users"
         )
+
+
+class TestPaginatedFetchApiRoot:
+    """`api_root` must reach the paginated path without weakening the gate.
+
+    A quiz-root caller that hand-rolls its own pagination over
+    ``make_canvas_request`` loses the single-anonymization-pass-over-the-
+    complete-dataset property, which is the #164 shortcut. So the paginated
+    helper has to support the alternate root itself.
+    """
+
+    @pytest.fixture(autouse=True)
+    def reset_client_state(self):
+        client_module._request_semaphore = None
+        client_module._semaphore_loop_ref = None
+        yield
+        client_module._request_semaphore = None
+        client_module._semaphore_loop_ref = None
+
+    @pytest.mark.asyncio
+    async def test_quiz_root_is_forwarded_to_every_page_request(self):
+        pages = [[{"id": i} for i in range(100)], [{"id": 100}]]
+
+        async def fake_request(method, endpoint, **kwargs):
+            return pages.pop(0) if pages else []
+
+        with patch.object(
+            client_module, "make_canvas_request", side_effect=fake_request
+        ) as mock_req:
+            await client_module.fetch_all_paginated_results(
+                "/courses/42/quizzes", api_root="quiz", skip_anonymization=True
+            )
+
+        assert mock_req.await_count == 2, "expected two page fetches"
+        for call in mock_req.await_args_list:
+            assert call.kwargs["api_root"] == "quiz"
+            assert call.kwargs["skip_anonymization"] is True
+
+    @pytest.mark.asyncio
+    async def test_rest_root_remains_the_default(self):
+        async def fake_request(method, endpoint, **kwargs):
+            return []
+
+        with patch.object(
+            client_module, "make_canvas_request", side_effect=fake_request
+        ) as mock_req:
+            await client_module.fetch_all_paginated_results("/courses/42/quizzes")
+
+        assert mock_req.await_args.kwargs["api_root"] == "rest"
+
+    @pytest.mark.asyncio
+    async def test_quiz_root_still_anonymizes_once_over_the_merged_dataset(self):
+        """The gate keys off `endpoint`, so the alternate root cannot bypass it."""
+        mock_config = SimpleNamespace(
+            enable_data_anonymization=True, anonymization_debug=False
+        )
+        pages = [
+            [{"id": 1, "name": "Alice"} for _ in range(100)],
+            [{"id": 2, "name": "Bob"}],
+        ]
+
+        async def fake_request(method, endpoint, **kwargs):
+            return pages.pop(0) if pages else []
+
+        with (
+            patch.object(client_module, "make_canvas_request", side_effect=fake_request),
+            patch("canvas_mcp.core.config.get_config", return_value=mock_config),
+            patch.object(
+                client_module,
+                "_anonymize_for_endpoint",
+                return_value=([{"id": 1, "name": "Student_x"}], "users"),
+            ) as mock_anon,
+        ):
+            result = await client_module.fetch_all_paginated_results(
+                "/courses/42/users", api_root="quiz"
+            )
+
+        # Exactly one anonymization pass, over all 101 merged records, keyed on
+        # the endpoint path rather than the base URL.
+        mock_anon.assert_called_once()
+        merged, endpoint_arg = mock_anon.call_args.args
+        assert len(merged) == 101
+        assert endpoint_arg == "/courses/42/users"
+        assert result == [{"id": 1, "name": "Student_x"}]
