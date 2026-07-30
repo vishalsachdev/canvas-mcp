@@ -1,4 +1,4 @@
-from canvas_mcp.core.access.tokens import mint_token, verify_token, TokenClaims
+from canvas_mcp.core.access.tokens import TokenClaims, mint_token, verify_token
 
 SECRET = "test-secret-key"
 

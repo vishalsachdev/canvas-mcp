@@ -1,5 +1,7 @@
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
+
 import canvas_mcp.core.audit as audit
 from canvas_mcp.core.access import routes
 from canvas_mcp.core.access.store import AccessStore, InMemoryBackend, Requester

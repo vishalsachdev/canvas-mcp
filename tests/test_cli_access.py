@@ -1,8 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from canvas_mcp.server import _cmd_list_grants, _cmd_revoke
 from canvas_mcp.core.access.store import AccessStore, InMemoryBackend, Requester
+from canvas_mcp.server import _cmd_list_grants, _cmd_revoke
 
 
 def _store_with_one():

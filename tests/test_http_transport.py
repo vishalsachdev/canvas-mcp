@@ -945,12 +945,20 @@ class TestAccessOverlayGate:
     def _cfg(self, **kw):
         # Minimal config double with feature enabled + an in-memory store.
         from types import SimpleNamespace
-        base = dict(entra_auth_enabled=True, mcp_entra_allowed_oids=frozenset({"oid-env"}),
-                    canvas_api_url="https://c.edu/api/v1", mcp_access_keys=frozenset(),
-                    access_request_enabled=True, access_token_secret="s",
-                    access_table_account="acct", access_admin_emails=["a@x"],
-                    access_approve_base_url="https://h.edu", acs_endpoint="https://acs",
-                    acs_sender="x@d", access_notify_cooldown_hours=24)
+        base = {
+            "entra_auth_enabled": True,
+            "mcp_entra_allowed_oids": frozenset({"oid-env"}),
+            "canvas_api_url": "https://c.edu/api/v1",
+            "mcp_access_keys": frozenset(),
+            "access_request_enabled": True,
+            "access_token_secret": "s",
+            "access_table_account": "acct",
+            "access_admin_emails": ["a@x"],
+            "access_approve_base_url": "https://h.edu",
+            "acs_endpoint": "https://acs",
+            "acs_sender": "x@d",
+            "access_notify_cooldown_hours": 24,
+        }
         base.update(kw)
         return SimpleNamespace(**base)
 
