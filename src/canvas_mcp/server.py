@@ -46,6 +46,7 @@ from .tools import (
     register_educator_messaging_tools,
     register_educator_module_tools,
     register_educator_page_crud_tools,
+    register_educator_quiz_tools,
     register_enrollment_tools,
     register_page_tools,
     register_peer_review_comment_tools,
@@ -58,6 +59,7 @@ from .tools import (
     register_shared_file_tools,
     register_shared_messaging_tools,
     register_shared_module_tools,
+    register_shared_quiz_tools,
     register_student_tools,
     register_student_write_tools,
 )
@@ -338,6 +340,7 @@ def register_all_tools(mcp: FastMCP, role: str = "all") -> None:
     register_shared_file_tools(mcp)
     register_shared_messaging_tools(mcp)
     register_discovery_tools(mcp)
+    register_shared_quiz_tools(mcp)
     # Caller-scoped identity: needs no roster permission, so every profile gets it.
     register_self_identity_tools(mcp)
 
@@ -360,6 +363,7 @@ def register_all_tools(mcp: FastMCP, role: str = "all") -> None:
         register_peer_review_tools(mcp)
         register_peer_review_comment_tools(mcp)
         register_educator_messaging_tools(mcp)
+        register_educator_quiz_tools(mcp)
         register_accessibility_tools(mcp)
         register_enrollment_tools(mcp)  # requires teacher-scoped roster access
         if get_config().execute_typescript_enabled:

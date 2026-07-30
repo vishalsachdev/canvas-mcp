@@ -404,7 +404,16 @@ async def make_canvas_request(
             headers=_canvas_auth_headers(req_creds.api_token),
             timeout=config.api_timeout,
         )
-        url = f"{req_creds.api_url.rstrip('/')}{endpoint}"
+        if endpoint.startswith("/api/"):
+            import re
+            from urllib.parse import urlparse, urlunparse
+            parsed = urlparse(req_creds.api_url)
+            version = re.search(r"/api/v\d+(?=/|$)", parsed.path)
+            base_path = parsed.path[:version.start()] if version else parsed.path
+            req_base_url = urlunparse(parsed._replace(path=base_path, params="", query="", fragment=""))
+            url = f"{req_base_url.rstrip('/')}{endpoint}"
+        else:
+            url = f"{req_creds.api_url.rstrip('/')}{endpoint}"
         _close_client = True
     elif is_http_request_active():
         # HTTP request without a per-request token: fail closed. Never fall
@@ -417,7 +426,10 @@ async def make_canvas_request(
     else:
         # Global client (stdio mode)
         client = _get_http_client()
-        url = f"{config.canvas_api_url.rstrip('/')}{endpoint}"
+        if endpoint.startswith("/api/"):
+            url = f"{config.canvas_base_url.rstrip('/')}{endpoint}"
+        else:
+            url = f"{config.canvas_api_url.rstrip('/')}{endpoint}"
         _close_client = False
 
     # Gate outbound calls with concurrency semaphore (uses MAX_CONCURRENT_REQUESTS)

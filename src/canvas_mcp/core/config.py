@@ -126,6 +126,12 @@ class Config:
         self.canvas_api_url_configured = os.getenv("CANVAS_API_URL", "").strip()
         self.canvas_api_url = _normalize_canvas_url(self.canvas_api_url_configured)
 
+        # Base URL without the /api/v1 (or /api/vX) suffix, but preserving any lms/ proxy prefix
+        parsed = urlparse(self.canvas_api_url)
+        version = re.search(r"/api/v\d+(?=/|$)", parsed.path)
+        base_path = parsed.path[:version.start()] if version else parsed.path
+        self.canvas_base_url = urlunparse(parsed._replace(path=base_path, params="", query="", fragment=""))
+
         # Optional configuration with defaults
         self.mcp_server_name = os.getenv("MCP_SERVER_NAME", "canvas-api")
         self.debug = _bool_env("DEBUG", False)
