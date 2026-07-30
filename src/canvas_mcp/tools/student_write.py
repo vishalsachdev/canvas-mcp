@@ -204,7 +204,15 @@ def _caller_identity() -> str:
     credentials = get_request_credentials()
     if credentials is None:
         return "stdio"
-    return hashlib.sha256(credentials.api_token.encode()).hexdigest()
+    # Keyed with the per-process token secret rather than bare SHA-256. Canvas
+    # tokens are high-entropy (this is not password hashing, whatever a scanner
+    # pattern-matches it as), but keying costs nothing and means a leaked
+    # fingerprint is not even a digest-of-the-token oracle. Stability within
+    # the process is all the confirmation flow needs, and _TOKEN_SECRET is
+    # per-process by design.
+    return hmac.new(
+        _TOKEN_SECRET, credentials.api_token.encode(), hashlib.sha256
+    ).hexdigest()
 
 
 class _PreparedFile:
