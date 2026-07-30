@@ -125,18 +125,24 @@ Canvas MCP provides **95 tools** for interacting with Canvas LMS. Tools are orga
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data through any MCP-compatible client.
 
-## Latest Release: v1.5.0
+## Latest Release: v1.6.0
 
 **Released:** July 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
 
-- **`get_syllabus`** — full untruncated Canvas Syllabus content, with `text`/`html`/`both` output ([#134](https://github.com/vishalsachdev/canvas-mcp/issues/134))
-- **`create_rubric_from_csv`** — create rubrics from CSV via Canvas's native import, a simpler alternative to criteria-JSON ([#119](https://github.com/vishalsachdev/canvas-mcp/issues/119))
-- **`update_discussion_topic`** — edit existing discussion topics/announcements (title, message, published/pinned/locked, scheduling) ([#154](https://github.com/vishalsachdev/canvas-mcp/issues/154))
-- **fastmcp 2.x migration** — moved off the frozen FastMCP 1.0 bundled in the MCP SDK; same tools, same transports ([#145](https://github.com/vishalsachdev/canvas-mcp/issues/145))
-- **Security** — dependency advisories cleared (33 → 0) with a gating CI scan, and a hardened `execute_typescript` container sandbox (read-only workspace, `--cap-drop=ALL`, token out of argv) (PR #156)
+> ⚠️ **Behavior change:** `execute_typescript` is now **opt-in**. `EXECUTE_TYPESCRIPT_ENABLED` defaults to `false` — if you use that tool, set it to `true` explicitly ([#178](https://github.com/vishalsachdev/canvas-mcp/issues/178)).
+
+- **Tier 1 student write tools** — a student-role caller can act on their own work, off by default behind an explicit `STUDENT_WRITE_TOOLS` allowlist plus an optional per-course syllabus policy that can only narrow it ([#170](https://github.com/vishalsachdev/canvas-mcp/issues/170))
+- **`get_my_enrollments`, `get_my_profile`** — "what am I enrolled in, and as what role?" without needing roster permission; `list_courses` and `get_course_details` now surface your own role too ([#171](https://github.com/vishalsachdev/canvas-mcp/issues/171))
+- **Privacy** — anonymization reworked into three tiers, closing gaps that left the Canvas Inbox and page authorship unscrubbed, plus a recursive identity scrub as the baseline on every sensitive payload ([#166](https://github.com/vishalsachdev/canvas-mcp/issues/166), [#179](https://github.com/vishalsachdev/canvas-mcp/issues/179))
+- **Rubric fixes** — `associate_rubric` never actually attached the rubric (Canvas returned 200 and ignored the request), and created rubrics are now bookmarked so they appear in the Canvas UI. No rubric write reports success without a confirmed association ([#180](https://github.com/vishalsachdev/canvas-mcp/issues/180), [#181](https://github.com/vishalsachdev/canvas-mcp/issues/181))
+- **`check_enrollment` returns INDETERMINATE** instead of a confident false "NO" when the token cannot see roster identifiers ([#171](https://github.com/vishalsachdev/canvas-mcp/issues/171))
+- **Security** — `fastmcp` 3.x clears PYSEC-2026-2475/2476; the Docker image now ships with anonymization on ([#145](https://github.com/vishalsachdev/canvas-mcp/issues/145), [#178](https://github.com/vishalsachdev/canvas-mcp/issues/178))
+- **Ruff now gates CI** — thanks to [@w3lld1](https://github.com/w3lld1) for the first outside contribution to this repo ([#175](https://github.com/vishalsachdev/canvas-mcp/issues/175), PR #186)
 
 <details>
 <summary>Previous releases</summary>
+
+**v1.5.0** — `get_syllabus` ([#134](https://github.com/vishalsachdev/canvas-mcp/issues/134)), `create_rubric_from_csv` ([#119](https://github.com/vishalsachdev/canvas-mcp/issues/119)), `update_discussion_topic` ([#154](https://github.com/vishalsachdev/canvas-mcp/issues/154)), fastmcp 2.x migration ([#145](https://github.com/vishalsachdev/canvas-mcp/issues/145)), dependency advisories cleared 33 → 0 with a gating CI scan (PR #156)
 
 **v1.4.0** — `check_enrollment` (PR #126), Claude Desktop Extension `.mcpb`, Entra ID authenticated institutional hosting ([#115](https://github.com/vishalsachdev/canvas-mcp/issues/115), PR #125), HTTP fails closed without auth gate (PR #123)
 
