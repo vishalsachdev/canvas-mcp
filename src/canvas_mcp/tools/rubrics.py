@@ -2,7 +2,9 @@
 
 import ast
 import asyncio
+import csv
 import json
+from io import StringIO
 from typing import Any
 
 from fastmcp import FastMCP
@@ -437,6 +439,38 @@ def unconfirmed_write_warning(what: str, facts: dict[str, Any], remedy: str) -> 
     lines += [f"{label}: {value}\n" for label, value in facts.items() if value is not None]
     lines.append(f"{remedy}\n")
     return "".join(lines)
+
+
+def count_csv_rubrics(csv_content: str) -> int | None:
+    """Count distinct rubric names in a Canvas rubric CSV.
+
+    Returns None when the CSV cannot be parsed or does not include a
+    ``Rubric Name`` column.
+    """
+    try:
+        reader = csv.DictReader(StringIO(csv_content))
+    except csv.Error:
+        return None
+
+    if not reader.fieldnames:
+        return None
+
+    rubric_name_field = next(
+        (name for name in reader.fieldnames if isinstance(name, str) and name.strip().lower() == "rubric name"),
+        None,
+    )
+    if not rubric_name_field:
+        return None
+
+    names: set[str] = set()
+    for row in reader:
+        if not isinstance(row, dict):
+            continue
+        raw_name = row.get(rubric_name_field)
+        if isinstance(raw_name, str) and raw_name.strip():
+            names.add(raw_name.strip())
+
+    return len(names)
 
 
 async def _ensure_course_bookmark(response: Any, course_id: str | int) -> str:
@@ -954,10 +988,26 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         course_identifier: str | int,
         csv_content: str,
     ) -> str:
-        """Create a rubric in a course from a CSV string.
+        """Create one or more rubrics in a course from a CSV string.
 
         Uses Canvas's native rubric CSV import endpoint, then polls the import
-        job until it reaches a terminal workflow_state (succeeded/failed).
+        job until it reaches a terminal workflow_state.
+
+        A ``Rubric Name`` column is REQUIRED — Canvas rejects the import without
+        it and creates nothing. Required format (repeat the rating triple per
+        rating level; a distinct Rubric Name per row creates multiple rubrics)::
+
+            Rubric Name,Criteria Name,Criteria Description,Criteria Enable Range,Rating Name,Rating Description,Rating Points
+            Essay Rubric,Clarity,Is the argument clear,false,Excellent,Very clear,10
+
+        Two Canvas behaviours to be aware of:
+
+        - Imported rubrics land in the ``Draft`` state and are **not** returned
+          by ``list_rubrics`` / ``GET /courses/:id/rubrics``, though they do
+          appear on the course Rubrics page. An empty ``list_rubrics`` result is
+          not evidence the import failed.
+        - ``succeeded_with_errors`` is a terminal state, not a transient one, and
+          can mean zero rubrics were created.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -988,10 +1038,13 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         # Poll for completion
         status = response.get("workflow_state", "created")
         result_response = response
+        csv_rubric_count = count_csv_rubrics(csv_content)
+
+        terminal_states = {"succeeded", "failed", "completed", "succeeded_with_errors"}
 
         # Poll up to 10 times (20 seconds) for it to finish processing
         for _ in range(10):
-            if status in ["succeeded", "failed", "completed"]:
+            if status in terminal_states:
                 break
 
             await asyncio.sleep(2)
@@ -1007,14 +1060,45 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         course_display = await get_course_code(course_id) or course_identifier
 
+        if status not in terminal_states:
+            return unconfirmed_write_warning(
+                "the rubric CSV import completed",
+                {
+                    "Course": course_display,
+                    "Import ID": import_id,
+                    "Last known workflow_state": status,
+                },
+                "Canvas may still be processing this import. Check Canvas and retry shortly.",
+            )
+
+        error_count = result_response.get("error_count") if isinstance(result_response, dict) else None
+        error_data = result_response.get("error_data") if isinstance(result_response, dict) else None
+        if isinstance(error_count, int) and error_count > 0:
+            warning = unconfirmed_write_warning(
+                "the rubric CSV import completed without errors",
+                {
+                    "Course": course_display,
+                    "Import ID": import_id,
+                    "workflow_state": status,
+                    "error_count": error_count,
+                },
+                "Fix the CSV issues and retry. Canvas can accept the upload while creating none or only some rubrics.",
+            )
+            if error_data:
+                warning += f"error_data: {error_data}\n"
+            if csv_rubric_count is not None:
+                warning += f"Rubrics defined in CSV: {csv_rubric_count}\n"
+            warning += "Open the course Rubrics page in Canvas to verify what was created.\n"
+            return warning
+
         result = f"Rubric CSV import process finished with status: {status}\n\n"
         result += f"Course: {course_display}\n"
         result += f"Import ID: {import_id}\n"
-
-        # Check if a rubric was returned in the final response
-        if "rubric" in result_response and result_response["rubric"]:
-            result += f"Created Rubric ID: {result_response['rubric'].get('id')}\n"
-            result += f"Rubric Title: {result_response['rubric'].get('title')}\n"
+        if csv_rubric_count is not None:
+            result += f"Rubrics defined in CSV: {csv_rubric_count}\n"
+        else:
+            result += "Rubrics defined in CSV: unknown (missing or unreadable 'Rubric Name' column)\n"
+        result += "Open the course Rubrics page in Canvas to review imported Draft rubrics.\n"
 
         return result
 
