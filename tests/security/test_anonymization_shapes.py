@@ -16,6 +16,11 @@ the structural invariants of the recursive scrubber:
 - unknown shapes on sensitive endpoints still get scrubbed (fail-closed)
 - f(f(x)) == f(x)
 - /submissions/self is readable by its owner; /submissions/{id} is not
+
+Issue #179 extends this with the two-axis split of the scrubber (`scrub_text` /
+`scrub_display_names`), the email-bearing profile keys the audit found still
+passing through, and the behaviour of the `identity` and `free_text` endpoint
+tiers on the real /pages and /conversations response shapes.
 """
 
 import json
@@ -26,7 +31,13 @@ from canvas_mcp.core.anonymization import (
     anonymize_response_data,
     scrub_identity,
 )
-from canvas_mcp.core.client import _determine_data_type, _should_anonymize_endpoint
+from canvas_mcp.core.client import (
+    ANONYMIZE_FREE_TEXT,
+    ANONYMIZE_IDENTITY,
+    _anonymize_for_endpoint,
+    _determine_data_type,
+    _should_anonymize_endpoint,
+)
 
 # Sentinels that must never survive anonymization, in any nesting position.
 SENTINELS = (
@@ -154,10 +165,47 @@ def rubric_assessment_submission():
     }
 
 
+def self_profile():
+    """GET /users/self/profile — the shape the #179 audit replayed.
+
+    Every email-bearing key below reached the model verbatim before #179:
+    ``primary_email``, ``unconfirmed_email``, ``contact_info``,
+    ``communication_channels[].address`` and ``pseudonyms[].unique_id`` were all
+    absent from the field policy, as were ``full_name`` and ``pronunciation``.
+    """
+    return {
+        "id": 101,
+        "name": "John Doe",
+        "short_name": "John",
+        "sortable_name": "Doe, John",
+        "full_name": "John Doe",
+        "login_id": "jdoe2",
+        "primary_email": "jdoe2@illinois.edu",
+        "unconfirmed_email": "jdoe2@illinois.edu",
+        "contact_info": "jdoe2@illinois.edu",
+        "integration_id": "670001234",
+        "pronouns": "he/him",
+        "pronunciation": "JON DOH",
+        "bio": "Reach me at jdoe2@illinois.edu",
+        "time_zone": "America/Chicago",
+        "locale": "en",
+        "avatar_url": "https://canvas.example.edu/images/jdoe2.png",
+        "calendar": {"ics": "https://canvas.example.edu/feeds/users/x.ics"},
+        "communication_channels": [
+            {"id": 1, "type": "email", "address": "jdoe2@illinois.edu", "position": 1},
+            {"id": 2, "type": "sms", "address": "12175550134", "position": 2},
+        ],
+        "pseudonyms": [
+            {"id": 3, "account_id": 1, "unique_id": "jdoe2@illinois.edu"},
+        ],
+    }
+
+
 ALL_FIXTURES = {
     "users_with_enrollments": users_with_enrollments,
     "submissions_with_comments": submissions_with_comments,
     "rubric_assessment_submission": rubric_assessment_submission,
+    "self_profile": self_profile,
 }
 
 
@@ -448,3 +496,352 @@ class TestAvatarSuffixMatching:
         record = {"id": 5, "html_url": "https://canvas/courses/1/users/101"}
         result = anonymize_response_data(record, data_type="general")
         assert result["html_url"] == "https://canvas/courses/1/users/101"
+
+
+# ---------------------------------------------------------------------------
+# Field coverage found by the #179 audit
+# ---------------------------------------------------------------------------
+
+def _dig(node, path):
+    """Follow a tuple path of dict keys / list indices into a payload."""
+    for step in path:
+        node = node[step]
+    return node
+
+
+#: One entry per key the audit found unscrubbed. Parametrised individually so a
+#: partial fix fails loudly on the specific key it missed, rather than hiding
+#: behind an aggregate assertion.
+NEWLY_COVERED_PATHS = [
+    ("primary_email",),
+    ("unconfirmed_email",),
+    ("contact_info",),
+    ("full_name",),
+    ("pronunciation",),
+    ("communication_channels", 0, "address"),
+    ("pseudonyms", 0, "unique_id"),
+]
+
+
+class TestProfileFieldCoverage:
+    """The live /users/self/profile replay: seven keys carrying an address, a
+    name, or a name-pronunciation guide that the pre-#179 policy never named."""
+
+    @pytest.mark.parametrize(
+        "path", NEWLY_COVERED_PATHS, ids=lambda p: ".".join(map(str, p))
+    )
+    def test_key_is_rewritten(self, path):
+        scrubbed = anonymize_response_data(self_profile(), data_type="users")
+        before = _dig(self_profile(), path)
+        after = _dig(scrubbed, path)
+        assert after != before, f"{path} passed through verbatim"
+        assert "jdoe2" not in json.dumps(after)
+        assert "illinois.edu" not in json.dumps(after)
+
+    @pytest.mark.parametrize("key", ["primary_email", "unconfirmed_email", "contact_info"])
+    def test_email_bearing_keys_stay_email_shaped(self, key):
+        """A downstream consumer may parse these as addresses, so the pseudonym
+        must still look like one — a bare Student_<hash> would break it."""
+        record = {"id": 101, "sortable_name": "Doe, John", key: "jdoe2@illinois.edu"}
+        result = scrub_identity(record)
+        assert result[key].startswith("student_")
+        assert result[key].endswith("@example.edu")
+
+    def test_full_name_pseudonymised_on_user_record(self):
+        record = {"id": 101, "sortable_name": "Doe, John", "full_name": "John Doe"}
+        result = scrub_identity(record)
+        assert result["full_name"].startswith("Student_")
+
+    def test_pronunciation_nulled_not_pseudonymised(self):
+        """A pronunciation guide reconstructs the name it describes, and a
+        Student_<hash> pronunciation would be nonsense — drop it, like bio."""
+        result = scrub_identity(
+            {"id": 101, "sortable_name": "Doe, John", "pronunciation": "JON DOH"}
+        )
+        assert result["pronunciation"] is None
+
+    def test_communication_channel_addresses_nulled(self):
+        result = anonymize_response_data(self_profile(), data_type="users")
+        for channel in result["communication_channels"]:
+            assert channel["address"] is None
+            assert channel["type"] in ("email", "sms")  # non-identity fields kept
+
+    def test_no_real_address_survives_anywhere(self):
+        """The whole-payload guarantee: the only '@' left is our own domain."""
+        result = anonymize_response_data(self_profile(), data_type="users")
+        assert_no_pii(result)
+        for fragment in json.dumps(result).split('"'):
+            if "@" in fragment:
+                assert fragment.endswith("@example.edu"), f"stray address: {fragment}"
+
+
+class TestFieldCoverageOverReach:
+    """The new keys are only PII inside a person-shaped container. Nulling them
+    everywhere would corrupt calendar events, accounts and LTI records."""
+
+    def test_calendar_event_location_address_preserved(self):
+        event = {
+            "id": 4001,
+            "title": "Office Hours",
+            "location_name": "Wohlers Hall",
+            "location_address": "1206 S Sixth St, Champaign IL",
+            "start_at": "2026-03-01T15:00:00Z",
+        }
+        result = anonymize_response_data(event, data_type="general")
+        assert result["location_address"] == "1206 S Sixth St, Champaign IL"
+        assert result["location_name"] == "Wohlers Hall"
+
+    def test_address_on_non_user_record_preserved(self):
+        account = {
+            "id": 1,
+            "name": "Gies College of Business",
+            "address": "515 E Gregory Dr",
+            "workflow_state": "active",
+        }
+        result = anonymize_response_data(account, data_type="general")
+        assert result["address"] == "515 E Gregory Dr"
+        assert result["name"] == "Gies College of Business"
+
+    def test_unique_id_on_non_person_record_preserved(self):
+        """Canvas reuses unique_id as an opaque key on non-person objects."""
+        tool = {
+            "id": 77,
+            "name": "Gradescope",
+            "unique_id": "lti_gradescope_v2",
+            "workflow_state": "public",
+        }
+        result = anonymize_response_data(tool, data_type="general")
+        assert result["unique_id"] == "lti_gradescope_v2"
+        assert result["name"] == "Gradescope"
+
+    def test_full_name_on_non_person_record_preserved(self):
+        outcome_group = {
+            "id": 9,
+            "full_name": "Program Outcomes > Analytics",
+            "context_type": "Course",
+        }
+        result = anonymize_response_data(outcome_group, data_type="general")
+        assert result["full_name"] == "Program Outcomes > Analytics"
+
+
+# ---------------------------------------------------------------------------
+# Endpoint tiers (issue #179)
+# ---------------------------------------------------------------------------
+
+def conversations_list():
+    """GET /conversations — 97 of these came back with student addresses inlined
+    in the message previews and participant pronouns/avatars intact."""
+    return [
+        {
+            "id": 6001,
+            "subject": "Extension request",
+            "workflow_state": "unread",
+            "last_message": "Hi prof, reach me at jdoe2@illinois.edu or 217-555-0134.",
+            "last_authored_message": "Sure - see you at office hours.",
+            "participants": [
+                {
+                    "id": 101,
+                    "name": "John Doe",
+                    "full_name": "John Doe",
+                    "pronouns": "he/him",
+                    "avatar_url": "https://canvas/avatars/101",
+                },
+                {"id": 202, "name": "Carol Cee", "full_name": "Carol Cee",
+                 "pronouns": None},
+            ],
+            "messages": [
+                {"id": 8001, "author_id": 101,
+                 "body": "Long version, reply to jdoe2@illinois.edu"},
+            ],
+        }
+    ]
+
+
+def pages_list():
+    """GET /courses/{id}/pages?include[]=body — last_edited_by leaked a display
+    name and an avatar URL; the body is instructor-authored course content."""
+    return [
+        {
+            "page_id": 5001,
+            "url": "week-1-overview",
+            "title": "Week 1 Overview",
+            "published": True,
+            "body": "<p>Office hours Tue 2-4. Email me at prof@illinois.edu.</p>",
+            "last_edited_by": {
+                "id": 303,
+                "display_name": "Alice Example",
+                "avatar_image_url": "https://canvas/avatars/303",
+                "html_url": "https://canvas/courses/55/users/303",
+            },
+        }
+    ]
+
+
+class TestFreeTextTierOnConversations:
+    """free_text tier: redact addresses out of the message text and null the
+    direct identifiers, but KEEP participant names. This is the caller's OWN
+    inbox — the correspondents are not third parties whose records are being
+    browsed, and pseudonymising them makes "who emailed me?" unanswerable."""
+
+    def _scrubbed(self):
+        result, mode = _anonymize_for_endpoint(conversations_list(), "/conversations")
+        assert mode == ANONYMIZE_FREE_TEXT
+        return result[0]
+
+    def test_email_and_phone_redacted_from_message_preview(self):
+        convo = self._scrubbed()
+        assert "jdoe2@illinois.edu" not in convo["last_message"]
+        assert "[EMAIL_REDACTED]" in convo["last_message"]
+        assert "[PHONE_REDACTED]" in convo["last_message"]
+
+    def test_email_redacted_from_message_body(self):
+        assert "[EMAIL_REDACTED]" in self._scrubbed()["messages"][0]["body"]
+
+    def test_participant_names_preserved(self):
+        participant = self._scrubbed()["participants"][1]
+        assert participant["name"] == "Carol Cee"
+        assert participant["full_name"] == "Carol Cee"
+
+    def test_direct_identifiers_still_nulled(self):
+        participant = self._scrubbed()["participants"][0]
+        assert participant["pronouns"] is None
+        assert participant["avatar_url"] is None
+
+    def test_already_null_pronouns_stay_null(self):
+        assert self._scrubbed()["participants"][1]["pronouns"] is None
+
+    def test_conversation_metadata_preserved(self):
+        convo = self._scrubbed()
+        assert convo["subject"] == "Extension request"
+        assert convo["workflow_state"] == "unread"
+        assert convo["last_authored_message"] == "Sure - see you at office hours."
+
+    def test_no_keys_added(self):
+        before = collect_key_sets(conversations_list())
+        after = collect_key_sets(
+            _anonymize_for_endpoint(conversations_list(), "/conversations")[0]
+        )
+        assert after == before
+
+
+class TestIdentityTierOnPages:
+    """identity tier: scrub the editor's name and avatar, leave the page body
+    alone. Instructors publish office hours and contact details on course pages;
+    redacting those is a functional regression, not a privacy win."""
+
+    def _scrubbed(self):
+        result, mode = _anonymize_for_endpoint(pages_list(), "/courses/55/pages")
+        assert mode == ANONYMIZE_IDENTITY
+        return result[0]
+
+    def test_last_edited_by_pseudonymised(self):
+        editor = self._scrubbed()["last_edited_by"]
+        assert editor["display_name"] != "Alice Example"
+        assert editor["display_name"].startswith("Student_")
+        assert editor["id"] == 303  # ids preserved for functionality
+
+    def test_editor_avatar_nulled(self):
+        assert self._scrubbed()["last_edited_by"]["avatar_image_url"] is None
+
+    def test_page_body_untouched(self):
+        page = self._scrubbed()
+        assert page["body"] == pages_list()[0]["body"]
+        assert "prof@illinois.edu" in page["body"]
+
+    def test_page_metadata_untouched(self):
+        page = self._scrubbed()
+        assert page["title"] == "Week 1 Overview"
+        assert page["url"] == "week-1-overview"
+        assert page["published"] is True
+
+    def test_no_keys_added(self):
+        before = collect_key_sets(pages_list())
+        after = collect_key_sets(_anonymize_for_endpoint(pages_list(), "/pages")[0])
+        assert after == before
+
+
+class TestTierIdempotence:
+    """Tool modules re-anonymize data the client layer already handled, so every
+    tier must be a fixed point on its own output."""
+
+    @pytest.mark.parametrize("fixture,endpoint", [
+        (conversations_list, "/conversations"),
+        (conversations_list, "/conversations/6001"),
+        (pages_list, "/courses/55/pages"),
+        (users_with_enrollments, "/courses/55/users"),
+        (self_profile, "/users/456/profile"),
+    ])
+    def test_double_application_is_stable(self, fixture, endpoint):
+        once, mode = _anonymize_for_endpoint(fixture(), endpoint)
+        twice, mode_again = _anonymize_for_endpoint(once, endpoint)
+        assert mode == mode_again
+        assert twice == once
+
+
+class TestScrubIdentityFlagAxes:
+    """The two flags are independent, and both default to the pre-#179
+    behaviour so every existing caller is unchanged."""
+
+    def _record(self):
+        return {
+            "id": 101,
+            "sortable_name": "Doe, John",
+            "name": "John Doe",
+            "body": "Mail jdoe2@illinois.edu",
+        }
+
+    def test_defaults_scrub_both(self):
+        result = scrub_identity(self._record())
+        assert result["name"].startswith("Student_")
+        assert "[EMAIL_REDACTED]" in result["body"]
+
+    def test_scrub_text_false_keeps_body_only(self):
+        result = scrub_identity(self._record(), scrub_text=False)
+        assert result["name"].startswith("Student_")
+        assert result["body"] == "Mail jdoe2@illinois.edu"
+
+    def test_scrub_display_names_false_keeps_name_only(self):
+        result = scrub_identity(self._record(), scrub_display_names=False)
+        assert result["name"] == "John Doe"
+        assert "[EMAIL_REDACTED]" in result["body"]
+
+    def test_strict_and_null_fields_apply_under_both_flags(self):
+        record = {
+            "id": 101,
+            "sortable_name": "Doe, John",
+            "short_name": "John",
+            "email": "jdoe2@illinois.edu",
+            "login_id": "jdoe2",
+            "sis_user_id": "670001234",
+            "avatar_url": "https://canvas/avatars/101",
+            "pronouns": "he/him",
+        }
+        for kwargs in (
+            {"scrub_text": False},
+            {"scrub_display_names": False},
+            {"scrub_text": False, "scrub_display_names": False},
+        ):
+            result = scrub_identity(record, **kwargs)
+            assert_no_pii(result)
+            assert result["sis_user_id"] is None
+            assert result["avatar_url"] is None
+            assert result["pronouns"] is None
+            assert result["email"].endswith("@example.edu")
+
+    def test_flags_propagate_through_nesting(self):
+        payload = {"a": [{"b": {"user": {
+            "id": 101,
+            "login_id": "jdoe2",
+            "name": "John Doe",
+            "body": "Mail jdoe2@illinois.edu",
+        }}}]}
+        result = scrub_identity(payload, scrub_text=False, scrub_display_names=False)
+        user = result["a"][0]["b"]["user"]
+        assert user["name"] == "John Doe"
+        assert user["body"] == "Mail jdoe2@illinois.edu"
+        assert user["login_id"] != "jdoe2"
+
+    def test_bare_string_user_container_follows_the_name_flag(self):
+        record = {"id": 1, "user_id": 1, "author": "Bob Smith"}
+        assert scrub_identity(record, scrub_display_names=False)["author"] == "Bob Smith"
+        assert scrub_identity(record)["author"] != "Bob Smith"

@@ -18,7 +18,15 @@ from canvas_mcp.core.anonymization import (
     anonymize_response_data,
     anonymize_user_data,
 )
-from canvas_mcp.core.client import _determine_data_type, _should_anonymize_endpoint
+from canvas_mcp.core.client import (
+    ANONYMIZE_FREE_TEXT,
+    ANONYMIZE_FULL,
+    ANONYMIZE_IDENTITY,
+    ANONYMIZE_NONE,
+    _determine_data_type,
+    _endpoint_anonymization_mode,
+    _should_anonymize_endpoint,
+)
 
 
 class TestShouldAnonymizeEndpoint:
@@ -46,8 +54,6 @@ class TestShouldAnonymizeEndpoint:
     @pytest.mark.parametrize("endpoint", [
         "/courses",
         "/courses/123",
-        "/courses/123/pages",
-        "/courses/123/pages/intro",
         "/courses/123/modules",
         "/courses/123/modules/5/items",
         "/courses/123/assignments",       # assignment definitions, no student data
@@ -61,11 +67,6 @@ class TestShouldAnonymizeEndpoint:
         # Topic listings (incl. announcements) are typically instructor-authored;
         # student content lives under /entries|/view|/entry_list|/replies.
         "/courses/123/discussion_topics",
-        # Page slugs are user-controlled: a page named "users"/"submissions"
-        # must not trip the sensitive-segment match (PR #165 review).
-        "/courses/123/pages/users",
-        "/courses/123/pages/submissions",
-        "/courses/123/pages/analytics",
     ])
     def test_non_student_endpoints_not_anonymized(self, endpoint):
         assert _should_anonymize_endpoint(endpoint) is False
@@ -75,13 +76,80 @@ class TestShouldAnonymizeEndpoint:
 
     def test_querystring_stripped_before_matching(self):
         assert _should_anonymize_endpoint("/courses/123/enrollments?per_page=100") is True
-        assert _should_anonymize_endpoint("/courses/123/pages?search_term=users") is False
+        assert _should_anonymize_endpoint("/courses/123/modules?search_term=users") is False
 
     def test_enrollments_map_to_users_data_type(self):
         assert _determine_data_type("/courses/123/enrollments") == "users"
 
     def test_discussion_view_maps_to_discussions_data_type(self):
         assert _determine_data_type("/courses/123/discussion_topics/9/view") == "discussions"
+
+
+class TestAnonymizationTierMapping:
+    """Issue #179: /conversations and /pages were completely ungated, and the
+    correct treatment for each is a different HALF of the scrubber. A boolean
+    gate could only over- or under-protect them, so the gate returns a tier.
+    """
+
+    @pytest.mark.parametrize("endpoint", [
+        "/conversations",
+        "/conversations/123",
+        "/conversations?scope=unread",
+        "/CONVERSATIONS",
+        "/conversations/123/add_message",
+    ])
+    def test_conversations_are_free_text_tier(self, endpoint):
+        assert _endpoint_anonymization_mode(endpoint) == ANONYMIZE_FREE_TEXT
+
+    @pytest.mark.parametrize("endpoint", [
+        "/courses/123/pages",
+        "/courses/123/pages/syllabus",
+        "/courses/123/pages/intro?include[]=body",
+        "/groups/55/pages",
+        # Page slugs are user-controlled: a page named "users"/"submissions"
+        # must not escalate the tier to full (PR #165 review). The slug rule
+        # still holds, it just now lands on identity instead of none.
+        "/courses/123/pages/users",
+        "/courses/123/pages/submissions",
+        "/courses/123/pages/analytics",
+    ])
+    def test_pages_are_identity_tier(self, endpoint):
+        assert _endpoint_anonymization_mode(endpoint) == ANONYMIZE_IDENTITY
+
+    @pytest.mark.parametrize("endpoint", [
+        "/courses/123/users",
+        "/courses/123/enrollments",
+        "/courses/123/assignments/1/submissions",
+        "/courses/123/analytics/student_summaries",
+        "/courses/123/discussion_topics/9/view",
+    ])
+    def test_student_record_endpoints_are_full_tier(self, endpoint):
+        assert _endpoint_anonymization_mode(endpoint) == ANONYMIZE_FULL
+
+    @pytest.mark.parametrize("endpoint", [
+        "/courses",
+        "/courses/123/modules",
+        "/courses/123/assignments",
+        "/courses/123/front_page",
+        "/accounts/1/terms",
+        "/users/self/profile",
+    ])
+    def test_unmatched_endpoints_are_none_tier(self, endpoint):
+        assert _endpoint_anonymization_mode(endpoint) == ANONYMIZE_NONE
+
+    def test_full_tier_wins_over_partial_tiers(self):
+        """Tiers are ordered most-protective-first: a path that touches both a
+        student-record segment and a partially gated one must not be downgraded.
+        """
+        assert _endpoint_anonymization_mode(
+            "/courses/123/users/9/pages"
+        ) == ANONYMIZE_FULL
+
+    def test_boolean_wrapper_agrees_with_mode(self):
+        for endpoint in ("/conversations", "/courses/1/pages", "/courses/1/users"):
+            assert _should_anonymize_endpoint(endpoint) is True
+        for endpoint in ("/courses", "/users/self/profile"):
+            assert _should_anonymize_endpoint(endpoint) is False
 
 
 class TestSelfOnlyEndpointExemption:

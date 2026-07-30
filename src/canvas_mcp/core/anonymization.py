@@ -26,21 +26,49 @@ STRICT_IDENTITY_FIELDS = frozenset({
     'assessor_name',
     'grader_name',
     'email',
+    'primary_email',
+    'unconfirmed_email',
+    'contact_info',
     'login_id',
+})
+
+#: Keys whose pseudonym must be rendered as an email address rather than a bare
+#: ``Student_<hash>``. Canvas returns the caller's address under several names
+#: (``/users/self/profile`` alone can carry ``primary_email``,
+#: ``unconfirmed_email`` and ``contact_info``), and a downstream consumer that
+#: parses these as addresses would choke on a bare pseudonym.
+EMAIL_SHAPED_FIELDS = frozenset({
+    'email',
+    'primary_email',
+    'unconfirmed_email',
+    'contact_info',
 })
 
 #: Name fields that are ambiguous — Canvas uses them for courses, groups,
 #: modules, pages and file attachments as well as for people. These are only
 #: rewritten when the containing dict carries a corroborating user signal
 #: (see ``USER_SIGNAL_FIELDS`` / ``USER_CONTAINER_KEYS`` / user-ish id keys).
-AMBIGUOUS_IDENTITY_FIELDS = frozenset({'name', 'display_name'})
+#:
+#: ``full_name`` is deliberately ambiguous rather than strict: it is exactly the
+#: field the ``free_text`` endpoint tier preserves (a conversation participant's
+#: name in the caller's own inbox), while on a user profile the same key is PII
+#: and gets pseudonymised. ``unique_id`` is ambiguous because Canvas reuses it
+#: on non-person objects (LTI tools, outcome imports) as an opaque key.
+AMBIGUOUS_IDENTITY_FIELDS = frozenset({
+    'name',
+    'display_name',
+    'full_name',
+    'unique_id',
+})
 
 #: All identity fields, for callers that just want the union.
 IDENTITY_FIELDS = STRICT_IDENTITY_FIELDS | AMBIGUOUS_IDENTITY_FIELDS
 
 #: Fields that carry direct identifiers / imagery and are nulled outright.
-#: ``pronouns`` lives here rather than in IDENTITY_FIELDS: replacing it with a
-#: pseudonym would be nonsense, dropping the value is the correct behaviour.
+#: ``pronouns`` and ``pronunciation`` live here rather than in IDENTITY_FIELDS:
+#: replacing a pronoun set or a name-pronunciation guide with a
+#: ``Student_<hash>`` pseudonym would be nonsense, and a pronunciation string
+#: reconstructs the name it describes. Dropping the value is correct.
 NULL_FIELDS = frozenset({
     'sis_user_id',
     'integration_id',
@@ -49,14 +77,19 @@ NULL_FIELDS = frozenset({
     'avatar_image_url',
     'bio',
     'pronouns',
+    'pronunciation',
 })
 
 #: Profile fields nulled only on records that look like a person. Courses and
 #: terms also carry ``time_zone`` (and could carry ``locale``), where the value
 #: is institutional, not personal — nulling it there would be over-reach.
+#: ``address`` is container-scoped for the same reason: on a
+#: ``communication_channels[]`` entry it is the student's email or phone, while
+#: on a calendar event or an account it is a street address of a building.
 USER_ONLY_NULL_FIELDS = frozenset({
     'time_zone',
     'locale',
+    'address',
 })
 
 
@@ -99,7 +132,11 @@ NON_USER_MARKER_FIELDS = frozenset({
     'enrollment_term_id',
 })
 
-#: Dict keys whose *value* is by convention a user record.
+#: Dict keys whose *value* is by convention a user record. Children reached
+#: through one of these inherit user context, so their ambiguous name fields and
+#: user-only null fields apply without needing their own corroborating signal.
+#: ``communication_channels`` / ``pseudonyms`` are the ``/users/self/profile``
+#: sub-objects that hold the caller's addresses and login handles.
 USER_CONTAINER_KEYS = frozenset({
     'user',
     'author',
@@ -110,10 +147,22 @@ USER_CONTAINER_KEYS = frozenset({
     'participant',
     'student',
     'observed_user',
+    'communication_channels',
+    'pseudonyms',
 })
 
 #: Free-text fields that get PII regex scrubbing wherever they are found.
-FREE_TEXT_FIELDS = frozenset({'message', 'comment', 'comments', 'body'})
+#: ``last_message`` / ``last_authored_message`` are the conversation-list
+#: previews: Canvas inlines the first ~255 characters of the message body there,
+#: so they carry exactly the addresses and phone numbers ``body`` does.
+FREE_TEXT_FIELDS = frozenset({
+    'message',
+    'comment',
+    'comments',
+    'body',
+    'last_message',
+    'last_authored_message',
+})
 
 #: data_type values the router knows about. An explicit value outside this set
 #: (e.g. the legacy "test_endpoint" / "general") falls back to duck-typing;
@@ -192,7 +241,14 @@ def _record_identity_id(record: dict[str, Any], user_context: bool) -> Any:
     return None
 
 
-def scrub_identity(node: Any, inherited_id: Any = None, user_context: bool = False) -> Any:
+def scrub_identity(
+    node: Any,
+    inherited_id: Any = None,
+    user_context: bool = False,
+    *,
+    scrub_text: bool = True,
+    scrub_display_names: bool = True,
+) -> Any:
     """Recursively remove personal identity from an arbitrary Canvas payload.
 
     This is the *baseline* protection applied to every response the endpoint
@@ -215,12 +271,32 @@ def scrub_identity(node: Any, inherited_id: Any = None, user_context: bool = Fal
             nested dict carries a name but no id of its own.
         user_context: True when the node was reached through a key that is by
             convention a user record (``user``, ``author``, ``assessor``, ...).
+        scrub_text: When False, leave :data:`FREE_TEXT_FIELDS` (``body``,
+            ``message``, ``comment``, the conversation previews) untouched. Used
+            by the ``identity`` endpoint tier, where the free text is
+            instructor-authored course content and redacting it is a functional
+            regression, not a privacy win.
+        scrub_display_names: When False, leave :data:`AMBIGUOUS_IDENTITY_FIELDS`
+            and bare-string user containers untouched. Used by the ``free_text``
+            endpoint tier, where the names belong to the caller's own
+            correspondents and pseudonymising them destroys the answer to "who
+            emailed me?". :data:`STRICT_IDENTITY_FIELDS` and
+            :data:`NULL_FIELDS` still always apply.
 
     Returns:
         A scrubbed copy of `node`.
     """
     if isinstance(node, list):
-        return [scrub_identity(item, inherited_id, user_context) for item in node]
+        return [
+            scrub_identity(
+                item,
+                inherited_id,
+                user_context,
+                scrub_text=scrub_text,
+                scrub_display_names=scrub_display_names,
+            )
+            for item in node
+        ]
 
     if not isinstance(node, dict):
         return node
@@ -245,18 +321,18 @@ def scrub_identity(node: Any, inherited_id: Any = None, user_context: bool = Fal
             continue
 
         if key_lower in STRICT_IDENTITY_FIELDS or (
-            key_lower in AMBIGUOUS_IDENTITY_FIELDS and looks_user
+            scrub_display_names and key_lower in AMBIGUOUS_IDENTITY_FIELDS and looks_user
         ):
             scrubbed[key] = _pseudonymise_field(key_lower, value, anonymous_id)
             continue
 
         # Canvas sometimes returns a bare name string where a user object is
         # expected (e.g. "author": "Bob Smith") — that is an identity value.
-        if key_lower in USER_CONTAINER_KEYS and isinstance(value, str):
+        if scrub_display_names and key_lower in USER_CONTAINER_KEYS and isinstance(value, str):
             scrubbed[key] = _pseudonymise_field('name', value, anonymous_id)
             continue
 
-        if key_lower in FREE_TEXT_FIELDS and isinstance(value, str):
+        if scrub_text and key_lower in FREE_TEXT_FIELDS and isinstance(value, str):
             scrubbed[key] = scrub_free_text(value)
             continue
 
@@ -264,6 +340,8 @@ def scrub_identity(node: Any, inherited_id: Any = None, user_context: bool = Fal
             value,
             inherited_id=identity_id,
             user_context=(key_lower in USER_CONTAINER_KEYS),
+            scrub_text=scrub_text,
+            scrub_display_names=scrub_display_names,
         )
 
     return scrubbed
@@ -275,7 +353,7 @@ def _pseudonymise_field(key_lower: str, value: Any, anonymous_id: str | None) ->
         return value
     if anonymous_id is None:
         return "[REDACTED]"
-    if key_lower == 'email':
+    if key_lower in EMAIL_SHAPED_FIELDS:
         return f"{anonymous_id.lower()}@example.edu"
     if key_lower == 'login_id':
         return anonymous_id.lower()

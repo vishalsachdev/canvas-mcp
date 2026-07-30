@@ -336,3 +336,50 @@ class TestGetStudentAnalytics:
         _, kwargs = mock_warn.call_args
         assert kwargs.get("error_type") == "RuntimeError"
         assert "alice@example.com" not in str(mock_warn.call_args)
+
+
+# ---------------------------------------------------------------------------
+# create_student_anonymization_map
+# ---------------------------------------------------------------------------
+
+class TestCreateStudentAnonymizationMap:
+    """This tool exists to record which real student each pseudonym stands for.
+    Fetching the roster through the anonymizer made it map pseudonyms to
+    pseudonyms — a broken tool, not a privacy control (issue #179)."""
+
+    @pytest.mark.asyncio
+    async def test_roster_fetch_skips_anonymization(self, mock_canvas_api, tmp_path,
+                                                    monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        mock_canvas_api['fetch_all_paginated_results'].return_value = [
+            {"id": 301, "name": "Alice Example", "email": "alice@illinois.edu"},
+        ]
+
+        fn = get_tool_function('create_student_anonymization_map')
+        assert fn is not None
+        await fn("badm_350_120251")
+
+        _, kwargs = mock_canvas_api['fetch_all_paginated_results'].call_args
+        assert kwargs.get("skip_anonymization") is True
+
+    @pytest.mark.asyncio
+    async def test_csv_records_real_identities(self, mock_canvas_api, tmp_path,
+                                               monkeypatch):
+        """The CSV must hold the real name/email, keyed to the same pseudonym
+        the anonymizer would generate — otherwise it cannot be joined back."""
+        from canvas_mcp.core.anonymization import generate_anonymous_id
+
+        monkeypatch.chdir(tmp_path)
+        mock_canvas_api['fetch_all_paginated_results'].return_value = [
+            {"id": 301, "name": "Alice Example", "email": "alice@illinois.edu"},
+        ]
+
+        fn = get_tool_function('create_student_anonymization_map')
+        result = await fn("badm_350_120251")
+
+        assert "Error" not in result
+        written = (tmp_path / "local_maps").glob("anonymization_map_*.csv")
+        content = next(written).read_text()
+        assert "Alice Example" in content
+        assert "alice@illinois.edu" in content
+        assert generate_anonymous_id(301) in content

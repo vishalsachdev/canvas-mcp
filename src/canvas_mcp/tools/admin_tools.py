@@ -324,8 +324,13 @@ def register_admin_tools(mcp: FastMCP):
             "per_page": 100
         }
 
+        # skip_anonymization: this tool's entire job is to record which real
+        # student each pseudonym stands for. Fetching the roster THROUGH the
+        # anonymizer maps pseudonyms to pseudonyms, so the CSV it wrote was
+        # useless (issue #179). The file is written locally, for the
+        # instructor who already has roster access.
         students = await fetch_all_paginated_results(
-            f"/courses/{course_id}/users", params
+            f"/courses/{course_id}/users", params, skip_anonymization=True
         )
 
         if isinstance(students, dict) and "error" in students:
