@@ -300,6 +300,7 @@ def build_rubric_create_form_data(
     use_for_grading: bool = False,
     reusable: bool = False,
     free_form_criterion_comments: bool = False,
+    course_id: str | int | None = None,
 ) -> dict[str, str]:
     """Build bracket-notation form data for Canvas rubric creation API.
 
@@ -314,6 +315,8 @@ def build_rubric_create_form_data(
         use_for_grading: Whether the rubric should be used for grade calculation
         reusable: Whether the rubric is reusable across courses
         free_form_criterion_comments: Allow free-form comments per criterion
+        course_id: Course to bookmark the rubric into when no assignment_id is
+            given. Required for the rubric to appear in the Canvas Rubrics UI.
 
     Returns:
         Flat dict with Canvas bracket-notation keys, all values as strings.
@@ -371,13 +374,67 @@ def build_rubric_create_form_data(
             if rating_long_desc:
                 form_data[f"{rprefix}[long_description]"] = str(rating_long_desc)
 
+    # Canvas needs a rubric_association, not just the rubric. Without one it
+    # creates the rubric row in the course context (so GET /courses/:id/rubrics
+    # returns it) but no association row, and the Canvas Rubrics UI lists
+    # rubrics via the course's *bookmarked* associations. The result is a rubric
+    # that is visible over the API and invisible in the interface, which is
+    # exactly what #180 reported.
     if assignment_id is not None:
         form_data["rubric_association[association_id]"] = str(assignment_id)
         form_data["rubric_association[association_type]"] = "Assignment"
         form_data["rubric_association[use_for_grading]"] = "1" if use_for_grading else "0"
         form_data["rubric_association[purpose]"] = "grading"
+    elif course_id is not None:
+        form_data["rubric_association[association_id]"] = str(course_id)
+        form_data["rubric_association[association_type]"] = "Course"
+        form_data["rubric_association[purpose]"] = "bookmark"
+        form_data["rubric_association[bookmarked]"] = "1"
+        form_data["rubric_association[use_for_grading]"] = "0"
 
     return form_data
+
+
+async def _ensure_course_bookmark(response: Any, course_id: str | int) -> str:
+    """Guarantee a created rubric is actually bookmarked into the course.
+
+    Canvas may return the rubric with ``rubric_association: null`` even when the
+    create request carried association fields. A rubric in that state is
+    returned by ``GET /courses/:id/rubrics`` but does not appear in the Canvas
+    Rubrics UI, so reporting plain success would be misleading (#180).
+
+    Returns a line to append to the tool output.
+    """
+    if isinstance(response, dict) and response.get("rubric_association"):
+        return ""
+
+    rubric = (response or {}).get("rubric") or {}
+    rubric_id = rubric.get("id") or (response or {}).get("id")
+    if not rubric_id:
+        return (
+            "\n⚠️  Could not confirm this rubric was added to the course's Rubrics "
+            "list, and Canvas returned no rubric ID to retry with. Check Canvas.\n"
+        )
+
+    retry = await make_canvas_request(
+        "post",
+        f"/courses/{course_id}/rubric_associations",
+        data={
+            "rubric_association[rubric_id]": str(rubric_id),
+            "rubric_association[association_id]": str(course_id),
+            "rubric_association[association_type]": "Course",
+            "rubric_association[purpose]": "bookmark",
+            "rubric_association[bookmarked]": "1",
+        },
+        use_form_data=True,
+    )
+    if isinstance(retry, dict) and "error" in retry:
+        return (
+            f"\n⚠️  The rubric was created but could not be added to the course's "
+            f"Rubrics list ({retry['error']}). It exists via the API but will not "
+            f"appear in the Canvas Rubrics tool until it is bookmarked.\n"
+        )
+    return "\nAdded to the course's Rubrics list.\n"
 
 
 def register_rubric_tools(mcp: FastMCP) -> None:
@@ -994,6 +1051,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             use_for_grading=use_for_grading,
             reusable=reusable,
             free_form_criterion_comments=free_form_criterion_comments,
+            course_id=course_id,
         )
 
         response = await make_canvas_request(
@@ -1015,6 +1073,13 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         if assignment_id is not None:
             result += f"Assignment ID: {assignment_id}\n"
             result += f"Used for Grading: {'Yes' if use_for_grading else 'No'}\n"
+        else:
+            # Don't report success on a rubric that is invisible in the Canvas
+            # UI. If the inline association did not take, create it explicitly
+            # rather than leaving the rubric orphaned (#180).
+            warning = await _ensure_course_bookmark(response, course_id)
+            if warning:
+                result += warning
 
         return result
 
