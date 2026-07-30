@@ -107,7 +107,7 @@ def register_self_identity_tools(mcp: FastMCP):
         footer = (
             ""
             if include_concluded
-            else "\nScope: active enrollments in available courses only. "
+            else "\nScope: active enrollments in available or unpublished courses. "
             "Pass include_concluded=true to also list concluded courses."
         )
         return header + "\n".join(lines) + footer
