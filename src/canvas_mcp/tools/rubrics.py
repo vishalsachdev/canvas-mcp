@@ -954,10 +954,26 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         course_identifier: str | int,
         csv_content: str,
     ) -> str:
-        """Create a rubric in a course from a CSV string.
+        """Create one or more rubrics in a course from a CSV string.
 
         Uses Canvas's native rubric CSV import endpoint, then polls the import
-        job until it reaches a terminal workflow_state (succeeded/failed).
+        job until it reaches a terminal workflow_state.
+
+        A ``Rubric Name`` column is REQUIRED — Canvas rejects the import without
+        it and creates nothing. Required format (repeat the rating triple per
+        rating level; a distinct Rubric Name per row creates multiple rubrics)::
+
+            Rubric Name,Criteria Name,Criteria Description,Criteria Enable Range,Rating Name,Rating Description,Rating Points
+            Essay Rubric,Clarity,Is the argument clear,false,Excellent,Very clear,10
+
+        Two Canvas behaviours to be aware of:
+
+        - Imported rubrics land in the ``Draft`` state and are **not** returned
+          by ``list_rubrics`` / ``GET /courses/:id/rubrics``, though they do
+          appear on the course Rubrics page. An empty ``list_rubrics`` result is
+          not evidence the import failed.
+        - ``succeeded_with_errors`` is a terminal state, not a transient one, and
+          can mean zero rubrics were created.
 
         Args:
             course_identifier: Course code or Canvas ID
