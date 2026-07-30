@@ -397,5 +397,98 @@ class TestGetSyllabus:
         assert "Course not found" in result
 
 
+class TestOwnRoleSurfacing:
+    """Canvas already returns the caller's own enrollments[] on /courses and
+    /courses/{id}; dropping it pushed agents toward roster tools they have no
+    permission for (issue #171)."""
+
+    @staticmethod
+    async def _list_courses(courses):
+        with patch(
+            "canvas_mcp.tools.courses.fetch_all_paginated_results",
+            new_callable=AsyncMock,
+        ) as mock_fetch, patch(
+            "canvas_mcp.tools.courses.get_config",
+            return_value=SimpleNamespace(canvas_role="all"),
+        ):
+            mock_fetch.return_value = courses
+            return await get_tool_function("list_courses")()
+
+    @staticmethod
+    async def _course_details(response):
+        with patch(
+            "canvas_mcp.tools.courses.get_course_id",
+            new=AsyncMock(return_value="123"),
+        ), patch(
+            "canvas_mcp.tools.courses.make_canvas_request",
+            new_callable=AsyncMock,
+        ) as mock_req:
+            mock_req.return_value = response
+            return await get_tool_function("get_course_details")("CS101")
+
+    @pytest.mark.asyncio
+    async def test_list_courses_shows_own_role(self):
+        result = await self._list_courses([
+            {
+                "id": 123,
+                "course_code": "CS101",
+                "name": "Intro",
+                "enrollments": [
+                    {"type": "student", "role": "StudentEnrollment"},
+                ],
+            }
+        ])
+        assert "Your role: StudentEnrollment" in result
+
+    @pytest.mark.asyncio
+    async def test_list_courses_deduplicates_and_reports_both_roles(self):
+        result = await self._list_courses([
+            {
+                "id": 123,
+                "course_code": "CS101",
+                "name": "Intro",
+                "enrollments": [
+                    {"type": "ta", "role": "TaEnrollment"},
+                    {"type": "ta", "role": "TaEnrollment"},
+                    {"type": "student", "role": "StudentEnrollment"},
+                ],
+            }
+        ])
+        assert "Your role: TaEnrollment, StudentEnrollment" in result
+
+    @pytest.mark.asyncio
+    async def test_list_courses_omits_role_line_when_absent(self):
+        result = await self._list_courses([
+            {"id": 123, "course_code": "CS101", "name": "Intro", "enrollments": []}
+        ])
+        assert "CS101" in result
+        assert "Your role" not in result
+
+    @pytest.mark.asyncio
+    async def test_course_details_shows_own_role(self):
+        result = await self._course_details({
+            "id": 123,
+            "course_code": "CS101",
+            "name": "Intro",
+            "enrollments": [{"type": "teacher", "role": "TeacherEnrollment"}],
+        })
+        assert "Your role: TeacherEnrollment" in result
+
+    @pytest.mark.asyncio
+    async def test_course_details_says_so_when_not_enrolled(self):
+        """Silence reads as 'unknown' — be explicit."""
+        result = await self._course_details({
+            "id": 123, "course_code": "CS101", "name": "Intro", "enrollments": [],
+        })
+        assert "You have no enrollment in this course" in result
+
+    @pytest.mark.asyncio
+    async def test_course_details_missing_enrollments_key_does_not_crash(self):
+        result = await self._course_details(
+            {"id": 123, "course_code": "CS101", "name": "Intro"}
+        )
+        assert "You have no enrollment in this course" in result
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

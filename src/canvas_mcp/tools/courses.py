@@ -16,6 +16,7 @@ from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.config import get_config
 from ..core.dates import format_date
 from ..core.validation import validate_params
+from .self_identity import _own_roles
 
 
 def strip_html_tags(html_content: str) -> str:
@@ -120,8 +121,16 @@ def register_course_tools(mcp: FastMCP):
             name = course.get("name", "Unnamed course")
             code = course.get("course_code", "No code")
 
+            # Canvas already ships the caller's own enrollments[] on /courses
+            # (no include[] needed); dropping it used to force callers toward
+            # roster tools they have no permission for (issue #171).
+            roles = _own_roles(course)
+            role_line = f"Your role: {', '.join(roles)}\n" if roles else ""
+
             # Emphasize code in the output
-            courses_info.append(f"Code: {code}\nName: {name}\nID: {course_id}\n")
+            courses_info.append(
+                f"Code: {code}\nName: {name}\nID: {course_id}\n{role_line}"
+            )
 
         return "Courses:\n\n" + "\n".join(courses_info)
 
@@ -155,6 +164,15 @@ def register_course_tools(mcp: FastMCP):
             f"Public: {response.get('is_public', False)}",
             f"Blueprint: {response.get('blueprint', False)}"
         ]
+
+        # Surface the caller's own role. Say so explicitly when there is none —
+        # silence reads as "unknown" and sends agents to roster tools they cannot
+        # use (issue #171).
+        roles = _own_roles(response)
+        if roles:
+            details.append(f"Your role: {', '.join(roles)}")
+        else:
+            details.append("Your role: You have no enrollment in this course")
 
         # Prefer to show course code in the output
         course_display = response.get("course_code", course_identifier)
