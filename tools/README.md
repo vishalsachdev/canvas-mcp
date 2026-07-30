@@ -472,6 +472,8 @@ Repeat the `Rating Name,Rating Description,Rating Points` triple for each rating
 "Create a rubric in CS101 from this CSV: Rubric Name,Criteria Name,Criteria Description,Criteria Enable Range,Rating Name,Rating Description,Rating Points / Essay Rubric,Clarity,Is it clear,false,Excellent,Very clear,10"
 ```
 
+**Note:** CSV-imported rubrics appear in Canvas as **Draft** items. They may not appear immediately in `list_rubrics`; verify imports in the course Rubrics UI.
+
 ---
 
 #### `list_rubrics`
