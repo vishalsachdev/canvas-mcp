@@ -28,9 +28,9 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 
 ```
 # In .env:
-CANVAS_ROLE=student    # ~32 tools (student + shared)
-CANVAS_ROLE=educator   # ~88 tools (educator + shared)
-CANVAS_ROLE=all        # All 93 tools (default)
+CANVAS_ROLE=student    # ~35 tools (student + shared)
+CANVAS_ROLE=educator   # ~90 tools (educator + shared)
+CANVAS_ROLE=all        # All 95 tools (default)
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
@@ -60,7 +60,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `create_assignment` | Create new assignment with due date, submission types, peer reviews |
 | `update_assignment` | Update existing assignment (name, due date, points, published, etc.) |
 | `get_student_analytics` | Individual student performance |
-| `check_enrollment` | Is a given NetID enrolled in a course? Returns yes/no only, never the roster |
+| `check_enrollment` | Is a given NetID enrolled in a course? Returns yes/no only, never the roster. Needs roster-admin rights; without them the answer is INDETERMINATE, never "no". For your OWN enrollment use `get_my_enrollments` |
 | `list_rubrics` | List rubrics in a course |
 | `get_rubric` | View rubric details (by rubric_id or assignment_id) |
 | `get_rubric_assessment` | View rubric assessment for a student submission |
@@ -79,8 +79,10 @@ Content access tools available to all authenticated users.
 
 | Tool | Purpose |
 |------|---------|
-| `list_courses` | Enrolled courses |
-| `get_course_details` | Course info and syllabus |
+| `get_my_profile` | Who am I? Your own Canvas user ID, name, login ID |
+| `get_my_enrollments` | What am I enrolled in, and as what role? Needs no roster permission |
+| `list_courses` | Enrolled courses (includes your own role in each) |
+| `get_course_details` | Course info and syllabus (includes your own role) |
 | `get_syllabus` | Full Syllabus tab content, untruncated (text/html/both) |
 | `list_pages` | Course pages |
 | `get_page_content` | Read page content |
