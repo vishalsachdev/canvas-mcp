@@ -214,38 +214,31 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-07-30 — Tier 1 student write tools built and review-hardened (#170)
-- **Zhen (UMich) replied** (7/29 18:42; our reply did send at 18:13). Tier 1 scope and the
-  `STUDENT_WRITE_TOOLS` model both endorsed; **assignment submission is the only pilot blocker**;
-  **Zoom moved to mid-September**, so design discussion happens in the issue threads. Two new
-  requirements: genuinely binary file upload (a competing project OCR'd their JPEG), and
-  **per-course faculty agency** — an instructor must be able to allow agent reads but block writes
-  in their own course. Their deployment is a **central multi-replica HTTP service** on an unnamed
-  commercial platform, so per-course policy has to live in this library, not their infra.
-- **Tier 1 implemented on `feature/student-write-tools`** (13 commits, ~3.6K lines, NOT pushed):
-  `get_my_submission`, `submit_assignment` (text/URL/binary upload), `comment_on_my_submission`,
-  `mark_module_item_done`. Three layered gates: `STUDENT_WRITE_TOOLS` operator ceiling (**default
-  empty**, unlisted tools never register), a per-course instructor policy, and an HMAC-signed
-  single-use confirmation token bound to caller + payload + attempt state.
-- **Policy carrier = the course SYLLABUS, and that is load-bearing.** A course-page carrier was
-  built and then **deleted**: `editing_roles` says who may edit a page *now*, not who wrote it, so a
-  student who can create pages could author `agent_writes: allow` and lock it teacher-only in the
-  same breath. Authorship cannot be established from a student's own token. A test asserts the
-  config attributes are gone so the option cannot return.
-- **10 rounds of `codex review --base main`** before clean. It caught things worth remembering:
-  the submit endpoint is **not** `/self`-scoped (Canvas honours `submission[user_id]`), `file_paths`
-  is **arbitrary server file disclosure** over HTTP transport, `tools or None` turned an empty
-  `allow_tools` into "allow everything", a double-submit race I introduced while fixing an earlier
-  finding, and a shared token secret (added in round 3) that round 5 showed enables concurrent
-  double-redemption — so tokens are per-process and hosted deployments need **session affinity**.
-- **750 tests pass** (21 skipped); 90 are feature-specific, including a real JPEG byte-equality
-  fixture and races simulated from inside the upload call.
-- **Design comment POSTED to #170** ([5125231050](https://github.com/vishalsachdev/canvas-mcp/issues/170#issuecomment-5125231050);
-  record kept in `internal/issue-170-followup-draft.md`). It openly corrects two things already
-  told to UMich (the `/self`-scoping claim and the page-carrier proposal), explains why the promised
-  five Tier 1 tools became four (`upload_submission_file` folded into `submit_assignment`, so an
-  agent cannot upload outside the confirmed operation), and asks them two questions: default posture
-  when a course states no policy, and whether a student-visible syllabus policy is acceptable.
-- Next: (1) **#170 comment POSTED** — watch for zqian reply; decide whether to push the branch / open the PR
-  (both are public actions on a repo UMich is watching). (2) #171 identity tools as companion.
-  (3) Quiet `/pages` gating fix. (4) v1.6.0 when Tier 1 lands. (5) #142/Ash escalation.
+### 2026-07-30 — Shipped: Tier 1 (#170), self-identity (#171), anonymization tiers (#179), rubric fix (#180)
+- **Four PRs merged to main + deployed to hosted** (deploy-prod green): #182 rubric course-bookmark
+  (#180 closed), #183 self-identity + check_enrollment INDETERMINATE (#171 closed), #184 anonymization
+  tiers (#179 gap-half; issue open for consolidation), #185 **Tier 1 student write tools** (#170 open
+  for UMich answers). All admin-merged after required checks green (1-review rule, solo repo).
+- **Review discipline paid for itself all day**: #170 took 10 codex rounds (killed the page policy
+  carrier — `editing_roles` proves permission, not authorship; reversed a shared-token-secret decision
+  that enabled cross-worker double-submit). #171 took 3 rounds (its `/users/self/enrollments` exemption
+  was the #164 shape — `include[]=observed_users` returns OTHER students; partial-visibility rosters
+  now indeterminate-on-NO only). A CodeQL high on #185 was fixed (HMAC-keyed caller digest) then
+  dismissed-with-rationale (high-entropy token ≠ password).
+- **#179 live acceptance replay**: 97 real inbox records, 3 real addresses raw → **0 surviving**,
+  participant names preserved; /pages `last_edited_by` scrubbed (the previously-unfiled gap, now closed).
+  Gotcha: first replay run false-alarmed because the harness inherited the dev `.env`
+  (ENABLE_DATA_ANONYMIZATION=false) — force the flag when replaying privacy controls.
+- **Hosted write-free posture VERIFIED live** (az): CANVAS_ROLE=educator + STUDENT_WRITE_TOOLS unset =
+  double gate; policy recorded in `internal/ops-hosted.local.md` (never enable on our slots).
+- **UMich comms**: #170 design comment + Tier-1-is-on-main comment posted; #172 New Quizzes tiered
+  scoping posted (5 questions pending); #180 root-caused publicly (their AI diagnosis half-right,
+  wrong endpoint). Email: Zoom moved to mid-Sept at their request; GitHub is the channel.
+- Known flake: `test_ferpa_compliance.py::test_pii_access_logged` failed once in ~6 runs, passes
+  isolated — order-dependent state, worth a look.
+- Next: (1) **#181 (NEW, zqian): associate_rubric doesn't surface on assignment page** — exactly the
+  weakness the #180 report flagged (JSON body w/o use_form_data, hardcoded Assignment type); also still
+  unverified: assignment-path bookmark + CSV-path gap. (2) **v1.6.0 release**: notes need #177/#178
+  behavior-change line + today's 4 PRs; bump versions; wrangler deploy docs/ (site says 93, repo 95+).
+  (3) Watch #170 (UMich answers + test results), #172 (5 scoping answers). (4) #179 consolidation half;
+  ruff cleanup on main (13 errors, blocks #175); #142/Ash escalation; #106.
