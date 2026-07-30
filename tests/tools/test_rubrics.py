@@ -12,6 +12,8 @@ from canvas_mcp.tools.rubrics import (
     build_rubric_create_form_data,
     preprocess_criteria_string,
     register_rubric_tools,
+    rubric_association_id,
+    unconfirmed_write_warning,
     validate_rubric_criteria,
 )
 
@@ -362,6 +364,39 @@ class TestRubricTools:
         assert "Added to the course's Rubrics list." in result.content[0].text
 
     @pytest.mark.asyncio
+    async def test_create_rubric_retries_when_association_has_no_id(
+        self, mcp, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        """An association dict with no id must not count as confirmation.
+
+        Latent hole closed by centralising the check in
+        ``rubric_association_id``: the previous truthiness test accepted this
+        payload as a successful bookmark, leaving the #180 symptom in place for
+        a shape Canvas can actually return.
+        """
+        mock_canvas_request.side_effect = [
+            {"rubric": {"id": 7371, "title": "R", "points_possible": 5},
+             "rubric_association": {"association_type": "Course"}},
+            {"id": 99, "association_type": "Course", "purpose": "bookmark"},
+        ]
+        criteria = json.dumps(
+            {"c1": {"description": "C", "points": 5,
+                    "ratings": [{"description": "Good", "points": 5}]}}
+        )
+
+        register_rubric_tools(mcp)
+        result = await _call_tool(mcp, "create_rubric", {
+            "course_identifier": "TEST101",
+            "title": "R",
+            "criteria": criteria,
+        })
+
+        calls = mock_canvas_request.call_args_list
+        assert len(calls) == 2, "an id-less association must trigger the retry"
+        assert calls[1].args[1].endswith("/rubric_associations")
+        assert "Added to the course's Rubrics list." in result.content[0].text
+
+    @pytest.mark.asyncio
     async def test_create_rubric_warns_when_association_retry_fails(
         self, mcp, mock_canvas_request, mock_course_id, mock_course_code
     ):
@@ -635,6 +670,73 @@ class TestRubricTools:
         assert mock_canvas_request.call_count == 1
         assert "finished with status: failed" in output
         assert "Created Rubric ID" not in output
+
+
+class TestRubricAssociationId:
+    """The single shared guard behind #180, #181 and #190.
+
+    Canvas returns 200 for rubric writes whose association params it ignored,
+    so only an id in the payload proves an association exists.
+    """
+
+    def test_rubric_create_shape(self):
+        assert rubric_association_id(
+            {"rubric": {"id": 7371}, "rubric_association": {"id": 99, "association_type": "Course"}}
+        ) == 99
+
+    def test_post_rubric_associations_shape(self):
+        assert rubric_association_id(
+            {"id": 99, "association_id": 5030, "association_type": "Assignment"}
+        ) == 99
+
+    def test_null_association_is_not_confirmation(self):
+        assert rubric_association_id({"rubric": {"id": 7371}, "rubric_association": None}) is None
+
+    def test_empty_response_is_not_confirmation(self):
+        assert rubric_association_id({}) is None
+
+    def test_association_dict_without_id_is_not_confirmation(self):
+        """A truthy association dict carrying no id proves nothing.
+
+        The pre-refactor bookmark check tested ``response.get(
+        "rubric_association")`` for truthiness, so this shape was accepted as
+        success even though Canvas created nothing.
+        """
+        assert rubric_association_id(
+            {"rubric": {"id": 7371}, "rubric_association": {"association_type": "Course"}}
+        ) is None
+
+    def test_bare_rubric_id_is_not_an_association(self):
+        """A rubric id alone must not be mistaken for an association id."""
+        assert rubric_association_id({"id": 7371, "title": "R"}) is None
+
+    def test_non_dict_response(self):
+        assert rubric_association_id(None) is None
+        assert rubric_association_id("boom") is None
+        assert rubric_association_id([{"id": 99}]) is None
+
+
+class TestUnconfirmedWriteWarning:
+    def test_includes_subject_facts_and_remedy(self):
+        out = unconfirmed_write_warning(
+            "the rubric was associated with the assignment",
+            {"Course": "TEST101", "Rubric ID": 361},
+            "Verify in Canvas.",
+        )
+        assert out.startswith("⚠️  Could not confirm")
+        assert "the rubric was associated with the assignment" in out
+        assert "Course: TEST101" in out
+        assert "Rubric ID: 361" in out
+        assert "Verify in Canvas." in out
+
+    def test_omits_facts_with_no_value(self):
+        out = unconfirmed_write_warning("x happened", {"Course": "T", "Rubric ID": None}, "Check.")
+        assert "Course: T" in out
+        assert "Rubric ID" not in out
+
+    def test_never_contains_success_language(self):
+        out = unconfirmed_write_warning("x happened", {}, "Check.")
+        assert "success" not in out.lower()
 
 
 class TestAssociateRubric:

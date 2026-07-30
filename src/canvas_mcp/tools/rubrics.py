@@ -395,6 +395,50 @@ def build_rubric_create_form_data(
     return form_data
 
 
+def rubric_association_id(response: Any) -> Any | None:
+    """Return the id of a rubric association Canvas actually created, or None.
+
+    Canvas answers ``200`` for rubric writes whose association parameters it
+    silently ignored, so an HTTP success is not evidence that an association
+    exists. The only reliable evidence is an id in the payload. This has now
+    bitten three separate call sites — #180 (create, invisible in the Rubrics
+    UI), #181 (assignment association never attached), and the CSV import path
+    (#190) — so the shapes Canvas uses are recognised in exactly one place
+    rather than re-derived per tool.
+
+    Handles the three payload shapes:
+
+    - ``{"rubric": {...}, "rubric_association": {"id": N, ...}}`` — rubric create
+    - ``{"id": N, "association_type": "...", ...}`` — POST /rubric_associations
+    - ``{"rubric_association": null}`` / ``{}`` — accepted, created nothing
+    """
+    if not isinstance(response, dict):
+        return None
+
+    association = response.get("rubric_association")
+    if isinstance(association, dict):
+        return association.get("id") or None
+
+    # POST /courses/:id/rubric_associations returns the association itself.
+    if response.get("association_type") or response.get("association_id"):
+        return response.get("id") or None
+
+    return None
+
+
+def unconfirmed_write_warning(what: str, facts: dict[str, Any], remedy: str) -> str:
+    """Format the 'Canvas accepted this but created nothing' warning.
+
+    Every rubric write shares one rule: never report success for a state the
+    user cannot see in Canvas. Centralising the wording keeps that failure
+    legible and identical across tools instead of drifting per call site.
+    """
+    lines = [f"⚠️  Could not confirm {what}.\n"]
+    lines += [f"{label}: {value}\n" for label, value in facts.items() if value is not None]
+    lines.append(f"{remedy}\n")
+    return "".join(lines)
+
+
 async def _ensure_course_bookmark(response: Any, course_id: str | int) -> str:
     """Guarantee a created rubric is actually bookmarked into the course.
 
@@ -405,15 +449,16 @@ async def _ensure_course_bookmark(response: Any, course_id: str | int) -> str:
 
     Returns a line to append to the tool output.
     """
-    if isinstance(response, dict) and response.get("rubric_association"):
+    if rubric_association_id(response):
         return ""
 
     rubric = (response or {}).get("rubric") or {}
     rubric_id = rubric.get("id") or (response or {}).get("id")
     if not rubric_id:
-        return (
-            "\n⚠️  Could not confirm this rubric was added to the course's Rubrics "
-            "list, and Canvas returned no rubric ID to retry with. Check Canvas.\n"
+        return "\n" + unconfirmed_write_warning(
+            "this rubric was added to the course's Rubrics list",
+            {},
+            "Canvas returned no rubric ID to retry with. Check Canvas.",
         )
 
     retry = await make_canvas_request(
@@ -1142,17 +1187,18 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         # A 200 carrying no association id means Canvas accepted the request but
         # created nothing. Reporting success there is exactly the #181/#180
         # failure: the user is told it worked and finds nothing in the UI.
-        association_id = (response or {}).get("id") if isinstance(response, dict) else None
+        association_id = rubric_association_id(response)
         if not association_id:
-            return (
-                "⚠️  Could not confirm the rubric was associated with the "
-                "assignment. Canvas accepted the request but returned no "
-                "association, so the rubric will most likely not appear on the "
-                "assignment page.\n\n"
-                f"Course: {course_display}\n"
-                f"Assignment: {assignment_name} (ID: {assignment_id})\n"
-                f"Rubric ID: {rubric_id}\n"
-                "Verify in Canvas before relying on this association.\n"
+            return unconfirmed_write_warning(
+                "the rubric was associated with the assignment",
+                {
+                    "Course": course_display,
+                    "Assignment": f"{assignment_name} (ID: {assignment_id})",
+                    "Rubric ID": rubric_id,
+                },
+                "Canvas accepted the request but returned no association, so the "
+                "rubric will most likely not appear on the assignment page. "
+                "Verify in Canvas before relying on it.",
             )
 
         result = "Rubric associated with assignment successfully!\n\n"
