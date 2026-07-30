@@ -31,7 +31,13 @@ from canvas_mcp.core.anonymization import (
     anonymize_response_data,
     scrub_identity,
 )
-from canvas_mcp.core.client import _determine_data_type, _should_anonymize_endpoint
+from canvas_mcp.core.client import (
+    ANONYMIZE_FREE_TEXT,
+    ANONYMIZE_IDENTITY,
+    _anonymize_for_endpoint,
+    _determine_data_type,
+    _should_anonymize_endpoint,
+)
 
 # Sentinels that must never survive anonymization, in any nesting position.
 SENTINELS = (
@@ -616,6 +622,160 @@ class TestFieldCoverageOverReach:
         }
         result = anonymize_response_data(outcome_group, data_type="general")
         assert result["full_name"] == "Program Outcomes > Analytics"
+
+
+# ---------------------------------------------------------------------------
+# Endpoint tiers (issue #179)
+# ---------------------------------------------------------------------------
+
+def conversations_list():
+    """GET /conversations — 97 of these came back with student addresses inlined
+    in the message previews and participant pronouns/avatars intact."""
+    return [
+        {
+            "id": 6001,
+            "subject": "Extension request",
+            "workflow_state": "unread",
+            "last_message": "Hi prof, reach me at jdoe2@illinois.edu or 217-555-0134.",
+            "last_authored_message": "Sure - see you at office hours.",
+            "participants": [
+                {
+                    "id": 101,
+                    "name": "John Doe",
+                    "full_name": "John Doe",
+                    "pronouns": "he/him",
+                    "avatar_url": "https://canvas/avatars/101",
+                },
+                {"id": 202, "name": "Carol Cee", "full_name": "Carol Cee",
+                 "pronouns": None},
+            ],
+            "messages": [
+                {"id": 8001, "author_id": 101,
+                 "body": "Long version, reply to jdoe2@illinois.edu"},
+            ],
+        }
+    ]
+
+
+def pages_list():
+    """GET /courses/{id}/pages?include[]=body — last_edited_by leaked a display
+    name and an avatar URL; the body is instructor-authored course content."""
+    return [
+        {
+            "page_id": 5001,
+            "url": "week-1-overview",
+            "title": "Week 1 Overview",
+            "published": True,
+            "body": "<p>Office hours Tue 2-4. Email me at prof@illinois.edu.</p>",
+            "last_edited_by": {
+                "id": 303,
+                "display_name": "Alice Example",
+                "avatar_image_url": "https://canvas/avatars/303",
+                "html_url": "https://canvas/courses/55/users/303",
+            },
+        }
+    ]
+
+
+class TestFreeTextTierOnConversations:
+    """free_text tier: redact addresses out of the message text and null the
+    direct identifiers, but KEEP participant names. This is the caller's OWN
+    inbox — the correspondents are not third parties whose records are being
+    browsed, and pseudonymising them makes "who emailed me?" unanswerable."""
+
+    def _scrubbed(self):
+        result, mode = _anonymize_for_endpoint(conversations_list(), "/conversations")
+        assert mode == ANONYMIZE_FREE_TEXT
+        return result[0]
+
+    def test_email_and_phone_redacted_from_message_preview(self):
+        convo = self._scrubbed()
+        assert "jdoe2@illinois.edu" not in convo["last_message"]
+        assert "[EMAIL_REDACTED]" in convo["last_message"]
+        assert "[PHONE_REDACTED]" in convo["last_message"]
+
+    def test_email_redacted_from_message_body(self):
+        assert "[EMAIL_REDACTED]" in self._scrubbed()["messages"][0]["body"]
+
+    def test_participant_names_preserved(self):
+        participant = self._scrubbed()["participants"][1]
+        assert participant["name"] == "Carol Cee"
+        assert participant["full_name"] == "Carol Cee"
+
+    def test_direct_identifiers_still_nulled(self):
+        participant = self._scrubbed()["participants"][0]
+        assert participant["pronouns"] is None
+        assert participant["avatar_url"] is None
+
+    def test_already_null_pronouns_stay_null(self):
+        assert self._scrubbed()["participants"][1]["pronouns"] is None
+
+    def test_conversation_metadata_preserved(self):
+        convo = self._scrubbed()
+        assert convo["subject"] == "Extension request"
+        assert convo["workflow_state"] == "unread"
+        assert convo["last_authored_message"] == "Sure - see you at office hours."
+
+    def test_no_keys_added(self):
+        before = collect_key_sets(conversations_list())
+        after = collect_key_sets(
+            _anonymize_for_endpoint(conversations_list(), "/conversations")[0]
+        )
+        assert after == before
+
+
+class TestIdentityTierOnPages:
+    """identity tier: scrub the editor's name and avatar, leave the page body
+    alone. Instructors publish office hours and contact details on course pages;
+    redacting those is a functional regression, not a privacy win."""
+
+    def _scrubbed(self):
+        result, mode = _anonymize_for_endpoint(pages_list(), "/courses/55/pages")
+        assert mode == ANONYMIZE_IDENTITY
+        return result[0]
+
+    def test_last_edited_by_pseudonymised(self):
+        editor = self._scrubbed()["last_edited_by"]
+        assert editor["display_name"] != "Alice Example"
+        assert editor["display_name"].startswith("Student_")
+        assert editor["id"] == 303  # ids preserved for functionality
+
+    def test_editor_avatar_nulled(self):
+        assert self._scrubbed()["last_edited_by"]["avatar_image_url"] is None
+
+    def test_page_body_untouched(self):
+        page = self._scrubbed()
+        assert page["body"] == pages_list()[0]["body"]
+        assert "prof@illinois.edu" in page["body"]
+
+    def test_page_metadata_untouched(self):
+        page = self._scrubbed()
+        assert page["title"] == "Week 1 Overview"
+        assert page["url"] == "week-1-overview"
+        assert page["published"] is True
+
+    def test_no_keys_added(self):
+        before = collect_key_sets(pages_list())
+        after = collect_key_sets(_anonymize_for_endpoint(pages_list(), "/pages")[0])
+        assert after == before
+
+
+class TestTierIdempotence:
+    """Tool modules re-anonymize data the client layer already handled, so every
+    tier must be a fixed point on its own output."""
+
+    @pytest.mark.parametrize("fixture,endpoint", [
+        (conversations_list, "/conversations"),
+        (conversations_list, "/conversations/6001"),
+        (pages_list, "/courses/55/pages"),
+        (users_with_enrollments, "/courses/55/users"),
+        (self_profile, "/users/456/profile"),
+    ])
+    def test_double_application_is_stable(self, fixture, endpoint):
+        once, mode = _anonymize_for_endpoint(fixture(), endpoint)
+        twice, mode_again = _anonymize_for_endpoint(once, endpoint)
+        assert mode == mode_again
+        assert twice == once
 
 
 class TestScrubIdentityFlagAxes:

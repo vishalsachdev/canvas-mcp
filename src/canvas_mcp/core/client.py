@@ -9,7 +9,7 @@ from urllib.parse import urlencode
 
 import httpx
 
-from .anonymization import anonymize_response_data
+from .anonymization import anonymize_response_data, scrub_identity
 from .credentials import get_request_credentials, is_http_request_active
 from .logging import log_debug, log_error, log_warning, sanitize_url
 
@@ -162,15 +162,57 @@ def _determine_data_type(endpoint: str) -> str:
     return 'general'
 
 
-def _should_anonymize_endpoint(endpoint: str) -> bool:
-    """Determine if an endpoint should have its data anonymized.
+# --------------------------------------------------------------------------
+# Anonymization tiers (issue #179)
+# --------------------------------------------------------------------------
+# A single boolean could not express the two endpoint families found by the
+# #166 follow-up audit: /conversations needs the free-text half of the scrubber
+# without the name half, /pages needs the name half without the free-text half.
+# Forcing either into the all-or-nothing "full" tier costs real functionality,
+# and leaving them at "none" (the pre-#179 state) leaks PII.
+
+#: Not sensitive — response passes through untouched.
+ANONYMIZE_NONE = "none"
+
+#: Everything: recursive identity scrub + free-text redaction + the typed
+#: refinements (submission-content redaction, long-description truncation).
+ANONYMIZE_FULL = "full"
+
+#: Identity only — names/avatars/direct identifiers scrubbed, free text kept.
+ANONYMIZE_IDENTITY = "identity"
+
+#: Free text only — emails/phones redacted from bodies, direct identifiers and
+#: avatars nulled, but display names preserved.
+ANONYMIZE_FREE_TEXT = "free_text"
+
+
+def _endpoint_anonymization_mode(endpoint: str) -> str:
+    """Which anonymization tier applies to `endpoint`.
 
     Sensitive-data checks MUST run before any safe-endpoint reasoning: almost
     every call here is scoped /courses/{id}/..., so a '/courses' short-circuit
     checked first silently disables anonymization for the whole codebase
-    (issue #164). Anything not matched as sensitive defaults to False.
+    (issue #164). Anything not matched defaults to ANONYMIZE_NONE.
 
-    Intentionally NOT matched as sensitive:
+    The tiers are ordered most-protective-first, so a path that matches several
+    families (e.g. /courses/1/pages plus a /users segment) gets the strongest
+    treatment rather than the narrowest.
+
+    Partially gated (issue #179) — matched, but NOT at the "full" tier:
+    - /conversations, /conversations/{id} -> ANONYMIZE_FREE_TEXT. Previously
+      ungated entirely: a live call returned 97 records with student email
+      addresses inlined in `last_message`/`last_authored_message` plus
+      participant pronouns and avatars. But this is the caller's OWN inbox, so
+      the participants are their own correspondents, not third parties whose
+      records they are browsing — pseudonymising `participants[].name` would
+      make "who emailed me?" unanswerable while protecting nobody.
+    - /pages, /courses/{id}/pages/{slug} -> ANONYMIZE_IDENTITY. Previously
+      ungated: `last_edited_by` leaked a display name and avatar URL. Page
+      *bodies* are deliberately exempt — instructors publish office hours,
+      contact addresses and phone numbers on course pages, and redacting those
+      would break the page's purpose.
+
+    Intentionally NOT matched at all:
     - /groups listings — carry group names, not student names; generic
       anonymization would mangle them. Membership goes via /groups/{id}/users,
       which the '/users' rule covers.
@@ -189,7 +231,7 @@ def _should_anonymize_endpoint(endpoint: str) -> bool:
     # Caller-only identity endpoints: exact-path allowlist, checked before the
     # sensitive-segment rules because 'users' would otherwise match.
     if _is_self_only_endpoint(segments):
-        return False
+        return ANONYMIZE_NONE
 
     # Drop only the 'submissions' segment of a /submissions/self route; every
     # other sensitive segment keeps its effect.
@@ -201,10 +243,49 @@ def _should_anonymize_endpoint(endpoint: str) -> bool:
     if 'discussion_topics' in segments and _has_route_segment(
         segments, {'entries', 'view', 'entry_list', 'replies'}
     ):
-        return True
+        return ANONYMIZE_FULL
 
     # Endpoints whose responses contain student records
-    return _has_route_segment(segments, {'users', 'submissions', 'enrollments', 'analytics'})
+    if _has_route_segment(segments, {'users', 'submissions', 'enrollments', 'analytics'}):
+        return ANONYMIZE_FULL
+
+    if _has_route_segment(segments, {'conversations'}):
+        return ANONYMIZE_FREE_TEXT
+
+    if _has_route_segment(segments, {'pages'}):
+        return ANONYMIZE_IDENTITY
+
+    return ANONYMIZE_NONE
+
+
+def _should_anonymize_endpoint(endpoint: str) -> bool:
+    """Whether `endpoint` gets any anonymization at all.
+
+    Thin boolean view over :func:`_endpoint_anonymization_mode`. Callers that
+    need to know *which* treatment applies must use the mode function; this one
+    only answers "is this endpoint gated".
+    """
+    return _endpoint_anonymization_mode(endpoint) != ANONYMIZE_NONE
+
+
+def _anonymize_for_endpoint(result: Any, endpoint: str) -> tuple[Any, str]:
+    """Apply `endpoint`'s anonymization tier to a Canvas response.
+
+    Returns the (possibly rewritten) payload plus a short label for debug
+    logging. The identity/free_text tiers deliberately skip the typed
+    refinements in ``_apply_type_refinements``: those exist for submission and
+    assignment records, which neither /conversations nor /pages returns.
+    """
+    mode = _endpoint_anonymization_mode(endpoint)
+
+    if mode == ANONYMIZE_FULL:
+        data_type = _determine_data_type(endpoint)
+        return anonymize_response_data(result, data_type), data_type
+    if mode == ANONYMIZE_IDENTITY:
+        return scrub_identity(result, scrub_text=False), mode
+    if mode == ANONYMIZE_FREE_TEXT:
+        return scrub_identity(result, scrub_display_names=False), mode
+    return result, mode
 
 
 def _get_http_client() -> httpx.AsyncClient:
@@ -394,13 +475,12 @@ async def make_canvas_request(
 
                     # Apply anonymization if enabled and this endpoint contains student data
                     # Skip if explicitly requested (e.g., from paginated fetcher that will anonymize the full result)
-                    if not skip_anonymization and config.enable_data_anonymization and _should_anonymize_endpoint(endpoint):
-                        data_type = _determine_data_type(endpoint)
-                        result = anonymize_response_data(result, data_type)
+                    if not skip_anonymization and config.enable_data_anonymization:
+                        result, applied = _anonymize_for_endpoint(result, endpoint)
 
                         # Log anonymization for debugging (if enabled)
-                        if config.anonymization_debug:
-                            log_debug(f"Applied {data_type} anonymization to {endpoint}")
+                        if config.anonymization_debug and applied != ANONYMIZE_NONE:
+                            log_debug(f"Applied {applied} anonymization to {endpoint}")
 
                     # Audit: log successful data access
                     log_data_access(method, endpoint, "success")
@@ -599,11 +679,10 @@ async def fetch_all_paginated_results(endpoint: str, params: dict[str, Any] | No
     from .config import get_config
     config = get_config()
 
-    if config.enable_data_anonymization and _should_anonymize_endpoint(endpoint):
-        data_type = _determine_data_type(endpoint)
-        all_results = anonymize_response_data(all_results, data_type)
+    if config.enable_data_anonymization:
+        all_results, applied = _anonymize_for_endpoint(all_results, endpoint)
 
-        if config.anonymization_debug:
-            log_debug(f"Applied {data_type} anonymization to paginated results from {endpoint}")
+        if config.anonymization_debug and applied != ANONYMIZE_NONE:
+            log_debug(f"Applied {applied} anonymization to paginated results from {endpoint}")
 
     return all_results
