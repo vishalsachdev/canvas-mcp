@@ -639,11 +639,23 @@ async def upload_file_to_storage(
             return {"error": f"Upload failed: {str(e)}"}
 
 
-async def fetch_all_paginated_results(endpoint: str, params: dict[str, Any] | None = None) -> Any:
+async def fetch_all_paginated_results(
+    endpoint: str,
+    params: dict[str, Any] | None = None,
+    skip_anonymization: bool = False,
+) -> Any:
     """Fetch all results from a paginated Canvas API endpoint.
 
     Handles pagination automatically and applies anonymization once to the complete dataset
     to ensure consistent anonymization across all pages.
+
+    Args:
+        endpoint: Canvas API endpoint.
+        params: Query parameters.
+        skip_anonymization: Return the raw records. Reserved for the one caller
+            whose whole purpose is to see real identities — the local
+            pseudonym-map export. Anonymizing that fetch maps pseudonyms to
+            pseudonyms, which is not a privacy win, just a broken tool.
     """
     if params is None:
         params = {}
@@ -679,7 +691,7 @@ async def fetch_all_paginated_results(endpoint: str, params: dict[str, Any] | No
     from .config import get_config
     config = get_config()
 
-    if config.enable_data_anonymization:
+    if not skip_anonymization and config.enable_data_anonymization:
         all_results, applied = _anonymize_for_endpoint(all_results, endpoint)
 
         if config.anonymization_debug and applied != ANONYMIZE_NONE:
