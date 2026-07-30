@@ -71,6 +71,23 @@ class TestShouldAnonymizeEndpoint:
     def test_non_student_endpoints_not_anonymized(self, endpoint):
         assert _should_anonymize_endpoint(endpoint) is False
 
+    @pytest.mark.parametrize("endpoint", [
+        "/api/quiz/v1/courses/123/enrollments",
+        "/api/quiz/v1/courses/123/users",
+        "/api/quiz/v1/courses/123/assignments/456/submissions",
+        "/api/quiz/v1/courses/123/analytics/student_summaries",
+    ])
+    def test_quiz_root_student_data_endpoints_still_anonymized(self, endpoint):
+        """Adding /api/quiz/v1 must not bypass sensitive-segment matching."""
+        assert _should_anonymize_endpoint(endpoint) is True
+
+    @pytest.mark.parametrize("endpoint", [
+        "/api/quiz/v1/courses/123/modules",
+        "/api/quiz/v1/courses/123/assignments",
+    ])
+    def test_quiz_root_non_student_endpoints_not_anonymized(self, endpoint):
+        assert _should_anonymize_endpoint(endpoint) is False
+
     def test_case_insensitive(self):
         assert _should_anonymize_endpoint("/COURSES/123/ENROLLMENTS") is True
 
@@ -199,6 +216,7 @@ class TestSelfExemptionDoesNotLeakToOtherPaths:
         "/courses/self/users",
         # Prefix/suffix games.
         "/api/v1/users/self/profile",
+        "/api/quiz/v1/users/self/profile",
         "/accounts/1/users/self/profile",
     ])
     def test_still_anonymized(self, endpoint):

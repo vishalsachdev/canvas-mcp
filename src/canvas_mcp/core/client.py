@@ -1,10 +1,11 @@
 """HTTP client and Canvas API utilities."""
 
 import asyncio
+import re
 import weakref
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlencode
 
 import httpx
@@ -19,6 +20,8 @@ INITIAL_BACKOFF_SECONDS = 2
 
 # Default number of results per page for paginated requests
 DEFAULT_PAGE_SIZE = 100
+API_ROOT_REST = "rest"
+API_ROOT_QUIZ = "quiz"
 
 
 def _canvas_auth_headers(api_token: str) -> dict[str, str]:
@@ -29,6 +32,26 @@ def _canvas_auth_headers(api_token: str) -> dict[str, str]:
         "Authorization": f"Bearer {api_token}",
         "User-Agent": f"canvas-mcp/{__version__} (https://github.com/vishalsachdev/canvas-mcp)",
     }
+
+def _resolve_canvas_api_root(base_api_url: str, api_root: Literal["rest", "quiz"]) -> str:
+    """Resolve a configured ``…/api/v<N>`` base URL to a selected Canvas API root.
+
+    ``rest`` keeps the configured URL unchanged. ``quiz`` rewrites only the
+    trailing API version segment to ``/api/quiz/v1`` while preserving any
+    institution prefix (e.g. ``/lms``). This is an explicit call-site opt-in;
+    endpoint strings never select a base path implicitly.
+    """
+    if api_root == API_ROOT_REST:
+        return base_api_url
+
+    match = re.search(r"/api/v\d+$", base_api_url)
+    if not match:
+        raise ValueError(
+            "Invalid Canvas API base URL for quiz root resolution: expected trailing /api/v<N>"
+        )
+
+    return f"{base_api_url[:match.start()]}/api/quiz/v1"
+
 
 # HTTP client will be initialized with configuration
 http_client: httpx.AsyncClient | None = None
@@ -370,7 +393,8 @@ async def make_canvas_request(
     data: dict[str, Any] | None = None,
     use_form_data: bool = False,
     skip_anonymization: bool = False,
-    files: dict[str, tuple[str, bytes, str]] | None = None
+    files: dict[str, tuple[str, bytes, str]] | None = None,
+    api_root: Literal["rest", "quiz"] = API_ROOT_REST,
 ) -> Any:
     """Make a request to the Canvas API with proper error handling.
 
@@ -384,6 +408,7 @@ async def make_canvas_request(
         use_form_data: Use form data instead of JSON
         skip_anonymization: Skip anonymization (used by paginated fetchers)
         files: Dictionary of file objects for multipart form uploads
+        api_root: Which Canvas API root to call ("rest" => /api/v<N>, "quiz" => /api/quiz/v1)
     """
 
     from .audit import log_data_access
@@ -398,13 +423,21 @@ async def make_canvas_request(
     if not endpoint.startswith('/'):
         endpoint = f"/{endpoint}"
 
+    if api_root not in (API_ROOT_REST, API_ROOT_QUIZ):
+        return {"error": f"Unsupported api_root: {api_root}"}
+
     if req_creds:
         # Per-request client with user's credentials (HTTP mode)
         client = httpx.AsyncClient(
             headers=_canvas_auth_headers(req_creds.api_token),
             timeout=config.api_timeout,
         )
-        url = f"{req_creds.api_url.rstrip('/')}{endpoint}"
+        try:
+            base_url = _resolve_canvas_api_root(req_creds.api_url.rstrip('/'), api_root)
+        except ValueError as exc:
+            await client.aclose()
+            return {"error": str(exc)}
+        url = f"{base_url}{endpoint}"
         _close_client = True
     elif is_http_request_active():
         # HTTP request without a per-request token: fail closed. Never fall
@@ -417,7 +450,11 @@ async def make_canvas_request(
     else:
         # Global client (stdio mode)
         client = _get_http_client()
-        url = f"{config.canvas_api_url.rstrip('/')}{endpoint}"
+        try:
+            base_url = _resolve_canvas_api_root(config.canvas_api_url.rstrip('/'), api_root)
+        except ValueError as exc:
+            return {"error": str(exc)}
+        url = f"{base_url}{endpoint}"
         _close_client = False
 
     # Gate outbound calls with concurrency semaphore (uses MAX_CONCURRENT_REQUESTS)
