@@ -10,6 +10,7 @@ from fastmcp import Client, FastMCP
 
 from canvas_mcp.tools.rubrics import (
     build_rubric_create_form_data,
+    count_csv_rubrics,
     preprocess_criteria_string,
     register_rubric_tools,
     rubric_association_id,
@@ -606,13 +607,17 @@ class TestRubricTools:
         """create_rubric_from_csv successfully uploads CSV and polls for completion."""
         mock_canvas_request.side_effect = [
             {"id": 1234, "workflow_state": "created"},
-            {"id": 1234, "workflow_state": "succeeded", "rubric": {"id": 999, "title": "CSV Rubric"}}
+            {"id": 1234, "workflow_state": "succeeded", "error_count": 0, "error_data": []}
         ]
 
         register_rubric_tools(mcp)
         result = await _call_tool(mcp, "create_rubric_from_csv", {
             "course_identifier": "TEST101",
-            "csv_content": "Title,Rating 1\nCrit,5",
+            "csv_content": (
+                "Rubric Name,Criteria Name,Criteria Description,Criteria Enable Range,"
+                "Rating Name,Rating Description,Rating Points\n"
+                "Example Rubric,Clarity,Is it clear,false,Excellent,Very clear,10"
+            ),
         })
 
         output = result.content[0].text
@@ -632,8 +637,8 @@ class TestRubricTools:
 
         assert "Rubric CSV import process finished with status: succeeded" in output
         assert "Import ID: 1234" in output
-        assert "Created Rubric ID: 999" in output
-        assert "Rubric Title: CSV Rubric" in output
+        assert "Rubrics defined in CSV: 1" in output
+        assert "Rubrics page in Canvas" in output
 
     @pytest.mark.asyncio
     async def test_create_rubric_from_csv_upload_error(self, mcp, mock_canvas_request, mock_course_id, mock_course_code):
@@ -656,7 +661,12 @@ class TestRubricTools:
     async def test_create_rubric_from_csv_failed_state(self, mcp, mock_canvas_request, mock_course_id, mock_course_code):
         """A terminal 'failed' workflow_state is reported without further polling."""
         mock_canvas_request.side_effect = [
-            {"id": 1234, "workflow_state": "failed"},
+            {
+                "id": 1234,
+                "workflow_state": "failed",
+                "error_count": 1,
+                "error_data": [{"message": "Missing 'Rubric Name' in some rows."}],
+            },
         ]
 
         register_rubric_tools(mcp)
@@ -668,8 +678,10 @@ class TestRubricTools:
         output = result.content[0].text
         # 'failed' is terminal → loop breaks immediately, no GET poll
         assert mock_canvas_request.call_count == 1
-        assert "finished with status: failed" in output
-        assert "Created Rubric ID" not in output
+        assert "Could not confirm the rubric CSV import completed without errors." in output
+        assert "workflow_state: failed" in output
+        assert "error_count: 1" in output
+        assert "Missing 'Rubric Name' in some rows." in output
 
     @pytest.mark.asyncio
     async def test_create_rubric_from_csv_timeout_reports_unconfirmed_warning(
@@ -718,21 +730,16 @@ class TestRubricTools:
         assert "finished with status" not in output
 
     @pytest.mark.asyncio
-    async def test_create_rubric_from_csv_reports_multiple_created_rubrics(
+    async def test_create_rubric_from_csv_succeeded_with_errors_is_terminal(
         self, mcp, mock_canvas_request, mock_course_id, mock_course_code
     ):
-        """List-shaped import payloads should report all returned rubrics."""
-        mock_canvas_request.side_effect = [
-            {"id": 1234, "workflow_state": "created"},
-            {
-                "id": 1234,
-                "workflow_state": "succeeded",
-                "rubrics": [
-                    {"id": 999, "title": "CSV Rubric A"},
-                    {"id": 1000, "title": "CSV Rubric B"},
-                ],
-            },
-        ]
+        """succeeded_with_errors should not be polled as non-terminal."""
+        mock_canvas_request.side_effect = [{
+            "id": 1234,
+            "workflow_state": "succeeded_with_errors",
+            "error_count": 1,
+            "error_data": [{"message": "Missing 'Rubric Name' in some rows."}],
+        }]
 
         register_rubric_tools(mcp)
         result = await _call_tool(mcp, "create_rubric_from_csv", {
@@ -741,10 +748,25 @@ class TestRubricTools:
         })
 
         output = result.content[0].text
-        assert "finished with status: succeeded" in output
-        assert "Created Rubrics:" in output
-        assert "- ID: 999 | Title: CSV Rubric A" in output
-        assert "- ID: 1000 | Title: CSV Rubric B" in output
+        assert mock_canvas_request.call_count == 1
+        assert "workflow_state: succeeded_with_errors" in output
+        assert "error_count: 1" in output
+        assert "Missing 'Rubric Name' in some rows." in output
+
+
+class TestCountCsvRubrics:
+    def test_counts_distinct_rubric_names(self):
+        csv_content = (
+            "Rubric Name,Criteria Name,Criteria Description,Criteria Enable Range,"
+            "Rating Name,Rating Description,Rating Points\n"
+            "Example Rubric,Clarity,Is it clear,false,Excellent,Very clear,10\n"
+            "Example Rubric,Depth,Is it thorough,false,Excellent,Very thorough,10\n"
+            "Second Rubric,Clarity,Is it clear,false,Excellent,Very clear,10\n"
+        )
+        assert count_csv_rubrics(csv_content) == 2
+
+    def test_returns_none_when_rubric_name_column_missing(self):
+        assert count_csv_rubrics("Title,Rating 1\nCrit,5\n") is None
 
 
 class TestRubricAssociationId:

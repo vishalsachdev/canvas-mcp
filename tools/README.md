@@ -451,12 +451,14 @@ Create a rubric in a course from a CSV string using Canvas's native rubric CSV i
 
 **Parameters:**
 - `course_identifier`: Course code or ID
-- `csv_content`: The CSV content as a string (e.g. `"Title,Rating 1,Rating 2\nCriterion 1,10,5"`)
+- `csv_content`: The CSV content as a string using Canvas's rubric import headers (e.g. `"Rubric Name,Criteria Name,Criteria Description,Criteria Enable Range,Rating Name,Rating Description,Rating Points\nExample Rubric,Clarity,Is it clear,false,Excellent,Very clear,10"`)
 
 **Example:**
 ```
-"Create a rubric in CS101 from this CSV: Title,Excellent,Poor / Clarity,10,2"
+"Create a rubric in CS101 from this CSV: Rubric Name,Criteria Name,Criteria Description,Criteria Enable Range,Rating Name,Rating Description,Rating Points / Example Rubric,Clarity,Is it clear,false,Excellent,Very clear,10"
 ```
+
+**Note:** CSV-imported rubrics appear in Canvas as **Draft** items. They may not appear immediately in `list_rubrics`; verify imports in the course Rubrics UI.
 
 ---
 
