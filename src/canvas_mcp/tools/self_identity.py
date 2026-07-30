@@ -60,19 +60,25 @@ def register_self_identity_tools(mcp: FastMCP):
         # returns the course name and code TOGETHER WITH the caller's own
         # enrollments[] in a single call, and needs no roster permission.
         # /users/self/enrollments returns bare course_ids, forcing an N+1 lookup.
+        # "unpublished" belongs here alongside "available". An instructor or TA
+        # can hold a perfectly active enrollment in a course they have not
+        # published yet, and omitting that state would tell them they have no
+        # active enrollments at all. This tool is registered for educators, so
+        # that is a live path rather than a corner case.
         params: dict = {
             "enrollment_state": "active",
-            "state[]": ["available"],
+            "state[]": ["available", "unpublished"],
             "include[]": ["term"],
             "per_page": 100,
         }
         if include_concluded:
-            # Both filters have to widen together. Leaving enrollment_state as
-            # "active" while broadening the course state means Canvas still drops
-            # every completed enrollment, so include_concluded would silently do
-            # nothing.
-            params["state[]"] = ["available", "completed"]
-            params["enrollment_state"] = ["active", "completed"]
+            # Widen the course state, and DROP enrollment_state rather than
+            # widening it. Canvas defines enrollment_state as a single string, so
+            # passing a list serializes as repeated parameters that Canvas may
+            # reject or honour only partially. Absent means "any enrollment
+            # state", which is exactly what including concluded history wants.
+            params["state[]"] = ["available", "unpublished", "completed"]
+            params.pop("enrollment_state")
 
         courses = await fetch_all_paginated_results("/courses", params)
 

@@ -136,31 +136,42 @@ class TestGetMyEnrollments:
         endpoint, params = mock_fetch.call_args[0][:2]
         assert endpoint == "/courses"
         assert params["enrollment_state"] == "active"
-        assert params["state[]"] == ["available"]
+        assert params["state[]"] == ["available", "unpublished"]
         assert params["include[]"] == ["term"]
         assert params["per_page"] == 100
 
     @pytest.mark.asyncio
-    async def test_include_concluded_widens_both_filters(self):
-        """Both filters must widen together or the flag silently does nothing.
+    async def test_include_concluded_drops_the_enrollment_state_filter(self):
+        """Canvas defines enrollment_state as a scalar, so it is removed, not widened.
 
-        Broadening the course `state[]` while leaving `enrollment_state` pinned
-        to "active" means Canvas still drops every completed enrollment, so a
-        caller asking for concluded history would get only active courses back
-        and have no way to tell.
+        Passing a list serializes as repeated enrollment_state parameters, which
+        Canvas may reject or honour only partially, leaving include_concluded
+        just as broken but in a harder-to-see way. Absent means "any state".
         """
         _, mock_fetch = await self._call(
             [_course(enrollments=[_enrollment()])], include_concluded=True
         )
         params = mock_fetch.call_args[0][1]
-        assert params["state[]"] == ["available", "completed"]
-        assert params["enrollment_state"] == ["active", "completed"]
+        assert params["state[]"] == ["available", "unpublished", "completed"]
+        assert "enrollment_state" not in params
 
     @pytest.mark.asyncio
-    async def test_default_run_keeps_enrollment_state_active(self):
+    async def test_default_run_keeps_enrollment_state_scalar_active(self):
         _, mock_fetch = await self._call([_course(enrollments=[_enrollment()])])
         params = mock_fetch.call_args[0][1]
         assert params["enrollment_state"] == "active"
+        assert isinstance(params["enrollment_state"], str)
+
+    @pytest.mark.asyncio
+    async def test_unpublished_courses_are_requested(self):
+        """An educator's active enrollment in an unpublished course must count.
+
+        Otherwise an instructor whose only course is not yet published is told
+        they have no active enrollments.
+        """
+        _, mock_fetch = await self._call([_course(enrollments=[_enrollment()])])
+        params = mock_fetch.call_args[0][1]
+        assert "unpublished" in params["state[]"]
 
     @pytest.mark.asyncio
     async def test_default_scope_is_stated_explicitly(self):
