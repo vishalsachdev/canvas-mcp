@@ -141,8 +141,34 @@ class TestBuildRubricCreateFormData:
         assert data["rubric_association[association_type]"] == "Assignment"
         assert data["rubric_association[use_for_grading]"] == "1"
 
-    def test_association_fields_absent_without_assignment(self):
-        """rubric_association fields are omitted when no assignment_id."""
+    def test_course_bookmark_association_without_assignment(self):
+        """A rubric with no assignment must still be bookmarked into the course.
+
+        This test previously asserted the opposite (that no association fields
+        were sent), which is how #180 shipped: Canvas creates the rubric but no
+        association, so it is returned by GET /courses/:id/rubrics and is
+        invisible in the Canvas Rubrics UI.
+        """
+        criteria = {"c1": {"description": "Q", "points": 5.0, "ratings": []}}
+        data = build_rubric_create_form_data("R", criteria, course_id=503)
+        assert data["rubric_association[association_id]"] == "503"
+        assert data["rubric_association[association_type]"] == "Course"
+        assert data["rubric_association[purpose]"] == "bookmark"
+        assert data["rubric_association[bookmarked]"] == "1"
+
+    def test_assignment_association_takes_precedence(self):
+        """An assignment_id still produces a grading association, unchanged."""
+        criteria = {"c1": {"description": "Q", "points": 5.0, "ratings": []}}
+        data = build_rubric_create_form_data(
+            "R", criteria, assignment_id=42, use_for_grading=True, course_id=503
+        )
+        assert data["rubric_association[association_type]"] == "Assignment"
+        assert data["rubric_association[association_id]"] == "42"
+        assert data["rubric_association[purpose]"] == "grading"
+        assert data["rubric_association[use_for_grading]"] == "1"
+
+    def test_no_association_when_neither_id_given(self):
+        """The pure helper stays honest: nothing to associate, nothing sent."""
         criteria = {"c1": {"description": "Q", "points": 5.0, "ratings": []}}
         data = build_rubric_create_form_data("R", criteria)
         assert not any(k.startswith("rubric_association") for k in data)
@@ -276,6 +302,90 @@ class TestRubricTools:
         assert call_args.kwargs.get("use_form_data") is True or (
             len(call_args.args) > 0 and call_args.args[0] == "post"
         )
+
+    @pytest.mark.asyncio
+    async def test_create_rubric_bookmarks_into_course(
+        self, mcp, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        """Regression for #180: the create call must carry a Course bookmark."""
+        mock_canvas_request.return_value = {
+            "rubric": {"id": 7371, "title": "R", "points_possible": 5},
+            "rubric_association": {"id": 99, "association_type": "Course"},
+        }
+        criteria = json.dumps(
+            {"c1": {"description": "C", "points": 5,
+                    "ratings": [{"description": "Good", "points": 5}]}}
+        )
+
+        register_rubric_tools(mcp)
+        await _call_tool(mcp, "create_rubric", {
+            "course_identifier": "TEST101",
+            "title": "R",
+            "criteria": criteria,
+        })
+
+        sent = mock_canvas_request.call_args.kwargs["data"]
+        assert sent["rubric_association[association_type]"] == "Course"
+        assert sent["rubric_association[purpose]"] == "bookmark"
+        assert sent["rubric_association[bookmarked]"] == "1"
+
+    @pytest.mark.asyncio
+    async def test_create_rubric_retries_when_association_missing(
+        self, mcp, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        """A null rubric_association must trigger an explicit association call.
+
+        Otherwise we report success on a rubric that is invisible in the UI,
+        which is what #180 experienced.
+        """
+        mock_canvas_request.side_effect = [
+            {"rubric": {"id": 7371, "title": "R", "points_possible": 5},
+             "rubric_association": None},
+            {"id": 99, "association_type": "Course", "purpose": "bookmark"},
+        ]
+        criteria = json.dumps(
+            {"c1": {"description": "C", "points": 5,
+                    "ratings": [{"description": "Good", "points": 5}]}}
+        )
+
+        register_rubric_tools(mcp)
+        result = await _call_tool(mcp, "create_rubric", {
+            "course_identifier": "TEST101",
+            "title": "R",
+            "criteria": criteria,
+        })
+
+        calls = mock_canvas_request.call_args_list
+        assert len(calls) == 2, "expected a follow-up association call"
+        assert calls[1].args[1].endswith("/rubric_associations")
+        assert calls[1].kwargs["data"]["rubric_association[rubric_id]"] == "7371"
+        assert "Added to the course's Rubrics list." in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_create_rubric_warns_when_association_retry_fails(
+        self, mcp, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        """If the rubric cannot be bookmarked, say so instead of claiming success."""
+        mock_canvas_request.side_effect = [
+            {"rubric": {"id": 7371, "title": "R", "points_possible": 5},
+             "rubric_association": None},
+            {"error": "HTTP error: 403"},
+        ]
+        criteria = json.dumps(
+            {"c1": {"description": "C", "points": 5,
+                    "ratings": [{"description": "Good", "points": 5}]}}
+        )
+
+        register_rubric_tools(mcp)
+        result = await _call_tool(mcp, "create_rubric", {
+            "course_identifier": "TEST101",
+            "title": "R",
+            "criteria": criteria,
+        })
+
+        output = result.content[0].text
+        assert "could not be added to the course's Rubrics list" in output
+        assert "403" in output
 
     @pytest.mark.asyncio
     async def test_create_rubric_with_assignment(self, mcp, mock_canvas_request, mock_course_id, mock_course_code):
