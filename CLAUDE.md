@@ -154,9 +154,11 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] Issue #166: anonymizer recursive identity scrub — **fixed, merged (PR #177), deployed to hosted 2026-07-29**; follow-up #179 (layer consolidation)
 - [x] **#170 Tier 1 student write tools** — **built + review-hardened 2026-07-30** on
   `feature/student-write-tools` (13 commits, 750 tests green, 10 codex rounds to clean).
-  **Not pushed, no PR, #170 comment drafted but not posted** — all three are public actions on a
-  repo UMich is watching, so they need a decision. Policy carrier is the course syllabus
-  (page carrier deliberately removed — see session log). Draft: `internal/issue-170-followup-draft.md`
+  **#170 design comment POSTED 2026-07-30** ([comment 5125231050](https://github.com/vishalsachdev/canvas-mcp/issues/170#issuecomment-5125231050));
+  it corrects two earlier public claims (the `/self`-scoping claim, the page-carrier proposal),
+  explains 5 tools → 4, and asks UMich two questions (default posture; syllabus visible to students).
+  **Branch still NOT pushed, no PR** — awaiting decision. Policy carrier is the course syllabus
+  (page carrier deliberately removed — see session log). Record: `internal/issue-170-followup-draft.md`
 - [ ] #171 identity tools (`get_my_enrollments`/`get_my_profile`) as companion to #170
 - [ ] Issue #142: MCP SDK v2 migration — **blocked upstream**: fastmcp 3.4.4 pins `mcp<2.0`, so relaxing our pin can't resolve. Re-scoped via issue comment 7/21 (verify our v2-readiness, track fastmcp upstream). **Assigned to Ash (`ashcastelinocs124`), orig. deadline ~2026-07-27 — confirm plan with Ash**
 - [x] Issue #145 / PR #167: fastmcp 3.4.4 migration — **DONE 2026-07-21** (CVEs PYSEC-2026-2475/2476 resolved; dep-scan green; staging-validated then prod-deployed + live-verified; #145 closed)
@@ -230,10 +232,12 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
   double-redemption — so tokens are per-process and hosted deployments need **session affinity**.
 - **750 tests pass** (21 skipped); 90 are feature-specific, including a real JPEG byte-equality
   fixture and races simulated from inside the upload call.
-- `internal/issue-170-followup-draft.md` written and revised to match the shipped design.
-  **NOT posted.** It openly corrects two things already told to UMich (the `/self` claim and the
-  page-carrier proposal) and asks them two questions: default posture when a course states no
-  policy, and whether a student-visible syllabus policy is acceptable.
-- Next: (1) **review + post the #170 comment**; decide whether to push the branch / open the PR
+- **Design comment POSTED to #170** ([5125231050](https://github.com/vishalsachdev/canvas-mcp/issues/170#issuecomment-5125231050);
+  record kept in `internal/issue-170-followup-draft.md`). It openly corrects two things already
+  told to UMich (the `/self`-scoping claim and the page-carrier proposal), explains why the promised
+  five Tier 1 tools became four (`upload_submission_file` folded into `submit_assignment`, so an
+  agent cannot upload outside the confirmed operation), and asks them two questions: default posture
+  when a course states no policy, and whether a student-visible syllabus policy is acceptable.
+- Next: (1) **#170 comment POSTED** — watch for zqian reply; decide whether to push the branch / open the PR
   (both are public actions on a repo UMich is watching). (2) #171 identity tools as companion.
   (3) Quiet `/pages` gating fix. (4) v1.6.0 when Tier 1 lands. (5) #142/Ash escalation.
