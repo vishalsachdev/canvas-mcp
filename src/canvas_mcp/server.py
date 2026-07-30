@@ -51,6 +51,7 @@ from .tools import (
     register_peer_review_comment_tools,
     register_peer_review_tools,
     register_rubric_tools,
+    register_self_identity_tools,
     register_shared_assignment_tools,
     register_shared_content_tools,
     register_shared_discussion_tools,
@@ -336,6 +337,8 @@ def register_all_tools(mcp: FastMCP, role: str = "all") -> None:
     register_shared_file_tools(mcp)
     register_shared_messaging_tools(mcp)
     register_discovery_tools(mcp)
+    # Caller-scoped identity: needs no roster permission, so every profile gets it.
+    register_self_identity_tools(mcp)
 
     # Student-specific tools
     if role in ("student", "all"):
