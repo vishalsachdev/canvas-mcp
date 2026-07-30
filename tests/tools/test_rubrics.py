@@ -671,6 +671,81 @@ class TestRubricTools:
         assert "finished with status: failed" in output
         assert "Created Rubric ID" not in output
 
+    @pytest.mark.asyncio
+    async def test_create_rubric_from_csv_timeout_reports_unconfirmed_warning(
+        self, mcp, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        """A non-terminal status after polling must not be reported as finished."""
+        mock_canvas_request.side_effect = [
+            {"id": 1234, "workflow_state": "created"},
+            *([{"id": 1234, "workflow_state": "created"}] * 10),
+        ]
+
+        register_rubric_tools(mcp)
+        with patch("canvas_mcp.tools.rubrics.asyncio.sleep", new_callable=AsyncMock):
+            result = await _call_tool(mcp, "create_rubric_from_csv", {
+                "course_identifier": "TEST101",
+                "csv_content": "Title,Rating 1\nCrit,5",
+            })
+
+        output = result.content[0].text
+        assert mock_canvas_request.call_count == 11
+        assert "Could not confirm the rubric CSV import completed." in output
+        assert "Last known workflow_state: created" in output
+        assert "finished with status" not in output
+
+    @pytest.mark.asyncio
+    async def test_create_rubric_from_csv_missing_workflow_state_reports_unknown(
+        self, mcp, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        """Missing workflow_state should surface as an unconfirmed import."""
+        mock_canvas_request.side_effect = [
+            {"id": 1234},
+            *([{"id": 1234}] * 10),
+        ]
+
+        register_rubric_tools(mcp)
+        with patch("canvas_mcp.tools.rubrics.asyncio.sleep", new_callable=AsyncMock):
+            result = await _call_tool(mcp, "create_rubric_from_csv", {
+                "course_identifier": "TEST101",
+                "csv_content": "Title,Rating 1\nCrit,5",
+            })
+
+        output = result.content[0].text
+        assert mock_canvas_request.call_count == 11
+        assert "Could not confirm the rubric CSV import completed." in output
+        assert "Last known workflow_state: unknown" in output
+        assert "finished with status" not in output
+
+    @pytest.mark.asyncio
+    async def test_create_rubric_from_csv_reports_multiple_created_rubrics(
+        self, mcp, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        """List-shaped import payloads should report all returned rubrics."""
+        mock_canvas_request.side_effect = [
+            {"id": 1234, "workflow_state": "created"},
+            {
+                "id": 1234,
+                "workflow_state": "succeeded",
+                "rubrics": [
+                    {"id": 999, "title": "CSV Rubric A"},
+                    {"id": 1000, "title": "CSV Rubric B"},
+                ],
+            },
+        ]
+
+        register_rubric_tools(mcp)
+        result = await _call_tool(mcp, "create_rubric_from_csv", {
+            "course_identifier": "TEST101",
+            "csv_content": "Title,Rating 1\nCrit,5",
+        })
+
+        output = result.content[0].text
+        assert "finished with status: succeeded" in output
+        assert "Created Rubrics:" in output
+        assert "- ID: 999 | Title: CSV Rubric A" in output
+        assert "- ID: 1000 | Title: CSV Rubric B" in output
+
 
 class TestRubricAssociationId:
     """The single shared guard behind #180, #181 and #190.

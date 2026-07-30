@@ -989,9 +989,11 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         status = response.get("workflow_state", "created")
         result_response = response
 
+        terminal_states = {"succeeded", "failed", "completed"}
+
         # Poll up to 10 times (20 seconds) for it to finish processing
         for _ in range(10):
-            if status in ["succeeded", "failed", "completed"]:
+            if status in terminal_states:
                 break
 
             await asyncio.sleep(2)
@@ -1007,14 +1009,38 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         course_display = await get_course_code(course_id) or course_identifier
 
+        if status not in terminal_states:
+            return unconfirmed_write_warning(
+                "the rubric CSV import completed",
+                {
+                    "Course": course_display,
+                    "Import ID": import_id,
+                    "Last known workflow_state": status,
+                },
+                "Canvas may still be processing this import. Check Canvas and retry shortly.",
+            )
+
         result = f"Rubric CSV import process finished with status: {status}\n\n"
         result += f"Course: {course_display}\n"
         result += f"Import ID: {import_id}\n"
 
-        # Check if a rubric was returned in the final response
-        if "rubric" in result_response and result_response["rubric"]:
-            result += f"Created Rubric ID: {result_response['rubric'].get('id')}\n"
-            result += f"Rubric Title: {result_response['rubric'].get('title')}\n"
+        # Canvas may return either a single rubric or a list for CSV imports.
+        created_rubrics: list[dict[str, Any]] = []
+        if isinstance(result_response, dict):
+            single = result_response.get("rubric")
+            if isinstance(single, dict):
+                created_rubrics.append(single)
+            many = result_response.get("rubrics")
+            if isinstance(many, list):
+                created_rubrics.extend([rubric for rubric in many if isinstance(rubric, dict)])
+
+        if len(created_rubrics) == 1:
+            result += f"Created Rubric ID: {created_rubrics[0].get('id')}\n"
+            result += f"Rubric Title: {created_rubrics[0].get('title')}\n"
+        elif created_rubrics:
+            result += "Created Rubrics:\n"
+            for rubric in created_rubrics:
+                result += f"- ID: {rubric.get('id')} | Title: {rubric.get('title')}\n"
 
         return result
 
