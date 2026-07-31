@@ -1,0 +1,37 @@
+{
+  "//": "Easy Auth authsettingsV2 for API/bearer mode (README §4.5). Apply with: az rest --method PUT --uri 'https://management.azure.com/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Web/sites/<app-name>/config/authsettingsV2?api-version=2022-03-01' --body @authsettingsv2.example.json  (repeat against .../slots/staging/... for the staging slot). Replace <tenant-id>, <api-app-id>, <client-app-id>, <hostname>. The companion site setting WEBSITE_AUTH_PRM_DEFAULT_WITH_SCOPES=true (see appsettings.example.json) is what turns the 401 into an RFC 9728 PRM challenge.",
+  "properties": {
+    "platform": {
+      "enabled": true
+    },
+    "globalValidation": {
+      "requireAuthentication": true,
+      "unauthenticatedClientAction": "Return401"
+    },
+    "identityProviders": {
+      "azureActiveDirectory": {
+        "enabled": true,
+        "registration": {
+          "openIdIssuer": "https://login.microsoftonline.com/<tenant-id>/v2.0",
+          "clientId": "<api-app-id>"
+        },
+        "validation": {
+          "allowedAudiences": [
+            "api://<api-app-id>",
+            "https://<hostname>/mcp"
+          ],
+          "defaultAuthorizationPolicy": {
+            "allowedApplications": [
+              "<client-app-id>"
+            ]
+          }
+        }
+      }
+    },
+    "login": {
+      "tokenStore": {
+        "enabled": true
+      }
+    }
+  }
+}

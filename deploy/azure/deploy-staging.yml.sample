@@ -1,0 +1,62 @@
+# Sample: push to the `staging` branch builds + ships to the app's staging
+# deployment slot. Use this to validate a build against real Entra/Azure config
+# before it reaches main/prod. Promote by merging `staging` -> `main` (which
+# fires deploy-prod), or via an Azure slot swap.
+#
+# To use: copy to .github/workflows/deploy-staging.yml and replace
+# <registry-name> and <app-name>. Requires the same ACR secrets as the prod
+# workflow plus AZURE_WEBAPP_PUBLISH_PROFILE_STAGING (the *slot's* publish
+# profile). Gotcha: creating the `staging` branch does not fire this
+# path-filtered trigger — kick the first run manually:
+#   gh workflow run deploy-staging.yml --ref staging
+name: Deploy to Azure — staging slot
+
+on:
+  push:
+    branches: [staging]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'tools/**'
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: true
+
+env:
+  REGISTRY: <registry-name>.azurecr.io
+  IMAGE: canvas-mcp
+  APP_NAME: <app-name>
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute image tag
+        id: tag
+        run: echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ steps.tag.outputs.tag }}
+
+      - name: Deploy to staging slot
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.APP_NAME }}
+          slot-name: staging
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_STAGING }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ steps.tag.outputs.tag }}
