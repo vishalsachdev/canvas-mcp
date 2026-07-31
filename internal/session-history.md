@@ -2,6 +2,38 @@
 
 Archived session log entries from canvas-mcp CLAUDE.md.
 
+### 2026-07-30 (later) — Released v1.6.0; #181 fixed + live-verified; agent fleet dispatched
+- **v1.6.0 SHIPPED to all five channels, verified live**: GitHub Release (w/ `.mcpb`), PyPI, MCP
+  Registry (`isLatest=True`), site (`wrangler pages deploy docs/`, now 1.6.0 / **96 tools**), and
+  hosted Azure. The publish race resolved itself for the first time — PR #107's propagation poll
+  absorbed a ~75s CDN lag on the version-specific PyPI endpoint, no `gh run rerun` needed.
+- **Six PRs merged**: #186 (ruff CI, **first outside contribution**, @w3lld1 — closed #175), #189
+  (#181 fix + shared write-confirmation guard), #195 (CSV format docs), #196 (←#194, CSV semantics,
+  closed #190), #193 (`/api/quiz/v1` routing, closed #192), #197 (pagination `api_root`).
+  Tests **891 → 928**.
+- **#181 live-verified on production Canvas** via controlled A/B in the training sandbox (one rubric,
+  two assignments, old vs fixed code path): old → `rubric_association: None`, no rubric in the UI;
+  fixed → association created and rendered. Bug reproduced off zqian's instance, so it was never
+  instance-specific. Sandbox cleaned, verified in UI.
+- **Four silent-success bugs found in one day** (#180/#181/#190/#191) — all "plausible condition
+  nobody checked against a real payload". #189 extracted `rubric_association_id()` /
+  `unconfirmed_write_warning()` so the guard lives in ONE place; extracting it exposed a latent hole
+  (truthy association dict with no id counted as success — verified against pre-refactor code).
+- **`create_rubric_from_csv` was documented wrong** — measured live: our documented format returns
+  `succeeded_with_errors`, "Missing 'Rubric Name' in some rows", **zero rubrics created**. Gap 1's
+  bookmark hypothesis was DISPROVEN (imports DO show in the Rubrics UI as `Draft`; the API doesn't
+  list them — inverse of #180).
+- **CI/ruleset**: `lint` added as a required check; **`claude-review` dropped** (#188 — GitHub
+  withholds secrets from fork `pull_request` workflows, so it could never pass on an outside PR;
+  every external contribution was unmergeable). Required checks now `test-enhancements` + `lint`.
+- **Agent fleet dispatched**: #172/#190/#192 to `copilot-swe-agent`; Ash unassigned from everything;
+  #142 → watch item (`blocked-upstream`, fastmcp-slim 3.4.5 still pins `mcp<2.0`). Key lesson:
+  **agents read the issue BODY, not comments** — added scope banners to #172/#190 so a stale premise
+  doesn't get built.
+- **Daily triage routine LIVE** (`trig_011HVR6j4c5hDR2fj7k3ujxC`, 01:30 UTC / 7am local) — **fired on
+  schedule and produced PR #202**, a high-quality brief that correctly surfaced the three new zqian
+  bugs. `gh` is NOT installed in the cloud sandbox; it uses GitHub MCP tools.
+
 ### 2026-07-30 — Shipped: Tier 1 (#170), self-identity (#171), anonymization tiers (#179), rubric fix (#180)
 - **Four PRs merged to main + deployed to hosted** (deploy-prod green): #182 rubric course-bookmark
   (#180 closed), #183 self-identity + check_enrollment INDETERMINATE (#171 closed), #184 anonymization

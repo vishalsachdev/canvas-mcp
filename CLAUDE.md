@@ -178,16 +178,28 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] #190 `create_rubric_from_csv` — documented CSV format was **wrong** (created zero rubrics); fixed
   in #195/#196 along with `succeeded_with_errors` handling and `error_data` surfacing
 - [x] #192 `/api/quiz/v1` client routing (#193) + paginated `api_root` (#197), anonymization gate intact
-- [ ] **NEW zqian bugs (2026-07-30 evening)** — ⚠️ **#199 `check_enrollment` returns "no enrollment" for a
-  user plainly visible in `list_enrollments`**; likely NetID/`login_id` matching (a UIUC concept — UMich
-  uses "uniqname"). Also #198 (file upload creates a stray "unfiled" folder) and #200 (missing tool
-  annotations, PR #201 in flight)
+- [x] **All three zqian bugs CLOSED 2026-07-31.** **#199** was three defects with one root cause (a
+  confident negative on an unchecked premise): `login_id` assumed to be the bare campus ID (measured
+  live — UIUC stores `vishal`, email-provisioned instances store `uniqname@umich.edu`); an email-form
+  identifier rejected by the input guard before any Canvas call; and `role`'s `student` default pushed
+  to Canvas as `type[]`, hiding every other role. Adds an **AMBIGUOUS** answer for anything
+  unverifiable (PR #203). **#198** fixed + measured A/B: omitting `parent_folder_path` isn't "root",
+  Canvas creates an `unfiled` folder (PR #203). **#200** annotations (PR #201, Copilot agent)
+- [x] **#204 tool-annotation contract complete + CI-gated (PR #205)** — `destructiveHint` now follows
+  the MCP spec ("only additive updates") instead of "destructive == deletes"; `idempotentHint` set
+  everywhere and judged on **whole effect** (grade writers append a comment; page tools re-notify;
+  `delete_announcements_by_criteria` re-derives its target set). `tests/test_tool_metadata.py`
+  enumerates the live registry **with every feature flag on**, so a bare `@mcp.tool()` fails CI —
+  the default set had hidden `execute_typescript` shipping unannotated. Convention in
+  `internal/architecture.md`
 - [ ] **#191 quizzes BLOCKED on correctness**: New Quizzes detection is `is_quiz_assignment AND
   external_tool`, but measured live that flag marks *Classic* quizzes — the `AND` may match nothing and
   silently report zero New Quizzes. Its test fixture hard-codes the assumption. Unblocking needs zqian's
   **scoping question 4** (a New-Quizzes-enabled sandbox)
-- [ ] Daily triage routine live (`trig_011HVR6j4c5hDR2fj7k3ujxC`, 7am local) — review its PRs; it opened
-  #202 on its first scheduled run
+- [x] Daily triage routine live (`trig_011HVR6j4c5hDR2fj7k3ujxC`, 7am local) — #202 merged. **Prompt
+  patched 2026-07-31**: merging a brief closed #172, because it described another PR as `fixes #172`
+  and GitHub parses closing keywords anywhere in a merged PR body. Routine now forbids them *and*
+  greps its own output before opening the PR (#172 reopened)
 - [ ] Issue #142 → **watch item, unassigned** (`blocked-upstream`): `fastmcp-slim` 3.4.5 still pins `mcp<2.0`, so relaxing our pin cannot resolve; `mcp` 2.0.0 stable has shipped. Scope collapsed since #167 removed the FastMCP→MCPServer rename — hours, not a day. Trigger: a fastmcp release lifting `mcp<2.0`
 - [x] Issue #145 / PR #167: fastmcp 3.4.4 migration — **DONE 2026-07-21** (CVEs PYSEC-2026-2475/2476 resolved; dep-scan green; staging-validated then prod-deployed + live-verified; #145 closed)
 - [ ] Issue #157: `execute_typescript` sandbox hardening backlog (container-level egress, non-root user, prebuilt tsx image) — **self-hosted-only now**: tool is DISABLED on both hosted slots (`EXECUTE_TYPESCRIPT_ENABLED=false`, verified 2026-07-10); gate on re-enabling hosted code-exec
@@ -234,43 +246,48 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-07-30 (later) — Released v1.6.0; #181 fixed + live-verified; agent fleet dispatched
-- **v1.6.0 SHIPPED to all five channels, verified live**: GitHub Release (w/ `.mcpb`), PyPI, MCP
-  Registry (`isLatest=True`), site (`wrangler pages deploy docs/`, now 1.6.0 / **96 tools**), and
-  hosted Azure. The publish race resolved itself for the first time — PR #107's propagation poll
-  absorbed a ~75s CDN lag on the version-specific PyPI endpoint, no `gh run rerun` needed.
-- **Six PRs merged**: #186 (ruff CI, **first outside contribution**, @w3lld1 — closed #175), #189
-  (#181 fix + shared write-confirmation guard), #195 (CSV format docs), #196 (←#194, CSV semantics,
-  closed #190), #193 (`/api/quiz/v1` routing, closed #192), #197 (pagination `api_root`).
-  Tests **891 → 928**.
-- **#181 live-verified on production Canvas** via controlled A/B in the training sandbox (one rubric,
-  two assignments, old vs fixed code path): old → `rubric_association: None`, no rubric in the UI;
-  fixed → association created and rendered. Bug reproduced off zqian's instance, so it was never
-  instance-specific. Sandbox cleaned, verified in UI.
-- **Four silent-success bugs found in one day** (#180/#181/#190/#191) — all "plausible condition
-  nobody checked against a real payload". #189 extracted `rubric_association_id()` /
-  `unconfirmed_write_warning()` so the guard lives in ONE place; extracting it exposed a latent hole
-  (truthy association dict with no id counted as success — verified against pre-refactor code).
-- **`create_rubric_from_csv` was documented wrong** — measured live: our documented format returns
-  `succeeded_with_errors`, "Missing 'Rubric Name' in some rows", **zero rubrics created**. Gap 1's
-  bookmark hypothesis was DISPROVEN (imports DO show in the Rubrics UI as `Draft`; the API doesn't
-  list them — inverse of #180).
-- **CI/ruleset**: `lint` added as a required check; **`claude-review` dropped** (#188 — GitHub
-  withholds secrets from fork `pull_request` workflows, so it could never pass on an outside PR;
-  every external contribution was unmergeable). Required checks now `test-enhancements` + `lint`.
-- **Agent fleet dispatched**: #172/#190/#192 to `copilot-swe-agent`; Ash unassigned from everything;
-  #142 → watch item (`blocked-upstream`, fastmcp-slim 3.4.5 still pins `mcp<2.0`). Key lesson:
-  **agents read the issue BODY, not comments** — added scope banners to #172/#190 so a stale premise
-  doesn't get built.
-- **Daily triage routine LIVE** (`trig_011HVR6j4c5hDR2fj7k3ujxC`, 01:30 UTC / 7am local) — **fired on
-  schedule and produced PR #202**, a high-quality brief that correctly surfaced the three new zqian
-  bugs. `gh` is NOT installed in the cloud sandbox; it uses GitHub MCP tools.
-- Next: (1) **THREE new zqian bugs**: **#199 check_enrollment returns "no enrollment" for a user
-  visible in `list_enrollments`** — likely NetID/`login_id` matching, which is a UIUC concept
-  (UMich uses "uniqname"); #198 file upload creates a stray "unfiled" folder; #200 missing tool
-  annotations (PR #201 in flight). (2) **#191 BLOCKED**: New Quizzes detection is
-  `is_quiz_assignment AND external_tool`, but measured live that flag marks *Classic* quizzes — the
-  `AND` may match nothing; its test fixture hard-codes the assumption. Needs zqian's **scoping
-  question 4** (New-Quizzes sandbox) — now blocking correctness, not just timeline. (3) Review PR
-  #202 brief + #201. (4) Backlog: #173 (manifest 30/96, title says 24/93), #179 consolidation half,
-  #106 mypy, stale `associate_rubric_with_assignment` at `docs/learning-designer-guide.html:173`.
+### 2026-07-31 — Closed all three zqian bugs (#199/#198/#200) + completed the tool-annotation contract
+- **Four PRs merged, four issues closed**: #203 (closed **#199** institution-neutral enrollment
+  matching + **#198** upload-to-course-root), #202 (first daily-triage brief), #201 (closed **#200**
+  missing tool annotations, Copilot agent), #205 (closed **#204** full annotation contract + CI gate).
+  Tests **928 → 968**.
+- **#199 was three defects with one root cause** — a confident negative on an unchecked premise.
+  (1) Matching assumed `login_id` is the bare campus ID; measured live, UIUC stores `vishal` while
+  email-provisioned instances store `uniqname@umich.edu`. (2) An email-form identifier was rejected by
+  the input guard *before any Canvas call* (`@` excluded; bound was a NetID-era 64, now 254 — a live
+  roster read turned up a 40-char `login_id`). (3) `role` defaults to `student` and was pushed to
+  Canvas as `type[]`, hiding every other role — asking about a teacher returned "no active 'student'
+  enrollment", which reads as "not in this course". Roster is now fetched unfiltered and role
+  evaluated locally. New **AMBIGUOUS** answer shape for anything unverifiable.
+- **#198 measured, not inferred**: three-way A/B on a real course — no param → `course files/unfiled`;
+  `parent_folder_path=""` → root; `parent_folder_id=<root>` → root. Sends `""` (no extra round-trip).
+  The docstring had always *documented* root: doc-vs-behavior divergence, same shape as #190.
+- **#204: `destructiveHint` now follows the MCP spec, not "destructive == deletes".** Grade writers,
+  `edit_page_content`, `bulk_update_pages`, `fix_accessibility_issues`, all `update_*`,
+  `upload_course_file`, `create_student_anonymization_map` and `execute_typescript` are destructive.
+  **The `create_` prefix is not a safe guide** — `create_page(front_page=True)` unseats the current
+  front page; `create_rubric(assignment_id=…)` and `associate_rubric` attach over an existing rubric.
+  `idempotentHint` (never set anywhere) now set everywhere, judged on **whole effect**: grade writers
+  append a comment when `comment` is passed; page tools re-notify on `notify_of_update`;
+  `delete_announcements_by_criteria` re-derives its target set so a retry deletes the *next* batch.
+  Deliberate documented exception: `mark_conversations_read` stays non-destructive.
+- **`tests/test_tool_metadata.py` is the gate** — enumerates the LIVE registry with every feature flag
+  ON (coverage follows capability, not default config; the default set hid `execute_typescript`
+  shipping unannotated). Both gates negative-tested, plus a test asserting the fixture really
+  registers those tools.
+- **10 codex rounds across #203 and #205; 9 found a real defect** — every one a false-positive path a
+  green 968-test suite could not see. Promoted to global CLAUDE.md: two rounds is a floor, not a
+  target, when the failure mode is a *confident wrong answer* rather than a crash. Corollary: my own
+  per-function grep contradicted codex and was wrong (writes lived in nested helpers) — re-check the
+  script before dismissing a finding.
+- **Triage routine bug found + fixed at source**: merging #202 closed **#172** as COMPLETED, because
+  the brief described another PR as `fixes #172` and GitHub parses closing keywords anywhere in a
+  merged PR body. #172 reopened; routine prompt updated with a prohibition *and* a grep-before-open
+  step (plus the same-repo-Copilot "0 checks means Actions never triggered" note). Gotcha saved to
+  auto memory.
+- Next: (1) **#191 still BLOCKED on correctness** — New Quizzes detection is `is_quiz_assignment AND
+  external_tool`, but that flag was measured to mark *Classic* quizzes; needs zqian's New-Quizzes
+  sandbox (scoping question 4). Only open PR. (2) **Release notes** must call out two user-visible
+  changes: `check_enrollment`'s new AMBIGUOUS outcome, and hosts now prompting on grade/content
+  overwrites. (3) Backlog: #179 consolidation half, #173 manifest coverage (30/96), #170 awaiting
+  UMich answers, #106 mypy, #157, #142 (watch).
