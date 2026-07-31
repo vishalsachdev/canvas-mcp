@@ -90,7 +90,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `create_assignment` | Create new assignment with due date, submission types, peer reviews |
 | `update_assignment` | Update existing assignment (name, due date, points, published, etc.) |
 | `get_student_analytics` | Individual student performance |
-| `check_enrollment` | Is a given NetID enrolled in a course? Returns yes/no only, never the roster. Needs roster-admin rights; without them the answer is INDETERMINATE, never "no". For your OWN enrollment use `get_my_enrollments` |
+| `check_enrollment` | Is a given campus login ID (NetID / uniqname / email-style login — not a display name) enrolled in a course? Returns yes/no only, never the roster. `role` defaults to `student`; pass `role="any"` to ask "in this course at all?". Needs roster-admin rights; without them the answer is INDETERMINATE, never "no". For your OWN enrollment use `get_my_enrollments` |
 | `list_rubrics` | List rubrics in a course |
 | `get_rubric` | View rubric details (by rubric_id or assignment_id) |
 | `get_rubric_assessment` | View rubric assessment for a student submission |

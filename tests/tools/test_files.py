@@ -480,6 +480,45 @@ class TestUploadCourseFile:
         assert data.get('parent_folder_path') == "Week 1/Readings"
 
     @pytest.mark.asyncio
+    async def test_upload_without_folder_path_targets_the_root_folder(
+        self, mock_canvas_api, mock_file_validation, tmp_path
+    ):
+        """No folder_path must mean the course files ROOT, not Canvas's default.
+
+        Issue #198, reproduced live against Canvas: omitting parent_folder_path
+        does NOT place the file at the root — Canvas creates a folder literally
+        named "unfiled" and puts it there. Sending an empty string is what
+        actually targets "course files". The docstring had always claimed root,
+        so this asserts the documented behavior the code did not implement.
+        """
+        from canvas_mcp.core.file_validation import FileValidationResult
+
+        test_file = tmp_path / "syllabus.pdf"
+        test_file.write_bytes(b"content")
+
+        mock_file_validation.return_value = FileValidationResult(
+            valid=True,
+            error=None,
+            file_size=7,
+            mime_type="application/pdf",
+            sanitized_name="syllabus.pdf"
+        )
+
+        mock_canvas_api['make_canvas_request'].return_value = MOCK_UPLOAD_REQUEST_RESPONSE
+        mock_canvas_api['upload_file_to_storage'].return_value = MOCK_UPLOAD_SUCCESS_RESPONSE
+
+        upload_course_file = get_tool_function('upload_course_file')
+        result = await upload_course_file("60366", str(test_file))
+
+        assert "successfully" in result.lower()
+        data = mock_canvas_api['make_canvas_request'].call_args[1].get('data', {})
+        assert 'parent_folder_path' in data, (
+            "parent_folder_path must always be sent; omitting it makes Canvas "
+            "create an 'unfiled' folder"
+        )
+        assert data['parent_folder_path'] == ""
+
+    @pytest.mark.asyncio
     async def test_upload_invalid_on_duplicate(self, mock_canvas_api, mock_file_validation, tmp_path):
         """Test upload fails with invalid on_duplicate value."""
         from canvas_mcp.core.file_validation import FileValidationResult
