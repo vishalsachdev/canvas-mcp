@@ -29,6 +29,36 @@
 
 ## Key Components
 
+### Tool Annotations (MCP hints)
+
+Every `@mcp.tool()` must declare what it does to the world. `tests/test_tool_metadata.py`
+enforces this: a tool is read-only, or it answers **both** write questions. A bare
+`@mcp.tool()` fails CI — which is how [#200](https://github.com/vishalsachdev/canvas-mcp/issues/200)
+reached a user in the first place.
+
+| Hint | Set when |
+|------|----------|
+| `readOnlyHint=True` | The tool performs no writes. Nothing else needs setting. |
+| `destructiveHint` | **`False` means "performs only additive updates"** — the MCP spec's wording, not "doesn't delete". |
+| `idempotentHint` | `True` when repeating the call with the same arguments has no additional effect. |
+
+**`destructiveHint` follows the spec, not a local convention** ([#204](https://github.com/vishalsachdev/canvas-mcp/issues/204)).
+The convention had been "destructive == deletes", which left `bulk_grade_submissions`
+and `edit_page_content` claiming to be additive-only while they overwrite grades and
+page bodies. A client has no way to know the server meant something narrower, so the
+tools that *replace* data are marked destructive even though they delete nothing:
+
+- **Destructive**: `bulk_grade_submissions`, `grade_with_rubric`, `edit_page_content`,
+  `bulk_update_pages`, `fix_accessibility_issues`, all `update_*`, `upload_course_file`
+  (`on_duplicate="overwrite"`), `create_student_anonymization_map` (rewrites its local
+  CSV), and every `delete_*`.
+- **Additive**: all `create_*`, `post_*`/`reply_*`, `send_*`, `add_module_item`,
+  `assign_peer_review`, `associate_rubric`, `mark_conversations_read`.
+
+Idempotency is a separate axis: `update_*` and `delete_*` converge on the same end
+state, while anything that creates a record — including `upload_course_file`, whose
+default `on_duplicate="rename"` makes a new file per call — does not.
+
 ### Parameter Validation System
 - `validate_parameter()`: Runtime type coercion supporting complex types
 - `@validate_params`: Automatic validation decorator for all MCP tools
