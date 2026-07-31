@@ -263,7 +263,7 @@ All student data is anonymized **before** it reaches AI systems. See [Educator G
 
 The public hosted server (`mcp.illinihunt.org`) has been **retired**. A public MCP endpoint without an access gate isn't safe to operate — it would expose the built-in code-execution tool — so the supported path is **[local installation](#local-installation)** below.
 
-The HTTP/streamable transport itself remains fully supported for **self-hosting behind your own authentication** (`canvas-mcp-server --transport streamable-http`). An authenticated institutional deployment is planned ([#115](https://github.com/vishalsachdev/canvas-mcp/issues/115)).
+The HTTP/streamable transport itself remains fully supported for **self-hosting behind your own authentication** (`canvas-mcp-server --transport streamable-http`). Running a shared, authenticated instance for your institution? See **[deploy/azure/](deploy/azure/)** for a production-tested deployment specification (Azure App Service + Entra ID platform auth, per-user Canvas tokens) with sample workflow and config templates.
 
 ---
 

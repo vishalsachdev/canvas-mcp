@@ -12,7 +12,7 @@ Canvas MCP is a Model Context Protocol server that bridges AI assistants with Ca
 
 All tools require a valid Canvas API token.
 
-> **Note:** The public hosted server (`mcp.illinihunt.org`) has been **retired** — a public MCP endpoint without an access gate would expose the code-execution tool. Use local (self-hosted) mode below. The HTTP/streamable transport remains supported for self-hosting behind your own authentication; an authenticated institutional deployment is tracked in [#115](https://github.com/vishalsachdev/canvas-mcp/issues/115).
+> **Note:** The public hosted server (`mcp.illinihunt.org`) has been **retired** — a public MCP endpoint without an access gate would expose the code-execution tool. Use local (self-hosted) mode below. The HTTP/streamable transport remains supported for self-hosting behind your own authentication; for a shared institutional deployment, see [deploy/azure/](deploy/azure/).
 
 ### Local (Self-Hosted)
 Configure credentials in the MCP server's `.env` file:
