@@ -59,9 +59,25 @@ tools that *replace* data are marked destructive even though they delete nothing
 - **Destructive**: `bulk_grade_submissions`, `grade_with_rubric`, `edit_page_content`,
   `bulk_update_pages`, `fix_accessibility_issues`, all `update_*`, `upload_course_file`
   (`on_duplicate="overwrite"`), `create_student_anonymization_map` (rewrites its local
-  CSV), and every `delete_*`.
-- **Additive**: all `create_*`, `post_*`/`reply_*`, `send_*`, `add_module_item`,
-  `assign_peer_review`, `associate_rubric`, `mark_conversations_read`.
+  CSV), `execute_typescript`, and every `delete_*`.
+- **Additive**: `create_announcement`, `create_assignment`, `create_discussion_topic`,
+  `create_module`, `create_rubric_from_csv`, `post_*`/`reply_*`, `send_*`,
+  `add_module_item`, `assign_peer_review`, `mark_conversations_read`.
+
+**The `create_` prefix is not a safe guide.** Three creators displace existing state
+through an option and are therefore destructive: `create_page` with `front_page=True`
+unseats the course's current front page (Canvas allows exactly one), and both
+`create_rubric` with an `assignment_id` and `associate_rubric` attach a rubric over
+whatever was already associated — the latter also overwriting `use_for_grading` and
+`purpose` even when re-associating the same rubric. Classify by what the call *does*
+to existing state, never by the verb in its name.
+
+`mark_conversations_read` is a deliberate, documented exception. It replaces a read
+flag, so a strict reading would call it destructive — but nothing user-authored is
+lost, the prior state is restorable through the same API, and marking an inbox read
+is the archetypal benign toggle. Over-flagging costs real signal: a client that
+prompts for everything trains users to click through the prompts that matter. Revisit
+if a client ever surfaces these hints differently.
 
 Idempotency is a separate axis, and it is judged on the tool's **whole effect, not
 just its primary resource**. A tool is non-idempotent if *any* supported input makes

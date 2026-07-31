@@ -190,7 +190,9 @@ def register_page_tools(mcp: FastMCP):
 def register_educator_page_crud_tools(mcp: FastMCP):
     """Register educator-only page CRUD tools."""
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
+    # front_page=True displaces the course's CURRENT front page -- Canvas
+    # allows only one -- so the whole effect is not additive (#204).
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
     @validate_params
     async def create_page(course_identifier: str | int,
                          title: str,

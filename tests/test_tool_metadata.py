@@ -66,6 +66,12 @@ DESTRUCTIVE = {
     # Replaces a file (on_duplicate="overwrite") or a local CSV.
     "upload_course_file",
     "create_student_anonymization_map",
+    # "create_*" is not a safe guide: these displace existing state via an
+    # option. front_page=True unseats the course's current front page (Canvas
+    # allows one); assignment_id attaches a rubric over whatever was there.
+    "create_page",
+    "create_rubric",
+    "associate_rubric",
     # Removals.
     "delete_page",
     "delete_module",
@@ -80,13 +86,10 @@ DESTRUCTIVE = {
 ADDITIVE = {
     "add_module_item",
     "assign_peer_review",
-    "associate_rubric",
     "create_announcement",
     "create_assignment",
     "create_discussion_topic",
     "create_module",
-    "create_page",
-    "create_rubric",
     "create_rubric_from_csv",
     "post_discussion_entry",
     "reply_to_discussion_entry",
