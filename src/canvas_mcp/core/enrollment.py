@@ -58,6 +58,18 @@ class EnrollmentCheckUnavailable(RuntimeError):
     """
 
 
+class AmbiguousIdentifier(ValueError):
+    """The supplied identifier matched more than one person on the roster.
+
+    Only reachable through the email-local-part fallback (issue #199): a bare
+    ``jdoe`` cannot be told apart from ``jdoe@a.edu`` and ``jdoe@b.edu`` when
+    both are enrolled. Choosing one would make an access-gating answer depend on
+    roster ordering, so the caller is asked for a fully-qualified identifier
+    instead. Distinct from ``EnrollmentCheckUnavailable``, which is about
+    permission, not ambiguity.
+    """
+
+
 @dataclass(frozen=True)
 class EnrollmentResult:
     """Minimal, data-minimizing answer to "is net_id enrolled in course?"."""
@@ -105,11 +117,24 @@ def _match_enrollment(
     the second shape unmatchable, so a subject who was plainly on the roster
     came back as a confident "not enrolled".
 
-    Pass 1 is exact equality. Pass 2 compares email local parts in both
-    directions (bare needle vs. email-style stored value and vice versa). Exact
-    equality is exhausted across the WHOLE roster first so that two users
-    sharing a local part — ``jdoe`` and ``jdoe@other.edu`` — resolve to the one
-    that actually matches, never to whichever happened to be listed first.
+    Pass 1 is exact equality. Pass 2 compares email local parts, but only where
+    that comparison is actually meaningful, because this tool is documented as
+    an external access gate and a false positive is an authorization defect:
+
+    * At least one side must be UNQUALIFIED. Two fully-qualified addresses that
+      differ — ``jdoe@school.edu`` vs. ``jdoe@other.edu`` — are different
+      people, and stripping both domains would equate them.
+    * The fallback must identify exactly ONE person. A bare ``jdoe`` against a
+      roster holding ``jdoe@a.edu`` and ``jdoe@b.edu`` is genuinely ambiguous;
+      returning the first would make the answer a function of roster order.
+      That raises ``AmbiguousIdentifier`` rather than guessing. Several
+      enrollments belonging to the *same* user are not ambiguous.
+
+    Exact equality is exhausted across the WHOLE roster first, so an
+    unambiguous exact hit is never spoiled by local-part noise elsewhere.
+
+    Raises:
+        AmbiguousIdentifier: the local-part fallback matched more than one person.
     """
     needle = _norm(net_id)
     if not needle:
@@ -122,15 +147,43 @@ def _match_enrollment(
         if not (active_only and enrollment.get("enrollment_state") != "active")
     ]
 
-    for exact in (True, False):
-        for enrollment, user in candidates:
-            for field in _ID_FIELDS:
-                stored = _norm(user.get(field))
-                if not stored:
-                    continue
-                if stored == needle if exact else _local_part(stored) == needle_local:
-                    return enrollment, field
-    return None
+    # Pass 1 — exact equality, the only unconditionally safe comparison.
+    for enrollment, user in candidates:
+        for field in _ID_FIELDS:
+            stored = _norm(user.get(field))
+            if stored and stored == needle:
+                return enrollment, field
+
+    # Pass 2 — local-part fallback, collected in full so ambiguity is visible.
+    hits: list[tuple[dict, str]] = []
+    seen_users: set = set()
+    for enrollment, user in candidates:
+        for field in _ID_FIELDS:
+            stored = _norm(user.get(field))
+            if not stored:
+                continue
+            # Both sides domain-qualified? Pass 1 already had its chance; any
+            # remaining difference is a real difference.
+            if "@" in needle and "@" in stored:
+                continue
+            if _local_part(stored) != needle_local:
+                continue
+            user_id = user.get("id")
+            # Fall back to identity of the row itself when Canvas gives no id,
+            # so a missing id cannot silently collapse two people into one.
+            key = ("id", user_id) if user_id is not None else ("row", id(enrollment))
+            if key not in seen_users:
+                seen_users.add(key)
+                hits.append((enrollment, field))
+            break
+
+    if len(hits) > 1:
+        raise AmbiguousIdentifier(
+            f"'{net_id}' matches {len(hits)} different people on this roster by "
+            "email local part alone. Supply the full login ID (including the "
+            "domain, if the institution uses email-style logins)."
+        )
+    return hits[0] if hits else None
 
 
 def _enrollments_for_user(
@@ -229,6 +282,8 @@ async def check_enrollment(
 
     Raises:
         ValueError: invalid net_id / role, or the course can't be resolved.
+        AmbiguousIdentifier: the identifier matched several people by email
+            local part alone (a ValueError subclass — catch it first).
         EnrollmentCheckUnavailable: Canvas returned a roster but withheld the
             identifier fields on every user, so no answer can be trusted.
             Permission-blindness is not absence — see the exception's docstring.

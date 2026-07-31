@@ -622,7 +622,7 @@ Check whether a specific campus login ID is enrolled in a course. Answers a rost
 
 **Returns:** A yes/no answer with the enrollment state, role, and which field matched. Data-minimizing by design — built for external access gating (e.g. UniQuick) without exposing the class roster.
 
-> **Identifier form doesn't matter.** Canvas does not define what `login_id` holds — UIUC stores the bare NetID (`jdoe2`), other instances store the full email (`jdoe2@umich.edu`). Both forms are accepted on input and matched against either stored form, so `zqian` finds `zqian@umich.edu` and vice versa. Exact matches always win over email-local-part matches.
+> **Identifier form doesn't matter.** Canvas does not define what `login_id` holds — UIUC stores the bare NetID (`jdoe2`), other instances store the full email (`jdoe2@umich.edu`). Both forms are accepted on input and matched against either stored form, so `zqian` finds `zqian@umich.edu` and vice versa. Exact matches always win over email-local-part matches. The fallback never guesses: two different full addresses (`jdoe@school.edu` vs `jdoe@other.edu`) are treated as different people, and an identifier matching several people by local part alone returns **AMBIGUOUS** instead of picking one.
 
 > **`role` defaults to `student`, and a NO is scoped to that role.** Asking about a teacher with the default answers `NO — … has no active 'student' enrollment`, which is true but reads as "not in this course". The answer now names any other role the person holds (`They ARE enrolled in this course, as: TeacherEnrollment`). Pass `role="any"` when you only want to know whether they are in the course at all.
 

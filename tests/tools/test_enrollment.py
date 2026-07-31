@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from canvas_mcp.core.enrollment import (
+    AmbiguousIdentifier,
     EnrollmentCheckUnavailable,
     EnrollmentResult,
     _match_enrollment,
@@ -353,6 +354,63 @@ class TestEmailStyleIdentifiers:
     def test_unrelated_identifier_still_does_not_match(self):
         roster = [_enr(login_id="alice@umich.edu")]
         assert _match_enrollment(roster, "bob", active_only=True) is None
+
+
+class TestLocalPartMatchIsNotOverEager:
+    """Local-part fallback must never manufacture a confident wrong YES.
+
+    This tool is documented as an external access gate, so a false positive is
+    an authorization defect, not a cosmetic one.
+    """
+
+    def test_two_fully_qualified_addresses_never_match_across_domains(self):
+        """jdoe@school.edu and jdoe@other.edu are different people."""
+        roster = [_enr(login_id="jdoe@other.edu")]
+        assert _match_enrollment(roster, "jdoe@school.edu", active_only=True) is None
+
+    def test_bare_needle_against_two_domains_is_ambiguous_not_a_guess(self):
+        """Picking the first of several candidates would be roster-order luck."""
+        roster = [
+            _enr(login_id="jdoe@a.edu", uid=1),
+            _enr(login_id="jdoe@b.edu", uid=2),
+        ]
+        with pytest.raises(AmbiguousIdentifier):
+            _match_enrollment(roster, "jdoe", active_only=True)
+
+    def test_one_user_holding_two_enrollments_is_not_ambiguous(self):
+        """Ambiguity is about distinct PEOPLE, not distinct enrollment rows."""
+        roster = [
+            _enr(login_id="jdoe@a.edu", etype="TeacherEnrollment", uid=7),
+            _enr(login_id="jdoe@a.edu", etype="DesignerEnrollment", uid=7),
+        ]
+        match = _match_enrollment(roster, "jdoe", active_only=True)
+        assert match is not None
+        assert match[0]["user"]["id"] == 7
+
+    def test_exact_match_beats_an_otherwise_ambiguous_roster(self):
+        """An unambiguous exact hit must not be spoiled by local-part noise."""
+        roster = [
+            _enr(login_id="jdoe@a.edu", uid=1),
+            _enr(login_id="jdoe@b.edu", uid=2),
+            _enr(login_id="jdoe", uid=3),
+        ]
+        match = _match_enrollment(roster, "jdoe", active_only=True)
+        assert match is not None
+        assert match[0]["user"]["id"] == 3
+
+    @pytest.mark.asyncio
+    async def test_tool_reports_ambiguity_without_ever_saying_yes_or_no(
+        self, mock_course_id, mock_request
+    ):
+        mock_request.return_value = [
+            _enr(login_id="jdoe@a.edu", uid=1),
+            _enr(login_id="jdoe@b.edu", uid=2),
+        ]
+        tool = _get_check_enrollment_tool()
+        out = await tool(course_identifier="505", net_id="jdoe")
+        assert "AMBIGUOUS" in out
+        assert not out.startswith("YES")
+        assert not out.startswith("NO")
 
     @pytest.mark.asyncio
     async def test_email_form_identifier_is_accepted_not_rejected(

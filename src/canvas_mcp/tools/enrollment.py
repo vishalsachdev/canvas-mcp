@@ -18,7 +18,7 @@ That case is reported as INDETERMINATE, never as "NO" — see
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from ..core.enrollment import EnrollmentCheckUnavailable
+from ..core.enrollment import AmbiguousIdentifier, EnrollmentCheckUnavailable
 from ..core.enrollment import check_enrollment as _check_enrollment
 from ..core.validation import validate_params
 
@@ -61,6 +61,15 @@ def register_enrollment_tools(mcp: FastMCP):
         try:
             result = await _check_enrollment(
                 course_identifier, net_id, role=role, active_only=active_only
+            )
+        # Must precede the ValueError arm — AmbiguousIdentifier is a ValueError
+        # subclass, and a bare "Error: ..." would hide that the subject may well
+        # be enrolled; this is an unanswerable question, not a rejected input.
+        except AmbiguousIdentifier as exc:
+            return (
+                f"AMBIGUOUS — cannot tell which person '{net_id}' refers to in "
+                f"course {course_identifier}. {exc} No yes/no answer is given, "
+                "because choosing between them would depend on roster ordering."
             )
         except ValueError as exc:
             return f"Error: {exc}"
