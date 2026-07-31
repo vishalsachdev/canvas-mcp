@@ -122,7 +122,7 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
             print(f"Error getting unread count: {str(e)}", file=sys.stderr)
             return {"error": f"Failed to get unread count: {str(e)}"}
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=True))
     @validate_params
     async def mark_conversations_read(conversation_ids: list[str]) -> dict[str, Any]:
         """
@@ -162,7 +162,7 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
 def register_educator_messaging_tools(mcp: FastMCP) -> None:
     """Register educator-only messaging tools (send, bulk, campaigns)."""
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
     @validate_params
     async def send_conversation(
         course_identifier: str | int,
@@ -248,7 +248,7 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
             print(f"Error sending conversation: {str(e)}", file=sys.stderr)
             return {"error": f"Failed to send conversation: {str(e)}"}
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
     @validate_params
     async def send_peer_review_reminders(
         course_identifier: str | int,
@@ -322,7 +322,7 @@ Please complete your peer reviews as soon as possible to receive full participat
             print(f"Error sending peer review reminders: {str(e)}", file=sys.stderr)
             return {"error": f"Failed to send peer review reminders: {str(e)}"}
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
     @validate_params
     async def send_bulk_messages_from_list(
         course_identifier: str | int,
@@ -410,7 +410,7 @@ Please complete your peer reviews as soon as possible to receive full participat
             print(f"Error sending bulk messages: {str(e)}", file=sys.stderr)
             return {"error": f"Failed to send bulk messages: {str(e)}"}
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
     @validate_params
     async def send_peer_review_followup_campaign(
         course_identifier: str | int,

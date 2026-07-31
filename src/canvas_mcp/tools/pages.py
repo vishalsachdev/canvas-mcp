@@ -17,7 +17,7 @@ from ..core.validation import validate_params
 def register_page_tools(mcp: FastMCP):
     """Register page settings MCP tools."""
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
     @validate_params
     async def update_page_settings(
         course_identifier: str | int,
@@ -94,7 +94,7 @@ def register_page_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
     @validate_params
     async def bulk_update_pages(
         course_identifier: str | int,
@@ -190,7 +190,9 @@ def register_page_tools(mcp: FastMCP):
 def register_educator_page_crud_tools(mcp: FastMCP):
     """Register educator-only page CRUD tools."""
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
+    # front_page=True displaces the course's CURRENT front page -- Canvas
+    # allows only one -- so the whole effect is not additive (#204).
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
     @validate_params
     async def create_page(course_identifier: str | int,
                          title: str,
@@ -243,7 +245,7 @@ def register_educator_page_crud_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
     @validate_params
     async def edit_page_content(course_identifier: str | int,
                                page_url_or_id: str,
@@ -285,7 +287,7 @@ def register_educator_page_crud_tools(mcp: FastMCP):
 
         return f"Successfully updated page '{page_title}' in course {course_display}. Last updated: {updated_at}"
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
     @validate_params
     async def delete_page(
         course_identifier: str | int,

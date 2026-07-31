@@ -312,7 +312,11 @@ async def _runtime_available(runtime: str) -> bool:
 def register_code_execution_tools(mcp: FastMCP) -> None:
     """Register code execution MCP tools."""
 
-    @mcp.tool()
+    # Runs arbitrary caller-supplied TypeScript, which can call any Canvas
+    # endpoint the token reaches. Nothing here can be inspected ahead of time,
+    # so both hints take their most conservative value: assume it replaces data
+    # and assume repeating it does more (issue #204).
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
     @validate_params
     async def execute_typescript(
         code: str,

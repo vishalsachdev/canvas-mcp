@@ -923,7 +923,7 @@ def register_student_write_tools(mcp: FastMCP) -> None:
 
     if "comment_on_my_submission" in enabled:
 
-        @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
+        @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
         @validate_params
         async def comment_on_my_submission(
             course_identifier: str | int,

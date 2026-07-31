@@ -660,7 +660,7 @@ def register_shared_discussion_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
     @validate_params
     async def post_discussion_entry(course_identifier: str | int,
                                   topic_id: str | int,
@@ -714,7 +714,7 @@ def register_shared_discussion_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
     @validate_params
     async def reply_to_discussion_entry(course_identifier: str | int,
                                       topic_id: str | int,
@@ -760,7 +760,7 @@ def register_shared_discussion_tools(mcp: FastMCP):
 def register_educator_discussion_tools(mcp: FastMCP):
     """Register educator-only discussion and announcement tools."""
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
     @validate_params
     async def create_discussion_topic(course_identifier: str | int,
                                     title: str,
@@ -813,7 +813,7 @@ def register_educator_discussion_tools(mcp: FastMCP):
                f"Title: {topic_title}\n" + \
                f"Created: {created_at}"
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
     @validate_params
     async def update_discussion_topic(
         course_identifier: str | int,
@@ -953,7 +953,7 @@ def register_educator_discussion_tools(mcp: FastMCP):
         course_display = await get_course_code(course_id) or course_identifier
         return f"Announcements for Course {course_display}:\n\n" + "\n".join(announcements_info)
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
     @validate_params
     async def create_announcement(course_identifier: str | int,
                                 title: str,
@@ -1003,7 +1003,7 @@ def register_educator_discussion_tools(mcp: FastMCP):
 
     # ===== ANNOUNCEMENT DELETION TOOLS =====
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
     @validate_params
     async def delete_announcement(
         course_identifier: str | int,
@@ -1044,7 +1044,7 @@ def register_educator_discussion_tools(mcp: FastMCP):
                "Status: deleted\n" + \
                "Message: Announcement deleted successfully"
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
     @validate_params
     async def bulk_delete_announcements(
         course_identifier: str | int,
@@ -1174,7 +1174,7 @@ def register_educator_discussion_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
     @validate_params
     async def delete_announcement_with_confirmation(
         course_identifier: str | int,
@@ -1242,7 +1242,11 @@ def register_educator_discussion_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
+    # NOT idempotent despite being a delete: this one re-queries by
+    # criteria and slices matched[:limit], so an identical retry deletes
+    # the NEXT batch. Its sibling bulk_delete_announcements takes explicit
+    # ids (limit is only a refusal threshold) and stays idempotent.
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
     @validate_params
     async def delete_announcements_by_criteria(
         course_identifier: str | int,

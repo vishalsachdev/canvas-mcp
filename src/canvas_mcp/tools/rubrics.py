@@ -790,7 +790,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
     @validate_params
     async def grade_with_rubric(course_identifier: str | int,
                               assignment_id: str | int,
@@ -982,7 +982,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
     @validate_params
     async def create_rubric_from_csv(
         course_identifier: str | int,
@@ -1102,7 +1102,9 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
+    # With assignment_id, this creates a rubric_association on that
+    # assignment, REPLACING any rubric already attached to it (#204).
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
     @validate_params
     async def create_rubric(
         course_identifier: str | int,
@@ -1212,7 +1214,9 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
+    # Replaces the assignment's existing rubric association, and overwrites
+    # use_for_grading / purpose even when re-associating the same rubric (#204).
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
     @validate_params
     async def associate_rubric(course_identifier: str | int,
                                              rubric_id: str | int,
