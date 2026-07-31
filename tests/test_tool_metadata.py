@@ -3,7 +3,6 @@ from fastmcp import Client, FastMCP
 
 from canvas_mcp.server import register_all_tools
 
-
 TOOLS_REQUIRING_ANNOTATIONS = {
     "post_discussion_entry",
     "reply_to_discussion_entry",
