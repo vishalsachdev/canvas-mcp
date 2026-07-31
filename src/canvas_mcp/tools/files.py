@@ -309,10 +309,13 @@ def register_educator_file_tools(mcp: FastMCP):
             "on_duplicate": on_duplicate,
         }
 
-        # Add folder path if specified
-        if folder_path:
-            # Canvas expects folder path relative to course files
-            upload_request_params["parent_folder_path"] = folder_path
+        # Canvas expects the folder path relative to course files. ALWAYS send
+        # it: omitting parent_folder_path does not mean "root", it means Canvas
+        # creates and uses a folder literally named "unfiled" (issue #198,
+        # reproduced live — A/B: no param -> "course files/unfiled";
+        # parent_folder_path="" -> "course files"). Empty string is the root, and
+        # costs no extra request, unlike looking up /folders/root for its id.
+        upload_request_params["parent_folder_path"] = folder_path or ""
 
         # Request the upload slot
         step1_response = await make_canvas_request(

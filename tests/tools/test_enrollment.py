@@ -12,11 +12,15 @@ from canvas_mcp.core.enrollment import (
 )
 
 
-def _enr(login_id=None, sis=None, state="active", etype="StudentEnrollment"):
+def _enr(login_id=None, sis=None, state="active", etype="StudentEnrollment", uid=None):
     return {
         "enrollment_state": state,
         "type": etype,
-        "user": {"login_id": login_id, "sis_user_id": sis},
+        "user": {
+            "id": uid if uid is not None else abs(hash((login_id, sis))) % 100000,
+            "login_id": login_id,
+            "sis_user_id": sis,
+        },
     }
 
 
@@ -305,3 +309,149 @@ class TestCheckEnrollmentToolMessages:
         tool = _get_check_enrollment_tool()
         out = await tool(course_identifier="BADM 350", net_id="jdoe")
         assert out.startswith("YES —")
+
+
+# --------------------------------------------------------------------------
+# Institution-neutral identifiers (issue #199)
+#
+# The matcher assumed ``login_id`` is the bare campus ID — true at UIUC
+# (measured live: 7-8 char NetIDs), NOT a Canvas guarantee. Instances that
+# provision Canvas logins from email addresses store ``login_id`` as
+# ``uniqname@umich.edu``, so an exact-equality match against ``uniqname``
+# silently failed and the tool reported a confident, wrong NO.
+# --------------------------------------------------------------------------
+
+
+class TestEmailStyleIdentifiers:
+    def test_bare_needle_matches_email_style_login_id(self):
+        """UMich shape: login_id is the full email, caller passes the uniqname."""
+        roster = [_enr(login_id="zqian@umich.edu")]
+        match = _match_enrollment(roster, "zqian", active_only=True)
+        assert match is not None, "bare uniqname must match an email-style login_id"
+        assert match[1] == "login_id"
+
+    def test_email_needle_matches_bare_login_id(self):
+        """The inverse: caller pastes an email, Canvas stores the bare ID."""
+        roster = [_enr(login_id="jdoe")]
+        match = _match_enrollment(roster, "jdoe@illinois.edu", active_only=True)
+        assert match is not None
+        assert match[1] == "login_id"
+
+    def test_exact_match_wins_over_local_part_match(self):
+        """Two users sharing a local part must not be confused for each other."""
+        roster = [_enr(login_id="jdoe@other.edu"), _enr(login_id="jdoe")]
+        match = _match_enrollment(roster, "jdoe", active_only=True)
+        assert match is not None
+        assert match[0]["user"]["login_id"] == "jdoe"
+
+    def test_local_part_match_applies_to_sis_user_id_too(self):
+        roster = [_enr(login_id=None, sis="zqian@umich.edu")]
+        match = _match_enrollment(roster, "zqian", active_only=True)
+        assert match is not None
+        assert match[1] == "sis_user_id"
+
+    def test_unrelated_identifier_still_does_not_match(self):
+        roster = [_enr(login_id="alice@umich.edu")]
+        assert _match_enrollment(roster, "bob", active_only=True) is None
+
+    @pytest.mark.asyncio
+    async def test_email_form_identifier_is_accepted_not_rejected(
+        self, mock_course_id, mock_request
+    ):
+        """``@`` used to fail the input guard before any Canvas call was made."""
+        mock_request.return_value = [_enr(login_id="jdoe@illinois.edu")]
+        result = await check_enrollment("BADM 350", "jdoe@illinois.edu")
+        assert result.enrolled is True
+
+    @pytest.mark.asyncio
+    async def test_genuinely_malformed_identifier_is_still_rejected(
+        self, mock_course_id, mock_request
+    ):
+        with pytest.raises(ValueError):
+            await check_enrollment("BADM 350", "not a valid id!")
+        mock_request.assert_not_called()
+
+
+# --------------------------------------------------------------------------
+# A role-scoped NO must say what the subject actually IS (issue #199)
+#
+# ``role`` defaults to "student". Asking about a teacher therefore produced
+# "NO — <id> has no active 'student' enrollment", which reads as "not in the
+# course" — the reporter's exact complaint. The subject's real role is already
+# in the payload; withholding it turned a narrow true answer into a misleading
+# broad one.
+# --------------------------------------------------------------------------
+
+
+class TestRoleScopedNegative:
+    @pytest.mark.asyncio
+    async def test_teacher_checked_as_student_reports_the_real_role(
+        self, mock_course_id, mock_request
+    ):
+        mock_request.return_value = [
+            _enr(login_id="zqian", etype="TeacherEnrollment", uid=42)
+        ]
+        result = await check_enrollment("505", "zqian", role="student")
+        assert result.enrolled is False
+        assert result.roles_held == ("TeacherEnrollment",)
+
+    @pytest.mark.asyncio
+    async def test_role_any_matches_a_teacher(self, mock_course_id, mock_request):
+        mock_request.return_value = [
+            _enr(login_id="zqian", etype="TeacherEnrollment", uid=42)
+        ]
+        result = await check_enrollment("505", "zqian", role="any")
+        assert result.enrolled is True
+        assert result.role == "TeacherEnrollment"
+
+    @pytest.mark.asyncio
+    async def test_multiple_roles_are_all_reported(self, mock_course_id, mock_request):
+        mock_request.return_value = [
+            _enr(login_id="zqian", etype="TeacherEnrollment", uid=42),
+            _enr(login_id="zqian", etype="DesignerEnrollment", uid=42),
+        ]
+        result = await check_enrollment("505", "zqian", role="student")
+        assert result.enrolled is False
+        assert set(result.roles_held) == {"TeacherEnrollment", "DesignerEnrollment"}
+
+    @pytest.mark.asyncio
+    async def test_a_true_stranger_reports_no_roles(self, mock_course_id, mock_request):
+        mock_request.return_value = [_enr(login_id="alice"), _enr(login_id="bob")]
+        result = await check_enrollment("505", "carol", role="student")
+        assert result.enrolled is False
+        assert result.roles_held == ()
+
+    @pytest.mark.asyncio
+    async def test_role_filter_is_not_pushed_to_canvas(
+        self, mock_course_id, mock_request
+    ):
+        """The whole roster must be fetched, or the other roles are invisible."""
+        mock_request.return_value = []
+        await check_enrollment("505", "zqian", role="student")
+        params = mock_request.await_args.kwargs["params"]
+        assert "type[]" not in params
+
+    @pytest.mark.asyncio
+    async def test_tool_message_names_the_role_actually_held(
+        self, mock_course_id, mock_request
+    ):
+        mock_request.return_value = [
+            _enr(login_id="zqian", etype="TeacherEnrollment", uid=42)
+        ]
+        tool = _get_check_enrollment_tool()
+        out = await tool(course_identifier="505", net_id="zqian", role="student")
+        assert out.startswith("NO —")
+        assert "TeacherEnrollment" in out, (
+            "a role-scoped NO must disclose the role the subject does hold, "
+            "otherwise it reads as 'not in the course'"
+        )
+
+    @pytest.mark.asyncio
+    async def test_tool_message_for_a_true_stranger_has_no_role_clause(
+        self, mock_course_id, mock_request
+    ):
+        mock_request.return_value = [_enr(login_id="alice")]
+        tool = _get_check_enrollment_tool()
+        out = await tool(course_identifier="505", net_id="carol", role="student")
+        assert out.startswith("NO —")
+        assert "Enrollment" not in out

@@ -731,7 +731,7 @@
     {
       "name": "check_enrollment",
       "category": "educator",
-      "description": "Check whether a specific NetID is enrolled in a course (yes/no, never the roster)",
+      "description": "Check whether a specific campus login ID is enrolled in a course (yes/no, never the roster)",
       "parameters": [
         {
           "name": "course_identifier",
@@ -743,7 +743,7 @@
           "name": "net_id",
           "type": "string",
           "required": true,
-          "description": "Campus NetID to check (matched against login_id, then sis_user_id)"
+          "description": "Campus login ID to check - NetID, uniqname, or email-style Canvas login, not a display name (matched against login_id, then sis_user_id; bare and email forms are equivalent)"
         },
         {
           "name": "role",

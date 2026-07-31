@@ -1,7 +1,11 @@
-"""Enrollment-check capability: is a specific NetID enrolled in a course?
+"""Enrollment-check capability: is a specific login ID enrolled in a course?
+
+The identifier is whatever the institution puts in Canvas ``login_id`` — a NetID
+at UIUC, a uniqname at UMich, an email-style login elsewhere. The matcher treats
+``zqian`` and ``zqian@umich.edu`` as the same person (issue #199).
 
 This answers a *roster-membership question about an externally-supplied subject*
-(a NetID provided by the caller), which is structurally different from every other
+(a login ID provided by the caller), which is structurally different from every other
 tool here — those answer about the authenticated caller. The answer is minimized by
 construction: a boolean plus a little non-sensitive metadata. The roster itself —
 names, the full membership list, grades — is NEVER returned or logged.
@@ -22,9 +26,12 @@ from .audit import log_data_access
 from .cache import get_course_id
 from .client import make_canvas_request
 
-# NetID guard: alphanumerics plus a few separators, bounded length, before the
-# value ever reaches a Canvas query string.
-_NETID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+# Identifier guard: alphanumerics plus a few separators, bounded length, before
+# the value ever reaches a Canvas query string. ``@`` is permitted because many
+# Canvas instances provision logins from email addresses, so the identifier a
+# caller naturally supplies IS an email (issue #199); rejecting it outright
+# failed before a single Canvas call was made.
+_NETID_RE = re.compile(r"^[A-Za-z0-9._@+-]{1,64}$")
 
 # Caller-facing role -> Canvas enrollment ``type`` filter. "any" omits the filter.
 _ROLE_TO_TYPE = {
@@ -61,6 +68,23 @@ class EnrollmentResult:
     enrollment_state: str | None = None  # "active" | "invited" | "completed" | None
     role: str | None = None              # "StudentEnrollment" | "TeacherEnrollment" | ...
     matched_on: str | None = None        # "login_id" | "sis_user_id" (audit/debug)
+    # Every enrollment type the subject holds in this course. Populated even
+    # when ``enrolled`` is False, so a role-scoped NO can say what the subject
+    # actually IS instead of implying they are absent (issue #199). Empty for a
+    # genuine stranger — which is what distinguishes the two cases.
+    roles_held: tuple[str, ...] = ()
+
+
+_ID_FIELDS = ("login_id", "sis_user_id")
+
+
+def _local_part(value: str) -> str:
+    """The part of an email-style identifier before the ``@``, else the value."""
+    return value.split("@", 1)[0] if "@" in value else value
+
+
+def _norm(value: object) -> str:
+    return (value or "").strip().lower() if isinstance(value, str) else ""
 
 
 def _match_enrollment(
@@ -73,19 +97,60 @@ def _match_enrollment(
     Matches case-insensitively against ``user.login_id`` first, then
     ``user.sis_user_id``. Returns ``(enrollment, matched_on)`` or ``None``. Never
     accumulates or returns the roster.
+
+    Two passes, and the order matters (issue #199). Canvas does not define what
+    ``login_id`` contains: measured live, UIUC stores the bare NetID
+    (``vishal``), while instances that provision logins from email store the
+    full address (``uniqname@umich.edu``). Matching only on exact equality made
+    the second shape unmatchable, so a subject who was plainly on the roster
+    came back as a confident "not enrolled".
+
+    Pass 1 is exact equality. Pass 2 compares email local parts in both
+    directions (bare needle vs. email-style stored value and vice versa). Exact
+    equality is exhausted across the WHOLE roster first so that two users
+    sharing a local part — ``jdoe`` and ``jdoe@other.edu`` — resolve to the one
+    that actually matches, never to whichever happened to be listed first.
     """
-    needle = net_id.strip().lower()
-    for enrollment in enrollments:
-        if active_only and enrollment.get("enrollment_state") != "active":
-            continue
-        user = enrollment.get("user") or {}
-        login_id = (user.get("login_id") or "").strip().lower()
-        if login_id and needle == login_id:
-            return enrollment, "login_id"
-        sis_user_id = (user.get("sis_user_id") or "").strip().lower()
-        if sis_user_id and needle == sis_user_id:
-            return enrollment, "sis_user_id"
+    needle = _norm(net_id)
+    if not needle:
+        return None
+    needle_local = _local_part(needle)
+
+    candidates = [
+        (enrollment, enrollment.get("user") or {})
+        for enrollment in enrollments
+        if not (active_only and enrollment.get("enrollment_state") != "active")
+    ]
+
+    for exact in (True, False):
+        for enrollment, user in candidates:
+            for field in _ID_FIELDS:
+                stored = _norm(user.get(field))
+                if not stored:
+                    continue
+                if stored == needle if exact else _local_part(stored) == needle_local:
+                    return enrollment, field
     return None
+
+
+def _enrollments_for_user(
+    enrollments: list[dict],
+    user_id: object,
+    active_only: bool,
+) -> list[dict]:
+    """Every enrollment belonging to one user — the subject's full role set.
+
+    A person can hold several enrollments in one course (Teacher + Designer is
+    common). Returning only the first would make a role-scoped answer arbitrary.
+    """
+    if user_id is None:
+        return []
+    return [
+        enrollment
+        for enrollment in enrollments
+        if (enrollment.get("user") or {}).get("id") == user_id
+        and not (active_only and enrollment.get("enrollment_state") != "active")
+    ]
 
 
 def _exposes_identifier(user: dict) -> bool:
@@ -171,7 +236,9 @@ async def check_enrollment(
     """
     if not _NETID_RE.match(net_id or ""):
         raise ValueError(
-            "net_id must be 1-64 chars of letters, digits, '.', '_' or '-'"
+            "net_id must be a campus login ID (NetID, uniqname, or email-style "
+            "Canvas login) of 1-64 chars: letters, digits, '.', '_', '@', '+' "
+            "or '-'. It is not a display name."
         )
     role_key = (role or "student").strip().lower()
     if role_key not in _ROLE_TO_TYPE and role_key != "any":
@@ -183,11 +250,14 @@ async def check_enrollment(
     if not course_id:
         raise ValueError(f"Could not resolve course '{course_identifier}'")
 
+    # Deliberately NO ``type[]`` filter (issue #199). Pushing the role filter to
+    # Canvas hides every other enrollment the subject holds, so asking about a
+    # teacher with the default role="student" produced a bare "no ... enrollment"
+    # that reads as "not in this course". Fetching the whole roster costs one
+    # request either way and lets a role-scoped NO name the real role.
     params: dict = {"include[]": ["user"]}
     if active_only:
         params["state[]"] = ["active"]
-    if role_key != "any":
-        params["type[]"] = [_ROLE_TO_TYPE[role_key]]
 
     enrollments = await _fetch_enrollments_raw(course_id, params)
     if isinstance(enrollments, dict) and "error" in enrollments:
@@ -218,11 +288,38 @@ async def check_enrollment(
 
     if match is None:
         return EnrollmentResult(enrolled=False, course_id=course_id)
-    enrollment, matched_on = match
+
+    matched_enrollment, matched_on = match
+    subject_id = (matched_enrollment.get("user") or {}).get("id")
+    subject = _enrollments_for_user(enrollments, subject_id, active_only) or [
+        matched_enrollment
+    ]
+    # dict.fromkeys preserves roster order while de-duplicating.
+    roles_held = tuple(
+        dict.fromkeys(e.get("type") for e in subject if e.get("type"))
+    )
+
+    # Role is now evaluated here rather than by Canvas, so pick the enrollment
+    # that satisfies the requested role; "any" takes the first.
+    wanted = None if role_key == "any" else _ROLE_TO_TYPE[role_key]
+    enrollment = (
+        subject[0]
+        if wanted is None
+        else next((e for e in subject if e.get("type") == wanted), None)
+    )
+
+    if enrollment is None:
+        # On the roster, but not in the requested role. A NO — with the roles
+        # they DO hold, so it cannot be misread as "not in this course".
+        return EnrollmentResult(
+            enrolled=False, course_id=course_id, roles_held=roles_held
+        )
+
     return EnrollmentResult(
         enrolled=True,
         course_id=course_id,
         enrollment_state=enrollment.get("enrollment_state"),
         role=enrollment.get("type"),
         matched_on=matched_on,
+        roles_held=roles_held,
     )

@@ -605,13 +605,13 @@ Multi-dimensional student performance analysis.
 ---
 
 #### `check_enrollment`
-Check whether a specific NetID is enrolled in a course. Answers a roster-membership question about an externally-supplied person (not the caller) and returns **only** a yes/no plus minimal enrollment metadata — never the roster, names, or grades. Requires a Canvas token with roster-admin rights.
+Check whether a specific campus login ID is enrolled in a course. Answers a roster-membership question about an externally-supplied person (not the caller) and returns **only** a yes/no plus minimal enrollment metadata — never the roster, names, or grades. Requires a Canvas token with roster-admin rights.
 
-> **A token without roster rights does not fail loudly.** Canvas returns HTTP 200 with the full roster and silently omits `login_id`/`sis_user_id` from every user, so the NetID can never match. This tool detects that and answers **INDETERMINATE**, never "no" — permission-blindness is not absence. To ask about *yourself*, use [`get_my_enrollments`](#get_my_enrollments) instead, which needs no roster permission.
+> **A token without roster rights does not fail loudly.** Canvas returns HTTP 200 with the full roster and silently omits `login_id`/`sis_user_id` from every user, so the identifier can never match. This tool detects that and answers **INDETERMINATE**, never "no" — permission-blindness is not absence. To ask about *yourself*, use [`get_my_enrollments`](#get_my_enrollments) instead, which needs no roster permission.
 
 **Parameters:**
 - `course_identifier`: Course code, numeric ID, or SIS ID
-- `net_id`: Campus NetID to check (matched case-insensitively against `login_id`, then `sis_user_id`)
+- `net_id`: The person's campus login ID — a NetID (UIUC), uniqname (UMich), campus ID, or the full email-style Canvas login. Matched case-insensitively against `login_id`, then `sis_user_id`. **Not** a display name.
 - `role` (optional): Enrollment type that satisfies the check — `student` (default), `teacher`, `ta`, `observer`, `designer`, or `any`
 - `active_only` (optional): Only count active enrollments (default `true`)
 
@@ -621,6 +621,10 @@ Check whether a specific NetID is enrolled in a course. Answers a roster-members
 ```
 
 **Returns:** A yes/no answer with the enrollment state, role, and which field matched. Data-minimizing by design — built for external access gating (e.g. UniQuick) without exposing the class roster.
+
+> **Identifier form doesn't matter.** Canvas does not define what `login_id` holds — UIUC stores the bare NetID (`jdoe2`), other instances store the full email (`jdoe2@umich.edu`). Both forms are accepted on input and matched against either stored form, so `zqian` finds `zqian@umich.edu` and vice versa. Exact matches always win over email-local-part matches.
+
+> **`role` defaults to `student`, and a NO is scoped to that role.** Asking about a teacher with the default answers `NO — … has no active 'student' enrollment`, which is true but reads as "not in this course". The answer now names any other role the person holds (`They ARE enrolled in this course, as: TeacherEnrollment`). Pass `role="any"` when you only want to know whether they are in the course at all.
 
 ---
 
