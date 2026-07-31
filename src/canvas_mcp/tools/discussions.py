@@ -660,7 +660,7 @@ def register_shared_discussion_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def post_discussion_entry(course_identifier: str | int,
                                   topic_id: str | int,
@@ -714,7 +714,7 @@ def register_shared_discussion_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def reply_to_discussion_entry(course_identifier: str | int,
                                       topic_id: str | int,
@@ -760,7 +760,7 @@ def register_shared_discussion_tools(mcp: FastMCP):
 def register_educator_discussion_tools(mcp: FastMCP):
     """Register educator-only discussion and announcement tools."""
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def create_discussion_topic(course_identifier: str | int,
                                     title: str,
@@ -813,7 +813,7 @@ def register_educator_discussion_tools(mcp: FastMCP):
                f"Title: {topic_title}\n" + \
                f"Created: {created_at}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def update_discussion_topic(
         course_identifier: str | int,
@@ -953,7 +953,7 @@ def register_educator_discussion_tools(mcp: FastMCP):
         course_display = await get_course_code(course_id) or course_identifier
         return f"Announcements for Course {course_display}:\n\n" + "\n".join(announcements_info)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def create_announcement(course_identifier: str | int,
                                 title: str,

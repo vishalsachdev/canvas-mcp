@@ -72,8 +72,15 @@ def register_course_tools(mcp: FastMCP):
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
-    async def list_courses(include_concluded: bool = False, include_all: bool = False) -> str:
-        """List courses for the authenticated user."""
+    async def list_courses(
+        include_concluded: bool = False, include_all: bool = False
+    ) -> str:
+        """List courses for the authenticated user.
+
+        Args:
+            include_concluded: Include concluded/past enrollments in the results.
+            include_all: Include all enrollments instead of only current active ones.
+        """
 
         params = {
             "include[]": ["term", "teachers", "total_students"],

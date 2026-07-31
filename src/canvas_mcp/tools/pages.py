@@ -17,7 +17,7 @@ from ..core.validation import validate_params
 def register_page_tools(mcp: FastMCP):
     """Register page settings MCP tools."""
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def update_page_settings(
         course_identifier: str | int,
@@ -94,7 +94,7 @@ def register_page_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def bulk_update_pages(
         course_identifier: str | int,
@@ -190,7 +190,7 @@ def register_page_tools(mcp: FastMCP):
 def register_educator_page_crud_tools(mcp: FastMCP):
     """Register educator-only page CRUD tools."""
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def create_page(course_identifier: str | int,
                          title: str,
@@ -243,7 +243,7 @@ def register_educator_page_crud_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def edit_page_content(course_identifier: str | int,
                                page_url_or_id: str,
