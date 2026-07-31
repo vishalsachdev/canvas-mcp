@@ -2,6 +2,35 @@
 
 Archived session log entries from canvas-mcp CLAUDE.md.
 
+### 2026-07-30 — Shipped: Tier 1 (#170), self-identity (#171), anonymization tiers (#179), rubric fix (#180)
+- **Four PRs merged to main + deployed to hosted** (deploy-prod green): #182 rubric course-bookmark
+  (#180 closed), #183 self-identity + check_enrollment INDETERMINATE (#171 closed), #184 anonymization
+  tiers (#179 gap-half; issue open for consolidation), #185 **Tier 1 student write tools** (#170 open
+  for UMich answers). All admin-merged after required checks green (1-review rule, solo repo).
+- **Review discipline paid for itself all day**: #170 took 10 codex rounds (killed the page policy
+  carrier — `editing_roles` proves permission, not authorship; reversed a shared-token-secret decision
+  that enabled cross-worker double-submit). #171 took 3 rounds (its `/users/self/enrollments` exemption
+  was the #164 shape — `include[]=observed_users` returns OTHER students; partial-visibility rosters
+  now indeterminate-on-NO only). A CodeQL high on #185 was fixed (HMAC-keyed caller digest) then
+  dismissed-with-rationale (high-entropy token ≠ password).
+- **#179 live acceptance replay**: 97 real inbox records, 3 real addresses raw → **0 surviving**,
+  participant names preserved; /pages `last_edited_by` scrubbed (the previously-unfiled gap, now closed).
+  Gotcha: first replay run false-alarmed because the harness inherited the dev `.env`
+  (ENABLE_DATA_ANONYMIZATION=false) — force the flag when replaying privacy controls.
+- **Hosted write-free posture VERIFIED live** (az): CANVAS_ROLE=educator + STUDENT_WRITE_TOOLS unset =
+  double gate; policy recorded in `internal/ops-hosted.local.md` (never enable on our slots).
+- **UMich comms**: #170 design comment + Tier-1-is-on-main comment posted; #172 New Quizzes tiered
+  scoping posted (5 questions pending); #180 root-caused publicly (their AI diagnosis half-right,
+  wrong endpoint). Email: Zoom moved to mid-Sept at their request; GitHub is the channel.
+- Known flake: `test_ferpa_compliance.py::test_pii_access_logged` failed once in ~6 runs, passes
+  isolated — order-dependent state, worth a look.
+- Next: (1) **#181 (NEW, zqian): associate_rubric doesn't surface on assignment page** — exactly the
+  weakness the #180 report flagged (JSON body w/o use_form_data, hardcoded Assignment type); also still
+  unverified: assignment-path bookmark + CSV-path gap. (2) **v1.6.0 release**: notes need #177/#178
+  behavior-change line + today's 4 PRs; bump versions; wrangler deploy docs/ (site says 93, repo 95+).
+  (3) Watch #170 (UMich answers + test results), #172 (5 scoping answers). (4) #179 consolidation half;
+  ruff cleanup on main (13 errors, blocks #175); #142/Ash escalation; #106.
+
 ## Session Log
 
 ### 2026-07-29 — UMich evaluation response: triage blitz, #166 PII fix shipped, hosted spec drafted
