@@ -409,8 +409,16 @@ async def check_enrollment(
     # not — it holds only if nobody ELSE shares the local part, and a stripped
     # row could be exactly that person. So a fallback positive needs the same
     # visibility proof a negative does.
+    #
+    # The two cases need different scopes. A NEGATIVE may look only at rows of
+    # the requested role: any student row belonging to the subject would itself
+    # be in that subset, so a hidden one still trips the guard. A FALLBACK
+    # POSITIVE is threatened by something else — a second person sharing the
+    # local part — and that person's role has no bearing on whether we picked
+    # the right human, so it must see the whole roster.
     needs_visibility_proof = match is None or not match[2]
-    if needs_visibility_proof and answerable and not _identifiers_visible(answerable):
+    scope = answerable if match is None else enrollments
+    if needs_visibility_proof and scope and not _identifiers_visible(scope):
         log_data_access("GET", f"/courses/{course_id}/enrollments", "indeterminate")
         detail = (
             "so a 'not enrolled' answer cannot be trusted."

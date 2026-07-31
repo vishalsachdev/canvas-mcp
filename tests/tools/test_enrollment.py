@@ -333,6 +333,25 @@ class TestVisibilityGuardIsScopedToTheRequestedRole:
             await check_enrollment("505", "jdoe", role="student")
 
     @pytest.mark.asyncio
+    async def test_a_fallback_match_is_checked_against_the_whole_roster(
+        self, mock_course_id, mock_request
+    ):
+        """Role scoping is right for a NO and wrong for a fallback YES.
+
+        A negative may be scoped to the requested role: any student row of the
+        subject would itself be in that subset, so a hidden one still trips the
+        guard. A fallback positive fails for a different reason — a SECOND
+        person sharing the local part makes the identity ambiguous, and that
+        person's role has no bearing on whether we picked the right human.
+        """
+        mock_request.return_value = [
+            _enr(login_id="jdoe@a.edu", etype="StudentEnrollment", uid=1),
+            _enr_permission_stripped(etype="ObserverEnrollment", uid=2),
+        ]
+        with pytest.raises(EnrollmentCheckUnavailable):
+            await check_enrollment("505", "jdoe", role="student")
+
+    @pytest.mark.asyncio
     async def test_an_exact_match_still_bypasses_the_guard(
         self, mock_course_id, mock_request
     ):
