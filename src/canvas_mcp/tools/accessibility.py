@@ -238,7 +238,7 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
             "scanned_types": types
         })
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def fix_accessibility_issues(
         course_identifier: str | int,

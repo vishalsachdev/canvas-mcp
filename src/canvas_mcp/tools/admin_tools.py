@@ -302,7 +302,7 @@ def register_admin_tools(mcp: FastMCP):
 
         return "\n".join(lines)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def create_student_anonymization_map(course_identifier: str | int) -> str:
         """Create a local CSV file mapping real student data to anonymous IDs for a course.

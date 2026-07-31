@@ -97,7 +97,7 @@ def register_shared_assignment_tools(mcp: FastMCP):
 def register_educator_assignment_tools(mcp: FastMCP):
     """Register educator-only assignment tools (grading, analytics, management)."""
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def assign_peer_review(course_identifier: str, assignment_id: str, reviewer_id: str, reviewee_id: str) -> str:
         """Manually assign a peer review to a student for a specific assignment.
@@ -636,7 +636,7 @@ def register_educator_assignment_tools(mcp: FastMCP):
 
         return output
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def create_assignment(
         course_identifier: str | int,
@@ -787,7 +787,7 @@ def register_educator_assignment_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def update_assignment(
         course_identifier: str | int,
@@ -946,7 +946,7 @@ def register_educator_assignment_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def bulk_grade_submissions(
         course_identifier: str | int,

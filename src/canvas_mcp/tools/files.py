@@ -264,7 +264,7 @@ def register_shared_file_tools(mcp: FastMCP):
 def register_educator_file_tools(mcp: FastMCP):
     """Register educator-only file tools (upload)."""
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def upload_course_file(
         course_identifier: str | int,

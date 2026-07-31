@@ -199,7 +199,7 @@ def register_shared_module_tools(mcp: FastMCP):
 def register_educator_module_tools(mcp: FastMCP):
     """Register educator-only module management tools."""
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def create_module(
         course_identifier: str | int,
@@ -281,7 +281,7 @@ def register_educator_module_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def update_module(
         course_identifier: str | int,
@@ -421,7 +421,7 @@ def register_educator_module_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def add_module_item(
         course_identifier: str | int,
@@ -566,7 +566,7 @@ def register_educator_module_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False))
     @validate_params
     async def update_module_item(
         course_identifier: str | int,
