@@ -99,6 +99,35 @@ def _norm(value: object) -> str:
     return (value or "").strip().lower() if isinstance(value, str) else ""
 
 
+def _local_part_field(user: dict, needle: str, needle_local: str) -> str | None:
+    """Which identifier field of ``user`` matches ``needle`` by email local part.
+
+    Returns the field name, or ``None`` when this user is not a local-part
+    candidate. Evaluated per USER rather than per field, because a user's own
+    identifiers constrain each other: if the roster says this person is
+    ``jdoe@other.edu``, a query for ``jdoe@school.edu`` is asking about somebody
+    else, and their bare ``sis_user_id`` of ``jdoe`` must not become a side door
+    back to a confident YES.
+    """
+    stored = {field: _norm(user.get(field)) for field in _ID_FIELDS}
+    stored = {field: value for field, value in stored.items() if value}
+    if not stored:
+        return None
+
+    if "@" in needle:
+        # A domain-qualified identifier on this user is positive evidence about
+        # who they are. If they carry one and it isn't the needle, they are a
+        # different person — pass 1 already gave any exact match its chance.
+        if any("@" in value for value in stored.values()):
+            return None
+
+    for field in _ID_FIELDS:
+        value = stored.get(field)
+        if value and _local_part(value) == needle_local:
+            return field
+    return None
+
+
 def _match_enrollment(
     enrollments: list[dict],
     net_id: str,
@@ -121,9 +150,12 @@ def _match_enrollment(
     that comparison is actually meaningful, because this tool is documented as
     an external access gate and a false positive is an authorization defect:
 
-    * At least one side must be UNQUALIFIED. Two fully-qualified addresses that
+    * A domain-qualified needle is only compared against users who carry NO
+      qualified identifier of their own. Two fully-qualified addresses that
       differ — ``jdoe@school.edu`` vs. ``jdoe@other.edu`` — are different
-      people, and stripping both domains would equate them.
+      people, and that verdict holds for the whole user, so a bare secondary
+      ``sis_user_id`` cannot smuggle the match back in (see
+      ``_local_part_field``).
     * The fallback must identify exactly ONE person. A bare ``jdoe`` against a
       roster holding ``jdoe@a.edu`` and ``jdoe@b.edu`` is genuinely ambiguous;
       returning the first would make the answer a function of roster order.
@@ -158,16 +190,8 @@ def _match_enrollment(
     hits: list[tuple[dict, str]] = []
     seen_users: set = set()
     for enrollment, user in candidates:
-        for field in _ID_FIELDS:
-            stored = _norm(user.get(field))
-            if not stored:
-                continue
-            # Both sides domain-qualified? Pass 1 already had its chance; any
-            # remaining difference is a real difference.
-            if "@" in needle and "@" in stored:
-                continue
-            if _local_part(stored) != needle_local:
-                continue
+        field = _local_part_field(user, needle, needle_local)
+        if field is not None:
             user_id = user.get("id")
             # Fall back to identity of the row itself when Canvas gives no id,
             # so a missing id cannot silently collapse two people into one.
@@ -175,7 +199,6 @@ def _match_enrollment(
             if key not in seen_users:
                 seen_users.add(key)
                 hits.append((enrollment, field))
-            break
 
     if len(hits) > 1:
         raise AmbiguousIdentifier(

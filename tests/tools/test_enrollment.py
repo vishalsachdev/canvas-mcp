@@ -377,6 +377,24 @@ class TestLocalPartMatchIsNotOverEager:
         with pytest.raises(AmbiguousIdentifier):
             _match_enrollment(roster, "jdoe", active_only=True)
 
+    def test_a_users_own_qualified_id_vetoes_a_bare_secondary_id(self):
+        """A conflicting domain on the SAME user is evidence, not noise.
+
+        login_id says this person is jdoe@other.edu. Their bare sis_user_id
+        must not then let jdoe@school.edu match through the side door — the
+        per-field loop used to skip the contradicting login and accept the SIS
+        id, yielding a confident wrong YES on an access-gating question.
+        """
+        roster = [_enr(login_id="jdoe@other.edu", sis="jdoe")]
+        assert _match_enrollment(roster, "jdoe@school.edu", active_only=True) is None
+
+    def test_bare_needle_still_matches_through_a_secondary_id(self):
+        """The veto is about contradicting domains, not about secondary ids."""
+        roster = [_enr(login_id="somethingelse", sis="jdoe")]
+        match = _match_enrollment(roster, "jdoe", active_only=True)
+        assert match is not None
+        assert match[1] == "sis_user_id"
+
     def test_one_user_holding_two_enrollments_is_not_ambiguous(self):
         """Ambiguity is about distinct PEOPLE, not distinct enrollment rows."""
         roster = [
