@@ -1242,7 +1242,11 @@ def register_educator_discussion_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
+    # NOT idempotent despite being a delete: this one re-queries by
+    # criteria and slices matched[:limit], so an identical retry deletes
+    # the NEXT batch. Its sibling bulk_delete_announcements takes explicit
+    # ids (limit is only a refusal threshold) and stays idempotent.
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
     @validate_params
     async def delete_announcements_by_criteria(
         course_identifier: str | int,

@@ -68,7 +68,13 @@ just its primary resource**. A tool is non-idempotent if *any* supported input m
 a repeat produce an additional external effect — the hint is per-tool, and a host
 retrying a timed-out call cannot know which arguments were used. Concretely:
 
-- `update_*`, `delete_*` and `edit_page_content` converge on the same end state → idempotent.
+- `update_*`, most `delete_*` and `edit_page_content` converge on the same end state → idempotent.
+- `delete_announcements_by_criteria` is the exception among deletes: it re-queries by
+  criteria and slices `matched[:limit]`, so an identical retry deletes the **next**
+  batch, up to twice the requested limit. Its sibling `bulk_delete_announcements`
+  takes explicit ids (its `limit` is only a refusal threshold) and stays idempotent.
+  The lesson generalises: a tool that **re-derives its target set at call time** is
+  rarely idempotent, however idempotent the underlying operation looks.
 - Anything that creates a record does not — including `upload_course_file`, whose
   default `on_duplicate="rename"` writes a new file every call.
 - `bulk_grade_submissions` and `grade_with_rubric` settle on the same *score*, but

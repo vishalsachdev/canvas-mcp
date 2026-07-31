@@ -111,6 +111,10 @@ NOT_IDEMPOTENT = {
     "grade_with_rubric",
     "update_page_settings",
     "bulk_update_pages",
+    # A delete that is NOT idempotent: it re-queries by criteria and slices
+    # matched[:limit], so an identical retry deletes the NEXT batch. Contrast
+    # bulk_delete_announcements, which takes explicit ids and is idempotent.
+    "delete_announcements_by_criteria",
     "add_module_item",
     "assign_peer_review",
     "associate_rubric",
@@ -218,7 +222,7 @@ async def test_repeatable_tools_declare_idempotency_honestly():
     # edit_page_content notably does not expose notify_of_update, unlike its
     # two siblings above.
     for name in ("update_assignment", "update_module", "update_discussion_topic",
-                 "edit_page_content", "delete_page"):
+                 "edit_page_content", "delete_page", "bulk_delete_announcements"):
         assert tools[name].annotations.idempotentHint is True, (
             f"{name} converges on the same end state when repeated"
         )
