@@ -31,7 +31,14 @@ from .client import make_canvas_request
 # Canvas instances provision logins from email addresses, so the identifier a
 # caller naturally supplies IS an email (issue #199); rejecting it outright
 # failed before a single Canvas call was made.
-_NETID_RE = re.compile(r"^[A-Za-z0-9._@+-]{1,64}$")
+#
+# The bound is 254 — the RFC 5321 maximum for an email address — not the old 64,
+# which was a NetID-era assumption that would now reject the very email-style
+# logins this tool documents as supported. Canvas does not constrain login_id to
+# short campus IDs: a live roster read turned up a 40-character login_id. This is
+# an injection guard, not a validity check; Canvas remains the authority on
+# whether an identifier exists.
+_NETID_RE = re.compile(r"^[A-Za-z0-9._@+-]{1,254}$")
 
 # Caller-facing role -> Canvas enrollment ``type`` filter. "any" omits the filter.
 _ROLE_TO_TYPE = {
@@ -351,7 +358,7 @@ async def check_enrollment(
     if not _NETID_RE.match(net_id or ""):
         raise ValueError(
             "net_id must be a campus login ID (NetID, uniqname, or email-style "
-            "Canvas login) of 1-64 chars: letters, digits, '.', '_', '@', '+' "
+            "Canvas login) of 1-254 chars: letters, digits, '.', '_', '@', '+' "
             "or '-'. It is not a display name."
         )
     role_key = (role or "student").strip().lower()

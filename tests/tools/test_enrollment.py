@@ -577,6 +577,31 @@ class TestLocalPartMatchIsNotOverEager:
             await check_enrollment("BADM 350", "not a valid id!")
         mock_request.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_a_long_email_login_is_not_rejected_by_the_length_bound(
+        self, mock_course_id, mock_request
+    ):
+        """64 chars was a NetID-era assumption, not a Canvas constraint.
+
+        A live roster read turned up a 40-character login_id, so email-style
+        logins can comfortably exceed the old bound — and rejecting them here
+        would contradict the email support this tool now documents. The guard
+        exists to keep junk out of a query string, not to adjudicate validity.
+        """
+        long_login = ("a" * 60) + "." + ("b" * 60) + "@some-university.example"
+        assert len(long_login) > 64
+        mock_request.return_value = [_enr(login_id=long_login)]
+        result = await check_enrollment("BADM 350", long_login)
+        assert result.enrolled is True
+
+    @pytest.mark.asyncio
+    async def test_an_absurdly_long_identifier_is_still_rejected(
+        self, mock_course_id, mock_request
+    ):
+        with pytest.raises(ValueError):
+            await check_enrollment("BADM 350", "a" * 255)
+        mock_request.assert_not_called()
+
 
 # --------------------------------------------------------------------------
 # A role-scoped NO must say what the subject actually IS (issue #199)
