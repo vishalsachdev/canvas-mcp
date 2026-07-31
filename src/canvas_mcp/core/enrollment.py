@@ -99,6 +99,14 @@ def _norm(value: object) -> str:
     return (value or "").strip().lower() if isinstance(value, str) else ""
 
 
+class _UnverifiableDomain(Exception):
+    """Internal signal: a qualified needle met a bare roster id it may not be.
+
+    Never escapes ``_match_enrollment``, which converts it into a caller-facing
+    ``AmbiguousIdentifier`` once it knows no exact match exists anywhere.
+    """
+
+
 def _local_part_field(user: dict, needle: str, needle_local: str) -> str | None:
     """Which identifier field of ``user`` matches ``needle`` by email local part.
 
@@ -120,6 +128,14 @@ def _local_part_field(user: dict, needle: str, needle_local: str) -> str | None:
         # different person — pass 1 already gave any exact match its chance.
         if any("@" in value for value in stored.values()):
             return None
+        # Every identifier is bare, so nothing on the roster can confirm which
+        # domain this person belongs to: 'jdoe@attacker.example' has exactly as
+        # much claim on a stored 'jdoe' as 'jdoe@illinois.edu' does. Matching
+        # would let an unverified domain authorize an identity, so this is
+        # reported as unresolvable rather than answered either way.
+        if any(_local_part(value) == needle_local for value in stored.values()):
+            raise _UnverifiableDomain
+        return None
 
     for field in _ID_FIELDS:
         value = stored.get(field)
@@ -189,8 +205,13 @@ def _match_enrollment(
     # Pass 2 — local-part fallback, collected in full so ambiguity is visible.
     hits: list[tuple[dict, str]] = []
     seen_users: set = set()
+    unverifiable_domain = False
     for enrollment, user in candidates:
-        field = _local_part_field(user, needle, needle_local)
+        try:
+            field = _local_part_field(user, needle, needle_local)
+        except _UnverifiableDomain:
+            unverifiable_domain = True
+            continue
         if field is not None:
             user_id = user.get("id")
             # Fall back to identity of the row itself when Canvas gives no id,
@@ -206,7 +227,16 @@ def _match_enrollment(
             "email local part alone. Supply the full login ID (including the "
             "domain, if the institution uses email-style logins)."
         )
-    return hits[0] if hits else None
+    if hits:
+        return hits[0]
+    if unverifiable_domain:
+        raise AmbiguousIdentifier(
+            f"This course stores bare login IDs, so nothing on the roster can "
+            f"confirm that '{net_id}' is the person holding "
+            f"'{needle_local}' — any domain would match equally. Re-run with "
+            f"just '{needle_local}'."
+        )
+    return None
 
 
 def _enrollments_for_user(
@@ -355,7 +385,20 @@ async def check_enrollment(
     # negative this guard exists to prevent.
     #
     # An EMPTY roster is a real, trustworthy "nobody is enrolled".
-    if match is None and enrollments and not _identifiers_visible(enrollments):
+    #
+    # Scoped to the requested role. Since the ``type[]`` filter moved off the
+    # Canvas request, the roster now carries every role, and an unrelated hidden
+    # row — an observer, say — would otherwise make a *student* lookup
+    # indeterminate even though that row could never have satisfied it. Only
+    # rows that could have answered the question get a vote; role="any" means
+    # every row could.
+    wanted = None if role_key == "any" else _ROLE_TO_TYPE[role_key]
+    answerable = (
+        enrollments
+        if wanted is None
+        else [e for e in enrollments if e.get("type") == wanted]
+    )
+    if match is None and answerable and not _identifiers_visible(answerable):
         log_data_access("GET", f"/courses/{course_id}/enrollments", "indeterminate")
         raise EnrollmentCheckUnavailable(
             "Canvas withheld login_id and sis_user_id on at least one user in "
@@ -379,7 +422,6 @@ async def check_enrollment(
 
     # Role is now evaluated here rather than by Canvas, so pick the enrollment
     # that satisfies the requested role; "any" takes the first.
-    wanted = None if role_key == "any" else _ROLE_TO_TYPE[role_key]
     enrollment = (
         subject[0]
         if wanted is None

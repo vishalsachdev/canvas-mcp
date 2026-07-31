@@ -268,6 +268,62 @@ class TestIdentifierVisibilityGuard:
         assert result.matched_on == "sis_user_id"
 
 
+class TestVisibilityGuardIsScopedToTheRequestedRole:
+    """Widening the fetch must not widen what can make an answer indeterminate.
+
+    Dropping the server-side ``type[]`` filter (so a role-scoped NO can name the
+    subject's real role) pulled every role into the roster. The visibility guard
+    requires ALL rows to expose an identifier, so an unrelated hidden row — an
+    observer, say — would have made a student lookup INDETERMINATE even though
+    that row could never satisfy a student query.
+    """
+
+    @pytest.mark.asyncio
+    async def test_hidden_row_of_another_role_does_not_block_a_student_answer(
+        self, mock_course_id, mock_request
+    ):
+        mock_request.return_value = [
+            _enr(login_id="jdoe", etype="StudentEnrollment", uid=1),
+            _enr_permission_stripped(etype="ObserverEnrollment", uid=2),
+        ]
+        result = await check_enrollment("505", "jdoe", role="student")
+        assert result.enrolled is True
+
+    @pytest.mark.asyncio
+    async def test_hidden_row_of_another_role_does_not_block_a_student_no(
+        self, mock_course_id, mock_request
+    ):
+        mock_request.return_value = [
+            _enr(login_id="alice", etype="StudentEnrollment", uid=1),
+            _enr_permission_stripped(etype="ObserverEnrollment", uid=2),
+        ]
+        result = await check_enrollment("505", "carol", role="student")
+        assert result.enrolled is False
+
+    @pytest.mark.asyncio
+    async def test_hidden_row_of_the_requested_role_still_blocks(
+        self, mock_course_id, mock_request
+    ):
+        """The guard must keep working for rows that COULD have matched."""
+        mock_request.return_value = [
+            _enr(login_id="alice", etype="StudentEnrollment", uid=1),
+            _enr_permission_stripped(etype="StudentEnrollment", uid=2),
+        ]
+        with pytest.raises(EnrollmentCheckUnavailable):
+            await check_enrollment("505", "carol", role="student")
+
+    @pytest.mark.asyncio
+    async def test_role_any_still_considers_every_row(
+        self, mock_course_id, mock_request
+    ):
+        mock_request.return_value = [
+            _enr(login_id="alice", etype="StudentEnrollment", uid=1),
+            _enr_permission_stripped(etype="ObserverEnrollment", uid=2),
+        ]
+        with pytest.raises(EnrollmentCheckUnavailable):
+            await check_enrollment("505", "carol", role="any")
+
+
 class TestCheckEnrollmentToolMessages:
     """The tool-layer wording is the actual product here — assert it."""
 
@@ -331,9 +387,22 @@ class TestEmailStyleIdentifiers:
         assert match is not None, "bare uniqname must match an email-style login_id"
         assert match[1] == "login_id"
 
-    def test_email_needle_matches_bare_login_id(self):
-        """The inverse: caller pastes an email, Canvas stores the bare ID."""
+    def test_email_needle_against_bare_login_id_is_not_a_confident_yes(self):
+        """The reverse direction cannot be verified, so it must not say YES.
+
+        Canvas stores bare ``jdoe``. Nothing on the roster can confirm which
+        domain that person belongs to, so ``jdoe@attacker.example`` has the same
+        claim on it as ``jdoe@illinois.edu``. Matching would let an arbitrary
+        unverified domain authorize an identity; answering NO would be a silent
+        false negative. The caller is told to supply the bare ID instead.
+        """
         roster = [_enr(login_id="jdoe")]
+        with pytest.raises(AmbiguousIdentifier):
+            _match_enrollment(roster, "jdoe@illinois.edu", active_only=True)
+
+    def test_email_needle_matches_an_exactly_equal_login_id(self):
+        """The safe half of that direction: exact equality needs no inference."""
+        roster = [_enr(login_id="jdoe@illinois.edu")]
         match = _match_enrollment(roster, "jdoe@illinois.edu", active_only=True)
         assert match is not None
         assert match[1] == "login_id"
@@ -394,6 +463,17 @@ class TestLocalPartMatchIsNotOverEager:
         match = _match_enrollment(roster, "jdoe", active_only=True)
         assert match is not None
         assert match[1] == "sis_user_id"
+
+    @pytest.mark.asyncio
+    async def test_email_needle_against_bare_roster_never_authorizes(
+        self, mock_course_id, mock_request
+    ):
+        """End-to-end: an unverifiable domain must not produce a YES."""
+        mock_request.return_value = [_enr(login_id="jdoe")]
+        tool = _get_check_enrollment_tool()
+        out = await tool(course_identifier="505", net_id="jdoe@attacker.example")
+        assert not out.startswith("YES")
+        assert "AMBIGUOUS" in out
 
     def test_one_user_holding_two_enrollments_is_not_ambiguous(self):
         """Ambiguity is about distinct PEOPLE, not distinct enrollment rows."""
