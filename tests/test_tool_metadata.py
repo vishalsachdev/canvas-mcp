@@ -18,7 +18,27 @@ or replaces a page body is destructive even though it deletes nothing.
 import pytest
 from fastmcp import Client, FastMCP
 
+import canvas_mcp.core.config as config_module
+from canvas_mcp.core.config import STUDENT_WRITE_TOOL_NAMES
 from canvas_mcp.server import register_all_tools
+
+
+@pytest.fixture(autouse=True)
+def _all_feature_gated_tools_enabled(monkeypatch):
+    """Register the feature-gated tools too, or the gate has a blind spot.
+
+    ``execute_typescript`` (off unless ``EXECUTE_TYPESCRIPT_ENABLED``) and the
+    student write tools (off unless ``STUDENT_WRITE_TOOLS`` lists them) are
+    absent from a default registry. A gate that only sees the default set would
+    pass while the most powerful tool in the server — arbitrary TypeScript
+    against the caller's Canvas token — shipped with no annotations at all.
+    Coverage has to follow capability, not configuration.
+    """
+    monkeypatch.setenv("EXECUTE_TYPESCRIPT_ENABLED", "true")
+    monkeypatch.setenv("STUDENT_WRITE_TOOLS", ",".join(sorted(STUDENT_WRITE_TOOL_NAMES)))
+    monkeypatch.setattr(config_module, "_config", None, raising=False)
+    yield
+    monkeypatch.setattr(config_module, "_config", None, raising=False)
 
 
 def _registry() -> FastMCP:
@@ -110,6 +130,24 @@ NOT_IDEMPOTENT = {
     # Default on_duplicate="rename" makes a NEW file on every call.
     "upload_course_file",
 }
+
+
+@pytest.mark.asyncio
+async def test_the_gate_actually_sees_the_feature_gated_tools():
+    """Guards the fixture, not the code.
+
+    If the env plumbing or the config-singleton reset ever stops working, the
+    registry silently shrinks back to the default set and every other test here
+    keeps passing while covering less. That failure is invisible without this.
+    """
+    names = {tool.name for tool in await _registry().list_tools()}
+
+    assert "execute_typescript" in names, (
+        "EXECUTE_TYPESCRIPT_ENABLED is not reaching the registry — the gate is "
+        "blind to the most powerful tool in the server"
+    )
+    missing = STUDENT_WRITE_TOOL_NAMES - names
+    assert not missing, f"STUDENT_WRITE_TOOLS not reaching the registry: {sorted(missing)}"
 
 
 @pytest.mark.asyncio

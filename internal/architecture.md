@@ -36,6 +36,14 @@ enforces this: a tool is read-only, or it answers **both** write questions. A ba
 `@mcp.tool()` fails CI — which is how [#200](https://github.com/vishalsachdev/canvas-mcp/issues/200)
 reached a user in the first place.
 
+The gate enumerates the **live registry with every feature gate switched on**
+(`EXECUTE_TYPESCRIPT_ENABLED`, `STUDENT_WRITE_TOOLS`), because coverage has to follow
+capability rather than default configuration. Checking only the default set would
+have passed while `execute_typescript` — arbitrary TypeScript against the caller's
+Canvas token — shipped with no annotations at all. A separate test asserts those
+tools really are present, so the fixture cannot silently stop working and shrink
+what the gate covers.
+
 | Hint | Set when |
 |------|----------|
 | `readOnlyHint=True` | The tool performs no writes. Nothing else needs setting. |
