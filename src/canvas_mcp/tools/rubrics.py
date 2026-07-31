@@ -790,7 +790,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
     @validate_params
     async def grade_with_rubric(course_identifier: str | int,
                               assignment_id: str | int,

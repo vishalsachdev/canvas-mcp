@@ -78,7 +78,19 @@ ADDITIVE = {
 }
 
 # Repeating the call with the same arguments produces a duplicate.
+#
+# Idempotency is judged on the tool's WHOLE effect, not just its primary
+# resource. A tool is non-idempotent if ANY supported input makes a repeat
+# produce an additional external effect — the hint is per-tool, and a host
+# retrying a timed-out call has no way to know which arguments were used.
+# The grade writers converge on the same score but append a new submission
+# comment each time `comment` is supplied; the page tools converge on the same
+# body but re-notify the class each time `notify_of_update=True`.
 NOT_IDEMPOTENT = {
+    "bulk_grade_submissions",
+    "grade_with_rubric",
+    "update_page_settings",
+    "bulk_update_pages",
     "add_module_item",
     "assign_peer_review",
     "associate_rubric",
@@ -164,7 +176,11 @@ async def test_repeatable_tools_declare_idempotency_honestly():
             "must be False — a host may otherwise retry it safely"
         )
 
-    for name in ("update_assignment", "update_page_settings", "delete_page"):
+    # Converge on the same end state AND have no repeat-triggered side effect:
+    # edit_page_content notably does not expose notify_of_update, unlike its
+    # two siblings above.
+    for name in ("update_assignment", "update_module", "update_discussion_topic",
+                 "edit_page_content", "delete_page"):
         assert tools[name].annotations.idempotentHint is True, (
             f"{name} converges on the same end state when repeated"
         )

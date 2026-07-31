@@ -946,7 +946,7 @@ def register_educator_assignment_tools(mcp: FastMCP):
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
     @validate_params
     async def bulk_grade_submissions(
         course_identifier: str | int,

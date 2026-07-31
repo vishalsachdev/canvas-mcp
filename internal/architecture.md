@@ -55,9 +55,23 @@ tools that *replace* data are marked destructive even though they delete nothing
 - **Additive**: all `create_*`, `post_*`/`reply_*`, `send_*`, `add_module_item`,
   `assign_peer_review`, `associate_rubric`, `mark_conversations_read`.
 
-Idempotency is a separate axis: `update_*` and `delete_*` converge on the same end
-state, while anything that creates a record — including `upload_course_file`, whose
-default `on_duplicate="rename"` makes a new file per call — does not.
+Idempotency is a separate axis, and it is judged on the tool's **whole effect, not
+just its primary resource**. A tool is non-idempotent if *any* supported input makes
+a repeat produce an additional external effect — the hint is per-tool, and a host
+retrying a timed-out call cannot know which arguments were used. Concretely:
+
+- `update_*`, `delete_*` and `edit_page_content` converge on the same end state → idempotent.
+- Anything that creates a record does not — including `upload_course_file`, whose
+  default `on_duplicate="rename"` writes a new file every call.
+- `bulk_grade_submissions` and `grade_with_rubric` settle on the same *score*, but
+  append a **new submission comment** whenever `comment` is supplied → **not** idempotent.
+- `update_page_settings` and `bulk_update_pages` settle on the same *body*, but
+  re-notify the whole course whenever `notify_of_update=True` → **not** idempotent.
+  (`edit_page_content` does not expose that option, which is why it differs from its
+  two siblings.)
+
+A retry that silently duplicates feedback to every student in a course, or notifies
+a class twice, is exactly the harm this hint exists to prevent.
 
 ### Parameter Validation System
 - `validate_parameter()`: Runtime type coercion supporting complex types
