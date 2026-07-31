@@ -166,9 +166,29 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   /conversations + /pages gated (live replay: 97 inbox records, 0 surviving emails); missed email
   keys covered; anonymization-map tool fixed. **#179 stays OPEN** for the tool-layer call
   consolidation (status comment on issue)
-- [ ] Release **v1.6.0**: tag when ready — notes need #177/#178 (code-exec behavior change),
-  #182/#183/#184/#185; then wrangler deploy of docs/ (site still says 93 tools, repo says 95+)
-- [ ] Issue #142: MCP SDK v2 migration — **blocked upstream**: fastmcp 3.4.4 pins `mcp<2.0`, so relaxing our pin can't resolve. Re-scoped via issue comment 7/21 (verify our v2-readiness, track fastmcp upstream). **Assigned to Ash (`ashcastelinocs124`), orig. deadline ~2026-07-27 — confirm plan with Ash**
+- [x] Release **v1.6.0** (2026-07-30) — **all five channels live + verified**: GitHub Release (+`.mcpb`),
+  PyPI, MCP Registry (`isLatest=True`), site (wrangler-deployed, 1.6.0 / **96 tools**), hosted Azure.
+  Behavior change in the notes: `execute_typescript` is now opt-in (#178)
+- [x] #181 `associate_rubric` never attached the rubric — **fixed + live-verified on production Canvas**
+  (PR #189); shared `rubric_association_id()` / `unconfirmed_write_warning()` guard now used by every
+  rubric write, closing a latent hole in the #180 bookmark path
+- [x] #186 ruff in CI (**first outside contribution**, @w3lld1) — `lint` is now a required check; #175 closed
+- [x] #188 `claude-review` could never pass on a fork PR (GitHub withholds secrets) — **dropped from
+  required checks**, so external contributions are mergeable again. Required: `test-enhancements` + `lint`
+- [x] #190 `create_rubric_from_csv` — documented CSV format was **wrong** (created zero rubrics); fixed
+  in #195/#196 along with `succeeded_with_errors` handling and `error_data` surfacing
+- [x] #192 `/api/quiz/v1` client routing (#193) + paginated `api_root` (#197), anonymization gate intact
+- [ ] **NEW zqian bugs (2026-07-30 evening)** — ⚠️ **#199 `check_enrollment` returns "no enrollment" for a
+  user plainly visible in `list_enrollments`**; likely NetID/`login_id` matching (a UIUC concept — UMich
+  uses "uniqname"). Also #198 (file upload creates a stray "unfiled" folder) and #200 (missing tool
+  annotations, PR #201 in flight)
+- [ ] **#191 quizzes BLOCKED on correctness**: New Quizzes detection is `is_quiz_assignment AND
+  external_tool`, but measured live that flag marks *Classic* quizzes — the `AND` may match nothing and
+  silently report zero New Quizzes. Its test fixture hard-codes the assumption. Unblocking needs zqian's
+  **scoping question 4** (a New-Quizzes-enabled sandbox)
+- [ ] Daily triage routine live (`trig_011HVR6j4c5hDR2fj7k3ujxC`, 7am local) — review its PRs; it opened
+  #202 on its first scheduled run
+- [ ] Issue #142 → **watch item, unassigned** (`blocked-upstream`): `fastmcp-slim` 3.4.5 still pins `mcp<2.0`, so relaxing our pin cannot resolve; `mcp` 2.0.0 stable has shipped. Scope collapsed since #167 removed the FastMCP→MCPServer rename — hours, not a day. Trigger: a fastmcp release lifting `mcp<2.0`
 - [x] Issue #145 / PR #167: fastmcp 3.4.4 migration — **DONE 2026-07-21** (CVEs PYSEC-2026-2475/2476 resolved; dep-scan green; staging-validated then prod-deployed + live-verified; #145 closed)
 - [ ] Issue #157: `execute_typescript` sandbox hardening backlog (container-level egress, non-root user, prebuilt tsx image) — **self-hosted-only now**: tool is DISABLED on both hosted slots (`EXECUTE_TYPESCRIPT_ENABLED=false`, verified 2026-07-10); gate on re-enabling hosted code-exec
 - [ ] Backlog triage (module templates, bulk creation, page versioning)
@@ -214,31 +234,43 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-07-30 — Shipped: Tier 1 (#170), self-identity (#171), anonymization tiers (#179), rubric fix (#180)
-- **Four PRs merged to main + deployed to hosted** (deploy-prod green): #182 rubric course-bookmark
-  (#180 closed), #183 self-identity + check_enrollment INDETERMINATE (#171 closed), #184 anonymization
-  tiers (#179 gap-half; issue open for consolidation), #185 **Tier 1 student write tools** (#170 open
-  for UMich answers). All admin-merged after required checks green (1-review rule, solo repo).
-- **Review discipline paid for itself all day**: #170 took 10 codex rounds (killed the page policy
-  carrier — `editing_roles` proves permission, not authorship; reversed a shared-token-secret decision
-  that enabled cross-worker double-submit). #171 took 3 rounds (its `/users/self/enrollments` exemption
-  was the #164 shape — `include[]=observed_users` returns OTHER students; partial-visibility rosters
-  now indeterminate-on-NO only). A CodeQL high on #185 was fixed (HMAC-keyed caller digest) then
-  dismissed-with-rationale (high-entropy token ≠ password).
-- **#179 live acceptance replay**: 97 real inbox records, 3 real addresses raw → **0 surviving**,
-  participant names preserved; /pages `last_edited_by` scrubbed (the previously-unfiled gap, now closed).
-  Gotcha: first replay run false-alarmed because the harness inherited the dev `.env`
-  (ENABLE_DATA_ANONYMIZATION=false) — force the flag when replaying privacy controls.
-- **Hosted write-free posture VERIFIED live** (az): CANVAS_ROLE=educator + STUDENT_WRITE_TOOLS unset =
-  double gate; policy recorded in `internal/ops-hosted.local.md` (never enable on our slots).
-- **UMich comms**: #170 design comment + Tier-1-is-on-main comment posted; #172 New Quizzes tiered
-  scoping posted (5 questions pending); #180 root-caused publicly (their AI diagnosis half-right,
-  wrong endpoint). Email: Zoom moved to mid-Sept at their request; GitHub is the channel.
-- Known flake: `test_ferpa_compliance.py::test_pii_access_logged` failed once in ~6 runs, passes
-  isolated — order-dependent state, worth a look.
-- Next: (1) **#181 (NEW, zqian): associate_rubric doesn't surface on assignment page** — exactly the
-  weakness the #180 report flagged (JSON body w/o use_form_data, hardcoded Assignment type); also still
-  unverified: assignment-path bookmark + CSV-path gap. (2) **v1.6.0 release**: notes need #177/#178
-  behavior-change line + today's 4 PRs; bump versions; wrangler deploy docs/ (site says 93, repo 95+).
-  (3) Watch #170 (UMich answers + test results), #172 (5 scoping answers). (4) #179 consolidation half;
-  ruff cleanup on main (13 errors, blocks #175); #142/Ash escalation; #106.
+### 2026-07-30 (later) — Released v1.6.0; #181 fixed + live-verified; agent fleet dispatched
+- **v1.6.0 SHIPPED to all five channels, verified live**: GitHub Release (w/ `.mcpb`), PyPI, MCP
+  Registry (`isLatest=True`), site (`wrangler pages deploy docs/`, now 1.6.0 / **96 tools**), and
+  hosted Azure. The publish race resolved itself for the first time — PR #107's propagation poll
+  absorbed a ~75s CDN lag on the version-specific PyPI endpoint, no `gh run rerun` needed.
+- **Six PRs merged**: #186 (ruff CI, **first outside contribution**, @w3lld1 — closed #175), #189
+  (#181 fix + shared write-confirmation guard), #195 (CSV format docs), #196 (←#194, CSV semantics,
+  closed #190), #193 (`/api/quiz/v1` routing, closed #192), #197 (pagination `api_root`).
+  Tests **891 → 928**.
+- **#181 live-verified on production Canvas** via controlled A/B in the training sandbox (one rubric,
+  two assignments, old vs fixed code path): old → `rubric_association: None`, no rubric in the UI;
+  fixed → association created and rendered. Bug reproduced off zqian's instance, so it was never
+  instance-specific. Sandbox cleaned, verified in UI.
+- **Four silent-success bugs found in one day** (#180/#181/#190/#191) — all "plausible condition
+  nobody checked against a real payload". #189 extracted `rubric_association_id()` /
+  `unconfirmed_write_warning()` so the guard lives in ONE place; extracting it exposed a latent hole
+  (truthy association dict with no id counted as success — verified against pre-refactor code).
+- **`create_rubric_from_csv` was documented wrong** — measured live: our documented format returns
+  `succeeded_with_errors`, "Missing 'Rubric Name' in some rows", **zero rubrics created**. Gap 1's
+  bookmark hypothesis was DISPROVEN (imports DO show in the Rubrics UI as `Draft`; the API doesn't
+  list them — inverse of #180).
+- **CI/ruleset**: `lint` added as a required check; **`claude-review` dropped** (#188 — GitHub
+  withholds secrets from fork `pull_request` workflows, so it could never pass on an outside PR;
+  every external contribution was unmergeable). Required checks now `test-enhancements` + `lint`.
+- **Agent fleet dispatched**: #172/#190/#192 to `copilot-swe-agent`; Ash unassigned from everything;
+  #142 → watch item (`blocked-upstream`, fastmcp-slim 3.4.5 still pins `mcp<2.0`). Key lesson:
+  **agents read the issue BODY, not comments** — added scope banners to #172/#190 so a stale premise
+  doesn't get built.
+- **Daily triage routine LIVE** (`trig_011HVR6j4c5hDR2fj7k3ujxC`, 01:30 UTC / 7am local) — **fired on
+  schedule and produced PR #202**, a high-quality brief that correctly surfaced the three new zqian
+  bugs. `gh` is NOT installed in the cloud sandbox; it uses GitHub MCP tools.
+- Next: (1) **THREE new zqian bugs**: **#199 check_enrollment returns "no enrollment" for a user
+  visible in `list_enrollments`** — likely NetID/`login_id` matching, which is a UIUC concept
+  (UMich uses "uniqname"); #198 file upload creates a stray "unfiled" folder; #200 missing tool
+  annotations (PR #201 in flight). (2) **#191 BLOCKED**: New Quizzes detection is
+  `is_quiz_assignment AND external_tool`, but measured live that flag marks *Classic* quizzes — the
+  `AND` may match nothing; its test fixture hard-codes the assumption. Needs zqian's **scoping
+  question 4** (New-Quizzes sandbox) — now blocking correctness, not just timeline. (3) Review PR
+  #202 brief + #201. (4) Backlog: #173 (manifest 30/96, title says 24/93), #179 consolidation half,
+  #106 mypy, stale `associate_rubric_with_assignment` at `docs/learning-designer-guide.html:173`.
