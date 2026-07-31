@@ -1011,6 +1011,52 @@
             line-height: 1.7;
         }
 
+        .institution-callout {
+            margin-top: 32px;
+            background: var(--color-bg-card);
+            border: 1px solid var(--color-border);
+            border-left: 4px solid var(--color-accent-primary);
+            border-radius: var(--radius-lg);
+            padding: 28px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+            flex-wrap: wrap;
+        }
+
+        .institution-callout h3 {
+            font-family: var(--font-display);
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .institution-callout p {
+            color: var(--color-text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.7;
+            max-width: 640px;
+        }
+
+        .institution-callout .callout-link {
+            display: inline-block;
+            white-space: nowrap;
+            padding: 12px 24px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--color-accent-primary);
+            color: var(--color-accent-primary);
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .institution-callout .callout-link:hover {
+            background: var(--color-accent-primary);
+            color: #fff;
+        }
+
         /* Testimonial Section */
         .testimonial {
             background: var(--color-bg-primary);
@@ -1953,6 +1999,13 @@ canvas-mcp-server --test<br>
                     <h3>No Tracking</h3>
                     <p>Your Canvas usage and AI interactions remain completely private.</p>
                 </div>
+            </div>
+            <div class="institution-callout animate-on-scroll">
+                <div>
+                    <h3>🏛️ Deploying for your whole institution?</h3>
+                    <p>A production-tested Azure deployment guide — campus SSO via Entra ID, per-user Canvas tokens, a FERPA three-tier data model, and copyable CI/CD and config templates — lives in the repository.</p>
+                </div>
+                <a class="callout-link" href="https://github.com/vishalsachdev/canvas-mcp/tree/main/deploy/azure" target="_blank" rel="noopener">Institutional Deployment Guide →</a>
             </div>
         </div>
     </section>
