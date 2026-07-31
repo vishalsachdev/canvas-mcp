@@ -80,9 +80,10 @@ class TestMatchEnrollment:
         roster = [_enr(login_id="netid1"), _enr(login_id="jdoe")]
         match = _match_enrollment(roster, "jdoe", active_only=True)
         assert match is not None
-        enrollment, matched_on = match
+        enrollment, matched_on, was_exact = match
         assert matched_on == "login_id"
         assert enrollment["user"]["login_id"] == "jdoe"
+        assert was_exact is True
 
     def test_match_on_sis_user_id(self):
         roster = [_enr(login_id="someone", sis="jdoe-sis")]
@@ -311,6 +312,36 @@ class TestVisibilityGuardIsScopedToTheRequestedRole:
         ]
         with pytest.raises(EnrollmentCheckUnavailable):
             await check_enrollment("505", "carol", role="student")
+
+    @pytest.mark.asyncio
+    async def test_a_fallback_match_cannot_bypass_the_guard(
+        self, mock_course_id, mock_request
+    ):
+        """A local-part YES rests on uniqueness, which a hidden row can refute.
+
+        An EXACT match is self-proving — the identifier IS that person — so it
+        may bypass the guard. A fallback match only holds if no OTHER person
+        shares the local part, and a row with stripped identifiers could be
+        exactly that person. Uniqueness is therefore unproven, and an access
+        gate must not answer YES on it.
+        """
+        mock_request.return_value = [
+            _enr(login_id="jdoe@a.edu", etype="StudentEnrollment", uid=1),
+            _enr_permission_stripped(etype="StudentEnrollment", uid=2),
+        ]
+        with pytest.raises(EnrollmentCheckUnavailable):
+            await check_enrollment("505", "jdoe", role="student")
+
+    @pytest.mark.asyncio
+    async def test_an_exact_match_still_bypasses_the_guard(
+        self, mock_course_id, mock_request
+    ):
+        mock_request.return_value = [
+            _enr(login_id="jdoe", etype="StudentEnrollment", uid=1),
+            _enr_permission_stripped(etype="StudentEnrollment", uid=2),
+        ]
+        result = await check_enrollment("505", "jdoe", role="student")
+        assert result.enrolled is True
 
     @pytest.mark.asyncio
     async def test_role_any_still_considers_every_row(

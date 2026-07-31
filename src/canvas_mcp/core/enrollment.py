@@ -148,8 +148,13 @@ def _match_enrollment(
     enrollments: list[dict],
     net_id: str,
     active_only: bool,
-) -> tuple[dict, str] | None:
+) -> tuple[dict, str, bool] | None:
     """Find the first enrollment whose user matches net_id. Pure (testable).
+
+    Returns ``(enrollment, matched_on, was_exact)`` or ``None``. ``was_exact``
+    matters to the caller's visibility guard: an exact match is self-proving,
+    while a local-part match is only sound if no OTHER person shares the local
+    part — which a roster row with stripped identifiers could refute.
 
     Matches case-insensitively against ``user.login_id`` first, then
     ``user.sis_user_id``. Returns ``(enrollment, matched_on)`` or ``None``. Never
@@ -200,7 +205,7 @@ def _match_enrollment(
         for field in _ID_FIELDS:
             stored = _norm(user.get(field))
             if stored and stored == needle:
-                return enrollment, field
+                return enrollment, field, True
 
     # Pass 2 — local-part fallback, collected in full so ambiguity is visible.
     hits: list[tuple[dict, str]] = []
@@ -228,7 +233,8 @@ def _match_enrollment(
             "domain, if the institution uses email-style logins)."
         )
     if hits:
-        return hits[0]
+        enrollment, field = hits[0]
+        return enrollment, field, False
     if unverifiable_domain:
         raise AmbiguousIdentifier(
             f"This course stores bare login IDs, so nothing on the roster can "
@@ -398,11 +404,25 @@ async def check_enrollment(
         if wanted is None
         else [e for e in enrollments if e.get("type") == wanted]
     )
-    if match is None and answerable and not _identifiers_visible(answerable):
+    # An EXACT match is self-proving and may skip the guard: the identifier IS
+    # that person, however much of the roster is hidden. A local-part match is
+    # not — it holds only if nobody ELSE shares the local part, and a stripped
+    # row could be exactly that person. So a fallback positive needs the same
+    # visibility proof a negative does.
+    needs_visibility_proof = match is None or not match[2]
+    if needs_visibility_proof and answerable and not _identifiers_visible(answerable):
         log_data_access("GET", f"/courses/{course_id}/enrollments", "indeterminate")
+        detail = (
+            "so a 'not enrolled' answer cannot be trusted."
+            if match is None
+            else (
+                f"and '{net_id}' was matched only by email local part, so it "
+                "cannot be proven that no other person on this roster shares it."
+            )
+        )
         raise EnrollmentCheckUnavailable(
             "Canvas withheld login_id and sis_user_id on at least one user in "
-            "this roster, so a 'not enrolled' answer cannot be trusted."
+            f"this roster, {detail}"
         )
 
     log_data_access("GET", f"/courses/{course_id}/enrollments", "success")
@@ -410,7 +430,7 @@ async def check_enrollment(
     if match is None:
         return EnrollmentResult(enrolled=False, course_id=course_id)
 
-    matched_enrollment, matched_on = match
+    matched_enrollment, matched_on, _was_exact = match
     subject_id = (matched_enrollment.get("user") or {}).get("id")
     subject = _enrollments_for_user(enrollments, subject_id, active_only) or [
         matched_enrollment
