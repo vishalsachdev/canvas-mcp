@@ -2,6 +2,52 @@
 
 Archived session log entries from canvas-mcp CLAUDE.md.
 
+### 2026-07-31 — Closed all three zqian bugs (#199/#198/#200) + completed the tool-annotation contract
+- **Four PRs merged, four issues closed**: #203 (closed **#199** institution-neutral enrollment
+  matching + **#198** upload-to-course-root), #202 (first daily-triage brief), #201 (closed **#200**
+  missing tool annotations, Copilot agent), #205 (closed **#204** full annotation contract + CI gate).
+  Tests **928 → 968**.
+- **#199 was three defects with one root cause** — a confident negative on an unchecked premise.
+  (1) Matching assumed `login_id` is the bare campus ID; measured live, UIUC stores `vishal` while
+  email-provisioned instances store `uniqname@umich.edu`. (2) An email-form identifier was rejected by
+  the input guard *before any Canvas call* (`@` excluded; bound was a NetID-era 64, now 254 — a live
+  roster read turned up a 40-char `login_id`). (3) `role` defaults to `student` and was pushed to
+  Canvas as `type[]`, hiding every other role — asking about a teacher returned "no active 'student'
+  enrollment", which reads as "not in this course". Roster is now fetched unfiltered and role
+  evaluated locally. New **AMBIGUOUS** answer shape for anything unverifiable.
+- **#198 measured, not inferred**: three-way A/B on a real course — no param → `course files/unfiled`;
+  `parent_folder_path=""` → root; `parent_folder_id=<root>` → root. Sends `""` (no extra round-trip).
+  The docstring had always *documented* root: doc-vs-behavior divergence, same shape as #190.
+- **#204: `destructiveHint` now follows the MCP spec, not "destructive == deletes".** Grade writers,
+  `edit_page_content`, `bulk_update_pages`, `fix_accessibility_issues`, all `update_*`,
+  `upload_course_file`, `create_student_anonymization_map` and `execute_typescript` are destructive.
+  **The `create_` prefix is not a safe guide** — `create_page(front_page=True)` unseats the current
+  front page; `create_rubric(assignment_id=…)` and `associate_rubric` attach over an existing rubric.
+  `idempotentHint` (never set anywhere) now set everywhere, judged on **whole effect**: grade writers
+  append a comment when `comment` is passed; page tools re-notify on `notify_of_update`;
+  `delete_announcements_by_criteria` re-derives its target set so a retry deletes the *next* batch.
+  Deliberate documented exception: `mark_conversations_read` stays non-destructive.
+- **`tests/test_tool_metadata.py` is the gate** — enumerates the LIVE registry with every feature flag
+  ON (coverage follows capability, not default config; the default set hid `execute_typescript`
+  shipping unannotated). Both gates negative-tested, plus a test asserting the fixture really
+  registers those tools.
+- **10 codex rounds across #203 and #205; 9 found a real defect** — every one a false-positive path a
+  green 968-test suite could not see. Promoted to global CLAUDE.md: two rounds is a floor, not a
+  target, when the failure mode is a *confident wrong answer* rather than a crash. Corollary: my own
+  per-function grep contradicted codex and was wrong (writes lived in nested helpers) — re-check the
+  script before dismissing a finding.
+- **Triage routine bug found + fixed at source**: merging #202 closed **#172** as COMPLETED, because
+  the brief described another PR as `fixes #172` and GitHub parses closing keywords anywhere in a
+  merged PR body. #172 reopened; routine prompt updated with a prohibition *and* a grep-before-open
+  step (plus the same-repo-Copilot "0 checks means Actions never triggered" note). Gotcha saved to
+  auto memory.
+- Next: (1) **#191 still BLOCKED on correctness** — New Quizzes detection is `is_quiz_assignment AND
+  external_tool`, but that flag was measured to mark *Classic* quizzes; needs zqian's New-Quizzes
+  sandbox (scoping question 4). Only open PR. (2) **Release notes** must call out two user-visible
+  changes: `check_enrollment`'s new AMBIGUOUS outcome, and hosts now prompting on grade/content
+  overwrites. (3) Backlog: #179 consolidation half, #173 manifest coverage (30/96), #170 awaiting
+  UMich answers, #106 mypy, #157, #142 (watch).
+
 ### 2026-07-30 (later) — Released v1.6.0; #181 fixed + live-verified; agent fleet dispatched
 - **v1.6.0 SHIPPED to all five channels, verified live**: GitHub Release (w/ `.mcpb`), PyPI, MCP
   Registry (`isLatest=True`), site (`wrangler pages deploy docs/`, now 1.6.0 / **96 tools**), and

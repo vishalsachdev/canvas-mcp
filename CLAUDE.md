@@ -192,6 +192,10 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   enumerates the live registry **with every feature flag on**, so a bare `@mcp.tool()` fails CI —
   the default set had hidden `execute_typescript` shipping unannotated. Convention in
   `internal/architecture.md`
+- [x] **Hosted deployment spec public (PR #206, 2026-07-31)** — `deploy/azure/` (spec + 4 placeholdered
+  templates) is canonical; corrected HTML copies emailed in-thread to UMich (zqian) + UC Irvine
+  (VC Choudhary); site callout live on canvas-mcp.illinihunt.org. Their feedback lands as edits to
+  `deploy/azure/README.md` (`internal/hosted-spec-draft/` is scratch)
 - [ ] **#191 quizzes BLOCKED on correctness**: New Quizzes detection is `is_quiz_assignment AND
   external_tool`, but measured live that flag marks *Classic* quizzes — the `AND` may match nothing and
   silently report zero New Quizzes. Its test fixture hard-codes the assumption. Unblocking needs zqian's
@@ -246,48 +250,28 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-07-31 — Closed all three zqian bugs (#199/#198/#200) + completed the tool-annotation contract
-- **Four PRs merged, four issues closed**: #203 (closed **#199** institution-neutral enrollment
-  matching + **#198** upload-to-course-root), #202 (first daily-triage brief), #201 (closed **#200**
-  missing tool annotations, Copilot agent), #205 (closed **#204** full annotation contract + CI gate).
-  Tests **928 → 968**.
-- **#199 was three defects with one root cause** — a confident negative on an unchecked premise.
-  (1) Matching assumed `login_id` is the bare campus ID; measured live, UIUC stores `vishal` while
-  email-provisioned instances store `uniqname@umich.edu`. (2) An email-form identifier was rejected by
-  the input guard *before any Canvas call* (`@` excluded; bound was a NetID-era 64, now 254 — a live
-  roster read turned up a 40-char `login_id`). (3) `role` defaults to `student` and was pushed to
-  Canvas as `type[]`, hiding every other role — asking about a teacher returned "no active 'student'
-  enrollment", which reads as "not in this course". Roster is now fetched unfiltered and role
-  evaluated locally. New **AMBIGUOUS** answer shape for anything unverifiable.
-- **#198 measured, not inferred**: three-way A/B on a real course — no param → `course files/unfiled`;
-  `parent_folder_path=""` → root; `parent_folder_id=<root>` → root. Sends `""` (no extra round-trip).
-  The docstring had always *documented* root: doc-vs-behavior divergence, same shape as #190.
-- **#204: `destructiveHint` now follows the MCP spec, not "destructive == deletes".** Grade writers,
-  `edit_page_content`, `bulk_update_pages`, `fix_accessibility_issues`, all `update_*`,
-  `upload_course_file`, `create_student_anonymization_map` and `execute_typescript` are destructive.
-  **The `create_` prefix is not a safe guide** — `create_page(front_page=True)` unseats the current
-  front page; `create_rubric(assignment_id=…)` and `associate_rubric` attach over an existing rubric.
-  `idempotentHint` (never set anywhere) now set everywhere, judged on **whole effect**: grade writers
-  append a comment when `comment` is passed; page tools re-notify on `notify_of_update`;
-  `delete_announcements_by_criteria` re-derives its target set so a retry deletes the *next* batch.
-  Deliberate documented exception: `mark_conversations_read` stays non-destructive.
-- **`tests/test_tool_metadata.py` is the gate** — enumerates the LIVE registry with every feature flag
-  ON (coverage follows capability, not default config; the default set hid `execute_typescript`
-  shipping unannotated). Both gates negative-tested, plus a test asserting the fixture really
-  registers those tools.
-- **10 codex rounds across #203 and #205; 9 found a real defect** — every one a false-positive path a
-  green 968-test suite could not see. Promoted to global CLAUDE.md: two rounds is a floor, not a
-  target, when the failure mode is a *confident wrong answer* rather than a crash. Corollary: my own
-  per-function grep contradicted codex and was wrong (writes lived in nested helpers) — re-check the
-  script before dismissing a finding.
-- **Triage routine bug found + fixed at source**: merging #202 closed **#172** as COMPLETED, because
-  the brief described another PR as `fixes #172` and GitHub parses closing keywords anywhere in a
-  merged PR body. #172 reopened; routine prompt updated with a prohibition *and* a grep-before-open
-  step (plus the same-repo-Copilot "0 checks means Actions never triggered" note). Gotcha saved to
-  auto memory.
-- Next: (1) **#191 still BLOCKED on correctness** — New Quizzes detection is `is_quiz_assignment AND
-  external_tool`, but that flag was measured to mark *Classic* quizzes; needs zqian's New-Quizzes
-  sandbox (scoping question 4). Only open PR. (2) **Release notes** must call out two user-visible
-  changes: `check_enrollment`'s new AMBIGUOUS outcome, and hosts now prompting on grade/content
-  overwrites. (3) Backlog: #179 consolidation half, #173 manifest coverage (30/96), #170 awaiting
-  UMich answers, #106 mypy, #157, #142 (watch).
+### 2026-07-31 (later) — Hosted deployment spec → UMich + UCI + public `deploy/azure/` + site
+- **The hosted-spec draft shipped everywhere it was promised.** Found in `internal/hosted-spec-draft/`
+  (7/29 triage loop); fixed three stale claims before sending — `execute_typescript` is opt-in since
+  v1.6.0 (#178), the Docker image now ships `ENABLE_DATA_ANONYMIZATION=true` (audit items B4/B7
+  resolved by code, not prose), tool count ~93 → ~96, `STUDENT_WRITE_TOOLS` allowlist documented.
+- **Emailed as self-contained HTML** (pandoc, mermaid pre-rendered to inline SVG, zero JS) to
+  **VC Choudhary (UC Irvine, Gradebot thread — fulfills the 7/25 "spec soon" promise)** and
+  **Zhen Qian (UMich — mid-Sept Zoom confirmed)**; both in-thread via Thunderbird. Zhen's note
+  name-checks the two changes her team's issues caused (STUDENT_WRITE_TOOLS, #199 AMBIGUOUS).
+- **PR #206 MERGED (admin bypass, required checks green + Secret Detection pass)**: `deploy/azure/`
+  is now the public canonical spec — README + 4 placeholdered templates (`deploy-{prod,staging}.yml.sample`,
+  `appsettings.example.json`, `authsettingsv2.example.json`). README/AGENTS "deployment is planned"
+  phrasing replaced with links. `internal/hosted-spec-draft/` is scratch now; UMich/UCI feedback
+  edits go to `deploy/azure/README.md`.
+- **Site callout live** on canvas-mcp.illinihunt.org (Privacy section → "Deploying for your whole
+  institution?" → GitHub). Deliberately narrative-only per the audit: operational content stays in
+  the repo where it versions with code; the site's manual deploy cadence can't keep runbooks fresh.
+- **Spotted while verifying: THREE different tool counts are user-visible** — hero stat "88 MCP
+  TOOLS", README "95 tools", site badge "96". Fold a registry-count-vs-docs CI check into #173
+  (same pattern as #205's annotation gate).
+- Next: (1) **#191 still BLOCKED** on zqian's New-Quizzes sandbox (scoping Q4) — only open PR.
+  (2) Watch for UMich/UCI spec feedback → `deploy/azure/README.md`. (3) Release-notes reminder:
+  check_enrollment AMBIGUOUS + write-confirmation prompts. (4) Backlog: #173 (+tool-count CI check),
+  #179 consolidation, #170 awaiting UMich answers, #106 mypy, #157, #142 (watch), #168 stale
+  maintenance report.
