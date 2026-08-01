@@ -39,7 +39,7 @@ class PeerReviewCommentAnalyzer:
 
     async def get_peer_review_comments(
         self,
-        course_id: int,
+        course_id: int | str,
         assignment_id: int,
         include_reviewer_info: bool = True,
         include_reviewee_info: bool = True,
@@ -243,7 +243,7 @@ class PeerReviewCommentAnalyzer:
 
     async def analyze_peer_review_quality(
         self,
-        course_id: int,
+        course_id: int | str,
         assignment_id: int,
         analysis_criteria: dict[str, Any] | None = None,
         generate_report: bool = True
@@ -486,7 +486,7 @@ class PeerReviewCommentAnalyzer:
 
     async def identify_problematic_peer_reviews(
         self,
-        course_id: int,
+        course_id: int | str,
         assignment_id: int,
         criteria: dict[str, Any] | None = None
     ) -> dict[str, Any]:

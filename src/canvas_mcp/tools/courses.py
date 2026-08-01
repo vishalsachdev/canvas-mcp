@@ -2,6 +2,7 @@
 
 import html
 import re
+from typing import Any
 
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -313,7 +314,7 @@ def register_course_tools(mcp: FastMCP) -> None:
                 ]
 
                 # Count module items by type across all modules
-                item_type_counts = {}
+                item_type_counts: dict[str, int] = {}
                 total_items = 0
 
                 for module in modules[:10]:  # Limit to first 10 modules to avoid too many API calls
@@ -404,7 +405,7 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
         """
         course_id = await get_course_id(course_identifier)
 
-        params = {"per_page": 100}
+        params: dict[str, Any] = {"per_page": 100}
 
         if sort:
             params["sort"] = sort
@@ -575,7 +576,7 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
         """
         course_id = await get_course_id(course_identifier)
 
-        params = {"per_page": 100}
+        params: dict[str, Any] = {"per_page": 100}
         if include_content_details:
             params["include[]"] = ["content_details"]
 

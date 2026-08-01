@@ -5,6 +5,8 @@ editing roles) separate from content editing.
 """
 
 
+from typing import Any
+
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
@@ -42,7 +44,7 @@ def register_page_tools(mcp: FastMCP) -> None:
         course_id = await get_course_id(course_identifier)
 
         # Build update parameters (only include specified settings)
-        wiki_page_params = {}
+        wiki_page_params: dict[str, Any] = {}
 
         if published is not None:
             wiki_page_params["published"] = published
@@ -126,7 +128,7 @@ def register_page_tools(mcp: FastMCP) -> None:
             return "No pages specified. Please provide a comma-separated list of page URLs."
 
         # Build update parameters
-        wiki_page_params = {}
+        wiki_page_params: dict[str, Any] = {}
 
         if published is not None:
             wiki_page_params["published"] = published

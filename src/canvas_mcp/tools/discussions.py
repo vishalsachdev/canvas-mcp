@@ -2,6 +2,7 @@
 
 import json
 import re
+from typing import Any
 
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -30,7 +31,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         """
         course_id = await get_course_id(course_identifier)
 
-        params = {"per_page": 100}
+        params: dict[str, Any] = {"per_page": 100}
 
         if include_announcements:
             params["include[]"] = ["announcement"]
@@ -257,7 +258,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             # Handle replies
             replies_info = ""
             if include_replies:
-                replies = []
+                replies: list[Any] | Any = []
 
                 # Try to get replies from enhanced fetch first
                 if entry_id_str in full_entries_map:
@@ -359,7 +360,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
         # Method 1: Try to get entry details from the discussion view endpoint
         entry_response = None
-        replies = []
+        replies: list[Any] | Any = []
 
         try:
             # First try the discussion view endpoint which includes all entries
@@ -567,7 +568,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
             # Handle replies
             if include_replies:
-                replies = []
+                replies: list[Any] | Any = []
 
                 # Method 1: Check recent_replies from the entry
                 recent_replies = entry.get("recent_replies", [])

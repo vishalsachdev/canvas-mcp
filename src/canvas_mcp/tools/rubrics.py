@@ -463,7 +463,10 @@ def count_csv_rubrics(csv_content: str) -> int | None:
     names: set[str] = set()
     for row in reader:
         if not isinstance(row, dict):
-            continue
+            # Defensive guard kept deliberately: typeshed says DictReader always
+            # yields dicts, so mypy sees this as dead, but a malformed csv module
+            # substitute would otherwise crash the loop.
+            continue  # type: ignore[unreachable]
         raw_name = row.get(rubric_name_field)
         if isinstance(raw_name, str) and raw_name.strip():
             names.add(raw_name.strip())

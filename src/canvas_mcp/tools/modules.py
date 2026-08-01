@@ -5,6 +5,8 @@ and module items. Modules are the primary content organization system in Canvas.
 """
 
 
+from typing import Any
+
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
@@ -33,7 +35,7 @@ def register_shared_module_tools(mcp: FastMCP) -> None:
         """
         course_id = await get_course_id(course_identifier)
 
-        params = {"per_page": 100}
+        params: dict[str, Any] = {"per_page": 100}
         if include_items:
             params["include[]"] = ["items"]
         if search_term:
@@ -224,7 +226,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
         course_id = await get_course_id(course_identifier)
 
         # Build module parameters
-        module_params = {
+        module_params: dict[str, Any] = {
             "module[name]": name,
             "module[published]": str(published).lower()
         }
@@ -308,7 +310,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
         course_id = await get_course_id(course_identifier)
 
         # Build update parameters (only include changed fields)
-        module_params = {}
+        module_params: dict[str, Any] = {}
 
         if name is not None:
             module_params["module[name]"] = name
@@ -464,7 +466,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             return f"Invalid item_type '{item_type}'. Must be one of: {', '.join(valid_types)}"
 
         # Build item parameters
-        item_params = {
+        item_params: dict[str, Any] = {
             "module_item[type]": item_type
         }
 
@@ -601,7 +603,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
         course_id = await get_course_id(course_identifier)
 
         # Build update parameters
-        item_params = {}
+        item_params: dict[str, Any] = {}
 
         if title is not None:
             item_params["module_item[title]"] = title
