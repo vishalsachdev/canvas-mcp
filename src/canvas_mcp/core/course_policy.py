@@ -104,7 +104,7 @@ def _is_not_found(error_message: str) -> bool:
     artifact and, under a permissive default, turn a server error into a grant.
     """
     match = _HTTP_STATUS_RE.match(error_message.strip())
-    return bool(match) and match.group(1) == "404"
+    return match is not None and match.group(1) == "404"
 
 
 def _strip_html(body: str) -> str:

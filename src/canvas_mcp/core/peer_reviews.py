@@ -494,7 +494,7 @@ class PeerReviewAnalyzer:
             days_since_assigned = days_threshold  # Default value
 
             # Process followup categories
-            followup_categories = {
+            followup_categories: dict[str, dict[str, Any]] = {
                 "urgent": {
                     "description": "Students with 0 peer reviews completed",
                     "count": len(completion_groups.get("none_complete", [])),

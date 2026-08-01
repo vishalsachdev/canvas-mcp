@@ -113,6 +113,12 @@ strict_equality = true
 module = "tests.*"
 disallow_untyped_defs = false
 
+[[tool.mypy.overrides]]
+# Azure SDK packages are optional hosted-deployment deps, not installed in the
+# default dev environment, and ship without type stubs.
+module = "azure.*"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

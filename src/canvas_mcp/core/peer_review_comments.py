@@ -503,7 +503,7 @@ class PeerReviewCommentAnalyzer:
         """
         try:
             # Default criteria
-            default_criteria = {
+            default_criteria: dict[str, Any] = {
                 "min_word_count": 10,
                 "generic_phrases": ["good job", "nice work", "looks good"],
                 "max_quality_score": 2.0
@@ -565,7 +565,7 @@ class PeerReviewCommentAnalyzer:
                     })
 
             # Categorize flags
-            flag_summary = Counter()
+            flag_summary: Counter[str] = Counter()
             for review in flagged_reviews:
                 for flag in review["flags"]:
                     flag_summary[flag] += 1

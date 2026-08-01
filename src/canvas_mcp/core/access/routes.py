@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from html import escape
+from typing import Any
 from urllib.parse import parse_qs
 
 from ..audit import log_access_change
@@ -44,7 +45,7 @@ def render_retry_page() -> str:
             "fresh approval link.</p>")
 
 
-async def _send_html(send, html: str, status: int = 200) -> None:
+async def _send_html(send: Any, html: str, status: int = 200) -> None:
     await send({"type": "http.response.start", "status": status,
                 "headers": [(b"content-type", b"text/html; charset=utf-8")]})
     await send({"type": "http.response.body", "body": html.encode()})
@@ -55,7 +56,7 @@ def _requester_from_pending(row: dict | None, oid: str) -> Requester:
     return Requester(oid=oid, upn=row.get("upn", ""), display_name=row.get("displayName", ""))
 
 
-async def handle_approve(query_string: bytes, send, *, store: AccessStore,
+async def handle_approve(query_string: bytes, send: Any, *, store: AccessStore,
                          secret: str, now: int) -> None:
     token = (parse_qs(query_string.decode()).get("token") or [""])[0]
     claims = verify_token(token, secret=secret, now=now)
@@ -69,7 +70,7 @@ async def handle_approve(query_string: bytes, send, *, store: AccessStore,
     await _send_html(send, render_confirm_page(_requester_from_pending(pending, claims.oid), token))
 
 
-async def handle_confirm(body: bytes, send, *, store: AccessStore,
+async def handle_confirm(body: bytes, send: Any, *, store: AccessStore,
                          secret: str, now: int) -> None:
     token = (parse_qs(body.decode()).get("token") or [""])[0]
     claims = verify_token(token, secret=secret, now=now)
