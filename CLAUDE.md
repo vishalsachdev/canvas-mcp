@@ -27,7 +27,7 @@ canvas-mcp/
 │   ├── resources/        # MCP resources and prompts
 │   └── server.py         # FastMCP server entry point
 ├── skills/               # Agent skills for skills.sh (8 skills)
-├── tests/                # 550+ tests (pytest + pytest-asyncio)
+├── tests/                # 900+ tests (pytest + pytest-asyncio)
 ├── docs/                 # GitHub Pages site + guides
 ├── tools/                # Tool documentation (README.md, TOOL_MANIFEST.json)
 ├── archive/              # Legacy code (git-ignored)
@@ -70,7 +70,7 @@ Version-bump procedure (files to update) + publish-race gotchas: **[internal/rel
 - **Async functions**: All API interactions must be async
 - **Course identifiers**: Use `Union[str, int]` and `get_course_id()` for flexibility
 - **Date handling**: Use `format_date()` for all date outputs
-- **Error responses**: Return JSON strings with "error" key for failures
+- **Error responses**: dict-returning tools include an `"error"` key; string-returning tools return a human-readable `"Error ..."` message (match the module you're editing)
 - **Form data**: Use `use_form_data=True` for Canvas POST/PUT endpoints
 - **Privacy**: Student IDs preserved, names anonymized in `_should_anonymize_endpoint()`
 - **Optional params**: Use `Optional[T]` type hints for parameters that can be `None`
