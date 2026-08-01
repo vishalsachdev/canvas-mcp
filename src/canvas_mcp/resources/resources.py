@@ -26,7 +26,7 @@ def register_resources_and_prompts(mcp: FastMCP) -> None:
         if "error" in response:
             return f"Error fetching syllabus: {response['error']}"
 
-        syllabus_body = response.get("syllabus_body", "")
+        syllabus_body: str = response.get("syllabus_body", "")
 
         if not syllabus_body:
             return "No syllabus available for this course."
@@ -53,7 +53,7 @@ def register_resources_and_prompts(mcp: FastMCP) -> None:
         if "error" in response:
             return f"Error fetching assignment description: {response['error']}"
 
-        description = response.get("description", "")
+        description: str = response.get("description", "")
 
         if not description:
             return "No description available for this assignment."

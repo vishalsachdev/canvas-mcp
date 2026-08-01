@@ -77,8 +77,8 @@ async def _send_json_error(send: Any, status: int, message: str) -> None:
     await send({"type": "http.response.body", "body": body})
 
 
-async def _read_body(receive) -> bytes:
-    body = b""
+async def _read_body(receive: Any) -> bytes:
+    body: bytes = b""
     while True:
         msg = await receive()
         body += msg.get("body", b"")
@@ -134,7 +134,7 @@ _ADMIN_CONFIRM_PATH = "/admin/access/confirm"
 _overlay_store = None
 
 
-def _access_store(config):
+def _access_store(config: Any) -> Any:
     """Build the overlay store once and reuse it across requests.
 
     The store's ``is_granted`` TTL cache is per-instance, so it only works if
@@ -156,7 +156,7 @@ def reset_overlay_store() -> None:
     _overlay_store = None
 
 
-def _schedule_notify(config, store, requester) -> None:
+def _schedule_notify(config: Any, store: Any, requester: Any) -> None:
     """Fire-and-forget admin email; never blocks or breaks the request path."""
     from .core.access.factory import build_email_sender
     from .core.access.notify import notify_access_request
@@ -412,7 +412,7 @@ def test_connection() -> bool:
         return False
 
 
-def _cmd_list_grants(args) -> int:
+def _cmd_list_grants(args: argparse.Namespace) -> int:
     """List self-service access grants from the overlay store. Returns an exit code."""
     store = _access_store(get_config())
     if store is None:
@@ -427,7 +427,7 @@ def _cmd_list_grants(args) -> int:
     return 0
 
 
-def _cmd_revoke(args) -> int:
+def _cmd_revoke(args: argparse.Namespace) -> int:
     """Revoke one self-service access grant by Entra OID. Returns an exit code."""
     store = _access_store(get_config())
     if store is None:
