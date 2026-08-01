@@ -4,10 +4,8 @@
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from ..core.anonymization import anonymize_response_data
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
-from ..core.logging import log_warning
 from ..core.validation import validate_params
 
 
@@ -98,15 +96,8 @@ def register_admin_tools(mcp: FastMCP):
             elif not members:
                 output += "No members in this group.\n"
             else:
-                # Anonymize member data to protect student privacy
-                try:
-                    members = anonymize_response_data(members, data_type="users")
-                except Exception as e:
-                    log_warning(
-                        "Failed to anonymize group member data; continuing with original data",
-                        error_type=type(e).__name__,
-                    )
-                    # Continue with original data for functionality
+                # Anonymization happens at the client layer (core/client.py) per
+                # ENABLE_DATA_ANONYMIZATION (#179)
                 output += "Members:\n"
                 for member in members:
                     member_id = member.get("id")
@@ -140,16 +131,6 @@ def register_admin_tools(mcp: FastMCP):
 
         if not users:
             return f"No users found for course {course_identifier}."
-
-        # Anonymize user data to protect student privacy
-        try:
-            users = anonymize_response_data(users, data_type="users")
-        except Exception as e:
-            log_warning(
-                "Failed to anonymize user data; continuing with original data",
-                error_type=type(e).__name__,
-            )
-            # Continue with original data for functionality
 
         users_info = []
         for user in users:
@@ -211,14 +192,6 @@ def register_admin_tools(mcp: FastMCP):
         )
         if isinstance(students, dict) and "error" in students:
             students = []
-
-        try:
-            students = anonymize_response_data(students, data_type="users")
-        except Exception as e:
-            log_warning(
-                "Failed to anonymize student analytics data; continuing with original data",
-                error_type=type(e).__name__,
-            )
 
         by_id = {u.get("id"): u for u in students}
 

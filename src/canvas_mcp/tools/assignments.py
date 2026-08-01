@@ -8,11 +8,9 @@ from typing import Any
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from ..core.anonymization import anonymize_response_data
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, parse_date
-from ..core.logging import log_error
 from ..core.validation import validate_params
 from .rubrics import build_rubric_assessment_form_data
 
@@ -197,17 +195,8 @@ def register_educator_assignment_tools(mcp: FastMCP):
         if not submissions:
             return f"No submissions found for assignment {assignment_id}."
 
-        # Anonymize submission data to protect student privacy
-        try:
-            submissions = anonymize_response_data(submissions, data_type="submissions")
-        except Exception as e:
-            log_error(
-                "Failed to anonymize submission data in peer reviews",
-                exc=e,
-                course_id=course_id,
-                assignment_id=assignment_id
-            )
-            # Continue with original data for functionality
+        # Anonymization happens at the client layer (core/client.py) per
+        # ENABLE_DATA_ANONYMIZATION (#179)
 
         # Get all users in the course for name lookups
         users = await fetch_all_paginated_results(
@@ -217,18 +206,6 @@ def register_educator_assignment_tools(mcp: FastMCP):
 
         if isinstance(users, dict) and "error" in users:
             return f"Error fetching users: {users['error']}"
-
-        # Anonymize user data to protect student privacy
-        try:
-            users = anonymize_response_data(users, data_type="users")
-        except Exception as e:
-            log_error(
-                "Failed to anonymize user data in peer reviews",
-                exc=e,
-                course_id=course_id,
-                assignment_id=assignment_id
-            )
-            # Continue with original data for functionality
 
         # Create a mapping of user IDs to names
         user_map = {}
@@ -328,17 +305,8 @@ def register_educator_assignment_tools(mcp: FastMCP):
         if not submissions:
             return f"No submissions found for assignment {assignment_id}."
 
-        # Anonymize submission data to protect student privacy
-        try:
-            submissions = anonymize_response_data(submissions, data_type="submissions")
-        except Exception as e:
-            log_error(
-                "Failed to anonymize submission data",
-                exc=e,
-                course_id=course_id,
-                assignment_id=assignment_id
-            )
-            # Continue with original data for functionality
+        # Anonymization happens at the client layer (core/client.py) per
+        # ENABLE_DATA_ANONYMIZATION (#179)
 
         submissions_info = []
         for submission in submissions:
@@ -393,17 +361,8 @@ def register_educator_assignment_tools(mcp: FastMCP):
         if not students:
             return f"No students found for course {course_identifier}."
 
-        # Anonymize student data to protect privacy
-        try:
-            students = anonymize_response_data(students, data_type="users")
-        except Exception as e:
-            log_error(
-                "Failed to anonymize student data in analytics",
-                exc=e,
-                course_id=course_id,
-                assignment_id=assignment_id
-            )
-            # Continue with original data for functionality
+        # Anonymization happens at the client layer (core/client.py) per
+        # ENABLE_DATA_ANONYMIZATION (#179)
 
         # Get submissions for this assignment
         submissions = await fetch_all_paginated_results(
@@ -413,18 +372,6 @@ def register_educator_assignment_tools(mcp: FastMCP):
 
         if isinstance(submissions, dict) and "error" in submissions:
             return f"Error fetching submissions: {submissions['error']}"
-
-        # Anonymize submission data to protect student privacy
-        try:
-            submissions = anonymize_response_data(submissions, data_type="submissions")
-        except Exception as e:
-            log_error(
-                "Failed to anonymize submission data in analytics",
-                exc=e,
-                course_id=course_id,
-                assignment_id=assignment_id
-            )
-            # Continue with original data for functionality
 
         # Extract assignment details
         assignment_name = assignment.get("name", "Unknown Assignment")

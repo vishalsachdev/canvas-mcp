@@ -6,11 +6,10 @@ import re
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from ..core.anonymization import anonymize_response_data
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, parse_date, truncate_text
-from ..core.logging import log_error, log_warning
+from ..core.logging import log_warning
 from ..core.validation import validate_params
 
 
@@ -159,32 +158,8 @@ def register_shared_discussion_tools(mcp: FastMCP):
         if not entries:
             return f"No discussion entries found for topic {topic_id}."
 
-        # Anonymize entries to protect student privacy
-        try:
-            anonymized_entries = anonymize_response_data(entries, data_type="discussions")
-            # Basic validation: check that anonymization occurred
-            if anonymized_entries and isinstance(anonymized_entries, list) and len(anonymized_entries) > 0:
-                # Verify first entry was anonymized (has anonymous user_name)
-                first_entry = anonymized_entries[0]
-                if first_entry.get("user_name", "").startswith("Student_"):
-                    entries = anonymized_entries  # Use anonymized data
-                else:
-                    log_warning(
-                        "Anonymization may not have been applied properly",
-                        course_id=course_id,
-                        topic_id=topic_id
-                    )
-            else:
-                entries = anonymized_entries  # Use result even if validation unclear
-        except Exception as e:
-            # Log error but continue with original data rather than failing completely
-            log_error(
-                "Failed to anonymize discussion entries",
-                exc=e,
-                course_id=course_id,
-                topic_id=topic_id
-            )
-            # Continue with original data - this maintains functionality while logging the issue
+        # Anonymization happens at the client layer (core/client.py) per
+        # ENABLE_DATA_ANONYMIZATION -- this endpoint matches _should_anonymize_endpoint (#179)
 
         # Enhanced content fetching using multiple methods
         if include_full_content or include_replies:
