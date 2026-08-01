@@ -72,6 +72,7 @@ select = [
     "B",  # flake8-bugbear
     "C4", # flake8-comprehensions
     "UP", # pyupgrade
+    "TID251", # banned APIs (anonymization single-layer invariant, #179)
 ]
 ignore = [
     "E501", # line too long, handled by black
@@ -81,6 +82,13 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+# core/ and tests may use the anonymization internals directly; everything else
+# must rely on the client-layer gate in core/client.py (#179)
+"src/canvas_mcp/core/**" = ["TID251"]
+"tests/**" = ["TID251"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"canvas_mcp.core.anonymization.anonymize_response_data".msg = "Anonymization is applied once, at the client layer (core/client.py, gated by ENABLE_DATA_ANONYMIZATION). Do not re-anonymize in tool code — see issue #179."
 
 [tool.black]
 target-version = ['py310']
