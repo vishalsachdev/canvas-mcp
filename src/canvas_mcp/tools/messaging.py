@@ -141,7 +141,9 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
                 "event": "mark_as_read"
             }
 
-            response = await make_canvas_request("put", "/conversations", data=data)
+            # /conversations requires form data: the "conversation_ids[]" bracket
+            # key only means an array in form encoding, not in a JSON body (#208)
+            response = await make_canvas_request("put", "/conversations", data=data, use_form_data=True)
 
             if "error" in response:
                 return response
