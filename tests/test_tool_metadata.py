@@ -15,6 +15,9 @@ asserts the tool performs ONLY ADDITIVE updates, so a tool that overwrites grade
 or replaces a page body is destructive even though it deletes nothing.
 """
 
+import json
+from pathlib import Path
+
 import pytest
 from fastmcp import Client, FastMCP
 
@@ -241,6 +244,40 @@ async def test_read_tools_are_marked_read_only():
         assert tools[name].annotations.readOnlyHint is True, (
             f"{name} does not write and should say so"
         )
+
+
+@pytest.mark.asyncio
+async def test_tool_manifest_matches_registry_exactly():
+    """tools/TOOL_MANIFEST.json must document exactly the registered tools (#173).
+
+    The manifest drifted to ~24 entries while the registry grew to 99 because
+    nothing failed when a tool shipped undocumented. Same pattern as the
+    annotation gate above: enumerate the live registry with every feature flag
+    on, and require set equality — a missing manifest entry (new tool, no docs)
+    and a stale extra entry (removed/renamed tool) both fail CI.
+    """
+    manifest_path = Path(__file__).parent.parent / "tools" / "TOOL_MANIFEST.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest_names = [t["name"] for t in manifest["tools"]]
+
+    dupes = {n for n in manifest_names if manifest_names.count(n) > 1}
+    assert not dupes, f"duplicate manifest entries: {sorted(dupes)}"
+
+    registered = {tool.name for tool in await _registry().list_tools()}
+    manifest_set = set(manifest_names)
+
+    missing = registered - manifest_set
+    extra = manifest_set - registered
+    assert not missing and not extra, (
+        "tools/TOOL_MANIFEST.json is out of sync with the live registry "
+        "(all feature flags on):\n"
+        f"  undocumented tools (add to manifest): {sorted(missing)}\n"
+        f"  stale manifest entries (remove or rename): {sorted(extra)}"
+    )
+
+    known_categories = {c["id"] for c in manifest["categories"]}
+    bad = [t["name"] for t in manifest["tools"] if t["category"] not in known_categories]
+    assert not bad, f"manifest entries with unknown category: {bad}"
 
 
 @pytest.mark.asyncio
