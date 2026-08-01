@@ -8,7 +8,6 @@ from .client import (
 )
 from .config import get_config, reset_config, validate_config
 from .dates import format_date, parse_date, truncate_text
-from .types import AnnouncementInfo, AssignmentInfo, CourseInfo, PageInfo
 from .validation import (
     format_error,
     is_error_response,
@@ -30,10 +29,6 @@ __all__ = [
     'format_date',
     'parse_date',
     'truncate_text',
-    'CourseInfo',
-    'AssignmentInfo',
-    'PageInfo',
-    'AnnouncementInfo',
     'get_config',
     'reset_config',
     'validate_config'

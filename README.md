@@ -546,7 +546,7 @@ Quick start guides: [Student](examples/student_quickstart.md) | [Educator](examp
 <details>
 <summary>Technical details</summary>
 
-Built on **FastMCP** with async `httpx`, `pydantic` validation, and `python-dotenv` configuration. Modern `src/` layout with `pyproject.toml`. Full type hints, connection pooling, smart pagination, and rate limiting. 550+ tests. `ruff` + `black` for code quality.
+Built on **FastMCP** with async `httpx`, `pydantic` validation, and `python-dotenv` configuration. Modern `src/` layout with `pyproject.toml`. Full type hints, connection pooling, smart pagination, and rate limiting. 900+ tests. `ruff` + `black` for code quality.
 
 </details>
 
