@@ -7,6 +7,66 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 
+def get_tool_function(tool_name: str):
+    """Get a tool function by name by capturing it during registration."""
+    from fastmcp import FastMCP
+
+    from canvas_mcp.tools.messaging import register_shared_messaging_tools
+
+    mcp = FastMCP("test")
+    captured_functions = {}
+
+    original_tool = mcp.tool
+    def capturing_tool(*args, **kwargs):
+        decorator = original_tool(*args, **kwargs)
+        def wrapper(fn):
+            captured_functions[fn.__name__] = fn
+            return decorator(fn)
+        return wrapper
+
+    mcp.tool = capturing_tool
+    register_shared_messaging_tools(mcp)
+
+    return captured_functions.get(tool_name)
+
+
+class TestMarkConversationsRead:
+    """Tests for the mark_conversations_read tool."""
+
+    @pytest.mark.asyncio
+    async def test_sends_form_data(self):
+        """Regression for #208: /conversations batch update requires form data.
+
+        Sent as JSON, the literal key "conversation_ids[]" is not recognized
+        by Canvas (bracket syntax only means an array in form encoding), so
+        the update fails. The request must use use_form_data=True like every
+        other /conversations write in this repo.
+        """
+        with patch('canvas_mcp.tools.messaging.make_canvas_request', new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = [{"id": 319, "workflow_state": "read"}]
+
+            mark_conversations_read = get_tool_function("mark_conversations_read")
+            result = await mark_conversations_read(conversation_ids=["319"])
+
+            assert result.get("success") is True
+            call = mock_request.call_args
+            assert call.kwargs.get("use_form_data") is True
+            assert call.kwargs.get("data") == {
+                "conversation_ids[]": ["319"],
+                "event": "mark_as_read",
+            }
+
+    @pytest.mark.asyncio
+    async def test_empty_ids_rejected(self):
+        """Empty conversation_ids returns an error without calling Canvas."""
+        with patch('canvas_mcp.tools.messaging.make_canvas_request', new_callable=AsyncMock) as mock_request:
+            mark_conversations_read = get_tool_function("mark_conversations_read")
+            result = await mark_conversations_read(conversation_ids=[])
+
+            assert "error" in result
+            mock_request.assert_not_called()
+
+
 class TestMessagingTools:
     """Test messaging tool functions."""
 

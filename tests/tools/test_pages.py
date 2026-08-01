@@ -267,6 +267,28 @@ class TestBulkUpdatePages:
         assert "2" in result or "success" in result.lower()
 
     @pytest.mark.asyncio
+    async def test_bulk_update_sends_nested_payload_as_json(self, mock_canvas_request, mock_course_id, mock_course_code):
+        """Regression for #207: the nested wiki_page dict must be sent as JSON.
+
+        With use_form_data=True, httpx form-encodes the nested dict as its
+        Python repr (wiki_page={'published': False}), which Canvas rejects
+        with HTTP 500 on every page. The payload must go as JSON, matching
+        update_page_settings.
+        """
+        mock_canvas_request.return_value = {"url": "page-1", "title": "Page 1", "published": False}
+
+        bulk_update_pages = get_tool_function("bulk_update_pages")
+        await bulk_update_pages(
+            course_identifier="67619",
+            page_urls="page-1",
+            published=False
+        )
+
+        call = mock_canvas_request.call_args
+        assert call.kwargs.get("data") == {"wiki_page": {"published": False}}
+        assert call.kwargs.get("use_form_data", False) is False
+
+    @pytest.mark.asyncio
     async def test_bulk_update_partial_failure(self, mock_canvas_request, mock_course_id, mock_course_code):
         """Test handling when some pages fail to update."""
         mock_canvas_request.side_effect = [

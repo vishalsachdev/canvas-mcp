@@ -105,6 +105,9 @@ def register_page_tools(mcp: FastMCP):
     ) -> str:
         """Update settings for multiple pages at once.
 
+        Settings only — this tool cannot rename pages or change page content.
+        Use edit_page_content to change a page's body.
+
         Args:
             course_identifier: Course code or Canvas ID
             page_urls: Comma-separated list of page URL slugs
@@ -146,11 +149,12 @@ def register_page_tools(mcp: FastMCP):
         updated_pages = []
 
         for page_url in urls:
+            # Nested wiki_page payload must go as JSON; form encoding turns the
+            # inner dict into its Python repr, which Canvas rejects with a 500 (#207)
             response = await make_canvas_request(
                 "put",
                 f"/courses/{course_id}/pages/{page_url}",
-                data=update_data,
-                use_form_data=True
+                data=update_data
             )
 
             if isinstance(response, dict) and "error" in response:
