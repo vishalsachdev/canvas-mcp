@@ -37,7 +37,7 @@ async def refresh_course_cache() -> bool:
 
 
 @validate_params
-async def get_course_id(course_identifier: str | int) -> str | None:
+async def get_course_id(course_identifier: str | int) -> str:
     """Get course ID from either course code or ID, with caching.
 
     Args:
