@@ -15,7 +15,7 @@ from ..core.dates import format_date, parse_date
 from ..core.validation import validate_params
 
 
-def register_student_tools(mcp: FastMCP):
+def register_student_tools(mcp: FastMCP) -> None:
     """Register student-specific MCP tools."""
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))

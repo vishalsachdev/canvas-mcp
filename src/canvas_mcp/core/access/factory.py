@@ -7,17 +7,20 @@ requires the optional ``[hosted]`` dependencies. Callers must guard with
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable, Sequence
+from typing import Any
+
 from ..logging import log_error
 from .store import AccessStore, ConcurrencyConflict
 
 
-def feature_ready(config) -> bool:
+def feature_ready(config: Any) -> bool:
     return bool(getattr(config, "access_request_enabled", False)
                 and getattr(config, "access_token_secret", "")
                 and getattr(config, "access_table_account", ""))
 
 
-def _entity_to_row(entity) -> dict:
+def _entity_to_row(entity: Any) -> dict:
     """Convert an azure-data-tables entity to a plain row, surfacing the ETag.
 
     azure-data-tables exposes the ETag via ``entity.metadata['etag']`` rather
@@ -35,20 +38,20 @@ def _entity_to_row(entity) -> dict:
 
 
 class _AzureTableBackend:
-    def __init__(self, table_client) -> None:
+    def __init__(self, table_client: Any) -> None:
         self._t = table_client
 
-    def get(self, pk, rk):
+    def get(self, pk: str, rk: str) -> dict | None:
         from azure.core.exceptions import ResourceNotFoundError
         try:
             return _entity_to_row(self._t.get_entity(pk, rk))
         except ResourceNotFoundError:
             return None
 
-    def upsert(self, entity):
+    def upsert(self, entity: dict) -> None:
         self._t.upsert_entity(entity)
 
-    def replace_if_unmodified(self, entity, etag):
+    def replace_if_unmodified(self, entity: dict, etag: str) -> None:
         from azure.core import MatchConditions
         from azure.core.exceptions import HttpResponseError
         # The ETag rides the match_condition param, not the row body; drop the
@@ -61,15 +64,15 @@ class _AzureTableBackend:
         except HttpResponseError as exc:
             raise ConcurrencyConflict(str(exc)) from exc
 
-    def query(self, pk):
+    def query(self, pk: str) -> list[dict]:
         flt = "PartitionKey eq '{}'".format(pk.replace("'", "''"))
         return [_entity_to_row(e) for e in self._t.query_entities(flt)]
 
-    def delete(self, pk, rk):
+    def delete(self, pk: str, rk: str) -> None:
         self._t.delete_entity(pk, rk)
 
 
-def build_store(config) -> AccessStore | None:
+def build_store(config: Any) -> AccessStore | None:
     if not feature_ready(config):
         return None
     try:
@@ -85,7 +88,9 @@ def build_store(config) -> AccessStore | None:
         return None
 
 
-def build_email_sender(config):
+def build_email_sender(
+    config: Any,
+) -> Callable[[Sequence[str], str, str, str], Awaitable[None]] | None:
     if not (config.acs_endpoint and config.acs_sender):
         return None
     # Build the credential + client ONCE here (not per send). Azure imports stay
@@ -101,8 +106,10 @@ def build_email_sender(config):
         log_error(f"access email sender unavailable: {exc}")
         return None
 
-    async def send(recipients, subject, html, plain):
-        def _send():
+    async def send(
+        recipients: Sequence[str], subject: str, html: str, plain: str
+    ) -> None:
+        def _send() -> None:
             message = {
                 "senderAddress": config.acs_sender,
                 "content": {"subject": subject, "html": html, "plainText": plain},

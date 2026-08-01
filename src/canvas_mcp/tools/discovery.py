@@ -7,7 +7,7 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -44,7 +44,7 @@ def register_discovery_tools(mcp: FastMCP) -> None:
                 }, indent=2)
 
             # Search through TypeScript files
-            matches = []
+            matches: list[str | dict[str, Any]] = []
             query_lower = query.lower()
 
             for ts_file in code_api_path.rglob("*.ts"):

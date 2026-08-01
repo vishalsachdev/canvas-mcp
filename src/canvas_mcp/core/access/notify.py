@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from html import escape
+from typing import Any
 
 from ..logging import log_error, log_info
 from .store import AccessStore, Requester
@@ -33,7 +34,7 @@ def build_request_email(req: Requester, approve_url: str) -> dict:
 async def notify_access_request(
     *, store: AccessStore, requester: Requester, secret: str,
     approve_base_url: str, admin_emails: list[str], cooldown_hours: int,
-    ttl_seconds: int, send_email, jti: str, now: int, now_iso: str,
+    ttl_seconds: int, send_email: Any, jti: str, now: int, now_iso: str,
 ) -> bool:
     """Dedup, mint a token, build the email, and send it. Never raises."""
     try:

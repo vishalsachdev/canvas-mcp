@@ -40,7 +40,7 @@ def _own_roles(course: dict) -> list[str]:
     return roles
 
 
-def register_self_identity_tools(mcp: FastMCP):
+def register_self_identity_tools(mcp: FastMCP) -> None:
     """Register the caller-scoped identity tools (all role profiles)."""
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))

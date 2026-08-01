@@ -5,7 +5,7 @@ import re
 import weakref
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, Literal
+from typing import Any, Final, Literal, cast
 from urllib.parse import urlencode
 
 import httpx
@@ -20,8 +20,8 @@ INITIAL_BACKOFF_SECONDS = 2
 
 # Default number of results per page for paginated requests
 DEFAULT_PAGE_SIZE = 100
-API_ROOT_REST = "rest"
-API_ROOT_QUIZ = "quiz"
+API_ROOT_REST: Final = "rest"
+API_ROOT_QUIZ: Final = "quiz"
 
 
 def _canvas_auth_headers(api_token: str) -> dict[str, str]:
@@ -390,7 +390,7 @@ async def make_canvas_request(
     method: str,
     endpoint: str,
     params: dict[str, Any] | None = None,
-    data: dict[str, Any] | None = None,
+    data: dict[str, Any] | list[tuple[str, Any]] | None = None,
     use_form_data: bool = False,
     skip_anonymization: bool = False,
     files: dict[str, tuple[str, bytes, str]] | None = None,
@@ -473,7 +473,13 @@ async def make_canvas_request(
                         response = await client.get(url, params=params)
                     elif method.lower() == "post":
                         if files:
-                            response = await client.post(url, data=data, files=files)
+                            # File uploads always pass dict form fields, never
+                            # the list-of-tuples encoding.
+                            response = await client.post(
+                                url,
+                                data=cast("dict[str, Any] | None", data),
+                                files=files,
+                            )
                         elif use_form_data:
                             # Handle list of tuples separately to work around httpx async bug
                             # with duplicate keys (e.g., module[prerequisite_module_ids][])
@@ -635,7 +641,8 @@ async def upload_file_to_storage(
             if response.status_code in (200, 201):
                 # Direct success response
                 try:
-                    return response.json()
+                    body: dict[str, Any] = response.json()
+                    return body
                 except ValueError:
                     # Some storage backends return empty success
                     return {"success": True, "status_code": response.status_code}
@@ -652,7 +659,8 @@ async def upload_file_to_storage(
                         async with canvas_authenticated_client() as canvas_client:
                             confirm_response = await canvas_client.get(redirect_url)
                             confirm_response.raise_for_status()
-                            return confirm_response.json()
+                            confirmed: dict[str, Any] = confirm_response.json()
+                            return confirmed
                     except PermissionError as e:
                         return {"error": str(e)}
                 else:

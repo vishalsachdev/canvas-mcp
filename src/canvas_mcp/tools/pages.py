@@ -5,6 +5,8 @@ editing roles) separate from content editing.
 """
 
 
+from typing import Any
+
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
@@ -14,7 +16,7 @@ from ..core.dates import format_date
 from ..core.validation import validate_params
 
 
-def register_page_tools(mcp: FastMCP):
+def register_page_tools(mcp: FastMCP) -> None:
     """Register page settings MCP tools."""
 
     @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
@@ -42,7 +44,7 @@ def register_page_tools(mcp: FastMCP):
         course_id = await get_course_id(course_identifier)
 
         # Build update parameters (only include specified settings)
-        wiki_page_params = {}
+        wiki_page_params: dict[str, Any] = {}
 
         if published is not None:
             wiki_page_params["published"] = published
@@ -126,7 +128,7 @@ def register_page_tools(mcp: FastMCP):
             return "No pages specified. Please provide a comma-separated list of page URLs."
 
         # Build update parameters
-        wiki_page_params = {}
+        wiki_page_params: dict[str, Any] = {}
 
         if published is not None:
             wiki_page_params["published"] = published
@@ -191,7 +193,7 @@ def register_page_tools(mcp: FastMCP):
         return result
 
 
-def register_educator_page_crud_tools(mcp: FastMCP):
+def register_educator_page_crud_tools(mcp: FastMCP) -> None:
     """Register educator-only page CRUD tools."""
 
     # front_page=True displaces the course's CURRENT front page -- Canvas

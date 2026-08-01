@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import calendar
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 GRANT_PK = "grant"
 PENDING_PK = "pending"
@@ -71,7 +73,13 @@ class InMemoryBackend:
 
 
 class AccessStore:
-    def __init__(self, backend, *, cache_ttl_seconds: int = 30, clock=time.time) -> None:
+    def __init__(
+        self,
+        backend: Any,
+        *,
+        cache_ttl_seconds: int = 30,
+        clock: Callable[[], float] = time.time,
+    ) -> None:
         self._backend = backend
         self._ttl = cache_ttl_seconds
         self._clock = clock
@@ -131,7 +139,8 @@ class AccessStore:
         return True
 
     def get_pending(self, oid: str) -> dict | None:
-        return self._backend.get(PENDING_PK, oid)
+        row: dict | None = self._backend.get(PENDING_PK, oid)
+        return row
 
     def consume_pending(self, oid: str, jti: str) -> bool:
         row = self._backend.get(PENDING_PK, oid)
@@ -148,7 +157,7 @@ class AccessStore:
         return True
 
 
-def _utcnow_iso(clock) -> str:
+def _utcnow_iso(clock: Callable[[], float]) -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(clock()))
 
 

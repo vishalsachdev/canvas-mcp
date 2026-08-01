@@ -39,7 +39,7 @@ class PeerReviewCommentAnalyzer:
 
     async def get_peer_review_comments(
         self,
-        course_id: int,
+        course_id: int | str,
         assignment_id: int,
         include_reviewer_info: bool = True,
         include_reviewee_info: bool = True,
@@ -243,7 +243,7 @@ class PeerReviewCommentAnalyzer:
 
     async def analyze_peer_review_quality(
         self,
-        course_id: int,
+        course_id: int | str,
         assignment_id: int,
         analysis_criteria: dict[str, Any] | None = None,
         generate_report: bool = True
@@ -486,7 +486,7 @@ class PeerReviewCommentAnalyzer:
 
     async def identify_problematic_peer_reviews(
         self,
-        course_id: int,
+        course_id: int | str,
         assignment_id: int,
         criteria: dict[str, Any] | None = None
     ) -> dict[str, Any]:
@@ -503,7 +503,7 @@ class PeerReviewCommentAnalyzer:
         """
         try:
             # Default criteria
-            default_criteria = {
+            default_criteria: dict[str, Any] = {
                 "min_word_count": 10,
                 "generic_phrases": ["good job", "nice work", "looks good"],
                 "max_quality_score": 2.0
@@ -565,7 +565,7 @@ class PeerReviewCommentAnalyzer:
                     })
 
             # Categorize flags
-            flag_summary = Counter()
+            flag_summary: Counter[str] = Counter()
             for review in flagged_reviews:
                 for flag in review["flags"]:
                     flag_summary[flag] += 1

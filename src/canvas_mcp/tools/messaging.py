@@ -51,7 +51,8 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
             response = await make_canvas_request("get", "/conversations", params=params)
 
             if "error" in response:
-                return response
+                error_response: dict[str, Any] = response
+                return error_response
 
             return {
                 "success": True,
@@ -92,7 +93,8 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
             )
 
             if "error" in response:
-                return response
+                error_response: dict[str, Any] = response
+                return error_response
 
             return {
                 "success": True,
@@ -111,7 +113,8 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
             response = await make_canvas_request("get", "/conversations/unread_count")
 
             if "error" in response:
-                return response
+                error_response: dict[str, Any] = response
+                return error_response
 
             return {
                 "success": True,
@@ -146,7 +149,8 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
             response = await make_canvas_request("put", "/conversations", data=data, use_form_data=True)
 
             if "error" in response:
-                return response
+                error_response: dict[str, Any] = response
+                return error_response
 
             return {
                 "success": True,
@@ -238,7 +242,8 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
             response = await make_canvas_request("post", "/conversations", data=data, use_form_data=True)
 
             if "error" in response:
-                return response
+                error_response: dict[str, Any] = response
+                return error_response
 
             return {
                 "success": True,
@@ -353,7 +358,7 @@ Please complete your peer reviews as soon as possible to receive full participat
             return {"error": "subject_template and body_template are required"}
 
         try:
-            results = {
+            results: dict[str, Any] = {
                 "success": True,
                 "sent": [],
                 "failed": [],
@@ -442,7 +447,7 @@ Please complete your peer reviews as soon as possible to receive full participat
             )
 
             # Convert the result to the expected format
-            analytics_response = {
+            analytics_response: dict[str, Any] = {
                 "success": "error" not in analytics_result,
                 "analytics": analytics_result if "error" not in analytics_result else {}
             }
@@ -456,7 +461,7 @@ Please complete your peer reviews as soon as possible to receive full participat
             analytics = analytics_response["analytics"]
             completion_groups = analytics.get("completion_groups", {})
 
-            results = {
+            results: dict[str, Any] = {
                 "success": True,
                 "analytics": analytics,
                 "messaging_results": {}

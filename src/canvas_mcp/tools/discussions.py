@@ -2,6 +2,7 @@
 
 import json
 import re
+from typing import Any
 
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -13,7 +14,7 @@ from ..core.logging import log_warning
 from ..core.validation import validate_params
 
 
-def register_shared_discussion_tools(mcp: FastMCP):
+def register_shared_discussion_tools(mcp: FastMCP) -> None:
     """Register discussion tools accessible to both students and educators."""
 
     # ===== DISCUSSION TOOLS =====
@@ -30,7 +31,7 @@ def register_shared_discussion_tools(mcp: FastMCP):
         """
         course_id = await get_course_id(course_identifier)
 
-        params = {"per_page": 100}
+        params: dict[str, Any] = {"per_page": 100}
 
         if include_announcements:
             params["include[]"] = ["announcement"]
@@ -257,7 +258,7 @@ def register_shared_discussion_tools(mcp: FastMCP):
             # Handle replies
             replies_info = ""
             if include_replies:
-                replies = []
+                replies: list[Any] | Any = []
 
                 # Try to get replies from enhanced fetch first
                 if entry_id_str in full_entries_map:
@@ -359,7 +360,7 @@ def register_shared_discussion_tools(mcp: FastMCP):
 
         # Method 1: Try to get entry details from the discussion view endpoint
         entry_response = None
-        replies = []
+        replies: list[Any] | Any = []
 
         try:
             # First try the discussion view endpoint which includes all entries
@@ -567,7 +568,7 @@ def register_shared_discussion_tools(mcp: FastMCP):
 
             # Handle replies
             if include_replies:
-                replies = []
+                replies: list[Any] | Any = []
 
                 # Method 1: Check recent_replies from the entry
                 recent_replies = entry.get("recent_replies", [])
@@ -732,7 +733,7 @@ def register_shared_discussion_tools(mcp: FastMCP):
                f"Message: {truncate_text(message, 200)}"
 
 
-def register_educator_discussion_tools(mcp: FastMCP):
+def register_educator_discussion_tools(mcp: FastMCP) -> None:
     """Register educator-only discussion and announcement tools."""
 
     @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))

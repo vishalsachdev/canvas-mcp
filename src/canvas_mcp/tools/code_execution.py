@@ -270,7 +270,9 @@ def _build_local_tsx_command(temp_file_path: str) -> list[str]:
     if sys.platform != 'win32':
         return ['npx', 'tsx', temp_file_path]
 
-    node_path = shutil.which('node') or 'node'
+    # mypy evaluates sys.platform for the host OS and flags this Windows-only
+    # branch as unreachable; it is live when running on Windows.
+    node_path = shutil.which('node') or 'node'  # type: ignore[unreachable]
     tsx_cli = _find_tsx_cli_windows()
     if tsx_cli:
         return [node_path, tsx_cli, temp_file_path]

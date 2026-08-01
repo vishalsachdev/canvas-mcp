@@ -9,7 +9,7 @@ from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.validation import validate_params
 
 
-def register_admin_tools(mcp: FastMCP):
+def register_admin_tools(mcp: FastMCP) -> None:
     """Register admin/developer MCP tools."""
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))

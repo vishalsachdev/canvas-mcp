@@ -37,7 +37,7 @@ async def refresh_course_cache() -> bool:
 
 
 @validate_params
-async def get_course_id(course_identifier: str | int) -> str | None:
+async def get_course_id(course_identifier: str | int) -> str:
     """Get course ID from either course code or ID, with caching.
 
     Args:
@@ -104,7 +104,7 @@ async def get_course_code(course_id: str | int) -> str | None:
     # If we can't find a code, try to fetch the course directly
     response = await make_canvas_request("get", f"/courses/{course_id}")
     if "error" not in response and "course_code" in response:
-        code = response.get("course_code", "")
+        code: str | None = response.get("course_code", "")
         # Update our cache
         if code:
             id_to_course_code_cache[course_id] = code

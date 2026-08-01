@@ -311,7 +311,7 @@ def _describe_attempts(assignment: dict, submission: dict) -> str:
     allowed = assignment.get("allowed_attempts")
     used = submission.get("attempt") or 0
 
-    if allowed in (None, -1):
+    if allowed is None or allowed == -1:
         return f"Attempts: {used} used, unlimited allowed"
 
     remaining = allowed - used

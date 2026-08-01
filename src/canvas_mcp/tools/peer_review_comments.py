@@ -17,7 +17,7 @@ from ..core.peer_review_comments import PeerReviewCommentAnalyzer
 from ..core.validation import validate_params
 
 
-def register_peer_review_comment_tools(mcp: FastMCP):
+def register_peer_review_comment_tools(mcp: FastMCP) -> None:
     """Register all peer review comment analysis MCP tools."""
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))

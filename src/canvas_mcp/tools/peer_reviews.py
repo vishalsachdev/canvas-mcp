@@ -13,7 +13,7 @@ from ..core.peer_reviews import PeerReviewAnalyzer
 from ..core.validation import validate_params
 
 
-def register_peer_review_tools(mcp: FastMCP):
+def register_peer_review_tools(mcp: FastMCP) -> None:
     """Register all peer review analytics MCP tools."""
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
@@ -97,7 +97,7 @@ def register_peer_review_tools(mcp: FastMCP):
         include_action_items: bool = True,
         include_timeline_analysis: bool = True,
         save_to_file: bool = False,
-        filename: str = None
+        filename: str | None = None
     ) -> str:
         """Generate peer review completion report with summary, analytics, and follow-up recommendations.
 
@@ -153,7 +153,8 @@ def register_peer_review_tools(mcp: FastMCP):
                         result["save_error"] = f"Failed to save file: {str(save_error)}"
 
             if report_format in ["csv", "markdown"]:
-                return result.get("report", json.dumps(result, indent=2))
+                report: str = result.get("report", json.dumps(result, indent=2))
+                return report
             else:
                 return json.dumps(result, indent=2)
 

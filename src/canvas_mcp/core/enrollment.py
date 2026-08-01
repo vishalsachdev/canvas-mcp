@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import cast
 
 from .audit import log_data_access
 from .cache import get_course_id
@@ -220,18 +221,18 @@ def _match_enrollment(
     unverifiable_domain = False
     for enrollment, user in candidates:
         try:
-            field = _local_part_field(user, needle, needle_local)
+            local_field = _local_part_field(user, needle, needle_local)
         except _UnverifiableDomain:
             unverifiable_domain = True
             continue
-        if field is not None:
+        if local_field is not None:
             user_id = user.get("id")
             # Fall back to identity of the row itself when Canvas gives no id,
             # so a missing id cannot silently collapse two people into one.
             key = ("id", user_id) if user_id is not None else ("row", id(enrollment))
             if key not in seen_users:
                 seen_users.add(key)
-                hits.append((enrollment, field))
+                hits.append((enrollment, local_field))
 
     if len(hits) > 1:
         raise AmbiguousIdentifier(
@@ -380,11 +381,13 @@ async def check_enrollment(
     if active_only:
         params["state[]"] = ["active"]
 
-    enrollments = await _fetch_enrollments_raw(course_id, params)
-    if isinstance(enrollments, dict) and "error" in enrollments:
+    raw = await _fetch_enrollments_raw(course_id, params)
+    if isinstance(raw, dict) and "error" in raw:
         log_data_access("GET", f"/courses/{course_id}/enrollments", "error",
-                        error=str(enrollments.get("error")))
-        raise RuntimeError(str(enrollments.get("error")))
+                        error=str(raw.get("error")))
+        raise RuntimeError(str(raw.get("error")))
+    # _fetch_enrollments_raw returns a list in every non-error case.
+    enrollments = cast("list[dict]", raw)
 
     match = _match_enrollment(enrollments, net_id, active_only)
 
@@ -451,8 +454,9 @@ async def check_enrollment(
         matched_enrollment
     ]
     # dict.fromkeys preserves roster order while de-duplicating.
+    role_values = (e.get("type") for e in subject)
     roles_held = tuple(
-        dict.fromkeys(e.get("type") for e in subject if e.get("type"))
+        dict.fromkeys(r for r in role_values if isinstance(r, str) and r)
     )
 
     # Role is now evaluated here rather than by Canvas, so pick the enrollment

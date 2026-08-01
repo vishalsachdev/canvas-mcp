@@ -35,7 +35,7 @@ from ..core.file_validation import (
 from ..core.validation import validate_params
 
 
-def register_shared_file_tools(mcp: FastMCP):
+def register_shared_file_tools(mcp: FastMCP) -> None:
     """Register file tools accessible to both students and educators."""
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
@@ -261,7 +261,7 @@ def register_shared_file_tools(mcp: FastMCP):
         return result
 
 
-def register_educator_file_tools(mcp: FastMCP):
+def register_educator_file_tools(mcp: FastMCP) -> None:
     """Register educator-only file tools (upload)."""
 
     @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))

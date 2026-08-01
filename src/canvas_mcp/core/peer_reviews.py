@@ -20,7 +20,7 @@ class PeerReviewAnalyzer:
 
     async def get_assignments(
         self,
-        course_id: int,
+        course_id: int | str,
         assignment_id: int,
         include_names: bool = True,
         include_submission_details: bool = False
@@ -108,7 +108,7 @@ class PeerReviewAnalyzer:
 
     async def get_completion_analytics(
         self,
-        course_id: int,
+        course_id: int | str,
         assignment_id: int,
         include_student_details: bool = True,
         group_by_status: bool = True
@@ -230,7 +230,7 @@ class PeerReviewAnalyzer:
 
     async def generate_report(
         self,
-        course_id: int,
+        course_id: int | str,
         assignment_id: int,
         report_format: str = "markdown",
         include_executive_summary: bool = True,
@@ -465,7 +465,7 @@ class PeerReviewAnalyzer:
 
     async def get_followup_list(
         self,
-        course_id: int,
+        course_id: int | str,
         assignment_id: int,
         priority_filter: str = "all",
         include_contact_info: bool = False,
@@ -494,7 +494,7 @@ class PeerReviewAnalyzer:
             days_since_assigned = days_threshold  # Default value
 
             # Process followup categories
-            followup_categories = {
+            followup_categories: dict[str, dict[str, Any]] = {
                 "urgent": {
                     "description": "Students with 0 peer reviews completed",
                     "count": len(completion_groups.get("none_complete", [])),
