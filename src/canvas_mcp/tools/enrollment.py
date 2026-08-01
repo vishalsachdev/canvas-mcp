@@ -23,7 +23,7 @@ from ..core.enrollment import check_enrollment as _check_enrollment
 from ..core.validation import validate_params
 
 
-def register_enrollment_tools(mcp: FastMCP):
+def register_enrollment_tools(mcp: FastMCP) -> None:
     """Register the enrollment-check MCP tool."""
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))

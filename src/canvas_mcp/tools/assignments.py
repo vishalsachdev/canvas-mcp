@@ -15,7 +15,7 @@ from ..core.validation import validate_params
 from .rubrics import build_rubric_assessment_form_data
 
 
-def register_shared_assignment_tools(mcp: FastMCP):
+def register_shared_assignment_tools(mcp: FastMCP) -> None:
     """Register assignment tools accessible to both students and educators."""
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
@@ -92,7 +92,7 @@ def register_shared_assignment_tools(mcp: FastMCP):
         return f"Assignment Details for ID {assignment_id} in course {course_display}:\n\n" + "\n".join(details)
 
 
-def register_educator_assignment_tools(mcp: FastMCP):
+def register_educator_assignment_tools(mcp: FastMCP) -> None:
     """Register educator-only assignment tools (grading, analytics, management)."""
 
     @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
@@ -394,7 +394,7 @@ def register_educator_assignment_tools(mcp: FastMCP):
             is_past_due = False
 
         # Process submissions
-        submission_stats = {
+        submission_stats: dict[str, Any] = {
             "total_students": len(students),
             "submitted_count": 0,
             "missing_count": 0,
@@ -775,7 +775,7 @@ def register_educator_assignment_tools(mcp: FastMCP):
         course_id = await get_course_id(course_identifier)
 
         # Build assignment data - only include fields that are provided
-        assignment_data = {}
+        assignment_data: dict[str, Any] = {}
 
         if name is not None:
             assignment_data["name"] = name
@@ -956,7 +956,9 @@ def register_educator_assignment_tools(mcp: FastMCP):
         }
         failed_results = []
 
-        async def grade_single_submission(user_id: str, grade_info: dict[str, Any]):
+        async def grade_single_submission(
+            user_id: str, grade_info: dict[str, Any]
+        ) -> dict[str, Any]:
             """Grade a single submission."""
             try:
                 if dry_run:
@@ -1061,7 +1063,7 @@ def register_educator_assignment_tools(mcp: FastMCP):
 
             # Update statistics
             for result in results:
-                if isinstance(result, Exception):
+                if isinstance(result, BaseException):
                     stats["failed"] += 1
                     failed_results.append({
                         "user_id": "unknown",

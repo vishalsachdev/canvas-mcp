@@ -14,7 +14,7 @@ from ..core.dates import format_date
 from ..core.validation import validate_params
 
 
-def register_page_tools(mcp: FastMCP):
+def register_page_tools(mcp: FastMCP) -> None:
     """Register page settings MCP tools."""
 
     @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
@@ -191,7 +191,7 @@ def register_page_tools(mcp: FastMCP):
         return result
 
 
-def register_educator_page_crud_tools(mcp: FastMCP):
+def register_educator_page_crud_tools(mcp: FastMCP) -> None:
     """Register educator-only page CRUD tools."""
 
     # front_page=True displaces the course's CURRENT front page -- Canvas

@@ -13,7 +13,7 @@ from ..core.peer_reviews import PeerReviewAnalyzer
 from ..core.validation import validate_params
 
 
-def register_peer_review_tools(mcp: FastMCP):
+def register_peer_review_tools(mcp: FastMCP) -> None:
     """Register all peer review analytics MCP tools."""
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))

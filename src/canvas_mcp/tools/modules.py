@@ -14,7 +14,7 @@ from ..core.dates import format_date, parse_date
 from ..core.validation import validate_params
 
 
-def register_shared_module_tools(mcp: FastMCP):
+def register_shared_module_tools(mcp: FastMCP) -> None:
     """Register module tools accessible to both students and educators."""
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
@@ -196,7 +196,7 @@ def register_shared_module_tools(mcp: FastMCP):
         return json.dumps(result)
 
 
-def register_educator_module_tools(mcp: FastMCP):
+def register_educator_module_tools(mcp: FastMCP) -> None:
     """Register educator-only module management tools."""
 
     @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))

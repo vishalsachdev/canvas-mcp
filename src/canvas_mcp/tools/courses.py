@@ -67,7 +67,7 @@ def strip_html_tags(html_content: str) -> str:
     return text.strip()
 
 
-def register_course_tools(mcp: FastMCP):
+def register_course_tools(mcp: FastMCP) -> None:
     """Register all course-related MCP tools."""
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
@@ -383,7 +383,7 @@ def register_course_tools(mcp: FastMCP):
         return result
 
 
-def register_shared_content_tools(mcp: FastMCP):
+def register_shared_content_tools(mcp: FastMCP) -> None:
     """Register shared content tools (pages, module items) for both students and educators."""
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))

@@ -13,7 +13,7 @@ from ..core.logging import log_warning
 from ..core.validation import validate_params
 
 
-def register_shared_discussion_tools(mcp: FastMCP):
+def register_shared_discussion_tools(mcp: FastMCP) -> None:
     """Register discussion tools accessible to both students and educators."""
 
     # ===== DISCUSSION TOOLS =====
@@ -732,7 +732,7 @@ def register_shared_discussion_tools(mcp: FastMCP):
                f"Message: {truncate_text(message, 200)}"
 
 
-def register_educator_discussion_tools(mcp: FastMCP):
+def register_educator_discussion_tools(mcp: FastMCP) -> None:
     """Register educator-only discussion and announcement tools."""
 
     @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
