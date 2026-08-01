@@ -207,8 +207,8 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [ ] Issue #142 → **watch item, unassigned** (`blocked-upstream`): `fastmcp-slim` 3.4.5 still pins `mcp<2.0`, so relaxing our pin cannot resolve; `mcp` 2.0.0 stable has shipped. Scope collapsed since #167 removed the FastMCP→MCPServer rename — hours, not a day. Trigger: a fastmcp release lifting `mcp<2.0`
 - [x] Issue #145 / PR #167: fastmcp 3.4.4 migration — **DONE 2026-07-21** (CVEs PYSEC-2026-2475/2476 resolved; dep-scan green; staging-validated then prod-deployed + live-verified; #145 closed)
 - [ ] Issue #157: `execute_typescript` sandbox hardening backlog (container-level egress, non-root user, prebuilt tsx image) — **self-hosted-only now**: tool is DISABLED on both hosted slots (`EXECUTE_TYPESCRIPT_ENABLED=false`, verified 2026-07-10); gate on re-enabling hosted code-exec
-- [ ] Backlog triage (module templates, bulk creation, page versioning)
-- [ ] Issue #106: 186 mypy errors uncovered by adding mypy to dev deps — incremental cleanup, module by module
+- [ ] Backlog triage (module templates, bulk creation, page versioning — feature ideas only, no owner)
+- [x] Issue #106: mypy 229 → 0 errors + mypy in CI lint job (PR #213, 2026-08-01)
 
 ## Roadmap
 - [x] Release v1.0.8 — all CI/CD pipelines passing (PyPI, MCP Registry, GitHub Release)
@@ -250,28 +250,34 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-07-31 (later) — Hosted deployment spec → UMich + UCI + public `deploy/azure/` + site
-- **The hosted-spec draft shipped everywhere it was promised.** Found in `internal/hosted-spec-draft/`
-  (7/29 triage loop); fixed three stale claims before sending — `execute_typescript` is opt-in since
-  v1.6.0 (#178), the Docker image now ships `ENABLE_DATA_ANONYMIZATION=true` (audit items B4/B7
-  resolved by code, not prose), tool count ~93 → ~96, `STUDENT_WRITE_TOOLS` allowlist documented.
-- **Emailed as self-contained HTML** (pandoc, mermaid pre-rendered to inline SVG, zero JS) to
-  **VC Choudhary (UC Irvine, Gradebot thread — fulfills the 7/25 "spec soon" promise)** and
-  **Zhen Qian (UMich — mid-Sept Zoom confirmed)**; both in-thread via Thunderbird. Zhen's note
-  name-checks the two changes her team's issues caused (STUDENT_WRITE_TOOLS, #199 AMBIGUOUS).
-- **PR #206 MERGED (admin bypass, required checks green + Secret Detection pass)**: `deploy/azure/`
-  is now the public canonical spec — README + 4 placeholdered templates (`deploy-{prod,staging}.yml.sample`,
-  `appsettings.example.json`, `authsettingsv2.example.json`). README/AGENTS "deployment is planned"
-  phrasing replaced with links. `internal/hosted-spec-draft/` is scratch now; UMich/UCI feedback
-  edits go to `deploy/azure/README.md`.
-- **Site callout live** on canvas-mcp.illinihunt.org (Privacy section → "Deploying for your whole
-  institution?" → GitHub). Deliberately narrative-only per the audit: operational content stays in
-  the repo where it versions with code; the site's manual deploy cadence can't keep runbooks fresh.
-- **Spotted while verifying: THREE different tool counts are user-visible** — hero stat "88 MCP
-  TOOLS", README "95 tools", site badge "96". Fold a registry-count-vs-docs CI check into #173
-  (same pattern as #205's annotation gate).
-- Next: (1) **#191 still BLOCKED** on zqian's New-Quizzes sandbox (scoping Q4) — only open PR.
-  (2) Watch for UMich/UCI spec feedback → `deploy/azure/README.md`. (3) Release-notes reminder:
-  check_enrollment AMBIGUOUS + write-confirmation prompts. (4) Backlog: #173 (+tool-count CI check),
-  #179 consolidation, #170 awaiting UMich answers, #106 mypy, #157, #142 (watch), #168 stale
-  maintenance report.
+### 2026-08-01 — zqian bug pair fixed same-day + backlog cleared (5 PRs, 6 issues closed)
+- **#207/#208 (zqian, filed previous evening) fixed, merged, deployed by morning (PR #210).** Both
+  were one-line wire-format mismatches in opposite directions: `bulk_update_pages` form-encoded a
+  nested `wiki_page` dict (httpx sends the Python repr → Canvas 500 on every page; now JSON, matching
+  `update_page_settings`), and `mark_conversations_read` sent JSON with the literal key
+  `conversation_ids[]` (brackets only mean "array" in form encoding; now form data). Wire bytes
+  verified empirically with httpx; regression tests pin the call shape, not mocked success. Third
+  `use_form_data` bug in repo history (#181 was the first) — a client-layer guard rejecting nested
+  dicts under `use_form_data=True` would make this class loud; candidate hardening item.
+- **#179 CLOSED (PR #211):** ten tool-layer `anonymize_response_data()` sites deleted after verifying
+  each endpoint against `_should_anonymize_endpoint()` live; `ENABLE_DATA_ANONYMIZATION` now honored
+  at exactly one layer (core/client.py). Enforced by ruff **TID251 banned-api** (probe-tested); doc
+  in env.template. Behavior change: flag OFF now actually returns real names on those ten read paths.
+- **#173 CLOSED (PR #212):** TOOL_MANIFEST.json 30 → **99 entries** (registry parity with all feature
+  flags on) + CI parity test (missing OR extra entry fails). The 88/95/96 count drift fixed across
+  docs/index.html, README, AGENTS.md → all say 99 (= full-capability count; default install registers
+  94). Site wrangler-deployed.
+- **#106 CLOSED (PR #213):** mypy 229 → **0 errors**, now in the CI lint job. Real finds: 
+  `get_course_id()` never returns None (annotation lied, ~60 false Optionals, downstream None-guards
+  are dead code); `make_canvas_request` data type excluded the live `list[tuple]` form-data path; 
+  `asyncio.gather` results narrowed to `Exception` could crash on `BaseException` (fixed — the one
+  behavior change).
+- **#168 CLOSED (PR #214):** unused TypedDicts deleted (core/types.py removed), error-response
+  convention documented as it actually is, stale "550+ tests" → 900+ (827 test functions measured).
+  Deferred items (mypy<2 relax, pydantic/uvicorn floors, py3.10 EOL) noted on the issue.
+- Method note: #173 + #106 ran as parallel worktree subagents while #179/#168 were done in-session;
+  each agent branch was rebased, spot-checked against real signatures, and codex-reviewed before merge.
+- Next: (1) **#191 still BLOCKED** on zqian's New-Quizzes sandbox (scoping Q4) — only open PR besides
+  daily triage briefs. (2) Watch UMich/UCI spec feedback → `deploy/azure/README.md`. (3) Release notes
+  for next version: #207/#208 fixes, anonymization single-layer, 99-tool manifest, mypy gate.
+  (4) Remaining open: #170 (awaiting UMich), #157 (self-hosted-only), #142 (watch).

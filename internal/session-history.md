@@ -1,5 +1,31 @@
 # Session History
 
+### 2026-07-31 (later) — Hosted deployment spec → UMich + UCI + public `deploy/azure/` + site
+- **The hosted-spec draft shipped everywhere it was promised.** Found in `internal/hosted-spec-draft/`
+  (7/29 triage loop); fixed three stale claims before sending — `execute_typescript` is opt-in since
+  v1.6.0 (#178), the Docker image now ships `ENABLE_DATA_ANONYMIZATION=true` (audit items B4/B7
+  resolved by code, not prose), tool count ~93 → ~96, `STUDENT_WRITE_TOOLS` allowlist documented.
+- **Emailed as self-contained HTML** (pandoc, mermaid pre-rendered to inline SVG, zero JS) to
+  **VC Choudhary (UC Irvine, Gradebot thread — fulfills the 7/25 "spec soon" promise)** and
+  **Zhen Qian (UMich — mid-Sept Zoom confirmed)**; both in-thread via Thunderbird. Zhen's note
+  name-checks the two changes her team's issues caused (STUDENT_WRITE_TOOLS, #199 AMBIGUOUS).
+- **PR #206 MERGED (admin bypass, required checks green + Secret Detection pass)**: `deploy/azure/`
+  is now the public canonical spec — README + 4 placeholdered templates (`deploy-{prod,staging}.yml.sample`,
+  `appsettings.example.json`, `authsettingsv2.example.json`). README/AGENTS "deployment is planned"
+  phrasing replaced with links. `internal/hosted-spec-draft/` is scratch now; UMich/UCI feedback
+  edits go to `deploy/azure/README.md`.
+- **Site callout live** on canvas-mcp.illinihunt.org (Privacy section → "Deploying for your whole
+  institution?" → GitHub). Deliberately narrative-only per the audit: operational content stays in
+  the repo where it versions with code; the site's manual deploy cadence can't keep runbooks fresh.
+- **Spotted while verifying: THREE different tool counts are user-visible** — hero stat "88 MCP
+  TOOLS", README "95 tools", site badge "96". Fold a registry-count-vs-docs CI check into #173
+  (same pattern as #205's annotation gate).
+- Next: (1) **#191 still BLOCKED** on zqian's New-Quizzes sandbox (scoping Q4) — only open PR.
+  (2) Watch for UMich/UCI spec feedback → `deploy/azure/README.md`. (3) Release-notes reminder:
+  check_enrollment AMBIGUOUS + write-confirmation prompts. (4) Backlog: #173 (+tool-count CI check),
+  #179 consolidation, #170 awaiting UMich answers, #106 mypy, #157, #142 (watch), #168 stale
+  maintenance report.
+
 Archived session log entries from canvas-mcp CLAUDE.md.
 
 ### 2026-07-31 — Closed all three zqian bugs (#199/#198/#200) + completed the tool-annotation contract
