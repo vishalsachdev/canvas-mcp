@@ -720,6 +720,116 @@ Manually assign a peer review.
 
 ---
 
+#### `get_peer_review_assignments`
+Get the peer review mapping showing who reviews whom, with completion status.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `assignment_id`: Assignment ID
+- `include_names` (optional): Include student names (default: true)
+- `include_submission_details` (optional): Include submission metadata (default: false)
+
+**Example:**
+```
+"Who is reviewing whom on the essay assignment?"
+```
+
+**Returns:** Reviewer-to-reviewee mapping with per-review completion status.
+
+---
+
+#### `generate_peer_review_report`
+Generate a peer review completion report with summary statistics, analytics, and follow-up recommendations.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `assignment_id`: Assignment ID
+- `report_format` (optional): `markdown` (default), `csv`, or `json`
+- `include_executive_summary` (optional): Include executive summary (default: true)
+- `include_student_details` (optional): Include student details (default: true)
+- `include_action_items` (optional): Include action items (default: true)
+- `include_timeline_analysis` (optional): Include timeline analysis (default: true)
+- `save_to_file` (optional): Save report to a local file (default: false)
+- `filename` (optional): Custom filename for the saved report
+
+**Example:**
+```
+"Generate a peer review completion report for assignment 4821"
+```
+
+---
+
+#### `get_peer_review_followup_list`
+Get a prioritized list of students needing follow-up on peer review completion.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `assignment_id`: Assignment ID
+- `priority_filter` (optional): `urgent`, `medium`, `low`, or `all` (default: all)
+- `include_contact_info` (optional): Include email addresses (default: false)
+- `days_threshold` (optional): Days since assignment for urgency calculation (default: 3)
+
+**Example:**
+```
+"Which students still owe peer reviews?"
+```
+
+**Returns:** Prioritized list of students to follow up with, by incomplete review count.
+
+---
+
+#### `send_peer_review_followup_campaign`
+Complete workflow: analyze peer review completion and send targeted reminders in one call.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `assignment_id`: Assignment ID
+
+**Example:**
+```
+"Analyze peer review completion and remind everyone who's behind"
+```
+
+**Returns:** Campaign summary: who was analyzed, who was messaged, and send results.
+
+---
+
+#### `generate_peer_review_feedback_report`
+Create instructor-ready reports on peer review quality.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `assignment_id`: Assignment ID
+- `report_type` (optional): `comprehensive` (default), `summary`, or `individual`
+- `include_student_names` (optional): Include student names (default: false)
+- `format_type` (optional): `markdown` (default), `html`, or `text`
+
+**Example:**
+```
+"Generate a peer review quality report for the essay assignment"
+```
+
+---
+
+#### `extract_peer_review_dataset`
+Export all peer review data for external analysis.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `assignment_id`: Assignment ID
+- `output_format` (optional): `csv` (default), `json`, or `xlsx`
+- `include_analytics` (optional): Include quality analytics (default: true)
+- `anonymize_data` (optional): Anonymize student data (default: true)
+- `save_locally` (optional): Save file locally (default: true)
+- `filename` (optional): Custom filename
+
+**Example:**
+```
+"Export all peer review data for the essay assignment as CSV"
+```
+
+---
+
 ### Communication & Messaging
 
 #### `send_conversation`
@@ -751,6 +861,26 @@ Automated peer review reminder workflow.
 ```
 "Send reminders to students who haven't completed peer reviews"
 ```
+
+---
+
+#### `send_bulk_messages_from_list`
+Send customized messages to multiple recipients using templates with per-recipient variables.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `recipient_data`: List of dicts with recipient info and template variables
+- `subject_template`: Subject with placeholders (e.g., `"Reminder - {missing_count} reviews"`)
+- `body_template`: Body with placeholders (e.g., `"Hi {name}, you have {missing_count}..."`)
+- `context_code` (optional): Course context
+- `mode` (optional): `sync` (default) or `async`
+
+**Example:**
+```
+"Send this templated reminder to these 12 students"
+```
+
+**Returns:** Per-recipient success/failure summary of sent messages.
 
 ---
 
@@ -819,6 +949,298 @@ Respond to student discussion posts.
 
 ---
 
+### Announcement Management
+
+Deletion is **permanent** — Canvas may retain a recycle-bin copy depending on admin settings, but do not count on it. The bulk tools default to previews where noted.
+
+#### `delete_announcement`
+Delete a single announcement from a course.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `announcement_id`: Announcement ID to delete
+
+**Example:**
+```
+"Delete announcement 456 from the course"
+```
+
+---
+
+#### `delete_announcement_with_confirmation`
+Delete an announcement with optional safety checks.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `announcement_id`: Announcement ID to delete
+- `require_title_match` (optional): Only delete if the title matches this string exactly
+- `dry_run` (optional): Verify but don't actually delete (default: false)
+
+**Example:**
+```
+"Delete the 'Old Exam Info' announcement, but show me it first"
+```
+
+---
+
+#### `bulk_delete_announcements`
+Delete multiple announcements by ID.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `announcement_ids`: List of announcement IDs to delete
+- `stop_on_error` (optional): Stop on first error; if false, continue with remaining (default: false)
+- `limit` (optional): Max announcements to delete in one call (default: 25). Ignored when `dry_run=true`, so large batches can be previewed safely.
+- `dry_run` (optional): Fetch titles and report what would be deleted without deleting (default: false)
+
+**Example:**
+```
+"Delete announcements 101, 102, and 103 from BADM 350"
+```
+
+**Returns:** Per-announcement success/failure summary.
+
+---
+
+#### `delete_announcements_by_criteria`
+Delete announcements matching criteria such as age or title patterns.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `criteria`: Dict with keys: `title_contains`, `older_than` (ISO), `newer_than` (ISO), `title_regex`
+- `limit` (optional): Max announcements to delete (safety limit)
+- `dry_run` (optional): Show what would be deleted without deleting (default: **true**)
+
+**Example:**
+```
+"Delete all announcements older than 90 days (preview first)"
+```
+
+**Returns:** List of matched announcements (dry run) or per-announcement deletion results.
+
+---
+
+### Page Management
+
+For reading pages, see [Content Access](#content-access); for publish/unpublish and other settings, see [Page Settings](#page-settings).
+
+#### `create_page`
+Create a new page in a course.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `title`: Page title
+- `body`: HTML content for the page
+- `published` (optional): Whether to publish (default: true)
+- `front_page` (optional): Whether to set as front page (default: false)
+- `editing_roles` (optional): Who can edit (default: "teachers")
+
+**Example:**
+```
+"Create a course page called 'Office Hours' with this content"
+```
+
+**Returns:** Created page details including URL slug and publication state.
+
+---
+
+#### `edit_page_content`
+Replace the content of an existing page.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `page_url_or_id`: Page URL slug or page ID
+- `new_content`: New HTML content for the page
+- `title` (optional): New title for the page
+
+**Example:**
+```
+"Update the 'Course Policies' page with this new HTML"
+```
+
+---
+
+#### `delete_page`
+Delete a page from a course. **Permanent.**
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `page_url_or_id`: Page URL slug or page ID to delete
+- `require_title_match` (optional): Safety check — only delete if the page title matches exactly
+
+**Example:**
+```
+"Delete the outdated 'Fall 2024 Schedule' page"
+```
+
+---
+
+### File Management
+
+For listing, downloading, and reading course files (available to both roles), see [Files](#files) under Shared Tools.
+
+#### `upload_course_file`
+Upload a local file to Canvas course storage.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `file_path`: Absolute path to the local file to upload
+- `folder_path` (optional): Canvas folder path (default: "course files" root)
+- `display_name` (optional): Override the filename shown in Canvas
+- `on_duplicate` (optional): `rename` (default) or `overwrite`
+
+**Example:**
+```
+"Upload lecture5.pdf to the course files"
+```
+
+**Returns:** Uploaded file details including the Canvas file ID, usable with `add_module_item` (`item_type='File'`) or `send_conversation` (attachment IDs).
+
+---
+
+### Accessibility
+
+Two workflows: a built-in scanner (`scan_course_content_accessibility` → `fix_accessibility_issues`), and a UFIXIT-report pipeline (`fetch_ufixit_report` → `parse_ufixit_violations` → `format_accessibility_summary`).
+
+#### `scan_course_content_accessibility`
+Scan course content for basic accessibility issues.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `content_types` (optional): Comma-separated types to scan: `pages`, `assignments`, `discussions`, `syllabus` (default: "pages,assignments")
+
+**Example:**
+```
+"Scan my course for accessibility problems"
+```
+
+**Returns:** Accessibility issues grouped by page/item, with auto-fixable flags.
+
+---
+
+#### `fix_accessibility_issues`
+Auto-fix accessibility issues flagged as `auto_fixable` by the scanner. Run `scan_course_content_accessibility` first to see what will be fixed.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `fix_types` (optional): Comma-separated fix types to apply (default: all of the below)
+  - `th_scope`: Add `scope="col"` to `<th>` without scope
+  - `low_contrast`: Fix white text on `#ff5f05` orange backgrounds
+  - `legacy_designplus`: Migrate `kl_` classes to `dp-` equivalents
+  - `redundant_alt_prefix`: Remove "image of" prefix from alt text
+- `content_types` (optional): Comma-separated types to fix: `pages`, `assignments` (default: "pages")
+- `dry_run` (optional): Preview changes without applying (default: **true**). Set false to apply.
+
+**Example:**
+```
+"Fix the auto-fixable accessibility issues found in the scan"
+```
+
+---
+
+#### `fetch_ufixit_report`
+Fetch a UFIXIT accessibility report stored on a Canvas course page.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `page_title` (optional): Title of the UFIXIT report page (default: "UFIXIT")
+
+**Example:**
+```
+"Fetch the UFIXIT accessibility report for BADM 350"
+```
+
+**Returns:** Report content ready for `parse_ufixit_violations`.
+
+---
+
+#### `parse_ufixit_violations`
+Parse UFIXIT report content into individual accessibility violations.
+
+**Parameters:**
+- `report_json`: JSON string from `fetch_ufixit_report`
+
+**Example:**
+```
+"Parse this UFIXIT report into individual violations"
+```
+
+---
+
+#### `format_accessibility_summary`
+Format parsed violations into a human-readable summary grouped by severity.
+
+**Parameters:**
+- `violations_json`: JSON string from `parse_ufixit_violations`
+
+**Example:**
+```
+"Summarize these accessibility violations"
+```
+
+---
+
+### Roster & Groups
+
+#### `list_users`
+List users enrolled in a course.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+
+**Example:**
+```
+"List the students enrolled in BADM 350"
+```
+
+**Returns:** Enrolled users with IDs and roles. Names are subject to anonymization settings.
+
+---
+
+#### `list_groups`
+List all groups and their members for a course.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+
+**Example:**
+```
+"Show the project groups in BADM 350"
+```
+
+---
+
+### Privacy & Anonymization
+
+See also the `ENABLE_DATA_ANONYMIZATION` setting in the [usage guidelines](#for-educators).
+
+#### `get_anonymization_status`
+Get the server's current data anonymization configuration and statistics.
+
+**Parameters:** none
+
+**Example:**
+```
+"Is data anonymization enabled on this server?"
+```
+
+---
+
+#### `create_student_anonymization_map`
+Create a local CSV file mapping real student data to anonymous IDs for a course.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+
+**Example:**
+```
+"Create an anonymization map for BADM 350"
+```
+
+**Returns:** Path to the CSV mapping file plus a summary of mapped students. Keep mapping files in `local_maps/` secure and never commit them to version control.
+
+---
+
 ## Shared Tools (Both Students & Educators)
 
 These tools work for both audiences, providing access to course content and information.
@@ -869,6 +1291,24 @@ Get the complete Canvas Syllabus tab content for a course, **untruncated**. Unli
 
 ---
 
+#### `get_course_content_overview`
+Get a comprehensive overview of course content including pages, modules, and syllabus in one call.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `include_pages` (optional): Include pages information (default: true)
+- `include_modules` (optional): Include modules and their items (default: true)
+- `include_syllabus` (optional): Include syllabus content (default: true)
+
+**Example:**
+```
+"Give me an overview of everything in BADM 350"
+```
+
+**Returns:** Structured overview of the course's pages, modules, and syllabus. The syllabus portion is a ~1000-character preview — use `get_syllabus` for the full body.
+
+---
+
 ### Content Access
 
 #### `list_pages`
@@ -911,6 +1351,21 @@ Get detailed page metadata.
 
 ---
 
+#### `get_front_page`
+Get the front page content for a course.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+
+**Example:**
+```
+"What's on the course front page?"
+```
+
+**Returns:** Front page title and full content body.
+
+---
+
 ### Modules
 
 Modules are Canvas's primary content organization system, allowing you to structure course content into ordered units with prerequisites and completion requirements.
@@ -945,6 +1400,23 @@ List all modules in a course.
 "Show me all modules in BADM 350"
 "List modules with their items"
 ```
+
+---
+
+#### `list_module_items`
+List the items within a specific module, including pages.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `module_id`: The module ID
+- `include_content_details` (optional): Include additional content details (default: true)
+
+**Example:**
+```
+"What's inside the 'Week 2' module?"
+```
+
+**Returns:** Items in the module with types, titles, and IDs.
 
 ---
 
@@ -1117,6 +1589,125 @@ Update settings for multiple pages at once.
 
 ---
 
+### Files
+
+For uploading files (educator-only), see [File Management](#file-management) under Educator Tools.
+
+#### `list_course_files`
+List files in a course with optional search.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `search_term` (optional): Filter files by name
+- `sort` (optional): Sort field: `name`, `size`, `created_at`, `updated_at`, `content_type` (default: updated_at)
+- `order` (optional): `asc` or `desc` (default: desc)
+
+**Example:**
+```
+"List the PDF files in this course"
+```
+
+**Returns:** Course files with IDs, names, sizes, and folders.
+
+---
+
+#### `download_course_file`
+Download a course file to the local filesystem of the machine running the MCP server.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `file_id`: Canvas file ID (find it with `list_course_files` or `list_module_items`)
+- `save_directory` (optional): Local directory to save to (default: system temp dir, must exist)
+
+**Example:**
+```
+"Download the syllabus PDF from the course files"
+```
+
+**Returns:** Local path of the downloaded file with size and content type.
+
+---
+
+#### `read_course_file`
+Read a course file and return its content directly in the response as base64. Unlike `download_course_file`, nothing is written to the server's filesystem, so this works when the MCP server runs on a different machine than the client.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `file_id`: Canvas file ID (find it with `list_course_files` or `list_module_items`)
+- `max_size_mb` (optional): Maximum file size in MB to read (default: 25). Clamped server-side to `READ_FILE_MAX_SIZE_MB` (default 100); larger files are rejected to avoid excessive memory usage.
+
+**Example:**
+```
+"Read the rubric spreadsheet from course files"
+```
+
+**Returns:** File content as base64 with name, size, and content type.
+
+---
+
+### Conversations (Inbox)
+
+#### `list_conversations`
+List Canvas inbox conversations for the current user.
+
+**Parameters:**
+- `scope` (optional): `unread` (default), `starred`, `sent`, `archived`, or `all`
+- `filter_ids` (optional): Conversation IDs to filter by
+- `filter_mode` (optional): `and` (default) or `or` for `filter_ids`
+- `include_participants` (optional): Include participant info (default: true)
+- `include_all_ids` (optional): Include all participant IDs (default: false)
+
+**Example:**
+```
+"Show my Canvas inbox"
+```
+
+**Returns:** Conversations with participants, subjects, and read state.
+
+---
+
+#### `get_conversation_details`
+Get a full conversation thread with its messages.
+
+**Parameters:**
+- `conversation_id`: Conversation ID
+- `auto_mark_read` (optional): Mark as read when viewed (default: true)
+- `include_messages` (optional): Include all messages (default: true)
+
+**Example:**
+```
+"Show me the full thread of conversation 555"
+```
+
+---
+
+#### `get_unread_count`
+Get the number of unread conversations.
+
+**Parameters:** none
+
+**Example:**
+```
+"How many unread Canvas messages do I have?"
+```
+
+---
+
+#### `mark_conversations_read`
+Mark multiple conversations as read.
+
+**Parameters:**
+- `conversation_ids`: List of conversation IDs to mark as read
+
+**Example:**
+```
+"Mark conversations 12, 13, and 14 as read"
+```
+
+**Returns:** Per-conversation success/failure summary.
+
+---
+
 ### Announcements
 
 #### `list_announcements`
@@ -1169,6 +1760,21 @@ View posts in a discussion.
 **Example:**
 ```
 "Show me posts in the Week 5 discussion"
+```
+
+---
+
+#### `get_discussion_with_replies`
+Get all discussion entries with nested replies in one call.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `topic_id`: Discussion topic ID
+- `include_replies` (optional): Fetch detailed replies for all entries (default: false)
+
+**Example:**
+```
+"Get the whole Week 3 discussion including replies"
 ```
 
 ---

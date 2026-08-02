@@ -42,7 +42,7 @@ jobs:
 
             1. **Dependency Analysis**
                - Check pyproject.toml for outdated dependencies
-               - Verify canvasapi library compatibility with latest Canvas API
+               - Verify httpx-based Canvas REST calls still match the current Canvas API (this repo calls Canvas directly via make_canvas_request(); it does not use the canvasapi library)
                - Check if mcp library has updates
                - Review Python version requirements
 

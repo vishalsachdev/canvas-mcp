@@ -48,7 +48,7 @@ body:
       description: Which Canvas API endpoint(s) would this tool use?
       placeholder: |
         GET /api/v1/courses/:course_id/rubrics
-        Documentation: https://canvas.instructure.com/doc/api/rubrics.html
+        Documentation: https://developerdocs.instructure.com/services/canvas/resources/rubrics
     validations:
       required: true
 
