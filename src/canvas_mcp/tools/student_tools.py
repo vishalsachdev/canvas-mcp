@@ -10,7 +10,7 @@ from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_code, get_course_id
-from ..core.client import fetch_all_paginated_results, make_canvas_request
+from ..core.client import fetch_all_paginated_results
 from ..core.dates import format_date, parse_date
 from ..core.validation import validate_params
 
@@ -26,68 +26,81 @@ def register_student_tools(mcp: FastMCP) -> None:
         Args:
             days: Number of days to look ahead (default: 7)
         """
-        # Calculate the date range (use timezone-aware datetime)
-        end_date = datetime.now(timezone.utc) + timedelta(days=days)
+        if days < 1:
+            return "Error: days must be at least 1."
 
-        # Get upcoming events for the current user
-        events = await fetch_all_paginated_results(
-            "/users/self/upcoming_events",
-            params={"per_page": 100}
+        # /users/self/upcoming_events is hardcoded by Canvas to the
+        # dashboard's 7-day "Coming Up" window regardless of parameters
+        # (#222), so the Planner API is used instead: it honors an explicit
+        # start/end range and already carries per-item submission status,
+        # which also removes a per-assignment submissions/self round trip.
+        start_date = datetime.now(timezone.utc)
+        end_date = start_date + timedelta(days=days)
+
+        items = await fetch_all_paginated_results(
+            "/planner/items",
+            params={
+                "start_date": start_date.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "end_date": end_date.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "per_page": 100,
+            },
         )
 
-        if isinstance(events, dict) and "error" in events:
-            return f"Error fetching upcoming assignments: {events['error']}"
+        if isinstance(items, dict) and "error" in items:
+            return f"Error fetching upcoming assignments: {items['error']}"
 
-        if not events:
-            return f"No assignments due in the next {days} days."
-
-        # Filter to assignments only (not calendar events)
         assignments = []
-        for event in events:
-            if event.get("type") == "assignment" or event.get("assignment"):
-                assignment_data = event.get("assignment", event)
-                due_at = assignment_data.get("due_at")
+        for item in items if isinstance(items, list) else []:
+            plannable_type = item.get("plannable_type")
+            plannable = item.get("plannable") or {}
 
-                if due_at:
-                    # Check if within our date range
-                    due_date = parse_date(due_at)
-                    if due_date and due_date <= end_date:
-                        assignments.append(assignment_data)
+            if plannable_type in ("assignment", "quiz"):
+                due_at = plannable.get("due_at") or item.get("plannable_date")
+            elif plannable_type == "discussion_topic":
+                # Graded discussions are assignments too; the planner reports
+                # them as discussion_topic but only graded ones carry due_at
+                # (ungraded to-do discussions have todo_date instead).
+                due_at = plannable.get("due_at")
+            else:
+                continue
+
+            if not due_at:
+                continue
+            due_date = parse_date(due_at)
+            if not due_date or due_date > end_date:
+                continue
+
+            submissions = item.get("submissions")
+            submitted = isinstance(submissions, dict) and bool(
+                submissions.get("submitted")
+            )
+            assignments.append({
+                "name": plannable.get("title", "Unnamed Assignment"),
+                "due_at": due_at,
+                "course_id": item.get("course_id"),
+                "submitted": submitted,
+            })
 
         if not assignments:
             return f"No assignments due in the next {days} days."
 
         # Sort by due date (use timezone-aware max for fallback)
-        assignments.sort(key=lambda x: parse_date(x.get("due_at", "")) or datetime.max.replace(tzinfo=timezone.utc))
+        assignments.sort(
+            key=lambda x: parse_date(x["due_at"]) or datetime.max.replace(tzinfo=timezone.utc)
+        )
 
         # Format output
         output_lines = [f"Upcoming Assignments (Next {days} Days):\n"]
 
         for assignment in assignments:
-            name = assignment.get("name", "Unnamed Assignment")
-            due_at = format_date(assignment.get("due_at"))
-            course_id = assignment.get("course_id")
-
-            # Get course name
+            course_id = assignment["course_id"]
             course_display = await get_course_code(course_id) if course_id else "Unknown Course"
-
-            assignment_id = assignment.get("id")
-            if course_id and assignment_id:
-                sub = await make_canvas_request(
-                    "get",
-                    f"/courses/{course_id}/assignments/{assignment_id}/submissions/self"
-                )
-                if isinstance(sub, dict) and sub.get("submitted_at"):
-                    status = "✅ Submitted"
-                else:
-                    status = "❌ Not Submitted"
-            else:
-                status = "❌ Not Submitted"
+            status = "✅ Submitted" if assignment["submitted"] else "❌ Not Submitted"
 
             output_lines.append(
-                f"• {name}\n"
+                f"• {assignment['name']}\n"
                 f"  Course: {course_display}\n"
-                f"  Due: {due_at}\n"
+                f"  Due: {format_date(assignment['due_at'])}\n"
                 f"  Status: {status}\n"
             )
 
