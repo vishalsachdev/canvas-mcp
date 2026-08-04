@@ -14,6 +14,7 @@ from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, truncate_text
 from ..core.validation import validate_params
+from ..core.write_confirmation import unconfirmed_write_warning
 
 
 def preprocess_criteria_string(criteria_string: str) -> str:
@@ -426,17 +427,6 @@ def rubric_association_id(response: Any) -> Any | None:
     return None
 
 
-def unconfirmed_write_warning(what: str, facts: dict[str, Any], remedy: str) -> str:
-    """Format the 'Canvas accepted this but created nothing' warning.
-
-    Every rubric write shares one rule: never report success for a state the
-    user cannot see in Canvas. Centralising the wording keeps that failure
-    legible and identical across tools instead of drifting per call site.
-    """
-    lines = [f"⚠️  Could not confirm {what}.\n"]
-    lines += [f"{label}: {value}\n" for label, value in facts.items() if value is not None]
-    lines.append(f"{remedy}\n")
-    return "".join(lines)
 
 
 def count_csv_rubrics(csv_content: str) -> int | None:

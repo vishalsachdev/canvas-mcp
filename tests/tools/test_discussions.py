@@ -266,5 +266,58 @@ class TestDiscussionTools:
             assert result == []
 
 
+class TestCreateAnnouncementConfirmsWrite:
+    """#220: Canvas silently drops is_announcement for tokens without
+    announcement permission and creates a regular discussion, returning 200.
+    The tool must not report success unless the response confirms the flag.
+    """
+
+    @pytest.mark.asyncio
+    async def test_silent_discussion_downgrade_is_not_success(self, mock_canvas_api):
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "id": 999,
+            "title": "HI",
+            "is_announcement": False,
+            "created_at": "2026-08-03T15:00:00Z",
+        }
+
+        create_announcement = get_tool_function('create_announcement')
+        result = await create_announcement("badm_350_120251", "HI", "Hello class")
+
+        assert "created successfully" not in result
+        assert "Could not confirm" in result
+        assert "999" in result  # points at the stray discussion topic
+
+    @pytest.mark.asyncio
+    async def test_missing_flag_in_response_is_not_success(self, mock_canvas_api):
+        """A response without the is_announcement key is also unconfirmed."""
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "id": 1000,
+            "title": "HI",
+            "created_at": "2026-08-03T15:00:00Z",
+        }
+
+        create_announcement = get_tool_function('create_announcement')
+        result = await create_announcement("badm_350_120251", "HI", "Hello class")
+
+        assert "created successfully" not in result
+        assert "Could not confirm" in result
+
+    @pytest.mark.asyncio
+    async def test_confirmed_announcement_reports_success(self, mock_canvas_api):
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "id": 1001,
+            "title": "Real announcement",
+            "is_announcement": True,
+            "created_at": "2026-08-03T15:00:00Z",
+        }
+
+        create_announcement = get_tool_function('create_announcement')
+        result = await create_announcement("badm_350_120251", "Real announcement", "Hello")
+
+        assert "created successfully" in result
+        assert "1001" in result
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

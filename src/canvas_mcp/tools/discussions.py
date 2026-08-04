@@ -12,6 +12,7 @@ from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, parse_date, truncate_text
 from ..core.logging import log_warning
 from ..core.validation import validate_params
+from ..core.write_confirmation import unconfirmed_write_warning
 
 
 def register_shared_discussion_tools(mcp: FastMCP) -> None:
@@ -972,6 +973,26 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
         created_at = format_date(response.get("created_at"))
 
         course_display = await get_course_code(course_id) or course_identifier
+
+        # Canvas answers 200 to this POST even when the token lacks
+        # announcement permission — it silently drops is_announcement and
+        # creates a regular discussion topic instead (#220). The response
+        # echoes the flag (measured live), so its absence means the write
+        # did not do what was asked.
+        if not response.get("is_announcement"):
+            return unconfirmed_write_warning(
+                "the announcement was created",
+                {
+                    "Created instead": f"a regular discussion topic (ID: {announcement_id})",
+                    "Course": course_display,
+                    "Title": announcement_title,
+                },
+                "Canvas ignored is_announcement — this usually means your token "
+                "lacks permission to post announcements in this course (e.g. a "
+                "student account). The discussion topic above is visible to the "
+                "course; delete it in Canvas if it was unintended.",
+            )
+
         return f"Announcement created successfully in course {course_display}:\n\n" + \
                f"ID: {announcement_id}\n" + \
                f"Title: {announcement_title}\n" + \
