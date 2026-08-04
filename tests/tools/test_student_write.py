@@ -1037,3 +1037,142 @@ class TestBinaryUpload:
             )
         assert "does not accept" in result
         assert not [c for c in request.call_args_list if c.args[0] == "post"]
+
+
+class TestMarkModuleItemDone:
+    """#221: PUT .../done returns success even for items without a
+    'must_mark_done' completion requirement — Canvas accepts it and changes
+    nothing (measured live: plain Page/File items carry
+    completion_requirement: null). The tool must check the requirement first
+    and confirm the write actually landed.
+    """
+
+    def _tools(self):
+        return get_tools(
+            STUDENT_WRITE_TOOLS="mark_module_item_done",
+            COURSE_AGENT_POLICY_ENABLED="false",
+        )
+
+    @staticmethod
+    def _responder(item_states, put_result=None):
+        """item_states: successive GET responses for the module item."""
+        gets = list(item_states)
+        calls = []
+
+        async def responder(method, endpoint, **kwargs):
+            calls.append((method, endpoint))
+            if method == "get":
+                return gets.pop(0) if len(gets) > 1 else gets[0]
+            if method == "put":
+                return put_result if put_result is not None else {}
+            raise AssertionError(f"unexpected call {method} {endpoint}")
+
+        responder.calls = calls
+        return responder
+
+    @pytest.mark.asyncio
+    async def test_item_without_mark_done_requirement_is_refused(self):
+        tools = self._tools()
+        responder = self._responder(
+            [{"id": 2, "title": "Spec page", "type": "Page",
+              "completion_requirement": None}]
+        )
+        with patch(
+            "canvas_mcp.tools.student_write.get_course_id",
+            new=AsyncMock(return_value="123"),
+        ), patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new=responder
+        ):
+            result = await tools["mark_module_item_done"](
+                course_identifier="TEST", module_id=1, item_id=2
+            )
+
+        assert "✅" not in result
+        assert "must_mark_done" in result
+        assert not [c for c in responder.calls if c[0] == "put"]
+
+    @pytest.mark.asyncio
+    async def test_wrong_requirement_type_is_refused(self):
+        tools = self._tools()
+        responder = self._responder(
+            [{"id": 2, "title": "Quiz", "type": "Quiz",
+              "completion_requirement": {"type": "min_score", "min_score": 5}}]
+        )
+        with patch(
+            "canvas_mcp.tools.student_write.get_course_id",
+            new=AsyncMock(return_value="123"),
+        ), patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new=responder
+        ):
+            result = await tools["mark_module_item_done"](
+                course_identifier="TEST", module_id=1, item_id=2
+            )
+
+        assert "✅" not in result
+        assert "min_score" in result
+        assert not [c for c in responder.calls if c[0] == "put"]
+
+    @pytest.mark.asyncio
+    async def test_confirmed_mark_done_reports_success(self):
+        tools = self._tools()
+        responder = self._responder([
+            {"id": 2, "title": "Reading", "type": "Page",
+             "completion_requirement": {"type": "must_mark_done", "completed": False}},
+            {"id": 2, "title": "Reading", "type": "Page",
+             "completion_requirement": {"type": "must_mark_done", "completed": True}},
+        ])
+        with patch(
+            "canvas_mcp.tools.student_write.get_course_id",
+            new=AsyncMock(return_value="123"),
+        ), patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new=responder
+        ):
+            result = await tools["mark_module_item_done"](
+                course_identifier="TEST", module_id=1, item_id=2
+            )
+
+        assert "✅" in result
+        assert [c for c in responder.calls if c[0] == "put"]
+
+    @pytest.mark.asyncio
+    async def test_unconfirmed_write_is_not_reported_as_success(self):
+        """PUT accepted but the item still shows completed=False."""
+        tools = self._tools()
+        responder = self._responder([
+            {"id": 2, "title": "Reading", "type": "Page",
+             "completion_requirement": {"type": "must_mark_done", "completed": False}},
+            {"id": 2, "title": "Reading", "type": "Page",
+             "completion_requirement": {"type": "must_mark_done", "completed": False}},
+        ])
+        with patch(
+            "canvas_mcp.tools.student_write.get_course_id",
+            new=AsyncMock(return_value="123"),
+        ), patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new=responder
+        ):
+            result = await tools["mark_module_item_done"](
+                course_identifier="TEST", module_id=1, item_id=2
+            )
+
+        assert "Could not confirm" in result
+        assert "✅" not in result
+
+    @pytest.mark.asyncio
+    async def test_already_done_is_a_no_op_success(self):
+        tools = self._tools()
+        responder = self._responder([
+            {"id": 2, "title": "Reading", "type": "Page",
+             "completion_requirement": {"type": "must_mark_done", "completed": True}},
+        ])
+        with patch(
+            "canvas_mcp.tools.student_write.get_course_id",
+            new=AsyncMock(return_value="123"),
+        ), patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new=responder
+        ):
+            result = await tools["mark_module_item_done"](
+                course_identifier="TEST", module_id=1, item_id=2
+            )
+
+        assert "already" in result
+        assert not [c for c in responder.calls if c[0] == "put"]

@@ -313,5 +313,91 @@ class TestStudentToolsDatetimeComparison:
                 assert "error" not in result.lower() or "error fetching" in result.lower()  # Allow API errors but not type errors
 
 
+class TestGetMyPeerReviewsTodo:
+    """#219: the tool answered "no pending peer reviews ✅" when the
+    peer-reviews endpoint errored (students often cannot call the
+    assignment-level listing), and it never filtered by the caller's own
+    assessor_id. Field shapes (assessor_id / user_id / workflow_state) match
+    the live Canvas AssessmentRequest payloads used by core/peer_reviews.py.
+    """
+
+    SELF_ID = 2407
+
+    def _patches(self, fetch_side_effect, request_return=None):
+        return (
+            patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results',
+                  new_callable=AsyncMock, side_effect=fetch_side_effect),
+            patch('canvas_mcp.tools.student_tools.make_canvas_request',
+                  new_callable=AsyncMock,
+                  return_value=request_return or {"id": self.SELF_ID}),
+            patch('canvas_mcp.tools.student_tools.get_course_id',
+                  new=AsyncMock(return_value="505")),
+            patch('canvas_mcp.tools.student_tools.get_course_code',
+                  new=AsyncMock(return_value="TEST-505")),
+        )
+
+    @pytest.mark.asyncio
+    async def test_endpoint_error_is_not_reported_as_no_reviews(self):
+        """An error dict from the peer_reviews listing must surface, not
+        collapse into the happy-path 'no pending peer reviews' answer."""
+        fetch_side_effect = [
+            [{"id": 1, "name": "Essay", "peer_reviews": True}],   # assignments
+            {"error": "unauthorized: insufficient permissions"},   # peer_reviews
+        ]
+        p1, p2, p3, p4 = self._patches(fetch_side_effect)
+        with p1, p2, p3, p4:
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(course_identifier="505")
+
+        assert "no pending peer reviews" not in result.lower()
+        assert "unauthorized" in result
+        assert "Essay" in result
+
+    @pytest.mark.asyncio
+    async def test_filters_to_own_incomplete_reviews(self):
+        fetch_side_effect = [
+            [{"id": 1, "name": "Essay", "peer_reviews": True}],
+            [
+                # mine, incomplete -> shown
+                {"assessor_id": self.SELF_ID, "user_id": 11, "workflow_state": "assigned"},
+                # mine, done -> hidden
+                {"assessor_id": self.SELF_ID, "user_id": 12, "workflow_state": "completed"},
+                # someone else's -> hidden
+                {"assessor_id": 9999, "user_id": 13, "workflow_state": "assigned"},
+            ],
+        ]
+        p1, p2, p3, p4 = self._patches(fetch_side_effect)
+        with p1, p2, p3, p4:
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(course_identifier="505")
+
+        assert "Student 11" in result
+        assert "Student 12" not in result
+        assert "Student 13" not in result
+
+    @pytest.mark.asyncio
+    async def test_all_own_reviews_complete_reports_done(self):
+        fetch_side_effect = [
+            [{"id": 1, "name": "Essay", "peer_reviews": True}],
+            [{"assessor_id": self.SELF_ID, "user_id": 11, "workflow_state": "completed"}],
+        ]
+        p1, p2, p3, p4 = self._patches(fetch_side_effect)
+        with p1, p2, p3, p4:
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(course_identifier="505")
+
+        assert "no pending peer reviews" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_self_lookup_failure_is_an_error(self):
+        p1, p2, p3, p4 = self._patches([], request_return={"error": "invalid token"})
+        with p1, p2, p3, p4:
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(course_identifier="505")
+
+        assert "error" in result.lower()
+        assert "no pending peer reviews" not in result.lower()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

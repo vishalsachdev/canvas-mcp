@@ -56,6 +56,7 @@ from ..core.file_validation import (
     sanitize_filename,
 )
 from ..core.validation import validate_params
+from ..core.write_confirmation import unconfirmed_write_warning
 
 # Submission types this tool supports. Quiz and discussion types are absent by
 # design: quiz-taking is a separate academic-integrity decision behind its own
@@ -990,11 +991,60 @@ def register_student_write_tools(mcp: FastMCP) -> None:
             if not allowed:
                 return f"❌ Update blocked. {reason}"
 
+            item_endpoint = (
+                f"/courses/{course_id}/modules/{module_id}/items/{item_id}"
+            )
+
+            # The /done PUT only has a visible effect on items whose
+            # completion requirement is must_mark_done; for anything else
+            # Canvas accepts the request and changes nothing (#221), so a
+            # bare 200 is not evidence the item was marked.
+            item = await make_canvas_request("get", item_endpoint)
+            if not isinstance(item, dict) or "error" in item:
+                detail = item.get("error") if isinstance(item, dict) else item
+                return f"❌ Could not read module item: {detail}"
+
+            requirement = item.get("completion_requirement")
+            if not isinstance(requirement, dict) or requirement.get("type") != "must_mark_done":
+                have = (
+                    f"a '{requirement.get('type')}' completion requirement"
+                    if isinstance(requirement, dict)
+                    else "no completion requirement"
+                )
+                return (
+                    f"❌ '{item.get('title', item_id)}' cannot be marked done: it has "
+                    f"{have}, not 'must_mark_done'. Canvas accepts the request but "
+                    "nothing changes. Only items the instructor configured with a "
+                    "'Mark as done' requirement support this."
+                )
+
+            if requirement.get("completed"):
+                return "✅ Module item is already marked done."
+
             response = await make_canvas_request(
                 "put",
-                f"/courses/{course_id}/modules/{module_id}/items/{item_id}/done",
+                f"{item_endpoint}/done",
             )
             if isinstance(response, dict) and "error" in response:
                 return f"❌ Could not mark item done: {response['error']}"
+
+            # Confirm the write actually landed before claiming success.
+            after = await make_canvas_request("get", item_endpoint)
+            confirmed = (
+                isinstance(after, dict)
+                and isinstance(after.get("completion_requirement"), dict)
+                and after["completion_requirement"].get("completed")
+            )
+            if not confirmed:
+                return unconfirmed_write_warning(
+                    "the module item was marked done",
+                    {
+                        "Item": item.get("title", item_id),
+                        "Module": module_id,
+                        "Course": course_id,
+                    },
+                    "Canvas accepted the request but the item still shows as not "
+                    "done. Check the module in Canvas and retry.",
+                )
 
             return "✅ Module item marked done."

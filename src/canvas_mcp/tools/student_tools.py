@@ -293,11 +293,19 @@ def register_student_tools(mcp: FastMCP) -> None:
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_my_peer_reviews_todo(course_identifier: str | int | None = None) -> str:
-        """Get peer reviews you need to complete.
+        """Get peer reviews YOU need to complete.
 
         Args:
             course_identifier: Course code or Canvas ID (omit for all courses)
         """
+        # The peer-review listing is only meaningful relative to the caller:
+        # reviews are filtered to assessor_id == the current user.
+        me = await make_canvas_request("get", "/users/self")
+        if not isinstance(me, dict) or "error" in me or not me.get("id"):
+            detail = me.get("error") if isinstance(me, dict) else me
+            return f"Error identifying current user: {detail}"
+        my_id = me["id"]
+
         if course_identifier:
             course_ids = [await get_course_id(course_identifier)]
         else:
@@ -312,6 +320,11 @@ def register_student_tools(mcp: FastMCP) -> None:
             course_ids = [course.get("id") for course in courses if course.get("id")]
 
         all_peer_reviews = []
+        # Endpoints that errored. "No pending reviews" is only a safe answer
+        # when every listing actually succeeded — the assignment-level
+        # peer_reviews endpoint is permission-gated on some instances, and a
+        # swallowed 401 here previously read as "you have nothing to do ✅".
+        unchecked: list[str] = []
 
         for course_id in course_ids:
             # Get assignments for this course
@@ -321,6 +334,7 @@ def register_student_tools(mcp: FastMCP) -> None:
             )
 
             if isinstance(assignments, dict) and "error" in assignments:
+                unchecked.append(f"course {course_id}: {assignments['error']}")
                 continue
 
             # Check each assignment for peer reviews
@@ -334,17 +348,36 @@ def register_student_tools(mcp: FastMCP) -> None:
                         params={"include[]": ["user"], "per_page": 100}
                     )
 
-                    if isinstance(peer_reviews, list):
-                        # Filter to reviews assigned to current user that are incomplete
-                        for review in peer_reviews:
-                            # Note: We'd need to filter by current user ID
-                            # For now, show all incomplete reviews
-                            if review.get("workflow_state") != "completed":
-                                review["_course_id"] = course_id
-                                review["_assignment_name"] = assignment.get("name")
-                                all_peer_reviews.append(review)
+                    if isinstance(peer_reviews, dict) and "error" in peer_reviews:
+                        name = assignment.get("name", f"assignment {assignment_id}")
+                        unchecked.append(
+                            f"{name} (course {course_id}): {peer_reviews['error']}"
+                        )
+                        continue
+
+                    for review in peer_reviews if isinstance(peer_reviews, list) else []:
+                        if (
+                            review.get("assessor_id") == my_id
+                            and review.get("workflow_state") != "completed"
+                        ):
+                            review["_course_id"] = course_id
+                            review["_assignment_name"] = assignment.get("name")
+                            all_peer_reviews.append(review)
+
+        failure_note = ""
+        if unchecked:
+            failure_note = (
+                "\n⚠️  Could not check peer reviews for:\n"
+                + "".join(f"  • {item}\n" for item in unchecked)
+                + "These assignments may still have reviews assigned to you."
+            )
 
         if not all_peer_reviews:
+            if unchecked:
+                return (
+                    "Could not confirm your peer-review to-do list — some "
+                    "peer-review listings failed." + failure_note
+                )
             return "You have no pending peer reviews! ✅"
 
         output_lines = ["Peer Reviews You Need to Complete:\n"]
@@ -355,7 +388,6 @@ def register_student_tools(mcp: FastMCP) -> None:
             course_display = await get_course_code(course_id) if course_id else "Unknown Course"
 
             user_id = review.get("user_id")
-            review.get("assessor_id")
 
             output_lines.append(
                 f"• {assignment_name}\n"
@@ -364,4 +396,4 @@ def register_student_tools(mcp: FastMCP) -> None:
                 f"  Status: Incomplete\n"
             )
 
-        return "\n".join(output_lines)
+        return "\n".join(output_lines) + failure_note
