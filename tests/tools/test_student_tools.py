@@ -337,6 +337,32 @@ class TestUpcomingAssignmentsHonorRange:
         assert "✅ Submitted" in result
 
     @pytest.mark.asyncio
+    async def test_graded_discussion_is_included_ungraded_is_not(self):
+        """Graded discussions carry due_at in the planner payload; ungraded
+        to-do discussions only have todo_date and must stay excluded."""
+        soon = (datetime.now(timezone.utc) + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        items = [
+            {"plannable_type": "discussion_topic", "course_id": 101,
+             "plannable": {"id": 1, "title": "Graded Debate", "due_at": soon},
+             "plannable_date": soon,
+             "submissions": {"submitted": False}},
+            {"plannable_type": "discussion_topic", "course_id": 101,
+             "plannable": {"id": 2, "title": "Optional Chat", "todo_date": soon},
+             "plannable_date": soon},
+        ]
+
+        with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch, \
+             patch('canvas_mcp.tools.student_tools.get_course_code', new_callable=AsyncMock) as mock_course:
+            mock_fetch.return_value = items
+            mock_course.return_value = "TEST-101"
+
+            tool = get_student_tool_function('get_my_upcoming_assignments')
+            result = await tool(days=7)
+
+        assert "Graded Debate" in result
+        assert "Optional Chat" not in result
+
+    @pytest.mark.asyncio
     async def test_api_error_is_reported(self):
         with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = {"error": "planner unavailable"}

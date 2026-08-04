@@ -51,11 +51,19 @@ def register_student_tools(mcp: FastMCP) -> None:
 
         assignments = []
         for item in items if isinstance(items, list) else []:
-            if item.get("plannable_type") not in ("assignment", "quiz"):
+            plannable_type = item.get("plannable_type")
+            plannable = item.get("plannable") or {}
+
+            if plannable_type in ("assignment", "quiz"):
+                due_at = plannable.get("due_at") or item.get("plannable_date")
+            elif plannable_type == "discussion_topic":
+                # Graded discussions are assignments too; the planner reports
+                # them as discussion_topic but only graded ones carry due_at
+                # (ungraded to-do discussions have todo_date instead).
+                due_at = plannable.get("due_at")
+            else:
                 continue
 
-            plannable = item.get("plannable") or {}
-            due_at = plannable.get("due_at") or item.get("plannable_date")
             if not due_at:
                 continue
             due_date = parse_date(due_at)
