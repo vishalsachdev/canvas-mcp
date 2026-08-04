@@ -10,7 +10,7 @@ from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_code, get_course_id
-from ..core.client import fetch_all_paginated_results
+from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, parse_date
 from ..core.validation import validate_params
 
