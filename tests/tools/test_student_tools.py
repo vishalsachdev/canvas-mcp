@@ -129,27 +129,25 @@ class TestStudentTools:
 class TestStudentToolsDatetimeComparison:
     """Test datetime comparison edge cases in student tools."""
 
+    @staticmethod
+    def _planner_item(title, due_at, course_id=101, submitted=False,
+                      plannable_type="assignment"):
+        return {
+            "plannable_type": plannable_type,
+            "course_id": course_id,
+            "plannable": {"id": 1, "title": title, "due_at": due_at},
+            "plannable_date": due_at,
+            "submissions": {"submitted": submitted},
+        }
+
     @pytest.mark.asyncio
     async def test_get_my_upcoming_assignments_with_timezone_aware_dates(self):
         """Test that upcoming assignments handles timezone-aware dates correctly."""
-        # Mock events with timezone-aware due dates (ISO 8601 format)
         future_date = (datetime.now(timezone.utc) + timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-        mock_events = [
-            {
-                "type": "assignment",
-                "assignment": {
-                    "id": 1,
-                    "name": "Assignment 1",
-                    "due_at": future_date,
-                    "course_id": 101
-                }
-            }
-        ]
 
         with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch, \
              patch('canvas_mcp.tools.student_tools.get_course_code', new_callable=AsyncMock) as mock_course:
-            mock_fetch.return_value = mock_events
+            mock_fetch.return_value = [self._planner_item("Assignment 1", future_date)]
             mock_course.return_value = "TEST-101"
 
             get_my_upcoming_assignments = get_student_tool_function('get_my_upcoming_assignments')
@@ -157,60 +155,32 @@ class TestStudentToolsDatetimeComparison:
 
             result = await get_my_upcoming_assignments(days=7)
 
-            # Should complete without datetime comparison errors
             assert "Assignment 1" in result
             assert "error" not in result.lower()
 
     @pytest.mark.asyncio
     async def test_get_my_upcoming_assignments_sorting_with_mixed_dates(self):
         """Test that sorting assignments works with various date formats."""
-        # Create dates at different times to test sorting
         date1 = (datetime.now(timezone.utc) + timedelta(days=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
         date2 = (datetime.now(timezone.utc) + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
         date3 = (datetime.now(timezone.utc) + timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        mock_events = [
-            {
-                "type": "assignment",
-                "assignment": {
-                    "id": 1,
-                    "name": "Assignment 1",
-                    "due_at": date1,
-                    "course_id": 101
-                }
-            },
-            {
-                "type": "assignment",
-                "assignment": {
-                    "id": 2,
-                    "name": "Assignment 2",
-                    "due_at": date2,
-                    "course_id": 101
-                }
-            },
-            {
-                "type": "assignment",
-                "assignment": {
-                    "id": 3,
-                    "name": "Assignment 3",
-                    "due_at": date3,
-                    "course_id": 101
-                }
-            }
+        mock_items = [
+            self._planner_item("Assignment 1", date1),
+            self._planner_item("Assignment 2", date2),
+            self._planner_item("Assignment 3", date3),
         ]
 
         with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch, \
              patch('canvas_mcp.tools.student_tools.get_course_code', new_callable=AsyncMock) as mock_course:
-            mock_fetch.return_value = mock_events
+            mock_fetch.return_value = mock_items
             mock_course.return_value = "TEST-101"
 
             get_my_upcoming_assignments = get_student_tool_function('get_my_upcoming_assignments')
-            assert get_my_upcoming_assignments is not None
-
             result = await get_my_upcoming_assignments(days=7)
 
-            # Should complete without datetime comparison errors and sort correctly
-            assert "Assignment 2" in result  # Due soonest (2 days)
+            # Earliest due date first
+            assert result.index("Assignment 2") < result.index("Assignment 3") < result.index("Assignment 1")
             assert "error" not in result.lower()
 
     @pytest.mark.asyncio
@@ -246,71 +216,136 @@ class TestStudentToolsDatetimeComparison:
 
     @pytest.mark.asyncio
     async def test_get_my_upcoming_assignments_with_no_due_date(self):
-        """Test that assignments with no due date don't cause errors."""
-        mock_events = [
-            {
-                "type": "assignment",
-                "assignment": {
-                    "id": 1,
-                    "name": "No Due Date Assignment",
-                    "due_at": None,
-                    "course_id": 101
-                }
-            }
-        ]
+        """Items with no due date at all are skipped gracefully."""
+        item = self._planner_item("No Due Date Assignment", None)
 
         with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch, \
              patch('canvas_mcp.tools.student_tools.get_course_code', new_callable=AsyncMock) as mock_course:
-            mock_fetch.return_value = mock_events
+            mock_fetch.return_value = [item]
             mock_course.return_value = "TEST-101"
 
             get_my_upcoming_assignments = get_student_tool_function('get_my_upcoming_assignments')
-            assert get_my_upcoming_assignments is not None
-
             result = await get_my_upcoming_assignments(days=7)
 
-            # Should handle None due_at gracefully - assignment with no due date is filtered out
-            # The function returns a message saying no assignments are due
             assert "No assignments due in the next 7 days" in result
 
     @pytest.mark.asyncio
     async def test_get_my_upcoming_assignments_with_various_day_values(self):
-        """Test that get_my_upcoming_assignments works with different days values including > 1.
-
-        This specifically tests the fix for the bug where days > 1 caused:
-        'Error executing tool get_my_upcoming_assignments: argument of type int is not iterable'
-        """
-        test_cases = [1, 7, 14, 30, -1, 0]  # Various day values including > 1
-
+        """Positive day values work; non-positive values get an explicit error."""
         future_date = (datetime.now(timezone.utc) + timedelta(days=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        mock_events = [
-            {
-                "type": "assignment",
-                "assignment": {
-                    "id": 1,
-                    "name": "Test Assignment",
-                    "due_at": future_date,
-                    "course_id": 101
-                }
-            }
-        ]
-
-        for days_value in test_cases:
+        for days_value in [1, 7, 14, 30]:
             with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch, \
                  patch('canvas_mcp.tools.student_tools.get_course_code', new_callable=AsyncMock) as mock_course:
-                mock_fetch.return_value = mock_events
+                mock_fetch.return_value = [self._planner_item("Test Assignment", future_date)]
                 mock_course.return_value = "TEST-101"
 
                 get_my_upcoming_assignments = get_student_tool_function('get_my_upcoming_assignments')
-                assert get_my_upcoming_assignments is not None
-
-                # This should work without throwing "argument of type 'int' is not iterable"
                 result = await get_my_upcoming_assignments(days=days_value)
 
-                # Should complete without errors
                 assert result is not None
-                assert "error" not in result.lower() or "error fetching" in result.lower()  # Allow API errors but not type errors
+                assert "error" not in result.lower()
+
+        for days_value in [0, -1]:
+            get_my_upcoming_assignments = get_student_tool_function('get_my_upcoming_assignments')
+            result = await get_my_upcoming_assignments(days=days_value)
+            assert "days must be at least 1" in result
+
+
+class TestUpcomingAssignmentsHonorRange:
+    """#222: /users/self/upcoming_events is hardcoded by Canvas to 7 days, so
+    days=30 silently behaved as days=7. The tool now queries the Planner API
+    with the actual requested window.
+    """
+
+    @pytest.mark.asyncio
+    async def test_requested_range_is_sent_to_the_api(self):
+        with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
+            mock_fetch.return_value = []
+
+            tool = get_student_tool_function('get_my_upcoming_assignments')
+            result = await tool(days=30)
+
+        endpoint = mock_fetch.call_args[0][0]
+        params = mock_fetch.call_args[1].get('params')
+        assert endpoint == "/planner/items"
+        start = datetime.strptime(params["start_date"], "%Y-%m-%dT%H:%M:%SZ")
+        end = datetime.strptime(params["end_date"], "%Y-%m-%dT%H:%M:%SZ")
+        assert (end - start).days == 30
+        assert "30 days" in result
+
+    @pytest.mark.asyncio
+    async def test_assignment_beyond_7_days_is_returned(self):
+        """The defining case from the bug report: due in ~3 weeks, days=30."""
+        far_date = (datetime.now(timezone.utc) + timedelta(days=21)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        item = {
+            "plannable_type": "assignment",
+            "course_id": 101,
+            "plannable": {"id": 9, "title": "Midterm Essay", "due_at": far_date},
+            "plannable_date": far_date,
+            "submissions": {"submitted": False},
+        }
+
+        with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch, \
+             patch('canvas_mcp.tools.student_tools.get_course_code', new_callable=AsyncMock) as mock_course:
+            mock_fetch.return_value = [item]
+            mock_course.return_value = "TEST-101"
+
+            tool = get_student_tool_function('get_my_upcoming_assignments')
+            result = await tool(days=30)
+
+        assert "Midterm Essay" in result
+        assert "Not Submitted" in result
+
+    @pytest.mark.asyncio
+    async def test_non_assignment_planner_items_are_filtered(self):
+        soon = (datetime.now(timezone.utc) + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        items = [
+            {"plannable_type": "announcement", "course_id": 101,
+             "plannable": {"id": 1, "title": "Read me"}, "plannable_date": soon},
+            {"plannable_type": "calendar_event", "course_id": 101,
+             "plannable": {"id": 2, "title": "Office hours"}, "plannable_date": soon},
+        ]
+
+        with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
+            mock_fetch.return_value = items
+
+            tool = get_student_tool_function('get_my_upcoming_assignments')
+            result = await tool(days=7)
+
+        assert "No assignments due" in result
+
+    @pytest.mark.asyncio
+    async def test_submitted_status_comes_from_planner_payload(self):
+        soon = (datetime.now(timezone.utc) + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        item = {
+            "plannable_type": "assignment",
+            "course_id": 101,
+            "plannable": {"id": 9, "title": "Done Already", "due_at": soon},
+            "plannable_date": soon,
+            "submissions": {"submitted": True},
+        }
+
+        with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch, \
+             patch('canvas_mcp.tools.student_tools.get_course_code', new_callable=AsyncMock) as mock_course:
+            mock_fetch.return_value = [item]
+            mock_course.return_value = "TEST-101"
+
+            tool = get_student_tool_function('get_my_upcoming_assignments')
+            result = await tool(days=7)
+
+        assert "✅ Submitted" in result
+
+    @pytest.mark.asyncio
+    async def test_api_error_is_reported(self):
+        with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch:
+            mock_fetch.return_value = {"error": "planner unavailable"}
+
+            tool = get_student_tool_function('get_my_upcoming_assignments')
+            result = await tool(days=7)
+
+        assert "Error fetching upcoming assignments" in result
+        assert "planner unavailable" in result
 
 
 if __name__ == "__main__":
