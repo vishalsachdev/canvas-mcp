@@ -1,74 +1,74 @@
 {
-  "collected_at": "2026-07-27T03:30:11Z",
+  "collected_at": "2026-08-04T10:45:31Z",
   "github": {
-    "stars": 171,
-    "forks": 54,
-    "contributors": 15,
-    "open_issues": 7,
-    "views_14d": 667,
-    "views_14d_unique": 359,
-    "clones_14d": 957,
-    "clones_14d_unique": 343,
+    "stars": 177,
+    "forks": 59,
+    "contributors": 17,
+    "open_issues": 8,
+    "views_14d": 1107,
+    "views_14d_unique": 439,
+    "clones_14d": 2291,
+    "clones_14d_unique": 577,
     "referrers": [
       {
         "referrer": "Google",
-        "count": 333,
-        "uniques": 185
+        "count": 392,
+        "uniques": 212
       },
       {
         "referrer": "github.com",
-        "count": 37,
-        "uniques": 29
+        "count": 134,
+        "uniques": 42
       },
       {
         "referrer": "reddit.com",
-        "count": 23,
-        "uniques": 17
+        "count": 18,
+        "uniques": 15
       },
       {
         "referrer": "Bing",
-        "count": 16,
-        "uniques": 10
-      },
-      {
-        "referrer": "search.brave.com",
-        "count": 11,
-        "uniques": 2
+        "count": 18,
+        "uniques": 14
       },
       {
         "referrer": "DuckDuckGo",
-        "count": 9,
-        "uniques": 3
+        "count": 15,
+        "uniques": 7
       },
       {
-        "referrer": "community.instructure.com",
-        "count": 7,
-        "uniques": 4
-      },
-      {
-        "referrer": "canvas-mcp.illinihunt.org",
-        "count": 5,
-        "uniques": 4
+        "referrer": "teams.public.onecdn.static.microsoft",
+        "count": 15,
+        "uniques": 5
       },
       {
         "referrer": "chatgpt.com",
-        "count": 3,
-        "uniques": 2
+        "count": 10,
+        "uniques": 7
       },
       {
-        "referrer": "canvas-mcp-explainer.pages.dev",
-        "count": 1,
+        "referrer": "search.brave.com",
+        "count": 10,
+        "uniques": 6
+      },
+      {
+        "referrer": "canvas-mcp.illinihunt.org",
+        "count": 7,
+        "uniques": 5
+      },
+      {
+        "referrer": "community.instructure.com",
+        "count": 2,
         "uniques": 1
       }
     ]
   },
   "pypi": {
-    "last_day": 35,
-    "last_week": 512,
-    "last_month": 7021
+    "last_day": 59,
+    "last_week": 553,
+    "last_month": 7426
   },
   "npm": {
-    "last_month": 65
+    "last_month": 72
   },
   "history": [
     {
@@ -268,6 +268,15 @@
       "npm_month": 65,
       "views_unique": 359,
       "clones_unique": 343
+    },
+    {
+      "date": "2026-08-04",
+      "stars": 177,
+      "forks": 59,
+      "pypi_month": 7426,
+      "npm_month": 72,
+      "views_unique": 439,
+      "clones_unique": 577
     }
   ]
 }
