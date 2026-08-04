@@ -1,5 +1,37 @@
 # Session History
 
+### 2026-08-01 — zqian bug pair fixed same-day + backlog cleared (5 PRs, 6 issues closed)
+- **#207/#208 (zqian, filed previous evening) fixed, merged, deployed by morning (PR #210).** Both
+  were one-line wire-format mismatches in opposite directions: `bulk_update_pages` form-encoded a
+  nested `wiki_page` dict (httpx sends the Python repr → Canvas 500 on every page; now JSON, matching
+  `update_page_settings`), and `mark_conversations_read` sent JSON with the literal key
+  `conversation_ids[]` (brackets only mean "array" in form encoding; now form data). Wire bytes
+  verified empirically with httpx; regression tests pin the call shape, not mocked success. Third
+  `use_form_data` bug in repo history (#181 was the first) — a client-layer guard rejecting nested
+  dicts under `use_form_data=True` would make this class loud; candidate hardening item.
+- **#179 CLOSED (PR #211):** ten tool-layer `anonymize_response_data()` sites deleted after verifying
+  each endpoint against `_should_anonymize_endpoint()` live; `ENABLE_DATA_ANONYMIZATION` now honored
+  at exactly one layer (core/client.py). Enforced by ruff **TID251 banned-api** (probe-tested); doc
+  in env.template. Behavior change: flag OFF now actually returns real names on those ten read paths.
+- **#173 CLOSED (PR #212):** TOOL_MANIFEST.json 30 → **99 entries** (registry parity with all feature
+  flags on) + CI parity test (missing OR extra entry fails). The 88/95/96 count drift fixed across
+  docs/index.html, README, AGENTS.md → all say 99 (= full-capability count; default install registers
+  94). Site wrangler-deployed.
+- **#106 CLOSED (PR #213):** mypy 229 → **0 errors**, now in the CI lint job. Real finds: 
+  `get_course_id()` never returns None (annotation lied, ~60 false Optionals, downstream None-guards
+  are dead code); `make_canvas_request` data type excluded the live `list[tuple]` form-data path; 
+  `asyncio.gather` results narrowed to `Exception` could crash on `BaseException` (fixed — the one
+  behavior change).
+- **#168 CLOSED (PR #214):** unused TypedDicts deleted (core/types.py removed), error-response
+  convention documented as it actually is, stale "550+ tests" → 900+ (827 test functions measured).
+  Deferred items (mypy<2 relax, pydantic/uvicorn floors, py3.10 EOL) noted on the issue.
+- Method note: #173 + #106 ran as parallel worktree subagents while #179/#168 were done in-session;
+  each agent branch was rebased, spot-checked against real signatures, and codex-reviewed before merge.
+- Next: (1) **#191 still BLOCKED** on zqian's New-Quizzes sandbox (scoping Q4) — only open PR besides
+  daily triage briefs. (2) Watch UMich/UCI spec feedback → `deploy/azure/README.md`. (3) Release notes
+  for next version: #207/#208 fixes, anonymization single-layer, 99-tool manifest, mypy gate.
+  (4) Remaining open: #170 (awaiting UMich), #157 (self-hosted-only), #142 (watch).
+
 ### 2026-07-31 (later) — Hosted deployment spec → UMich + UCI + public `deploy/azure/` + site
 - **The hosted-spec draft shipped everywhere it was promised.** Found in `internal/hosted-spec-draft/`
   (7/29 triage loop); fixed three stale claims before sending — `execute_typescript` is opt-in since
