@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Reject commit messages containing a GitHub closing keyword next to an issue
+# reference. This is the *prevention* half of the guard: a commit pushed
+# directly to `main` never passes through a PR, so CI can only notice it after
+# the issue has already closed. See scripts/check_closing_keywords.py.
+#
+# Install:  ./scripts/install-hooks.sh
+# Bypass:   ALLOW_CLOSING_KEYWORD=1 git commit ...
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+checker="$repo_root/scripts/check_closing_keywords.py"
+
+# Never block a commit because the guard itself is missing (e.g. checking out
+# an older revision). Fail open here; CI is the backstop.
+[ -f "$checker" ] || exit 0
+
+python3 "$checker" "$1" \
+  --label "commit message" \
+  --bypass-hint "ALLOW_CLOSING_KEYWORD=1 git commit ..."
