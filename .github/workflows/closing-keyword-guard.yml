@@ -1,0 +1,106 @@
+name: Closing Keyword Guard
+
+# Stops a GitHub closing keyword from silently closing an issue that no work
+# actually completed. Issue #172 was closed twice this way: once via a merged
+# PR body, once via a commit message pushed straight to `main`.
+#
+# Two triggers, two different jobs, because they catch different vectors:
+#   pull_request -> preventive. Blocks before the merge that would close.
+#                   Runs on `edited` too, and that is not incidental: review
+#                   bots append summaries to the body after opening, and one
+#                   did exactly that on PR #231 -- a Cursor summary quoting
+#                   "Closes #173" as an example would have closed #173 on
+#                   merge. A body that was clean at creation does not stay
+#                   clean.
+#   push to main -> detective only. A direct commit has already closed the
+#                   issue by the time this runs; the job exists so the failure
+#                   is loud instead of silent, the way it was on 2026-07-31.
+# The commit-msg hook (scripts/install-hooks.sh) is the actual prevention for
+# the direct-push vector.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  scan-pull-request:
+    name: PR body and commits
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      # The escape hatch for a PR that genuinely means to close an issue from
+      # prose. An empty string is falsy to the checker, so the label's absence
+      # simply leaves the guard armed.
+      ALLOW_CLOSING_KEYWORD: >-
+        ${{ contains(github.event.pull_request.labels.*.name, 'allow-closing-keyword') && '1' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan PR body
+        env:
+          # Passed via env, never interpolated into the shell: a PR body is
+          # attacker-controlled text and ${{ }} inlining is a script-injection
+          # vector.
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          printf '%s' "$PR_BODY" \
+            | python3 scripts/check_closing_keywords.py - \
+                --label "PR #${{ github.event.pull_request.number }} body" \
+                --bypass-hint "intentional? add the 'allow-closing-keyword' label to this PR"
+
+      - name: Scan commit messages in this PR
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          status=0
+          while read -r sha; do
+            [ -z "$sha" ] && continue
+            git log -1 --format=%B "$sha" \
+              | python3 scripts/check_closing_keywords.py - \
+                  --label "commit ${sha:0:7}" \
+                  --bypass-hint "intentional? add the 'allow-closing-keyword' label to this PR" \
+              || status=1
+          done < <(git rev-list "$base..$head")
+          exit $status
+
+  scan-push:
+    name: Commits pushed to main
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan pushed commit messages
+        run: |
+          before="${{ github.event.before }}"
+          # A new branch or force-push reports an all-zero "before" SHA; fall
+          # back to just the tip rather than walking all of history.
+          if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$before^{commit}" 2>/dev/null; then
+            range="${{ github.sha }} -1"
+          else
+            range="$before..${{ github.sha }}"
+          fi
+          status=0
+          while read -r sha; do
+            [ -z "$sha" ] && continue
+            git log -1 --format=%B "$sha" \
+              | python3 scripts/check_closing_keywords.py - \
+                  --label "commit ${sha:0:7} (already on main)" \
+                  --bypass-hint "if the closure was intended, no action needed" \
+              || status=1
+          done < <(git rev-list $range)
+          if [ "$status" -ne 0 ]; then
+            echo "::error::A commit on main carries a closing keyword. If an issue closed that should not have, reopen it now."
+          fi
+          exit $status

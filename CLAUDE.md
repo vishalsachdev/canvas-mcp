@@ -56,6 +56,20 @@ FastMCP server; type-driven validation via `@validate_params`; dual-layer course
 
 This repo has branch protection on `main` (PR + status checks required), but admin can bypass. Always ask the user which workflow they prefer for the current task.
 
+### Closing-keyword guard — run `./scripts/install-hooks.sh` once per clone
+
+GitHub closes an issue on any `fixes|closes|resolves #N` in a merged PR body **or
+a commit message landing on `main`** — including prose that only *describes*
+other work. Issue #172 was closed twice this way (PR #202's body, then commit
+`98643ce` whose message documented the first accident).
+
+`scripts/check_closing_keywords.py` is the single detector, shared by the
+`commit-msg` hook (prevention) and `.github/workflows/closing-keyword-guard.yml`
+(backstop). It blocks keywords **mid-sentence** and allows ones that **open a
+line** — `Closes #173` is a deliberate trailer, `...bug that closed #172` is
+narration. Deliberate close on a fix PR needs no ceremony; narration must be
+rephrased (`closed [issue 172]`) or bypassed with `ALLOW_CLOSING_KEYWORD=1`.
+
 ---
 
 ## Release Checklist
