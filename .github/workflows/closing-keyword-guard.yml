@@ -6,6 +6,12 @@ name: Closing Keyword Guard
 #
 # Two triggers, two different jobs, because they catch different vectors:
 #   pull_request -> preventive. Blocks before the merge that would close.
+#                   Runs on `edited` too, and that is not incidental: review
+#                   bots append summaries to the body after opening, and one
+#                   did exactly that on PR #231 -- a Cursor summary quoting
+#                   "Closes #173" as an example would have closed #173 on
+#                   merge. A body that was clean at creation does not stay
+#                   clean.
 #   push to main -> detective only. A direct commit has already closed the
 #                   issue by the time this runs; the job exists so the failure
 #                   is loud instead of silent, the way it was on 2026-07-31.
@@ -27,6 +33,12 @@ jobs:
     name: PR body and commits
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    env:
+      # The escape hatch for a PR that genuinely means to close an issue from
+      # prose. An empty string is falsy to the checker, so the label's absence
+      # simply leaves the guard armed.
+      ALLOW_CLOSING_KEYWORD: >-
+        ${{ contains(github.event.pull_request.labels.*.name, 'allow-closing-keyword') && '1' || '' }}
     steps:
       - uses: actions/checkout@v4
         with:
