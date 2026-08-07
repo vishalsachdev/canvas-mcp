@@ -97,7 +97,7 @@
                         <h2>Prerequisites</h2>
                         <ul>
                             <li><strong>Python 3.10+</strong> installed on your computer</li>
-                            <li><strong>An MCP-compatible AI client</strong> &mdash; Claude Desktop, Claude Code, Cursor, ChatGPT, or others</li>
+                            <li><strong>An MCP client</strong> &mdash; whichever AI assistant you already use. Claude Desktop, Claude Code, ChatGPT, Cursor, VS Code, Zed, Windsurf and Continue all work; see <a href="index.html#clients">supported clients</a>.</li>
                             <li><strong>Canvas Account</strong> with designer or admin permissions</li>
                         </ul>
                     </section>
@@ -170,13 +170,13 @@ CANVAS_API_URL=https://canvas.youruniversity.edu</code></pre>
                             <li><code>create_assignment</code> &mdash; Create assignments with due dates, points, and submission types</li>
                             <li><code>create_discussion_topic</code> &mdash; Create discussion forums</li>
                             <li><code>create_rubric</code> &mdash; Build grading rubrics</li>
-                            <li><code>associate_rubric_with_assignment</code> &mdash; Link rubrics to assignments</li>
+                            <li><code>associate_rubric</code> &mdash; Link rubrics to assignments</li>
                         </ul>
                     </section>
 
                     <section id="skills">
                         <h2>AI Skills (Automated Workflows)</h2>
-                        <p>Skills are pre-built workflows that combine multiple tools into complete processes. Available via <a href="https://skills.sh">skills.sh</a> or as Claude Code slash commands.</p>
+                        <p>Skills are pre-built workflows that combine multiple tools into complete processes. Install them into any of 40+ agents via <a href="https://skills.sh">skills.sh</a>, or use them as slash commands in Claude Code.</p>
 
                         <div class="workflow-box">
                             <h4>✅ canvas-course-qc</h4>
@@ -233,7 +233,7 @@ CANVAS_API_URL=https://canvas.youruniversity.edu</code></pre>
                         </div>
 
                         <h3>Installing Skills</h3>
-                        <pre><code><span class="code-comment"># Install skills for 7+ AI agents (Claude Code, Cursor, etc.)</span>
+                        <pre><code><span class="code-comment"># Interactive picker — installs into 40+ agents (Claude Code, Cursor, Codex, Zed, …)</span>
 npx skills add vishalsachdev/canvas-mcp</code></pre>
                     </section>
 

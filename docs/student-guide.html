@@ -91,7 +91,7 @@
                         <h2>Prerequisites</h2>
                         <ul>
                             <li><strong>Python 3.10+</strong> installed on your computer</li>
-                            <li><strong>Claude Desktop</strong> - Download from <a href="https://claude.ai/download">claude.ai</a></li>
+                            <li><strong>An MCP client</strong> &mdash; whichever AI assistant you already use. Claude Desktop, Claude Code, ChatGPT, Cursor, VS Code, Zed, Windsurf and Continue all work; see <a href="index.html#clients">supported clients</a>.</li>
                             <li><strong>Canvas Account</strong> at your university/institution</li>
                         </ul>
                     </section>
@@ -117,7 +117,7 @@ pip install -e .</code></pre>
                             <li>Go to <strong>Account</strong> → <strong>Settings</strong></li>
                             <li>Scroll down to <strong>Approved Integrations</strong></li>
                             <li>Click <strong>+ New Access Token</strong></li>
-                            <li>Give it a purpose (e.g., "Claude AI Assistant")</li>
+                            <li>Give it a purpose (e.g., "Canvas MCP / AI assistant")</li>
                             <li>Click <strong>Generate Token</strong></li>
                             <li><strong>Copy the token immediately</strong> - you won't see it again!</li>
                         </ol>
@@ -150,9 +150,8 @@ ENABLE_DATA_ANONYMIZATION=false</code></pre>
                             <p>Replace <code>https://canvas.youruniversity.edu/api/v1</code> with your actual Canvas URL (including the <code>/api/v1</code> suffix).</p>
                         </div>
 
-                        <h3>5. Configure Claude Desktop</h3>
-                        <p>Add Canvas MCP to your Claude Desktop config file:</p>
-                        <p><strong>macOS:</strong> <code>~/Library/Application Support/Claude/claude_desktop_config.json</code></p>
+                        <h3>5. Connect Your MCP Client</h3>
+                        <p>Add Canvas MCP to your client's MCP config. This entry is the same no matter which assistant you use &mdash; only the file it goes in changes:</p>
                         <pre><code>{
   "mcpServers": {
     "canvas-api": {
@@ -160,20 +159,21 @@ ENABLE_DATA_ANONYMIZATION=false</code></pre>
     }
   }
 }</code></pre>
+                        <p>Where that file lives for Claude Desktop, Cursor, Zed, Windsurf, Continue and others is listed in the <a href="https://github.com/vishalsachdev/canvas-mcp#3-mcp-client-configuration">client configuration guide</a>. Claude Desktop users can skip the JSON entirely and install the <a href="https://github.com/vishalsachdev/canvas-mcp/releases/latest">one-click extension</a> instead.</p>
 
                         <h3>6. Test Your Setup</h3>
                         <pre><code>canvas-mcp-server --test</code></pre>
                         <p>You should see: <code>✓ API connection successful!</code></p>
 
-                        <h3>7. Restart Claude Desktop</h3>
-                        <p>Close and reopen Claude Desktop. You should see the 🔨 hammer icon when you start a conversation.</p>
+                        <h3>7. Restart Your Client</h3>
+                        <p>Quit and reopen your AI client. Canvas MCP's tools should show up wherever your client lists connected tools (a 🔨 hammer or plug icon in most desktop apps, <code>/mcp</code> in terminal clients).</p>
                     </section>
 
                     <section id="how-to-use">
                         <h2>How to Use Canvas MCP</h2>
 
                         <h3>Quick Start Prompts</h3>
-                        <p>Try these with Claude:</p>
+                        <p>Try these with your AI assistant:</p>
 
                         <h4>Assignment Tracking</h4>
                         <ul>
@@ -223,6 +223,13 @@ ENABLE_DATA_ANONYMIZATION=false</code></pre>
                         <h3>Academic Performance</h3>
                         <ul class="tool-list">
                             <li><code>get_my_course_grades</code> - Current grades across all courses</li>
+                            <li><code>get_my_submission</code> - What you turned in for a specific assignment, and its grade</li>
+                        </ul>
+
+                        <h3>Your Canvas Identity</h3>
+                        <ul class="tool-list">
+                            <li><code>get_my_profile</code> - Confirm which Canvas account your token belongs to</li>
+                            <li><code>get_my_enrollments</code> - Every course you're enrolled in, and your role in each</li>
                         </ul>
 
                         <h3>Peer Review Management</h3>
@@ -238,6 +245,14 @@ ENABLE_DATA_ANONYMIZATION=false</code></pre>
                             <li><code>get_page_content</code> - Read page content</li>
                             <li><code>list_announcements</code> - See course announcements</li>
                             <li><code>list_discussion_topics</code> - View discussion forums</li>
+                        </ul>
+
+                        <h3>Turning Work In (off by default)</h3>
+                        <p>Everything above is read-only. Canvas MCP can also submit on your behalf, but those tools stay unregistered unless whoever set up the server names them in <code>STUDENT_WRITE_TOOLS</code> &mdash; and your instructor can restrict them further per course.</p>
+                        <ul class="tool-list">
+                            <li><code>submit_assignment</code> - Submit a file, URL, or text entry (always previews first, then asks you to confirm)</li>
+                            <li><code>comment_on_my_submission</code> - Add a comment to your own submission</li>
+                            <li><code>mark_module_item_done</code> - Mark a module item complete</li>
                         </ul>
                     </section>
 
@@ -337,11 +352,11 @@ ENABLE_DATA_ANONYMIZATION=false</code></pre>
                             <li>Make sure your token hasn't expired</li>
                         </ul>
 
-                        <h3>"No tools appearing in Claude"</h3>
+                        <h3>"No Canvas tools appearing in my assistant"</h3>
                         <ul>
-                            <li>Restart Claude Desktop completely (Quit → Reopen)</li>
+                            <li>Restart your client completely (Quit → Reopen)</li>
                             <li>Check <code>canvas-mcp-server --test</code> runs successfully</li>
-                            <li>Verify your <code>claude_desktop_config.json</code> is correct</li>
+                            <li>Verify your client's MCP config file is valid JSON and points to the full path of <code>canvas-mcp-server</code></li>
                         </ul>
 
                         <h3>"No assignments/courses showing up"</h3>

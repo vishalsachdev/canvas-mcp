@@ -1850,7 +1850,7 @@
                 <div class="code-content animate-on-scroll">
                     <div class="section-label">// Code Execution API</div>
                     <h2>Bulk Operations,<br>Minimal Tokens</h2>
-                    <p>Traditional MCP tool calls load every submission into Claude's context. Our code execution API processes data locally, returning only summaries.</p>
+                    <p>Traditional MCP tool calls load every submission into the model's context. Our code execution API processes data locally, returning only summaries.</p>
 
                     <div class="savings-card">
                         <div class="savings-header">
@@ -1942,8 +1942,8 @@ cp env.template .env<br>
                 <div class="install-step animate-on-scroll">
                     <div class="step-number">3</div>
                     <div class="step-content">
-                        <h3>Configure Claude Desktop</h3>
-                        <p>Add the server to your Claude Desktop configuration file.</p>
+                        <h3>Connect Your MCP Client</h3>
+                        <p>Add the server to your client's MCP config. The entry is identical for every client — only the file location differs. <a href="#clients">See supported clients</a> or the <a href="https://github.com/vishalsachdev/canvas-mcp#3-mcp-client-configuration">config file locations</a> for Claude Desktop, Cursor, Zed, Windsurf, Continue, and others.</p>
                         <div class="step-code">
 {<br>
 &nbsp;&nbsp;"mcpServers": {<br>
@@ -1959,10 +1959,10 @@ cp env.template .env<br>
                     <div class="step-number">4</div>
                     <div class="step-content">
                         <h3>Verify & Start Using</h3>
-                        <p>Test your connection and start interacting with Canvas through Claude.</p>
+                        <p>Test your connection and start interacting with Canvas through your AI assistant.</p>
                         <div class="step-code">
 canvas-mcp-server --test<br>
-# Then restart Claude Desktop and start chatting!
+# Then restart your MCP client and start chatting!
                         </div>
                     </div>
                 </div>
@@ -2140,12 +2140,12 @@ canvas-mcp-server --test<br>
     </section>
 
     <!-- Clients Section -->
-    <section class="clients">
+    <section class="clients" id="clients">
         <div class="container">
             <div class="section-header">
                 <div class="section-label">// Compatibility</div>
                 <h2 class="section-title">Works with Your Favorite Tools</h2>
-                <p class="section-desc">Canvas MCP works with any MCP-compatible client.</p>
+                <p class="section-desc">Canvas MCP works with any MCP-compatible client — these are just the ones people ask about most.</p>
             </div>
             <div class="clients-grid">
                 <div class="client-badge animate-on-scroll">
@@ -2153,8 +2153,16 @@ canvas-mcp-server --test<br>
                     <span>Claude Desktop</span>
                 </div>
                 <div class="client-badge animate-on-scroll">
+                    <div class="client-icon">⌨️</div>
+                    <span>Claude Code</span>
+                </div>
+                <div class="client-badge animate-on-scroll">
                     <div class="client-icon">💬</div>
                     <span>ChatGPT</span>
+                </div>
+                <div class="client-badge animate-on-scroll">
+                    <div class="client-icon">🧩</div>
+                    <span>VS Code</span>
                 </div>
                 <div class="client-badge animate-on-scroll">
                     <div class="client-icon">⚡</div>
