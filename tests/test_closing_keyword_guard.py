@@ -171,10 +171,78 @@ def test_strict_mode_blocks_trailers_too(tmp_path, monkeypatch):
     assert main([str(msg), "--strict"]) == 1
 
 
-def test_skips_comment_lines():
-    """Git strips `#` lines before storing, so they never reach GitHub."""
+def test_skips_comment_lines_only_under_git_cleanup():
+    """`#` lines are git comments in a commit message -- and nowhere else."""
     msg = "docs: update notes\n\n# On branch main\n# fixes #172 <- template noise\n"
-    assert scan_text(msg) == []
+    assert scan_text(msg, git_comments=True) == []
+    # Without the flag the same text is scanned, because in a PR body `#`
+    # opens a heading that GitHub parses like any other prose.
+    assert scan_text(msg) != []
+
+
+def test_git_comments_truncates_at_scissors():
+    """Git discards the scissors line and everything after it."""
+    msg = (
+        "docs: record example\n\n"
+        "# ------------------------ >8 ------------------------\n"
+        "Template reminder: never write fixes #172 in prose.\n"
+    )
+    assert scan_text(msg, git_comments=True) == []
+    assert scan_text(msg) != []
+
+
+# --------------------------------------------------------------------------
+# Red-team regressions (2026-08-08)
+#
+# Found by an independent adversarial pass over the shipped guard. Every input
+# below is quoted verbatim from that run and returned exit 0 -- a silent
+# bypass -- before these fixes. All three trace to design decisions made when
+# the guard was written, not to exotic edge cases.
+# --------------------------------------------------------------------------
+
+
+def test_markdown_heading_is_not_a_comment():
+    """FN1, critical: `## ... fixes #172` in a PR body closes #172 on merge.
+
+    The original blanket `#`-line skip was justified by git's comment
+    stripping, which does not apply to a PR body at all. The acceptance replay
+    never caught it because it replayed `git log` only -- never a PR body.
+    """
+    line = "## Incident report: the bot fixes #172 by accident."
+    matches = scan_text(line)
+    assert [m.reference for m in matches] == ["#172"]
+    assert not matches[0].is_trailer, "a heading is prose, not a trailer"
+
+
+def test_trailer_does_not_launder_later_prose_on_the_same_line():
+    """FN2: a real trailer must not grant amnesty to narration after it."""
+    line = "Closes #173. Historical note: the old bot fixes #172 by accident."
+    by_ref = {m.reference: m.is_trailer for m in scan_text(line)}
+    assert by_ref == {"#173": True, "#172": False}
+
+
+def test_punctuation_run_is_not_a_list_marker():
+    """FN3: `---` is not a bullet, so it earns no trailer exemption."""
+    line = "--- fixes #172 was emitted by the bot, not requested by us."
+    matches = scan_text(line)
+    assert matches and not matches[0].is_trailer
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "- Closes #12",
+        "* Closes #12",
+        "+ Closes #12",
+        "> Closes #12",
+        "  - Closes #12",
+        "1. Closes #12",
+    ],
+)
+def test_real_list_and_quote_markers_still_earn_the_exemption(line):
+    """The FN3 fix must not break genuine markdown markers."""
+    matches = scan_text(line)
+    assert matches and matches[0].is_trailer
 
 
 # --------------------------------------------------------------------------

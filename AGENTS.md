@@ -125,8 +125,8 @@ Content access tools available to all authenticated users.
 | `add_module_item` | Add content to a module |
 | `update_module_item` | Update module item settings |
 | `delete_module_item` | Remove item from module |
-| `list_announcements` | Course announcements |
-| `list_discussion_topics` | Discussion forums |
+| `list_announcements` | Course announcements, and nothing else |
+| `list_discussion_topics` | Discussion forums (discussions only; set `include_announcements` to also list announcements) |
 | `list_discussion_entries` | Posts in a discussion |
 | `post_discussion_entry` | Add a discussion post |
 | `reply_to_discussion_entry` | Reply to a post |

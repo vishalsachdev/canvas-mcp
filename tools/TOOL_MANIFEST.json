@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "name": "canvas-mcp",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "MCP server for Canvas Learning Management System API",
   "categories": [
     {
@@ -561,7 +561,7 @@
     {
       "name": "list_discussion_topics",
       "category": "shared",
-      "description": "View discussion forums in a course",
+      "description": "View discussion forums in a course. Returns discussion topics only; announcements are excluded unless include_announcements is set. Use list_announcements to list announcements on their own.",
       "parameters": [
         {
           "name": "course_identifier",
@@ -570,11 +570,11 @@
           "description": "Course code or Canvas ID"
         },
         {
-          "name": "only_announcements",
+          "name": "include_announcements",
           "type": "boolean",
           "required": false,
           "default": false,
-          "description": "Filter for announcements only"
+          "description": "Also list the course's announcements alongside its discussion topics; each entry is labelled Type: Announcement or Type: Discussion"
         }
       ],
       "returns": "List of discussion topics with IDs and titles",
@@ -2209,8 +2209,8 @@
     },
     {
       "name": "list_announcements",
-      "category": "educator",
-      "description": "List announcements for a specific course.",
+      "category": "shared",
+      "description": "List a course's announcements, and nothing else. Ordinary discussion topics are excluded; use list_discussion_topics for those.",
       "parameters": [
         {
           "name": "course_identifier",
