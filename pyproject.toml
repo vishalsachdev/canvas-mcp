@@ -135,4 +135,8 @@ dev = [
     "ruff>=0.9.0",
     "black>=25.0.0",
     "mypy>=1.15.0,<2",
+    # Declared so the workflow-permission policy tests actually run in CI. They
+    # use importorskip, so relying on a transitive PyYAML would let the gate
+    # skip silently — the exact failure mode it exists to prevent.
+    "pyyaml>=6.0",
 ]
