@@ -1727,11 +1727,15 @@ View course announcements.
 ### Discussions
 
 #### `list_discussion_topics`
-View discussion forums in a course.
+View discussion forums in a course. Returns discussion topics only — announcements
+are a separate Canvas collection and are excluded unless you opt in.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
-- `only_announcements` (optional): Filter for announcements only
+- `include_announcements` (optional, default `false`): Also list the course's
+  announcements alongside its discussion topics. Each entry is labelled
+  `Type: Announcement` or `Type: Discussion`. To list announcements on their
+  own, use [`list_announcements`](#list_announcements) instead.
 
 **Example:**
 ```

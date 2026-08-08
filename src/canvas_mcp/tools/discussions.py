@@ -26,21 +26,49 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                                    include_announcements: bool = False) -> str:
         """List discussion topics for a specific course.
 
+        Returns discussion topics only. Announcements are a separate Canvas
+        collection and are NOT included unless include_announcements=True.
+        To list announcements on their own, use list_announcements instead.
+
         Args:
             course_identifier: Course code or Canvas ID
-            include_announcements: Include announcements in the list (default: False)
+            include_announcements: Also list the course's announcements
+                alongside its discussion topics (default: False). Each entry is
+                labelled "Type: Announcement" or "Type: Discussion".
         """
         course_id = await get_course_id(course_identifier)
 
-        params: dict[str, Any] = {"per_page": 100}
-
-        if include_announcements:
-            params["include[]"] = ["announcement"]
-
-        topics = await fetch_all_paginated_results(f"/courses/{course_id}/discussion_topics", params)
+        # Canvas serves discussions and announcements from the same endpoint but
+        # as disjoint sets: the index excludes announcements unless
+        # only_announcements=true, which then excludes ordinary discussions.
+        # There is no single query returning both, so combining requires two
+        # calls. (include[]=announcement is NOT a supported include value --
+        # Canvas silently ignores it. Issue #238.)
+        topics = await fetch_all_paginated_results(
+            f"/courses/{course_id}/discussion_topics", {"per_page": 100}
+        )
 
         if isinstance(topics, dict) and "error" in topics:
             return f"Error fetching discussion topics: {topics['error']}"
+
+        if include_announcements:
+            announcements = await fetch_all_paginated_results(
+                f"/courses/{course_id}/discussion_topics",
+                {"only_announcements": True, "per_page": 100},
+            )
+            if isinstance(announcements, dict) and "error" in announcements:
+                # Announcements are commonly restricted separately; degrade to
+                # the discussions we did get rather than failing the whole call.
+                log_warning(
+                    "list_discussion_topics: announcements unavailable",
+                    course_id=course_id,
+                    error=announcements["error"],
+                )
+            elif announcements:
+                seen = {topic.get("id") for topic in topics}
+                topics = list(topics) + [
+                    a for a in announcements if a.get("id") not in seen
+                ]
 
         if not topics:
             return f"No discussion topics found for course {course_identifier}."
@@ -904,7 +932,9 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
         course_id = await get_course_id(course_identifier)
 
         params = {
-            "include[]": ["announcement"],
+            # only_announcements is the filter Canvas honours. include[]=announcement
+            # is NOT a supported include value and is silently ignored (issue #238);
+            # measured identical result sets with and without it.
             "only_announcements": True,
             "per_page": 100
         }
@@ -1265,7 +1295,9 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
 
         # First list all announcements
         params = {
-            "include[]": ["announcement"],
+            # only_announcements is the filter Canvas honours. include[]=announcement
+            # is NOT a supported include value and is silently ignored (issue #238);
+            # measured identical result sets with and without it.
             "only_announcements": True,
             "per_page": 100
         }

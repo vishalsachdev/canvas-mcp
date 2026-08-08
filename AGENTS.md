@@ -102,6 +102,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `send_conversation` | Message students |
 | `send_peer_review_reminders` | Automated reminder workflow |
 | `create_announcement` | Post course announcements |
+| `list_announcements` | Course announcements (educator-only — students should use `list_discussion_topics` with `include_announcements`) |
 | `update_discussion_topic` | Edit discussion or announcement title/body and settings |
 
 ### Shared Tools (Students & Educators)
@@ -125,8 +126,7 @@ Content access tools available to all authenticated users.
 | `add_module_item` | Add content to a module |
 | `update_module_item` | Update module item settings |
 | `delete_module_item` | Remove item from module |
-| `list_announcements` | Course announcements |
-| `list_discussion_topics` | Discussion forums |
+| `list_discussion_topics` | Discussion forums (discussions only; set `include_announcements` to also list announcements) |
 | `list_discussion_entries` | Posts in a discussion |
 | `post_discussion_entry` | Add a discussion post |
 | `reply_to_discussion_entry` | Reply to a post |
