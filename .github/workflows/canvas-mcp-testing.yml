@@ -45,6 +45,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        # Full history: test_acceptance_replay_real_history replays the
+        # closing-keyword checker over every real commit message. The default
+        # shallow checkout has no `main` and no old commits, so the replay would
+        # skip -- and a validator that only ever sees its own fixtures has not
+        # earned its place.
+        fetch-depth: 0
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
