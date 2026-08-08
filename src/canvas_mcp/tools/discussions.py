@@ -995,7 +995,7 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
             data["lock_at"] = lock_at
 
         response = await make_canvas_request(
-            "post", f"/courses/{course_id}/discussion_topics", data=data
+            "post", f"/courses/{course_id}/discussion_topics", data=data, use_form_data=True
         )
 
         if "error" in response:
