@@ -31,7 +31,12 @@ permissions:
 jobs:
   scan-pull-request:
     name: PR body and commits
-    if: github.event_name == 'pull_request'
+    # GitHub only honors closing keywords when the PR targets the DEFAULT
+    # branch. Enforcing on a PR into any other base is pure friction: nothing
+    # would close on merge.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.base.ref == github.event.repository.default_branch
     runs-on: ubuntu-latest
     env:
       # The escape hatch for a PR that genuinely means to close an issue from
@@ -64,7 +69,7 @@ jobs:
           while read -r sha; do
             [ -z "$sha" ] && continue
             git log -1 --format=%B "$sha" \
-              | python3 scripts/check_closing_keywords.py - \
+              | python3 scripts/check_closing_keywords.py - --git-comments \
                   --label "commit ${sha:0:7}" \
                   --bypass-hint "intentional? add the 'allow-closing-keyword' label to this PR" \
               || status=1
@@ -95,7 +100,7 @@ jobs:
           while read -r sha; do
             [ -z "$sha" ] && continue
             git log -1 --format=%B "$sha" \
-              | python3 scripts/check_closing_keywords.py - \
+              | python3 scripts/check_closing_keywords.py - --git-comments \
                   --label "commit ${sha:0:7} (already on main)" \
                   --bypass-hint "if the closure was intended, no action needed" \
               || status=1

@@ -35,6 +35,9 @@ SHARED_TOOLS = {
     "get_assignment_details",
     # shared discussions
     "list_discussion_topics",
+    # Announcements are student-visible course content and this tool is
+    # read-only, so every role gets an announcements-only listing (issue #238).
+    "list_announcements",
     "get_discussion_topic_details",
     "list_discussion_entries",
     "get_discussion_entry_details",
