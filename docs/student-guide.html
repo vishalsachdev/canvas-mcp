@@ -151,7 +151,7 @@ ENABLE_DATA_ANONYMIZATION=false</code></pre>
                         </div>
 
                         <h3>5. Connect Your MCP Client</h3>
-                        <p>Add Canvas MCP to your client's MCP config. This entry is the same no matter which assistant you use &mdash; only the file it goes in changes:</p>
+                        <p>Add Canvas MCP to your client's MCP config. Most assistants read this exact entry and differ only in where the file lives:</p>
                         <pre><code>{
   "mcpServers": {
     "canvas-api": {
@@ -159,7 +159,7 @@ ENABLE_DATA_ANONYMIZATION=false</code></pre>
     }
   }
 }</code></pre>
-                        <p>Where that file lives for Claude Desktop, Cursor, Zed, Windsurf, Continue and others is listed in the <a href="https://github.com/vishalsachdev/canvas-mcp#3-mcp-client-configuration">client configuration guide</a>. Claude Desktop users can skip the JSON entirely and install the <a href="https://github.com/vishalsachdev/canvas-mcp/releases/latest">one-click extension</a> instead.</p>
+                        <p>The <a href="https://github.com/vishalsachdev/canvas-mcp#3-mcp-client-configuration">client configuration guide</a> lists where that file lives for Claude Desktop, Cursor, Zed, Windsurf, Continue and others &mdash; check it for your client, since some use their own schema (Zed nests the server under <code>context_servers</code>). Claude Desktop users can skip the JSON entirely and install the <a href="https://github.com/vishalsachdev/canvas-mcp/releases/latest">one-click extension</a> instead.</p>
 
                         <h3>6. Test Your Setup</h3>
                         <pre><code>canvas-mcp-server --test</code></pre>
