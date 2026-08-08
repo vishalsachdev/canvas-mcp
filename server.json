@@ -52,9 +52,9 @@
         "required": true
       },
       "ENABLE_DATA_ANONYMIZATION": {
-        "description": "Enable FERPA-compliant student data anonymization (educators only)",
+        "description": "Enable FERPA-compliant student data anonymization (educators only). Defaults to true; set to false only after your own privacy review.",
         "required": false,
-        "default": "false"
+        "default": "true"
       },
       "ANONYMIZATION_DEBUG": {
         "description": "Enable anonymization debugging output",
