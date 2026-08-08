@@ -431,6 +431,27 @@ async def make_canvas_request(
     if not endpoint.startswith('/'):
         endpoint = f"/{endpoint}"
 
+    # Endpoints are built by f-string interpolation of caller-supplied identifiers
+    # (".../assignments/{assignment_id}/submissions/self"). A '?' or '#' inside an
+    # identifier ends the path early and demotes everything after it to the query
+    # or fragment, so a value like "123/submissions/456?" silently retargets a
+    # hard-coded self-scoped route at another user's record. Every caller passes
+    # query parameters via `params=`, so a delimiter in the path is always
+    # smuggling, never a legitimate call.
+    bad_delimiter = next((c for c in ("?", "#") if c in endpoint), None)
+    if bad_delimiter is not None:
+        log_warning(
+            "Blocked Canvas API request with a delimiter in the endpoint path",
+            endpoint=sanitize_url(endpoint),
+        )
+        return {"error": f"Invalid endpoint: '{bad_delimiter}' is not allowed in a request path"}
+    if any(seg == ".." for seg in endpoint.split("/")):
+        log_warning(
+            "Blocked Canvas API request with a traversal segment in the endpoint path",
+            endpoint=sanitize_url(endpoint),
+        )
+        return {"error": "Invalid endpoint: '..' is not allowed in a request path"}
+
     if api_root not in (API_ROOT_REST, API_ROOT_QUIZ):
         return {"error": f"Unsupported api_root: {api_root}"}
 
