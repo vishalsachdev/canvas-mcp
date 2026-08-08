@@ -58,7 +58,6 @@ class TestShouldAnonymizeEndpoint:
         "/courses/123/modules/5/items",
         "/courses/123/assignments",       # assignment definitions, no student data
         "/courses/123/assignments/456",
-        "/courses/123/front_page",
         "/courses/123/rubrics/12",
         "/accounts/1/terms",
         # Group *listings* carry group names, not student names; membership is
@@ -129,6 +128,12 @@ class TestAnonymizationTierMapping:
         "/courses/123/pages/users",
         "/courses/123/pages/submissions",
         "/courses/123/pages/analytics",
+        # The front page is a page and returns the same last_edited_by block,
+        # but its path carries no 'pages' segment so the slug rule missed it.
+        # Measured live: last_edited_by came back with display_name, pronouns
+        # and avatar_image_url while /pages/{slug} was gated.
+        "/courses/123/front_page",
+        "/groups/55/front_page",
     ])
     def test_pages_are_identity_tier(self, endpoint):
         assert _endpoint_anonymization_mode(endpoint) == ANONYMIZE_IDENTITY
@@ -147,7 +152,6 @@ class TestAnonymizationTierMapping:
         "/courses",
         "/courses/123/modules",
         "/courses/123/assignments",
-        "/courses/123/front_page",
         "/accounts/1/terms",
         "/users/self/profile",
     ])
