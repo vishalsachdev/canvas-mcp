@@ -1,3 +1,36 @@
+### 2026-08-04 — four field bugs fixed same-day + CVE unblock (3 PRs merged, 4 issues closed)
+- **All four Aug-3 bug reports fixed, merged, hosted-deployed by morning.** Three from khagyard
+  (first-time reporter, testing v1.6.0 with a *student* account) were one defect class — trusting a
+  Canvas 200 that did less than asked: **#219** `get_my_peer_reviews_todo` swallowed the
+  permission-gated listing's error dict into "no pending peer reviews ✅" AND never filtered by
+  `assessor_id`; **#220** `create_announcement` reported success while Canvas silently dropped
+  `is_announcement` and created a regular discussion; **#221** `mark_module_item_done`'s PUT no-ops
+  for items without a `must_mark_done` requirement (measured live: plain items carry
+  `completion_requirement: null`). All fixed in PR #224; `unconfirmed_write_warning` promoted from
+  rubrics-local to `core/write_confirmation.py` (third consumer). **#222** (zqian, self-diagnosed):
+  `/users/self/upcoming_events` is hardcoded to 7 days, so `days=30` lied; switched to Planner API
+  with a real window, planner `submissions.submitted` kills the N+1, graded discussions included
+  (codex catch) — PR #225.
+- **PR #226:** `cryptography` 49→50 lock bump (CVE-2026-69247) — the stale lock was failing the
+  Dependency Vulnerability Scan on *every* PR opened that day; scan verified green post-fix.
+- **Post-merge gotcha (new memory: cross-pr-semantic-merge-conflict):** #224 added a
+  `make_canvas_request` use while #225 removed the import — no textual conflict, both squashes
+  merged, main had a NameError until hotfix `7fabcca`. Rule: after merging sibling PRs touching one
+  module, run the suite on main before walking away.
+- **Impact stats recovered:** the Aug-3 launchd run had zeroed all GitHub numbers (failed `gh api`);
+  corrupt file never committed, re-collected clean (stars 177, forks 59, contributors 17, PyPI
+  7,426/mo), wrangler-deployed + live-verified. Memory's stale "unset CF_API_TOKEN" note replaced
+  with the working non-interactive auth line.
+- **Verification asks are in the PR bodies** (@khagyard: student-token re-test of #219/#220;
+  @zqian: a "next 30 days" spot check) — the fixes are honest-by-construction either way, but their
+  re-tests are the definitive confirmation, same loop as #207/#208.
+- Next: (1) Watch khagyard/zqian re-test replies on #224/#225. (2) **#191 still BLOCKED** on zqian's
+  New-Quizzes sandbox (scoping Q4); 4 draft triage briefs (#209/#216/#218/#223) pending review.
+  (3) Release notes for next version now also include: unconfirmed-write guards, Planner-API
+  upcoming assignments, cryptography CVE. (4) Remaining open: #170 (awaiting UMich), #157
+  (self-hosted-only), #142 (watch).
+
+
 # Session History
 
 ### 2026-08-01 — zqian bug pair fixed same-day + backlog cleared (5 PRs, 6 issues closed)

@@ -210,6 +210,21 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   templates) is canonical; corrected HTML copies emailed in-thread to UMich (zqian) + UC Irvine
   (VC Choudhary); site callout live on canvas-mcp.illinihunt.org. Their feedback lands as edits to
   `deploy/azure/README.md` (`internal/hosted-spec-draft/` is scratch)
+- [x] Release **v1.7.0** (2026-08-08) — all five channels live + verified. Correctness release:
+  unconfirmed-write guards (#219/#220/#221), Planner-API upcoming assignments (#222), annotation
+  contract (#204), `cryptography` CVE, anonymization consolidated to the client layer (#179)
+- [x] Closing-keyword guard (#231) + three bypasses closed after an independent red-team (#241).
+  Contributors run `./scripts/install-hooks.sh` once per clone
+- [ ] **#238** `list_discussion_topics` sends unsupported `include[]=announcement` instead of
+  `only_announcements`, and `tools/README.md:1733` names the parameter wrong — likely why zqian saw
+  discussion topics in an announcements listing
+- [ ] **#233/#234/#235** triaged, fixes pending: media inventory in `get_page_content`; stop
+  claiming an unconfirmable `notify_of_update`; grade-comment docstring hardening
+- [ ] **#239** page bodies returned verbatim into model context (prompt-injection surface); other
+  free-text tools not yet audited
+- [ ] **#236** OAuth2 developer-key flow (from discussion #229) — additive path only, blocked on
+  admin access to pilot a scoped key
+- [ ] Add `uv.lock` to `internal/release-checklist.md` — it carries the version and is not listed
 - [ ] **#191 quizzes BLOCKED on correctness**: New Quizzes detection is `is_quiz_assignment AND
   external_tool`, but measured live that flag marks *Classic* quizzes — the `AND` may match nothing and
   silently report zero New Quizzes. Its test fixture hard-codes the assumption. Unblocking needs zqian's
@@ -264,34 +279,44 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-08-04 — four field bugs fixed same-day + CVE unblock (3 PRs merged, 4 issues closed)
-- **All four Aug-3 bug reports fixed, merged, hosted-deployed by morning.** Three from khagyard
-  (first-time reporter, testing v1.6.0 with a *student* account) were one defect class — trusting a
-  Canvas 200 that did less than asked: **#219** `get_my_peer_reviews_todo` swallowed the
-  permission-gated listing's error dict into "no pending peer reviews ✅" AND never filtered by
-  `assessor_id`; **#220** `create_announcement` reported success while Canvas silently dropped
-  `is_announcement` and created a regular discussion; **#221** `mark_module_item_done`'s PUT no-ops
-  for items without a `must_mark_done` requirement (measured live: plain items carry
-  `completion_requirement: null`). All fixed in PR #224; `unconfirmed_write_warning` promoted from
-  rubrics-local to `core/write_confirmation.py` (third consumer). **#222** (zqian, self-diagnosed):
-  `/users/self/upcoming_events` is hardcoded to 7 days, so `days=30` lied; switched to Planner API
-  with a real window, planner `submissions.submitted` kills the N+1, graded discussions included
-  (codex catch) — PR #225.
-- **PR #226:** `cryptography` 49→50 lock bump (CVE-2026-69247) — the stale lock was failing the
-  Dependency Vulnerability Scan on *every* PR opened that day; scan verified green post-fix.
-- **Post-merge gotcha (new memory: cross-pr-semantic-merge-conflict):** #224 added a
-  `make_canvas_request` use while #225 removed the import — no textual conflict, both squashes
-  merged, main had a NameError until hotfix `7fabcca`. Rule: after merging sibling PRs touching one
-  module, run the suite on main before walking away.
-- **Impact stats recovered:** the Aug-3 launchd run had zeroed all GitHub numbers (failed `gh api`);
-  corrupt file never committed, re-collected clean (stars 177, forks 59, contributors 17, PyPI
-  7,426/mo), wrangler-deployed + live-verified. Memory's stale "unset CF_API_TOKEN" note replaced
-  with the working non-interactive auth line.
-- **Verification asks are in the PR bodies** (@khagyard: student-token re-test of #219/#220;
-  @zqian: a "next 30 days" spot check) — the fixes are honest-by-construction either way, but their
-  re-tests are the definitive confirmation, same loop as #207/#208.
-- Next: (1) Watch khagyard/zqian re-test replies on #224/#225. (2) **#191 still BLOCKED** on zqian's
-  New-Quizzes sandbox (scoping Q4); 4 draft triage briefs (#209/#216/#218/#223) pending review.
-  (3) Release notes for next version now also include: unconfirmed-write guards, Planner-API
-  upcoming assignments, cryptography CVE. (4) Remaining open: #170 (awaiting UMich), #157
-  (self-hosted-only), #142 (watch).
+### 2026-08-08 — v1.7.0 shipped; guard shipped, red-teamed, and fixed same day
+
+- **Released v1.7.0** — all five channels verified live: GitHub Release (+`.mcpb`), PyPI, MCP
+  Registry (`isLatest=True`), site (wrangler-deployed, both `softwareVersion` and the v-banner),
+  hosted Azure. No publish race this time; the registry job passed first try. `uv.lock` also
+  carries the version and is **missing from `internal/release-checklist.md`** — it only got
+  bumped here because `git add -A` swept it up.
+- **Closing-keyword guard (#231)** — one detector shared by a `commit-msg` hook and CI, after
+  #172 was closed twice by accident (PR #202's body, then commit `98643ce` whose message
+  *documented* the first accident). Acceptance replay found three closures nobody had recorded:
+  a second reference inside `98643ce` (#203), `2bee9f2` (#215), `e3922b3` (#111).
+- **Then an independent Codex red-team broke it (#241)** — three silent bypasses, all from my own
+  design choices. Critical: `#` lines were skipped as git comments, but in a **PR body** `#` opens
+  a markdown heading GitHub parses as prose, and one function scanned both surfaces. The replay
+  missed it because it replayed `git log` and never scanned a PR body. Replay now extended: 100
+  real PR bodies, zero false positives, two true positives (PR #202, the original incident, and
+  PR #187 with an unnoticed closure of #175).
+- **Merged the 7-deep triage-brief backlog** (#209–#230). The routine derives its cutoff from the
+  newest brief *on main* but only opens **draft** PRs, so it re-scanned the same window for 8
+  cycles — a scanner that cannot commit its own progress marker stalls silently.
+- **#172 reopened and answered** — `jonespm` (first-time outside commenter) had flagged the
+  closed-but-unfinished issue 3 days earlier. The triage routine could not see it: it queries
+  `is:open`, which structurally cannot surface a comment on a wrongly-closed issue.
+- **zqian filed four bugs in 24h** (#233/#234/#235/#238) and TSU-Carrell opened discussion #229
+  (OAuth developer-key flow → tracked as #236). Triaged #233/#234/#235: **two are not server
+  bugs** — `get_page_content` returns body HTML verbatim (measured live; the model summarized it
+  away), and no grade path defaults a comment (the assistant supplied it). Filed **#239**: page
+  bodies flow verbatim into model context, a prompt-injection surface.
+- **Parallel-diagnosis beat review.** An isolated Codex diagnosis of #238 converged on my one
+  finding and then found three I missed, including the likely root cause: `list_discussion_topics`
+  sends an unsupported `include[]=announcement` instead of `only_announcements`, and
+  `tools/README.md:1733` documents the parameter under the wrong name. My own hypothesis was
+  **not** supported.
+- Bugbot disabled on this repo — it writes into PR *descriptions* (regenerating on every push) and
+  did so while rate-limited to zero reviews, injecting closing keywords the author never wrote.
+- Next: (1) **#238 fix** — the mis-parameterized `list_discussion_topics` + wrong docs.
+  (2) Fixes for #233 (media inventory), #234 (stop claiming an unconfirmable notification),
+  #235 (docstring hardening + possible no-comment flag). (3) Review PRs #232 and #237.
+  (4) Add `uv.lock` to the release checklist. (5) **#191 still blocked** on zqian's New-Quizzes
+  sandbox. (6) Deferred: wrap-up-skill redesign for change comprehension —
+  `~/.claude/skills/wrap-up-session/DESIGN-NOTES-in-progress.md`.
