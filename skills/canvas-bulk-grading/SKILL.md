@@ -134,8 +134,9 @@ execute_typescript(code: `
 
       return {
         points: 100,
-        rubricAssessment: { "_8027": { points: 100 } },
-        comment: "Graded via automated review"
+        rubricAssessment: { "_8027": { points: 100 } }
+        // No `comment` here on purpose -- see Safety Rule 6. Add one only when
+        // the instructor asked for written feedback, and make it feedback.
       };
     }
   });
@@ -163,6 +164,7 @@ The key insight: as submission count grows, sending grading logic to the server 
 3. **Spot-check before bulk.** For Strategy B and C, grade 1-2 submissions manually with `grade_with_rubric` first. Verify in Canvas that the grade and rubric feedback appear correctly.
 4. **Respect rate limits.** Use `max_concurrent: 5` and `rate_limit_delay: 1.0` (1 second between batches). Canvas rate limits are approximately 700 requests per 10 minutes.
 5. **Do not grade without explicit instructor confirmation.** Always present the grading plan (rubric mapping, point values, number of students affected) and wait for approval before submitting grades.
+6. **Never attach a comment the instructor did not ask for.** A submission comment is visible to the student in SpeedGrader, it *appends* on every call rather than replacing, and it cannot be un-sent. "Assign grade 8" means the grade only. Never generate a comment that restates the grade or narrates that grading happened (e.g. "Graded via automated review") — that reads to the student as a bot mark on their work and carries no feedback. Include a comment only when the instructor asked for written feedback, and then make it feedback about the work.
 
 ## Example Prompts
 

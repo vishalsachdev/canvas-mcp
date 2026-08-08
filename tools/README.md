@@ -567,17 +567,24 @@ Grade multiple submissions efficiently with concurrent processing. **Most effici
 - User 9826: 50 points for criterion _8027 with comment 'Needs improvement'"
 ```
 
-**Example Usage - Simple Grading:**
+**Example Usage - Simple Grading (no comments):**
 ```
 "Grade these submissions with simple points:
-- User 9824: 100 points, comment 'Perfect!'
-- User 9825: 85 points, comment 'Very good'"
+- User 9824: 100 points
+- User 9825: 85 points"
 ```
+
+> **Comments are opt-in.** `comment` is student-visible in SpeedGrader, it
+> **appends** on every call rather than replacing, and it cannot be un-sent.
+> Ask for one only when you want written feedback — "assign grade 8" means the
+> grade alone. A comment that only restates the grade or notes that grading
+> happened is worse than none.
 
 **Returns:** Summary of grading operation including total submissions, successfully graded, failed attempts, and any error details.
 
 **Notes:**
 - Supports both rubric-based grading and simple point-based grading
+- `dry_run: true` previews the grade **and** any comment that would be posted
 - Can mix and match grading styles for different students
 - Automatically validates rubric configuration before grading
 - Use `dry_run=true` to preview grades before applying

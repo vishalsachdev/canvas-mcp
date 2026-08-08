@@ -910,7 +910,13 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
         Args:
             course_identifier: Course code or Canvas ID
             assignment_id: Canvas assignment ID
-            grades: Dict mapping user_id to {rubric_assessment?, grade?, comment?}
+            grades: Dict mapping user_id to {rubric_assessment?, grade?, comment?}.
+                OMIT `comment` unless the instructor explicitly asked for written
+                feedback. "Assign grade 8" means the grade ONLY. A comment is
+                visible to the student in SpeedGrader, APPENDS a new comment on
+                every call rather than replacing the previous one, and cannot be
+                un-sent. Never generate a comment that merely restates the grade
+                or narrates that grading happened.
             dry_run: If True, validate without submitting (default: False)
             max_concurrent: Max concurrent grading operations (default: 5)
             rate_limit_delay: Delay between batches in seconds (default: 1.0)
@@ -962,7 +968,15 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             """Grade a single submission."""
             try:
                 if dry_run:
-                    # In dry run mode, just validate the data
+                    # In dry run mode, just validate the data.
+                    # The preview MUST name any comment: it is student-visible,
+                    # permanent and appended, and an instructor who dry-runs
+                    # first (as the bulk-grading skill instructs) would
+                    # otherwise get no warning that one is about to post (#235).
+                    comment_note = (
+                        f" AND post this student-visible comment: {grade_info['comment']!r}"
+                        if grade_info.get("comment") else ""
+                    )
                     if "rubric_assessment" in grade_info:
                         total_points = sum(
                             criterion.get("points", 0)
@@ -971,13 +985,13 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
                         return {
                             "status": "success",
                             "user_id": user_id,
-                            "message": f"DRY RUN: Would grade with {total_points} rubric points"
+                            "message": f"DRY RUN: Would grade with {total_points} rubric points{comment_note}"
                         }
                     elif "grade" in grade_info:
                         return {
                             "status": "success",
                             "user_id": user_id,
-                            "message": f"DRY RUN: Would grade with {grade_info['grade']} points"
+                            "message": f"DRY RUN: Would grade with {grade_info['grade']} points{comment_note}"
                         }
                     else:
                         return {
@@ -998,7 +1012,11 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
                 elif "grade" in grade_info:
                     # Simple grading
                     form_data["submission[posted_grade]"] = str(grade_info["grade"])
-                    if "comment" in grade_info:
+                    # Truthiness, not membership: an explicit comment=None or
+                    # comment="" meant "no comment", but the membership test
+                    # posted it anyway. The rubric path (build_rubric_assessment_
+                    # form_data) has always used truthiness; these now agree.
+                    if grade_info.get("comment"):
                         form_data["comment[text_comment]"] = grade_info["comment"]
                 else:
                     return {

@@ -789,7 +789,12 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             assignment_id: Canvas assignment ID
             user_id: Canvas user ID of the student
             rubric_assessment: Dict mapping criterion_id to {points (required), rating_id?, comments?}
-            comment: Optional overall comment for the submission
+            comment: Optional overall comment. OMIT it unless the instructor
+                explicitly asked for written feedback -- "grade this with the
+                rubric" means the grade only. It is visible to the student in
+                SpeedGrader, APPENDS rather than replaces on each call, and
+                cannot be un-sent. Never generate one that merely restates the
+                grade or narrates that grading happened.
         """
         course_id = await get_course_id(course_identifier)
         assignment_id_str = str(assignment_id)
