@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-08-08
+
 ### Added
 - **Missing MCP tool annotations across ~29 write tools**, plus docstrings for `list_courses`' previously undocumented `include_concluded` / `include_all` flags ([#200](https://github.com/vishalsachdev/canvas-mcp/issues/200), first contribution from the Copilot coding agent in [#201](https://github.com/vishalsachdev/canvas-mcp/pull/201)).
 - **`tests/test_tool_metadata.py` gates the annotation contract.** It enumerates the live registry rather than a hand-maintained list, so a *new* tool registered with a bare `@mcp.tool()` fails CI instead of shipping unannotated — the failure mode that produced #200. The registry is built with every feature gate switched on (`EXECUTE_TYPESCRIPT_ENABLED`, `STUDENT_WRITE_TOOLS`), since coverage must follow capability rather than default configuration; checking only the default set would have passed while `execute_typescript` — arbitrary TypeScript against the caller's Canvas token — shipped with no annotations at all. It is now marked destructive and non-idempotent, the conservative reading, because nothing about caller-supplied code can be inspected in advance. Classifications for grade-writing and deleting tools are pinned explicitly, so a flip has to be a deliberate edit rather than a silent diff.
