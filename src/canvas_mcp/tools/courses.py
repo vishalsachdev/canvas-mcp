@@ -2,6 +2,7 @@
 
 import html
 import re
+from html.parser import HTMLParser
 from typing import Any
 
 from fastmcp import FastMCP
@@ -18,6 +19,80 @@ from ..core.config import get_config
 from ..core.dates import format_date
 from ..core.validation import validate_params
 from .self_identity import _own_roles
+
+
+class _MediaCollector(HTMLParser):
+    """Collect embedded-media elements from a Canvas page body.
+
+    ``source`` is deliberately not collected: it only appears inside
+    ``<video>``/``<audio>``, which are already collected, and counting both
+    would double-report one player.
+    """
+
+    MEDIA_TAGS = frozenset({"img", "iframe", "video", "audio", "embed", "object"})
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.items: list[dict[str, str]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag not in self.MEDIA_TAGS:
+            return
+        attr = {k: (v or "") for k, v in attrs}
+        self.items.append({
+            "tag": tag,
+            # <object> uses data=, everything else src=.
+            "src": attr.get("src") or attr.get("data") or "",
+            "alt": attr.get("alt") or attr.get("title") or "",
+        })
+
+
+def extract_embedded_media(html_content: str) -> list[dict[str, str]]:
+    """List the images, videos and embeds in a page body, in document order.
+
+    Canvas page bodies carry course media as ``<img>``/``<iframe>`` markup.
+    Any plain-text rendering deletes those tags, and because they are void or
+    attribute-only elements the media vanishes without leaving so much as a
+    placeholder -- the reader cannot tell anything was there (issue #233).
+
+    Uses stdlib ``HTMLParser``, which is lenient about the unclosed and
+    malformed markup real Canvas pages contain. Duplicates (same tag and same
+    src) are collapsed, since Canvas often repeats a thumbnail and its link.
+    """
+    if not html_content:
+        return []
+
+    collector = _MediaCollector()
+    try:
+        collector.feed(html_content)
+        collector.close()
+    except Exception:  # pragma: no cover - HTMLParser is lenient by design
+        return collector.items
+
+    seen: set[tuple[str, str]] = set()
+    unique: list[dict[str, str]] = []
+    for item in collector.items:
+        key = (item["tag"], item["src"])
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(item)
+    return unique
+
+
+def format_media_inventory(media: list[dict[str, str]]) -> str:
+    """Render an embedded-media list as a labelled section, or '' if empty."""
+    if not media:
+        return ""
+
+    lines = [f"\n\nEmbedded media ({len(media)}):"]
+    for item in media:
+        src = item["src"] or "(no src attribute)"
+        line = f"- {item['tag']}: {src}"
+        if item["alt"]:
+            line += f" — {item['alt']}"
+        lines.append(line)
+    return "\n".join(lines)
 
 
 def strip_html_tags(html_content: str) -> str:
@@ -446,6 +521,11 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
     async def get_page_content(course_identifier: str | int, page_url_or_id: str) -> str:
         """Get the full content body of a specific page.
 
+        Returns the page's raw HTML body untruncated, followed by an inventory
+        of any embedded media (images, videos, iframes) with their source URLs,
+        so media is reported explicitly rather than left for the reader to spot
+        in the markup.
+
         Args:
             course_identifier: Course code or Canvas ID
             page_url_or_id: Page URL slug or page ID
@@ -467,12 +547,21 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
         course_display = await get_course_code(course_id) or course_identifier
         status = "Published" if published else "Unpublished"
 
-        return f"Page Content for '{title}' in Course {course_display} ({status}):\n\n{body}"
+        return (
+            f"Page Content for '{title}' in Course {course_display} ({status}):\n\n{body}"
+            + format_media_inventory(extract_embedded_media(body))
+        )
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def get_page_details(course_identifier: str | int, page_url_or_id: str) -> str:
-        """Get detailed information about a specific page.
+        """Get a specific page's metadata plus a short text preview.
+
+        Returns settings (status, timestamps, editor, editing roles) and a
+        PLAIN-TEXT preview capped at 500 characters. The preview drops all
+        markup, so embedded media is listed separately rather than silently
+        disappearing. For the full body, including media markup, use
+        get_page_content.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -499,14 +588,19 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
         last_edited_by = response.get("last_edited_by", {})
         editor_name = last_edited_by.get("display_name", "Unknown") if last_edited_by else "Unknown"
 
-        # Clean up body text for display
+        # Build a TEXT PREVIEW of the body. Both lossy steps below must announce
+        # themselves: a silent strip made 4 embedded videos vanish from a real
+        # course page with no trace in the output (issue #233), and a bare "..."
+        # does not tell the reader a fixed budget was hit.
+        #
+        # strip_html_tags (not a bare `<[^>]+>` regex) because it also drops
+        # <script>/<style> CONTENTS. The naive form deletes only the tags, which
+        # promotes script text into what reads as page prose.
+        media = extract_embedded_media(body)
         if body:
-            # Remove HTML tags for cleaner display
-            import re
-            body_clean = re.sub(r'<[^>]+>', '', body)
-            body_clean = body_clean.strip()
+            body_clean = strip_html_tags(body).strip()
             if len(body_clean) > 500:
-                body_clean = body_clean[:500] + "..."
+                body_clean = body_clean[:500] + "\n...[text preview truncated at 500 characters]"
         else:
             body_clean = "No content"
 
@@ -532,7 +626,15 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
         result += f"Updated: {updated_at}\n"
         result += f"Last Edited By: {editor_name}\n"
         result += f"Editing Roles: {editing_roles or 'Not specified'}\n"
-        result += f"\nContent Preview:\n{body_clean}"
+        result += f"\nContent Preview (text only, truncated):\n{body_clean}"
+
+        if media:
+            result += (
+                f"\n\n{len(media)} embedded media item(s) are present but not shown "
+                "in this text preview — use get_page_content for the full HTML:"
+            )
+            for item in media:
+                result += f"\n- {item['tag']}: {item['src'] or '(no src attribute)'}"
 
         return result
 
