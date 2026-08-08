@@ -2799,7 +2799,7 @@
       "examples": [
         "Upload lecture5.pdf to the course files"
       ],
-      "notes": "Uploads a local file to a Canvas course. The returned file ID can be used with add_module_item (item_type='File') or send_conversation (attachment_ids)."
+      "notes": "Uploads a local file to a Canvas course. The returned file ID can be used with add_module_item (item_type='File') or send_conversation (attachment_ids). Local (stdio) servers only: file_path is read from the server's filesystem, so the tool refuses the request over HTTP transport."
     },
     {
       "name": "download_course_file",
@@ -2829,7 +2829,7 @@
       "examples": [
         "Download the syllabus PDF from the course files"
       ],
-      "notes": "Use list_course_files or list_module_items to find file IDs."
+      "notes": "Use list_course_files or list_module_items to find file IDs. Local (stdio) servers only: the file is written to the server's filesystem, so the tool refuses over HTTP transport and directs callers to read_course_file. Never overwrites an existing destination."
     },
     {
       "name": "get_conversation_details",
