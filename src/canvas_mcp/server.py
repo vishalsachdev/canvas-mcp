@@ -25,7 +25,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from .core.config import get_config, validate_config
+from .core.config import get_config, validate_canvas_url_scheme, validate_config
 from .core.credentials import (
     RequestCredentials,
     clear_http_request_context,
@@ -608,6 +608,12 @@ def main() -> None:
     if is_http:
         if not config.canvas_api_url:
             log_error("CANVAS_API_URL is required in HTTP mode (the Canvas API URL is server-pinned)")
+            sys.exit(1)
+        # HTTP mode never calls validate_config() (that path is stdio's .env
+        # check), so the cleartext-URL rejection has to be applied here too.
+        # It matters more here than in stdio: the URL is server-pinned, so one
+        # http:// typo leaks every caller's token, not just the operator's.
+        if not validate_canvas_url_scheme():
             sys.exit(1)
         if config.canvas_api_token:
             log_error(

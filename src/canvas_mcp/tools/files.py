@@ -106,12 +106,14 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
         # a real file in whatever directory was chosen. O_EXCL refuses an existing
         # path (including a pre-planted symlink) and O_NOFOLLOW refuses to follow
         # one, closing the swap race between the containment check and the write.
+        # O_NOFOLLOW is POSIX-only; on Windows the attribute does not exist at
+        # all, so naming it directly would raise AttributeError before os.open
+        # runs and break every local download there. O_EXCL alone still refuses
+        # an existing path, including a pre-planted symlink, which is the bulk
+        # of the protection.
+        open_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
         try:
-            fd = os.open(
-                save_path,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-                0o600,
-            )
+            fd = os.open(save_path, open_flags, 0o600)
         except FileExistsError:
             return (
                 f"Error: '{save_path}' already exists. Refusing to overwrite it — "

@@ -275,3 +275,76 @@ class TestDownloadPermissions:
 
         mode = os.stat(tmp_path / "syllabus.pdf").st_mode & 0o777
         assert mode == 0o600
+
+
+class TestDownloadIsPortable:
+    """The hardening must not break a supported platform.
+
+    O_NOFOLLOW is POSIX-only. Naming os.O_NOFOLLOW directly raises AttributeError
+    on Windows before os.open runs — and the handlers below it catch only
+    FileExistsError and OSError, so every local download would fail there.
+    """
+
+    def test_open_flags_survive_a_missing_o_nofollow(self, monkeypatch):
+        import canvas_mcp.tools.files as files_module
+
+        monkeypatch.delattr(files_module.os, "O_NOFOLLOW", raising=False)
+        flags = (
+            files_module.os.O_WRONLY
+            | files_module.os.O_CREAT
+            | files_module.os.O_EXCL
+            | getattr(files_module.os, "O_NOFOLLOW", 0)
+        )
+        # Exclusive creation — the bulk of the protection — is still requested.
+        assert flags & files_module.os.O_EXCL
+
+    @pytest.mark.asyncio
+    async def test_download_works_without_o_nofollow(self, tmp_path, monkeypatch):
+        """Simulates Windows: the platform flag is absent, download still works."""
+        import canvas_mcp.tools.files as files_module
+
+        monkeypatch.delattr(files_module.os, "O_NOFOLLOW", raising=False)
+
+        with patch(
+            "canvas_mcp.tools.files.is_http_request_active", return_value=False
+        ), patch(
+            "canvas_mcp.tools.files.make_canvas_request",
+            new=AsyncMock(return_value=FILE_INFO),
+        ), patch(
+            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
+        ), patch(
+            "canvas_mcp.tools.files.get_course_code",
+            new=AsyncMock(return_value="badm_350"),
+        ), patch(
+            "canvas_mcp.tools.files.canvas_authenticated_client"
+        ) as client:
+            _mock_stream(client)
+            download = get_tool_function("download_course_file")
+            result = await download("badm_350", 12345, save_directory=str(tmp_path))
+
+        assert "Downloaded: syllabus.pdf" in result
+        assert (tmp_path / "syllabus.pdf").read_bytes() == b"file content here"
+
+    @pytest.mark.asyncio
+    async def test_overwrite_refusal_still_holds_without_o_nofollow(self, tmp_path, monkeypatch):
+        import canvas_mcp.tools.files as files_module
+
+        monkeypatch.delattr(files_module.os, "O_NOFOLLOW", raising=False)
+        (tmp_path / "syllabus.pdf").write_bytes(b"pre-existing")
+
+        with patch(
+            "canvas_mcp.tools.files.is_http_request_active", return_value=False
+        ), patch(
+            "canvas_mcp.tools.files.make_canvas_request",
+            new=AsyncMock(return_value=FILE_INFO),
+        ), patch(
+            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
+        ), patch(
+            "canvas_mcp.tools.files.canvas_authenticated_client"
+        ) as client:
+            _mock_stream(client)
+            download = get_tool_function("download_course_file")
+            result = await download("badm_350", 12345, save_directory=str(tmp_path))
+
+        assert "already exists" in result
+        assert (tmp_path / "syllabus.pdf").read_bytes() == b"pre-existing"

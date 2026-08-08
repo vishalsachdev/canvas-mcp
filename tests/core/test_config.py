@@ -212,3 +212,32 @@ def test_anonymization_enabled_by_default(monkeypatch):
     monkeypatch.delenv("ENABLE_DATA_ANONYMIZATION", raising=False)
     config_module.reset_config()
     assert config_module.get_config().enable_data_anonymization is True
+
+
+def test_http_startup_path_also_rejects_cleartext(monkeypatch):
+    """The scheme check must not depend on validate_config().
+
+    HTTP mode never calls validate_config() — that path is stdio's .env check —
+    so an earlier version of this rejection was bypassed entirely in HTTP mode.
+    That is the deployment where it matters most: the Canvas URL is
+    server-pinned, so one http:// typo puts *every* caller's token on the wire,
+    not just the operator's.
+    """
+    monkeypatch.setenv("CANVAS_API_URL", "http://canvas.school.edu")
+    monkeypatch.delenv("CANVAS_ALLOW_INSECURE_HTTP", raising=False)
+    config_module.reset_config()
+    assert config_module.validate_canvas_url_scheme() is False
+
+
+def test_http_startup_path_accepts_https(monkeypatch):
+    monkeypatch.setenv("CANVAS_API_URL", "https://canvas.school.edu")
+    config_module.reset_config()
+    assert config_module.validate_canvas_url_scheme() is True
+
+
+def test_scheme_check_ignores_defects_it_does_not_own(monkeypatch):
+    """Missing scheme / missing host are validate_config()'s to report."""
+    for url in ("canvas.school.edu", "https:///canvas.school.edu", ""):
+        monkeypatch.setenv("CANVAS_API_URL", url)
+        config_module.reset_config()
+        assert config_module.validate_canvas_url_scheme() is True, url
