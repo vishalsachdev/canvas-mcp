@@ -107,6 +107,46 @@ def _bool_env(name: str, default: bool) -> bool:
     return value.strip().lower() == "true"
 
 
+def validate_canvas_url_scheme() -> bool:
+    """Reject a cleartext Canvas origin. Returns False when startup must abort.
+
+    Every Canvas request carries the token in an Authorization header, so an
+    http:// origin puts a credential for student records on the wire for anyone
+    on the path. A warning is not proportionate to that.
+
+    Called from BOTH startup paths. validate_config() runs only in stdio mode,
+    and HTTP mode is where this matters most: the Canvas URL is server-pinned,
+    so one operator typo would leak *every* caller's token, not just their own.
+    """
+    from urllib.parse import urlparse
+
+    config = get_config()
+    parsed = urlparse(config.canvas_api_url)
+    if not parsed.scheme or parsed.scheme == "https" or not parsed.netloc:
+        # Missing scheme / missing host are reported separately by
+        # validate_config(); this function only owns the cleartext case.
+        return True
+    if parsed.scheme != "http":
+        return True
+
+    if _is_loopback(parsed.hostname) and _bool_env("CANVAS_ALLOW_INSECURE_HTTP", False):
+        log_warning(
+            "CANVAS_API_URL uses cleartext http:// to a loopback address; "
+            "allowed because CANVAS_ALLOW_INSECURE_HTTP is set. Never use "
+            "this against a real Canvas instance.",
+            current_url=config.canvas_api_url,
+        )
+        return True
+
+    log_error(
+        "CANVAS_API_URL must use 'https://'. The Canvas API token is sent "
+        "on every request, so a cleartext URL exposes it on the network. "
+        "For local development against a loopback address only, set "
+        "CANVAS_ALLOW_INSECURE_HTTP=true.",
+    )
+    return False
+
+
 def _int_env(name: str, default: int) -> int:
     value = os.getenv(name)
     if value is None or value.strip() == "":
@@ -340,27 +380,8 @@ def validate_config() -> bool:
             "CANVAS_API_URL is missing a hostname",
             current_url=config.canvas_api_url,
         )
-    elif parsed_url.scheme != "https":
-        # Every Canvas request carries the bearer token in an Authorization
-        # header, so a cleartext origin puts the token on the wire in plaintext
-        # for anyone on the path. A warning is not proportionate to handing out
-        # a credential that grants access to student records — fail, unless the
-        # operator is explicitly pointing at loopback for development.
-        if _is_loopback(parsed_url.hostname) and _bool_env("CANVAS_ALLOW_INSECURE_HTTP", False):
-            log_warning(
-                "CANVAS_API_URL uses cleartext http:// to a loopback address; "
-                "allowed because CANVAS_ALLOW_INSECURE_HTTP is set. Never use "
-                "this against a real Canvas instance.",
-                current_url=config.canvas_api_url,
-            )
-        else:
-            log_error(
-                "CANVAS_API_URL must use 'https://'. The Canvas API token is sent "
-                "on every request, so a cleartext URL exposes it on the network. "
-                "For local development against a loopback address only, set "
-                "CANVAS_ALLOW_INSECURE_HTTP=true.",
-            )
-            return False
+    elif not validate_canvas_url_scheme():
+        return False
 
     if (
         config.canvas_api_url_configured
