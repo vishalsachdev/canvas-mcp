@@ -15,6 +15,17 @@ checker="$repo_root/scripts/check_closing_keywords.py"
 # an older revision). Fail open here; CI is the backstop.
 [ -f "$checker" ] || exit 0
 
-python3 "$checker" "$1" \
+# Only ask the checker to apply git's comment/scissors cleanup when git will
+# actually perform it. Under `whitespace` or `verbatim`, `#` lines survive into
+# the stored message and GitHub parses them, so they must be scanned.
+cleanup="$(git config --get commit.cleanup || echo default)"
+case "$cleanup" in
+  default | strip) git_comments="--git-comments" ;;
+  scissors)        git_comments="--git-comments" ;;
+  *)               git_comments="" ;;
+esac
+
+# shellcheck disable=SC2086
+python3 "$checker" "$1" $git_comments \
   --label "commit message" \
   --bypass-hint "ALLOW_CLOSING_KEYWORD=1 git commit ..."
