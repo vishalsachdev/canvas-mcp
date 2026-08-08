@@ -377,6 +377,17 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
   session for moving `HEAD` when I had left the shared checkout on my own feature branches.
 - **Site redeployed** after #232 (`docs/` has no auto-deploy) and verified live on both the
   pages.dev preview and `canvas-mcp.illinihunt.org`.
+- **Parallel session hardened the multi-agent workflow globally** (this repo was the incident site,
+  the fixes live in `~/.claude/`): a `worktree-pr` skill (one PR = one worktree = one branch = one
+  agent, teardown at merge), a PreToolUse `git-shared-tree-guard.sh` hook that denies bare
+  branch-mutating git in shared checkouts (live-verified: blocked its own author's command),
+  merge-time cleanup wired into `ship`/`wrap-up-session`, and a spaced-repetition loop
+  (`~/.claude/scripts/spaced-rep.sh` + SessionStart hook, 1/3/7/14/30/60d) so the *human* also
+  retains new workflow rules. Merged branches #246/#247 pruned local+remote.
+- **Hybrid Builder edition drafted from this incident**: "Guardrails for Me, Flashcards for You"
+  (`articles/2026-08-08-*`) staged as drafts on Substack (post 210355914) and LinkedIn via
+  browser automation; covers generated (sketch + PIL banner; interval labels PIL-patched).
+  Publish buttons left to the user.
 - Next: (1) **#239** — audit complete, implementation not started; recommended insertion point is
   the tool output-formatting boundary, **not** `core/anonymization.py`, and the strongest
   recommendation is extending the `write_confirmation` token pattern to the educator destructive set
