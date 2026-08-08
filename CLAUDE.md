@@ -56,6 +56,17 @@ FastMCP server; type-driven validation via `@validate_params`; dual-layer course
 
 This repo has branch protection on `main` (PR + status checks required), but admin can bypass. Always ask the user which workflow they prefer for the current task.
 
+### Parallel work: one PR = one worktree
+
+This repo often has several agents/sessions working at once. The primary checkout
+(`/Users/vishal/code/canvas-mcp`) stays on `main`, clean — treat it as read-only (triage,
+review, reading). All branch work happens in a sibling worktree named `canvas-mcp-<slug>`
+on branch `fix/NNN-slug`, created from `origin/main` (gitignored files like `.env` don't
+carry over — symlink them). Never repurpose a worktree for a different issue; remove it
+after its PR merges and delete the branch (local + remote). After any sibling PR merges,
+rebase surviving worktree branches onto `main` and rerun tests there. Full lifecycle:
+global `worktree-pr` skill.
+
 ### Closing-keyword guard — run `./scripts/install-hooks.sh` once per clone
 
 GitHub closes an issue on any `fixes|closes|resolves #N` in a merged PR body **or
