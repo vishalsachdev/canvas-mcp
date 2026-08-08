@@ -226,13 +226,45 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   contract (#204), `cryptography` CVE, anonymization consolidated to the client layer (#179)
 - [x] Closing-keyword guard (#231) + three bypasses closed after an independent red-team (#241).
   Contributors run `./scripts/install-hooks.sh` once per clone
-- [ ] **#238** `list_discussion_topics` sends unsupported `include[]=announcement` instead of
-  `only_announcements`, and `tools/README.md:1733` names the parameter wrong — likely why zqian saw
-  discussion topics in an announcements listing
-- [ ] **#233/#234/#235** triaged, fixes pending: media inventory in `get_page_content`; stop
-  claiming an unconfirmable `notify_of_update`; grade-comment docstring hardening
-- [ ] **#239** page bodies returned verbatim into model context (prompt-injection surface); other
-  free-text tools not yet audited
+- [x] **CI never ran the test suite (PR #247)** — the *required* `test-enhancements` check looked
+  for `tests/test_discussion_enhancements.py` (does not exist) and echoed a hand-written
+  "✅ Basic Validation Completed / PASSED". Only **363 of 1091** tests ran on a PR (`tests/security`
+  via a different workflow); **728 never ran**. Now a 3.10/3.11/3.12/3.13 matrix runs `pytest tests/`,
+  with an aggregator keeping the required job *name* (a bare matrix publishes `test (3.10)`, which
+  would leave the required check pending forever and block every PR). `publish-mcp.yml` no longer
+  swallows failures with `|| echo "No tests found"`. **This is the likely reason so many defects
+  landed green** — see the four below, each of which the suite was asserting as correct
+- [x] **#238 announcements vs discussions (PR #242)** — `include[]=announcement` is a measured no-op
+  (live A/B: identical 19 topics with and without it); `only_announcements` is the real filter and
+  *switches* scope rather than widening, so combining costs a second call. README + manifest
+  documented a **parameter that does not exist**. `list_announcements` was educator-only while
+  AGENTS.md called it shared — resolved by making it **shared** (an independent Codex run framed it
+  as a registration bug where I had framed it as a docs bug, and was right). The reporter's suggested
+  `/announcements?context_codes[]` was measured and rejected: returns 0 (default date window)
+- [x] **#233 page media (PR #246)** — `get_page_details` stripped `<img>`/`<iframe>` with a naive
+  regex, destroying media with no trace, then labelled it "Content Preview". Measured on a real page:
+  4 embedded videos → 0. Adds `extract_embedded_media()`; both lossy steps now announce themselves;
+  naive regex → `strip_html_tags` (which also drops `<script>` *contents*)
+- [x] **#234 notify_of_update (PR #245)** — measured live: Canvas's PUT returns 16 keys and none is
+  `notify_of_update`, so it can never be confirmed. Now warns instead of claiming success, with a
+  confident *no* for the two visible suppression cases (unpublished, <1min old)
+- [x] **#235 grade comments (PR #248)** — not a server default, but **our own artifacts taught it**:
+  the bulk-grading skill shipped `comment: "Graded via automated review"` and every README grading
+  example paired a comment with a grade. Also fixed: the dry run never named the comment (the
+  documented safety net hid the one irreversible side effect), and the simple path used membership
+  while the rubric path used truthiness, so `comment: None` posted
+- [x] **`/front_page` was ungated (PR #244)** — returned `last_edited_by` (display name, pronouns,
+  avatar) while `/pages/{slug}` was gated at `identity`; the tier rule matched the `pages` path
+  segment, which `front_page` lacks. **Two tests asserted the gap as correct.** Same class as #164/#179
+- [ ] **#239** page bodies returned verbatim into model context (prompt-injection surface). Audit
+  done, not implemented: **21 surfaces** enumerated; highest risk is *not* pages but
+  `get_discussion_entry_details` (student-authored, raw, and `post_discussion_entry` is in the same
+  shared toolset → read→write loop) and `get_conversation_details` (inbound message →
+  `send_bulk_messages_from_list`). Recommended insertion point is the **tool output-formatting
+  boundary, NOT `core/anonymization.py`** — `fix_accessibility_issues` reads `body` through that same
+  path and PUTs it back, so a fence added there would be written into the customer's live Canvas.
+  Strongest recommendation: extend the existing `write_confirmation` token pattern to the educator
+  destructive set, above any text fencing. Two incidental findings from the audit remain **unverified**
 - [ ] **#236** OAuth2 developer-key flow (from discussion #229) — additive path only, blocked on
   admin access to pilot a scoped key
 - [ ] Add `uv.lock` to `internal/release-checklist.md` — it carries the version and is not listed
@@ -306,44 +338,51 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
-### 2026-08-08 — v1.7.0 shipped; guard shipped, red-teamed, and fixed same day
+### 2026-08-08 (pm) — CI was never running the suite; 8 PRs merged, all four zqian bugs closed
 
-- **Released v1.7.0** — all five channels verified live: GitHub Release (+`.mcpb`), PyPI, MCP
-  Registry (`isLatest=True`), site (wrangler-deployed, both `softwareVersion` and the v-banner),
-  hosted Azure. No publish race this time; the registry job passed first try. `uv.lock` also
-  carries the version and is **missing from `internal/release-checklist.md`** — it only got
-  bumped here because `git add -A` swept it up.
-- **Closing-keyword guard (#231)** — one detector shared by a `commit-msg` hook and CI, after
-  #172 was closed twice by accident (PR #202's body, then commit `98643ce` whose message
-  *documented* the first accident). Acceptance replay found three closures nobody had recorded:
-  a second reference inside `98643ce` (#203), `2bee9f2` (#215), `e3922b3` (#111).
-- **Then an independent Codex red-team broke it (#241)** — three silent bypasses, all from my own
-  design choices. Critical: `#` lines were skipped as git comments, but in a **PR body** `#` opens
-  a markdown heading GitHub parses as prose, and one function scanned both surfaces. The replay
-  missed it because it replayed `git log` and never scanned a PR body. Replay now extended: 100
-  real PR bodies, zero false positives, two true positives (PR #202, the original incident, and
-  PR #187 with an unnoticed closure of #175).
-- **Merged the 7-deep triage-brief backlog** (#209–#230). The routine derives its cutoff from the
-  newest brief *on main* but only opens **draft** PRs, so it re-scanned the same window for 8
-  cycles — a scanner that cannot commit its own progress marker stalls silently.
-- **#172 reopened and answered** — `jonespm` (first-time outside commenter) had flagged the
-  closed-but-unfinished issue 3 days earlier. The triage routine could not see it: it queries
-  `is:open`, which structurally cannot surface a comment on a wrongly-closed issue.
-- **zqian filed four bugs in 24h** (#233/#234/#235/#238) and TSU-Carrell opened discussion #229
-  (OAuth developer-key flow → tracked as #236). Triaged #233/#234/#235: **two are not server
-  bugs** — `get_page_content` returns body HTML verbatim (measured live; the model summarized it
-  away), and no grade path defaults a comment (the assistant supplied it). Filed **#239**: page
-  bodies flow verbatim into model context, a prompt-injection surface.
-- **Parallel-diagnosis beat review.** An isolated Codex diagnosis of #238 converged on my one
-  finding and then found three I missed, including the likely root cause: `list_discussion_topics`
-  sends an unsupported `include[]=announcement` instead of `only_announcements`, and
-  `tools/README.md:1733` documents the parameter under the wrong name. My own hypothesis was
-  **not** supported.
-- Bugbot disabled on this repo — it writes into PR *descriptions* (regenerating on every push) and
-  did so while rate-limited to zero reviews, injecting closing keywords the author never wrote.
-- Next: (1) **#238 fix** — the mis-parameterized `list_discussion_topics` + wrong docs.
-  (2) Fixes for #233 (media inventory), #234 (stop claiming an unconfirmable notification),
-  #235 (docstring hardening + possible no-comment flag). (3) Review PRs #232 and #237.
-  (4) Add `uv.lock` to the release checklist. (5) **#191 still blocked** on zqian's New-Quizzes
-  sandbox. (6) Deferred: wrap-up-skill redesign for change comprehension —
-  `~/.claude/skills/wrap-up-session/DESIGN-NOTES-in-progress.md`.
+- **The headline is #247: the required `test-enhancements` check never ran a test.** It looked for
+  `tests/test_discussion_enhancements.py` and `scripts/performance_check.py` — neither exists — and
+  on the else branch echoed a hand-written `✅ Basic Validation Completed / PASSED`. It installed
+  pytest and never invoked it. Measured: **363 of 1091 tests ran on a PR** (only `tests/security`,
+  via `security-testing.yml`); **728 never ran**. `publish-mcp.yml` additionally swallowed failures
+  with `|| echo "No tests found - skipping"`, so a broken suite could publish a release.
+- **That explains the day's pattern: five fixes were bugs a green suite was actively asserting as
+  correct.** `/front_page` ungated in *two* tests; `notify_of_update`'s false confirmation asserted
+  as "success"; `test_list_discussion_topics` patching the client and then calling the client,
+  never invoking the tool; both page tools with zero tests. Tests written from the implementation
+  confirm the implementation.
+- **The CI fix paid for itself in one run.** It immediately caught
+  `test_acceptance_replay_real_history` calling `git log … main` — exit 128 on a detached-HEAD CI
+  checkout. That test *could only ever fail in CI*, and CI had never run it. Now ref-resilient
+  (main → origin/main → HEAD, skip-with-reason on shallow), and the job uses `fetch-depth: 0` so
+  the replay genuinely runs. **Keeping the job name `test-enhancements` was load-bearing** — a bare
+  matrix publishes `test (3.10)`, which would leave the required check pending and block every PR.
+- **Merged 8 PRs: #242 #237 #232 #244 #245 #246 #247 #248.** Closed #238/#233/#234/#235 (all four
+  zqian bugs). Suite 1047 → 1079; main green on 3.10/3.11/3.12/3.13.
+- **Parallel independent diagnosis beat review again.** A headless Codex run from the `v1.6.0` tag
+  converged on my `include[]` finding *and* reframed the shared/educator mismatch as a
+  **registration** bug where I had framed it as a **documentation** bug. I would have shipped a
+  green, live-verified fix that still left student-role users with only a mixed list. Caveat
+  learned: it was reading my working tree as I edited, so its later output quoted my own fix back —
+  an independent run needs its own worktree.
+- **Three agents ended up in one checkout.** Branches got switched under each other and an
+  uncommitted `files.py` edit appeared then vanished. Git branches/HEAD/index are per-*working-tree*,
+  not per-session. Fixed with `herdr worktree create`; a parallel session independently wrote the
+  same convention into CLAUDE.md (`ff28100`). Global: a `SessionStart` hook
+  (`~/.claude/hooks/herdr-session-reminder.sh`, custom, sits *beside* the herdr-managed one) plus
+  `/start-session` step 0a now detect `HERDR_ENV=1` and check `herdr agent list` for cwd collisions.
+- Two claims I had to walk back: I "measured" the `/front_page` leak with
+  `ENABLE_DATA_ANONYMIZATION=false` in `.env`, which proves less than I said (the gate discrepancy
+  is real and the fix is verified; the confidence was a notch too strong); and I blamed another
+  session for moving `HEAD` when I had left the shared checkout on my own feature branches.
+- **Site redeployed** after #232 (`docs/` has no auto-deploy) and verified live on both the
+  pages.dev preview and `canvas-mcp.illinihunt.org`.
+- Next: (1) **#239** — audit complete, implementation not started; recommended insertion point is
+  the tool output-formatting boundary, **not** `core/anonymization.py`, and the strongest
+  recommendation is extending the `write_confirmation` token pattern to the educator destructive set
+  above any text fencing. (2) **Verify before acting on** the audit's two incidental findings (the
+  naive tag-strip promoting `<script>` contents is now fixed in `get_page_details` by #246, but
+  four other sites still use it). (3) Add `uv.lock` to `internal/release-checklist.md`.
+  (4) Review draft PRs **#243** and **#191** (#191 still blocked on zqian's New-Quizzes sandbox).
+  (5) Consider offering zqian an `allow_comments` guarantee for #235 — deliberately left as a
+  product decision.
