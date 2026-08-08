@@ -13,6 +13,7 @@ This module handles all three steps transparently.
 """
 
 import base64
+import os
 import tempfile
 
 from fastmcp import FastMCP
@@ -26,6 +27,7 @@ from ..core.client import (
     upload_file_to_storage,
 )
 from ..core.config import get_config
+from ..core.credentials import is_http_request_active
 from ..core.file_validation import (
     FileValidationResult,
     format_file_size,
@@ -47,6 +49,9 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
     ) -> str:
         """Download a file from a Canvas course to the local filesystem.
 
+        Only available on a local (stdio) server. Use read_course_file to get
+        file content back in the response instead.
+
         Use list_course_files or list_module_items to find file IDs.
 
         Args:
@@ -54,6 +59,19 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
             file_id: Canvas file ID
             save_directory: Local directory to save to (default: system temp dir, must exist)
         """
+        # This tool writes to the *server's* filesystem. On a local stdio server
+        # that is the caller's own machine; on a shared HTTP one it is somebody
+        # else's host, and the caller picks both the destination directory and
+        # (via the Canvas file they choose) the filename and bytes — an arbitrary
+        # write primitive against the service account. There is also no reason a
+        # remote caller would want it: they cannot read what lands there.
+        if is_http_request_active():
+            return (
+                "Error: 'download_course_file' writes to the server's filesystem and is "
+                "only available on a local (stdio) server. On this hosted server, use "
+                "read_course_file instead, which returns the content in the response."
+            )
+
         course_id = await get_course_id(course_identifier)
 
         # Get file metadata from Canvas API
@@ -83,30 +101,58 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
         if not save_path.is_relative_to(save_dir):
             return "Error: Invalid filename - path outside allowed directory"
 
-        # Download the file using streaming to handle large files efficiently
+        # Create the destination exclusively. Canvas controls the filename, so a
+        # plain 'wb' open lets a course file named e.g. ".zshrc" silently truncate
+        # a real file in whatever directory was chosen. O_EXCL refuses an existing
+        # path (including a pre-planted symlink) and O_NOFOLLOW refuses to follow
+        # one, closing the swap race between the containment check and the write.
+        try:
+            fd = os.open(
+                save_path,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                0o600,
+            )
+        except FileExistsError:
+            return (
+                f"Error: '{save_path}' already exists. Refusing to overwrite it — "
+                f"remove it first or pass a different save_directory."
+            )
+        except OSError as e:
+            return f"Error creating destination file: {e}"
+
+        # Wrap the descriptor immediately so it is closed even if the network call
+        # below fails before the first write, and download by streaming to handle
+        # large files efficiently.
         try:
             total_bytes = 0
-            async with canvas_authenticated_client() as client:
-                async with client.stream("GET", download_url, follow_redirects=True) as response:
-                    response.raise_for_status()
+            with os.fdopen(fd, 'wb') as f:
+                async with canvas_authenticated_client() as client:
+                    async with client.stream(
+                        "GET", download_url, follow_redirects=True
+                    ) as response:
+                        response.raise_for_status()
 
-                    with open(save_path, 'wb') as f:
                         async for chunk in response.aiter_bytes(chunk_size=8192):
                             f.write(chunk)
                             total_bytes += len(chunk)
-
-            size_str = format_file_size(total_bytes)
-            course_display = await get_course_code(course_id) or course_identifier
-
-            result = f"Downloaded: {filename}\n"
-            result += f"  Path: {save_path}\n"
-            result += f"  Size: {size_str}\n"
-            result += f"  Type: {content_type}\n"
-            result += f"  Course: {course_display}\n"
-            return result
-
         except Exception as e:
+            # We created this path, so a failed download leaves a truncated or
+            # empty file that a later reader could mistake for real content.
+            try:
+                os.unlink(save_path)
+            except OSError:
+                pass
             return f"Error downloading file: {str(e)}"
+
+        size_str = format_file_size(total_bytes)
+        course_display = await get_course_code(course_id) or course_identifier
+
+        result = f"Downloaded: {filename}\n"
+        result += f"  Path: {save_path}\n"
+        result += f"  Size: {size_str}\n"
+        result += f"  Type: {content_type}\n"
+        result += f"  Course: {course_display}\n"
+        return result
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
@@ -285,6 +331,18 @@ def register_educator_file_tools(mcp: FastMCP) -> None:
             display_name: Override the filename shown in Canvas
             on_duplicate: "rename" (default) or "overwrite"
         """
+        # 'file_path' reads the *server's* filesystem. On a local stdio server that
+        # is the caller's own machine; on a shared HTTP one a remote caller could
+        # name any file the service account can read and upload it into their own
+        # Canvas course. Refused outright over HTTP, matching the student upload
+        # path in student_write.py, which already blocks the same hole.
+        if is_http_request_active():
+            return (
+                "Error: 'file_path' reads files from the server and is only "
+                "available on a local (stdio) server. On this hosted server, "
+                "upload the file through Canvas directly."
+            )
+
         # Validate on_duplicate parameter
         if on_duplicate not in ("rename", "overwrite"):
             return f"Invalid on_duplicate value: '{on_duplicate}'. Must be 'rename' or 'overwrite'."
