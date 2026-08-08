@@ -102,8 +102,6 @@ def test_normalize_canvas_url(raw, expected):
     [
         # Scheme-less: the defect is the missing scheme, not a missing host.
         ("canvas.school.edu", "https://"),
-        # Plain http:// with a valid host: warn specifically about the scheme.
-        ("http://canvas.school.edu", "scheme"),
         # Triple-slash (scheme present, empty host): warn about the hostname.
         ("https:///canvas.school.edu", "hostname"),
     ],
@@ -118,6 +116,48 @@ def test_validate_config_warns_with_specific_diagnostic(url, expected_fragment, 
         assert config_module.validate_config() is True
     messages = " ".join(str(call) for call in mock_warn.call_args_list)
     assert expected_fragment in messages
+
+
+def test_validate_config_rejects_cleartext_http(monkeypatch):
+    """Cleartext http:// is refused, not warned about.
+
+    The Canvas token is sent in an Authorization header on every request, so a
+    cleartext origin puts a credential for student records on the wire. This
+    was previously a warning that startup continued past.
+    """
+    monkeypatch.setenv("CANVAS_API_TOKEN", "test-token")
+    monkeypatch.setenv("CANVAS_API_URL", "http://canvas.school.edu")
+    monkeypatch.delenv("CANVAS_ALLOW_INSECURE_HTTP", raising=False)
+    config_module.reset_config()
+    with patch.object(config_module, "log_error") as mock_error:
+        assert config_module.validate_config() is False
+    assert "https" in " ".join(str(c) for c in mock_error.call_args_list)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://[::1]:3000",
+    ],
+)
+def test_validate_config_allows_loopback_http_with_explicit_optin(url, monkeypatch):
+    """Local development against a loopback Canvas has no network to sniff."""
+    monkeypatch.setenv("CANVAS_API_TOKEN", "test-token")
+    monkeypatch.setenv("CANVAS_API_URL", url)
+    monkeypatch.setenv("CANVAS_ALLOW_INSECURE_HTTP", "true")
+    config_module.reset_config()
+    assert config_module.validate_config() is True
+
+
+def test_loopback_optin_does_not_extend_to_remote_hosts(monkeypatch):
+    """The escape hatch must not become a blanket 'allow cleartext' switch."""
+    monkeypatch.setenv("CANVAS_API_TOKEN", "test-token")
+    monkeypatch.setenv("CANVAS_API_URL", "http://canvas.school.edu")
+    monkeypatch.setenv("CANVAS_ALLOW_INSECURE_HTTP", "true")
+    config_module.reset_config()
+    assert config_module.validate_config() is False
 
 
 def test_validate_config_no_warning_for_valid_https_url(monkeypatch):

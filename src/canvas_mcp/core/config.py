@@ -81,6 +81,25 @@ def _normalize_canvas_url(raw: str) -> str:
     return urlunparse(parsed._replace(path=path, params="", query="", fragment=""))
 
 
+def _is_loopback(hostname: str | None) -> bool:
+    """True for addresses that never leave the machine.
+
+    The only place cleartext HTTP is defensible is a local development Canvas,
+    where there is no network path to sniff.
+    """
+    if not hostname:
+        return False
+    host = hostname.strip().strip("[]").lower()
+    if host in {"localhost", "::1"}:
+        return True
+    try:
+        import ipaddress
+
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
 def _bool_env(name: str, default: bool) -> bool:
     value = os.getenv(name)
     if value is None:
@@ -322,10 +341,26 @@ def validate_config() -> bool:
             current_url=config.canvas_api_url,
         )
     elif parsed_url.scheme != "https":
-        log_warning(
-            "CANVAS_API_URL should use the 'https://' scheme",
-            current_url=config.canvas_api_url,
-        )
+        # Every Canvas request carries the bearer token in an Authorization
+        # header, so a cleartext origin puts the token on the wire in plaintext
+        # for anyone on the path. A warning is not proportionate to handing out
+        # a credential that grants access to student records — fail, unless the
+        # operator is explicitly pointing at loopback for development.
+        if _is_loopback(parsed_url.hostname) and _bool_env("CANVAS_ALLOW_INSECURE_HTTP", False):
+            log_warning(
+                "CANVAS_API_URL uses cleartext http:// to a loopback address; "
+                "allowed because CANVAS_ALLOW_INSECURE_HTTP is set. Never use "
+                "this against a real Canvas instance.",
+                current_url=config.canvas_api_url,
+            )
+        else:
+            log_error(
+                "CANVAS_API_URL must use 'https://'. The Canvas API token is sent "
+                "on every request, so a cleartext URL exposes it on the network. "
+                "For local development against a loopback address only, set "
+                "CANVAS_ALLOW_INSECURE_HTTP=true.",
+            )
+            return False
 
     if (
         config.canvas_api_url_configured
