@@ -217,6 +217,9 @@ class TestUpdatePageSettings:
         )
 
         assert "success" in result.lower() or "updated" in result.lower()
+        # notify_of_update was requested, so the result must NOT read as a
+        # confirmed notification (issue #234).
+        assert "Could not confirm" in result
         # Verify all params were sent
         call_args = mock_canvas_request.call_args
         assert call_args is not None
@@ -377,3 +380,189 @@ class TestInputValidation:
         )
 
         assert "success" in result.lower() or "updated" in result.lower()
+
+
+class TestNotifyOfUpdateConfirmation:
+    """Issue #234: never report an update notification we cannot confirm.
+
+    Canvas's page representation has no ``notify_of_update`` field. Measured
+    against a live instance on 2026-08-08: a PUT setting it returned 200 with
+    16 keys (body, created_at, editing_roles, front_page, hide_from_students,
+    html_url, last_edited_by, locked_for_user, page_id, publish_at, published,
+    title, todo_date, updated_at, url) and none of them was notify_of_update.
+    So the tool must warn rather than claim success.
+    """
+
+    @pytest.mark.asyncio
+    async def test_warns_when_unconfirmable(
+        self, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        """Published, old enough: we simply cannot know -- say so."""
+        mock_canvas_request.return_value = {
+            "url": "notify-me", "title": "Notify Me", "published": True,
+            "front_page": False, "editing_roles": "teachers",
+            "created_at": "2024-01-01T00:00:00Z",
+        }
+
+        update_page_settings = get_tool_function("update_page_settings")
+        result = await update_page_settings(
+            course_identifier="67619", page_url_or_id="notify-me",
+            notify_of_update=True,
+        )
+
+        assert "Could not confirm" in result
+        assert "does not include this field" in result
+
+    @pytest.mark.asyncio
+    async def test_unpublished_page_is_a_confident_no(
+        self, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        """Canvas suppresses notifications on unpublished pages -- state it."""
+        mock_canvas_request.return_value = {
+            "url": "draft", "title": "Draft", "published": False,
+            "front_page": False, "editing_roles": "teachers",
+            "created_at": "2024-01-01T00:00:00Z",
+        }
+
+        update_page_settings = get_tool_function("update_page_settings")
+        result = await update_page_settings(
+            course_identifier="67619", page_url_or_id="draft",
+            notify_of_update=True,
+        )
+
+        assert "no notification was sent" in result
+        assert "unpublished" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_brand_new_page_is_a_confident_no(
+        self, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        """Canvas suppresses notifications for pages under a minute old."""
+        from datetime import datetime, timezone
+        mock_canvas_request.return_value = {
+            "url": "fresh", "title": "Fresh", "published": True,
+            "front_page": False, "editing_roles": "teachers",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        update_page_settings = get_tool_function("update_page_settings")
+        result = await update_page_settings(
+            course_identifier="67619", page_url_or_id="fresh",
+            notify_of_update=True,
+        )
+
+        assert "no notification was sent" in result
+        assert "under a minute" in result
+
+    @pytest.mark.asyncio
+    async def test_no_warning_when_not_requested(
+        self, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        """Ordinary publish/unpublish calls must stay noise-free."""
+        mock_canvas_request.return_value = {
+            "url": "quiet", "title": "Quiet", "published": True,
+            "front_page": False, "editing_roles": "teachers",
+            "created_at": "2024-01-01T00:00:00Z",
+        }
+
+        update_page_settings = get_tool_function("update_page_settings")
+        result = await update_page_settings(
+            course_identifier="67619", page_url_or_id="quiet", published=True,
+        )
+
+        assert "Could not confirm" not in result
+
+    @pytest.mark.asyncio
+    async def test_no_warning_when_explicitly_false(
+        self, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        """notify_of_update=False requests nothing, so there is nothing to warn about."""
+        mock_canvas_request.return_value = {
+            "url": "quiet", "title": "Quiet", "published": True,
+            "front_page": False, "editing_roles": "teachers",
+            "created_at": "2024-01-01T00:00:00Z",
+        }
+
+        update_page_settings = get_tool_function("update_page_settings")
+        result = await update_page_settings(
+            course_identifier="67619", page_url_or_id="quiet",
+            notify_of_update=False,
+        )
+
+        assert "Could not confirm" not in result
+
+    @pytest.mark.asyncio
+    async def test_error_path_has_no_warning(
+        self, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        """A failed update reports the error only."""
+        mock_canvas_request.return_value = {"error": "404 Not Found"}
+
+        update_page_settings = get_tool_function("update_page_settings")
+        result = await update_page_settings(
+            course_identifier="67619", page_url_or_id="missing",
+            notify_of_update=True,
+        )
+
+        assert "Error updating page settings" in result
+        assert "Could not confirm" not in result
+
+    @pytest.mark.asyncio
+    async def test_bulk_warns_once_and_counts_unpublished(
+        self, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        """Bulk emits one warning for the batch, naming the confident negatives."""
+        mock_canvas_request.side_effect = [
+            {"url": "a", "title": "A", "published": True,
+             "created_at": "2024-01-01T00:00:00Z"},
+            {"url": "b", "title": "B", "published": False,
+             "created_at": "2024-01-01T00:00:00Z"},
+        ]
+
+        bulk_update_pages = get_tool_function("bulk_update_pages")
+        result = await bulk_update_pages(
+            course_identifier="67619", page_urls="a,b", notify_of_update=True,
+        )
+
+        assert result.count("Could not confirm") == 1
+        assert "1 of 2 updated page(s) are unpublished" in result
+
+    @pytest.mark.asyncio
+    async def test_bulk_no_warning_when_not_requested(
+        self, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        mock_canvas_request.side_effect = [
+            {"url": "a", "title": "A", "published": True,
+             "created_at": "2024-01-01T00:00:00Z"},
+        ]
+
+        bulk_update_pages = get_tool_function("bulk_update_pages")
+        result = await bulk_update_pages(
+            course_identifier="67619", page_urls="a", published=True,
+        )
+
+        assert "Could not confirm" not in result
+
+    @pytest.mark.asyncio
+    async def test_naive_created_at_does_not_crash(
+        self, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        """A created_at with no timezone must not blow up the comparison.
+
+        Regression: the age check originally reached for datetime.UTC (3.11+)
+        only on the naive branch, so every tz-aware fixture short-circuited past
+        it and the suite stayed green on Python 3.10.
+        """
+        mock_canvas_request.return_value = {
+            "url": "naive", "title": "Naive", "published": True,
+            "front_page": False, "editing_roles": "teachers",
+            "created_at": "2024-01-01T00:00:00",
+        }
+
+        update_page_settings = get_tool_function("update_page_settings")
+        result = await update_page_settings(
+            course_identifier="67619", page_url_or_id="naive",
+            notify_of_update=True,
+        )
+
+        assert "Could not confirm" in result
