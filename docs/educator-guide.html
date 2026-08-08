@@ -99,7 +99,7 @@
                         <h2>Prerequisites</h2>
                         <ul>
                             <li><strong>Python 3.10+</strong> installed on your computer</li>
-                            <li><strong>Claude Desktop</strong> - Download from <a href="https://claude.ai/download">claude.ai</a></li>
+                            <li><strong>An MCP client</strong> &mdash; whichever AI assistant you already use. Claude Desktop, Claude Code, ChatGPT, Cursor, VS Code, Zed, Windsurf and Continue all work; see <a href="index.html#clients">supported clients</a>.</li>
                             <li><strong>Canvas Account</strong> with instructor/TA permissions</li>
                         </ul>
                     </section>
@@ -124,7 +124,7 @@ pip install -e .</code></pre>
                             <li>Go to <strong>Account</strong> → <strong>Settings</strong></li>
                             <li>Scroll to <strong>Approved Integrations</strong></li>
                             <li>Click <strong>+ New Access Token</strong></li>
-                            <li>Name it "Claude AI Teaching Assistant"</li>
+                            <li>Name it "Canvas MCP / AI teaching assistant"</li>
                             <li><strong>Copy the token immediately</strong></li>
                         </ol>
 
@@ -145,8 +145,8 @@ ANONYMIZATION_DEBUG=false</code></pre>
                             <p>Set <code>ENABLE_DATA_ANONYMIZATION=true</code> for FERPA-compliant student data handling. This anonymizes student names before AI processing.</p>
                         </div>
 
-                        <h3>4. Configure Claude Desktop</h3>
-                        <p>Add to <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>:</p>
+                        <h3>4. Connect Your MCP Client</h3>
+                        <p>Add Canvas MCP to your client's MCP config. The entry is the same for every client &mdash; only the file it goes in changes:</p>
                         <pre><code>{
   "mcpServers": {
     "canvas-api": {
@@ -154,12 +154,13 @@ ANONYMIZATION_DEBUG=false</code></pre>
     }
   }
 }</code></pre>
+                        <p>Where that file lives for Claude Desktop, Cursor, Zed, Windsurf, Continue and others is listed in the <a href="https://github.com/vishalsachdev/canvas-mcp#3-mcp-client-configuration">client configuration guide</a>. Claude Desktop users can skip the JSON entirely and install the <a href="https://github.com/vishalsachdev/canvas-mcp/releases/latest">one-click extension</a> instead.</p>
 
                         <h3>5. Test and Start</h3>
                         <pre><code>canvas-mcp-server --test
 canvas-mcp-server --config</code></pre>
 
-                        <p>Restart Claude Desktop to activate the tools.</p>
+                        <p>Restart your client to activate the tools.</p>
                     </section>
 
                     <section id="ferpa">
@@ -247,16 +248,16 @@ canvas-mcp-server --config</code></pre>
                         <h3>Grading & Rubrics</h3>
                         <ul class="tool-list">
                             <li><code>create_rubric</code> - Create new rubrics</li>
-                            <li><code>get_rubric_details</code> - View rubric criteria</li>
+                            <li><code>get_rubric</code> - View rubric criteria, ratings, and points</li>
                             <li><code>associate_rubric</code> - Link rubric to assignment</li>
-                            <li><code>grade_submission_with_rubric</code> - Grade using rubric</li>
+                            <li><code>grade_with_rubric</code> - Grade using rubric</li>
                             <li><code>bulk_grade_submissions</code> - Batch grading (10+ at once)</li>
                         </ul>
 
                         <h3>Student Analytics</h3>
                         <ul class="tool-list">
-                            <li><code>get_student_analytics</code> - Multi-dimensional performance analysis</li>
-                            <li><code>identify_at_risk_students</code> - Flag students needing support</li>
+                            <li><code>get_student_analytics</code> - Per-student engagement scores, ranked so disengaged students surface first</li>
+                            <li><code>get_assignment_analytics</code> - Performance breakdown for a single assignment</li>
                             <li><code>get_peer_review_completion_analytics</code> - Peer review tracking</li>
                         </ul>
 

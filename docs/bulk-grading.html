@@ -41,7 +41,7 @@
                 <div class="doc-header-content">
                     <span class="doc-badge developer">💻 Developer Guide</span>
                     <h1>Code Execution API</h1>
-                    <p>Achieve 99.7% token savings on bulk operations by executing TypeScript locally instead of loading data into Claude's context.</p>
+                    <p>Achieve 99.7% token savings on bulk operations by executing TypeScript locally instead of loading data into the model's context.</p>
                 </div>
             </div>
         </header>
@@ -66,7 +66,7 @@
                 <main class="doc-content">
                     <section id="overview">
                         <h2>Overview</h2>
-                        <p>The Canvas MCP Code Execution API enables you to perform bulk operations on Canvas data with minimal token usage. Instead of loading all submissions into Claude's context, the code executes locally and returns only summaries.</p>
+                        <p>The Canvas MCP Code Execution API enables you to perform bulk operations on Canvas data with minimal token usage. Instead of loading all submissions into the model's context, the code executes locally and returns only summaries.</p>
 
                         <div class="info-box tip">
                             <div class="info-box-title">💡 When to Use</div>
@@ -99,7 +99,7 @@
                                 </tr>
                                 <tr>
                                     <td>Data Location</td>
-                                    <td>Claude's context</td>
+                                    <td>the model's context</td>
                                     <td>Local execution</td>
                                     <td>-</td>
                                 </tr>
@@ -128,7 +128,7 @@
                     <section id="traditional-approach">
                         <h2>Traditional Approach (Inefficient)</h2>
 
-                        <p>The traditional approach loads all submissions into Claude's context:</p>
+                        <p>The traditional approach loads all submissions into the model's context:</p>
 
                         <pre><code><span class="code-comment">// Load ALL submissions into context</span>
 <span class="code-keyword">const</span> submissions = <span class="code-keyword">await</span> <span class="code-function">list_submissions</span>({
@@ -149,7 +149,7 @@
 
                         <h3>Why This Is Inefficient</h3>
                         <ul>
-                            <li style="color: var(--color-error);">✗ All 90 submissions loaded into Claude's context</li>
+                            <li style="color: var(--color-error);">✗ All 90 submissions loaded into the model's context</li>
                             <li style="color: var(--color-error);">✗ ~1.35M tokens consumed</li>
                             <li style="color: var(--color-error);">✗ Slow execution (sequential processing)</li>
                             <li style="color: var(--color-error);">✗ Risk of hitting token limits</li>
@@ -169,7 +169,7 @@
   assignmentId: <span class="code-string">"123"</span>,
   gradingFunction: (submission) => {
     <span class="code-comment">// ⭐ This function runs LOCALLY</span>
-    <span class="code-comment">// ⭐ Submissions never enter Claude's context!</span>
+    <span class="code-comment">// ⭐ Submissions never enter the model's context!</span>
 
     <span class="code-keyword">const</span> notebook = submission.attachments?.find(
       f => f.filename.endsWith(<span class="code-string">'.ipynb'</span>)
@@ -335,7 +335,7 @@ Bulk grading complete:
 <span class="code-function">search_canvas_tools</span>(<span class="code-string">"bulk"</span>, <span class="code-string">"full"</span>)</code></pre>
 
                         <h3>Natural Language Discovery</h3>
-                        <p>Ask Claude:</p>
+                        <p>Ask your AI assistant:</p>
                         <ul>
                             <li>"Search for grading tools in the code API"</li>
                             <li>"What bulk operations are available?"</li>
@@ -404,7 +404,7 @@ Bulk grading complete:
 
                         <h3>"Criterion ID not found"</h3>
                         <ul>
-                            <li>Use <code>list_assignment_rubrics</code> to get correct criterion IDs</li>
+                            <li>Use <code>get_rubric</code> (with the assignment ID) to get correct criterion IDs</li>
                             <li>Remember: IDs often start with underscore (<code>"_8027"</code>)</li>
                         </ul>
 

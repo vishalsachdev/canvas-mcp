@@ -252,7 +252,7 @@ Canvas rubric criterion IDs often start with underscore:
 - ✅ `"_8027"` - Correct format
 - ❌ `"8027"` - May not work
 
-Use `list_assignment_rubrics` to get correct IDs before grading.
+Use `get_rubric` (with the assignment ID) to get correct IDs before grading.
 
 ### 4. Respect Rate Limits
 

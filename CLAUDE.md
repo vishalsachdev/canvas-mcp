@@ -236,6 +236,22 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [ ] Issue #142 → **watch item, unassigned** (`blocked-upstream`): `fastmcp-slim` 3.4.5 still pins `mcp<2.0`, so relaxing our pin cannot resolve; `mcp` 2.0.0 stable has shipped. Scope collapsed since #167 removed the FastMCP→MCPServer rename — hours, not a day. Trigger: a fastmcp release lifting `mcp<2.0`
 - [x] Issue #145 / PR #167: fastmcp 3.4.4 migration — **DONE 2026-07-21** (CVEs PYSEC-2026-2475/2476 resolved; dep-scan green; staging-validated then prod-deployed + live-verified; #145 closed)
 - [ ] Issue #157: `execute_typescript` sandbox hardening backlog (container-level egress, non-root user, prebuilt tsx image) — **self-hosted-only now**: tool is DISABLED on both hosted slots (`EXECUTE_TYPESCRIPT_ENABLED=false`, verified 2026-07-10); gate on re-enabling hosted code-exec
+- [ ] **Agent Plugins ([agent-plugins.org](https://agent-plugins.org)) → watch item, no owner.** Spec 1.0.0
+  landed 2026-08-06 (TSC: Amazon, Cursor, Microsoft, OpenAI, Vercel): root `plugin.json` +
+  `skills/<name>/SKILL.md` + `mcp.json`. Our `skills/` is **already conformant**, so packaging is ~2
+  files / ~30 min. **Blocked on credentials, not packaging:** the spec "defines no portable OAuth or
+  credential-reference fields", `mcp.json` `env`/`headers` are literal visible package data (only
+  `${PLUGIN_ROOT}` / `${PLUGIN_DATA}` expand), and the subprocess base environment is *client-selected*
+  — so `CANVAS_API_TOKEN` + `CANVAS_API_URL` have no delivery path and a plugin install would fail on
+  first tool call. Strictly worse than the `.mcpb` (keychain prompt) we already ship. **HTTP side does
+  not apply:** hosted instance is private (URL stays out of this repo) and per-caller `X-Canvas-Token`
+  can't live in portable headers. Audience skew too — Claude Code uses its own `.claude-plugin/plugin.json`,
+  Anthropic isn't on the TSC, and skills.sh already covers 40+ agents. Triggers to revisit: (1) a client
+  ships user-secret prompting for plugin MCP servers, or the spec adds credential refs; (2) Claude
+  clients adopt/bridge the format (both layouts use `skills/<name>/SKILL.md`, so dual-shipping is cheap);
+  (3) a user files an issue. If ever built: `cwd: "${PLUGIN_DATA}"` + a setup skill writing `.env` there
+  is the viable pattern, but needs an explicit path in `load_dotenv()` (it resolves against the calling
+  module, not CWD). Cost if adopted: a 4th version-stamp location in the release checklist
 - [ ] Backlog triage (module templates, bulk creation, page versioning — feature ideas only, no owner)
 - [x] Issue #106: mypy 229 → 0 errors + mypy in CI lint job (PR #213, 2026-08-01)
 
