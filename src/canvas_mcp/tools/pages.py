@@ -5,6 +5,7 @@ editing roles) separate from content editing.
 """
 
 
+import datetime
 from typing import Any
 
 from fastmcp import FastMCP
@@ -12,8 +13,57 @@ from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import make_canvas_request
-from ..core.dates import format_date
+from ..core.dates import format_date, parse_date
 from ..core.validation import validate_params
+from ..core.write_confirmation import unconfirmed_write_warning
+
+# Canvas suppresses update notifications for pages younger than this (issue #234).
+_NOTIFY_MIN_PAGE_AGE = datetime.timedelta(minutes=1)
+
+_NOTIFY_IS_NOT_A_SETTING = (
+    "notify_of_update is a save-time action, not a stored setting: Canvas never "
+    "returns it, so the checkbox in the Canvas UI stays unchecked afterward "
+    "regardless. Confirm delivery through the recipients' Canvas notifications, "
+    "not through this page."
+)
+
+
+def _notify_of_update_warning(response: dict[str, Any]) -> str:
+    """Warn that a requested update notification could not be confirmed.
+
+    Canvas's page representation has no ``notify_of_update`` field -- measured
+    against a live instance, a PUT setting it returns 16 keys and none is this
+    one -- so the tool must never report it as done (issue #234).
+
+    Two of Canvas's suppression conditions ARE visible in the response, so those
+    get a confident "no notification was sent" instead of a vague maybe.
+    """
+    if not response.get("published", False):
+        return unconfirmed_write_warning(
+            "the update notification",
+            {"Requested": "notify_of_update=True", "Page state": "unpublished"},
+            "Canvas does not notify participants about changes to an unpublished "
+            "page, so no notification was sent. Publish the page first.",
+        )
+
+    created_at = parse_date(response.get("created_at"))
+    if created_at is not None:
+        # datetime.UTC is 3.11+; this project supports 3.10.
+        now = datetime.datetime.now(created_at.tzinfo or datetime.timezone.utc)
+        if now - created_at < _NOTIFY_MIN_PAGE_AGE:
+            return unconfirmed_write_warning(
+                "the update notification",
+                {"Requested": "notify_of_update=True", "Page age": "under a minute"},
+                "Canvas suppresses update notifications for pages this new, so no "
+                "notification was sent.",
+            )
+
+    return unconfirmed_write_warning(
+        "the update notification",
+        {"Requested": "notify_of_update=True",
+         "Canvas response": "does not include this field"},
+        _NOTIFY_IS_NOT_A_SETTING,
+    )
 
 
 def register_page_tools(mcp: FastMCP) -> None:
@@ -37,7 +87,12 @@ def register_page_tools(mcp: FastMCP) -> None:
             published: True to publish, False to unpublish
             front_page: True to make this the course front page
             editing_roles: One of: teachers, students, members, public
-            notify_of_update: True to notify users of the update
+            notify_of_update: Save-time action, NOT a persisted setting. Asks
+                Canvas to notify course participants about THIS edit. Canvas
+                never returns the flag, so this tool cannot confirm a
+                notification was sent and the Canvas UI checkbox will always
+                look unchecked afterward. Has no effect on an unpublished page
+                or a page under a minute old.
 
         IMPORTANT: The front page cannot be unpublished. First set another page as front page.
         """
@@ -94,6 +149,9 @@ def register_page_tools(mcp: FastMCP) -> None:
         if updated_at:
             result += f"  Updated: {format_date(updated_at)}\n"
 
+        if notify_of_update:
+            result += "\n" + _notify_of_update_warning(response)
+
         return result
 
     @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
@@ -115,7 +173,10 @@ def register_page_tools(mcp: FastMCP) -> None:
             page_urls: Comma-separated list of page URL slugs
             published: True to publish all, False to unpublish all
             editing_roles: One of: teachers, students, members, public
-            notify_of_update: True to notify users of updates
+            notify_of_update: Save-time action, NOT a persisted setting. Asks
+                Canvas to notify course participants about these edits. Canvas
+                never returns the flag, so this tool cannot confirm any
+                notification was sent. Has no effect on unpublished pages.
 
         IMPORTANT: front_page is not supported in bulk updates.
         """
@@ -147,6 +208,7 @@ def register_page_tools(mcp: FastMCP) -> None:
         # Process each page
         success_count = 0
         failed_count = 0
+        unpublished_count = 0
         failed_pages = []
         updated_pages = []
 
@@ -165,6 +227,8 @@ def register_page_tools(mcp: FastMCP) -> None:
             else:
                 success_count += 1
                 updated_pages.append(response.get("title", page_url))
+                if not response.get("published", False):
+                    unpublished_count += 1
 
         # Format result
         course_display = await get_course_code(course_id) or course_identifier
@@ -189,6 +253,20 @@ def register_page_tools(mcp: FastMCP) -> None:
                 result += f"- ❌ {error}\n"
             if len(failed_pages) > 5:
                 result += f"- ... and {len(failed_pages) - 5} more errors\n"
+
+        if notify_of_update and success_count:
+            facts: dict[str, Any] = {
+                "Requested": "notify_of_update=True",
+                "Canvas response": "does not include this field",
+            }
+            if unpublished_count:
+                facts["Definitely not notified"] = (
+                    f"{unpublished_count} of {success_count} updated page(s) are "
+                    "unpublished"
+                )
+            result += "\n" + unconfirmed_write_warning(
+                "the update notifications", facts, _NOTIFY_IS_NOT_A_SETTING
+            )
 
         return result
 
