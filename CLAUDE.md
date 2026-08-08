@@ -224,6 +224,20 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] Release **v1.7.0** (2026-08-08) — all five channels live + verified. Correctness release:
   unconfirmed-write guards (#219/#220/#221), Planner-API upcoming assignments (#222), annotation
   contract (#204), `cryptography` CVE, anonymization consolidated to the client layer (#179)
+- [x] **Security scan remediation — MERGED (PR #251, 11 commits by boundary).** 12 findings, 11
+  fixed: host-filesystem boundary in the file tools (both high), a **measured** `/submissions/self`
+  authorization bypass via path delimiters, CSV formula injection, Registry anonymization default,
+  unauthenticated route limits, sandbox fail-closed, Canvas token at rest/in transit, AI workflow
+  least privilege. Two Codex rounds (round 1 found a P1 in my own HTTPS fix; round 2 clean).
+  **Three breaking changes now on main — next release needs a minor bump.**
+- [ ] **#157 sandbox egress is only mitigated, not closed.** `--network=none` is passed when
+  outbound is blocked *and* the allowlist is empty — but blocking auto-allowlists the Canvas host,
+  so in any working config egress falls back to the in-process Node guard, which `child_process`
+  and bundled utilities bypass while `CANVAS_API_TOKEN` is in the environment. Now warns honestly
+  instead of implying enforcement. Real fix needs an egress proxy or network namespace
+- [ ] **#249 npm setup wizard targets the retired `mcp.illinihunt.org`** (no DNS record). Not a URL
+  swap: the stdio path needs an absolute venv binary path and `.env` credentials. Product decision
+  between a full stdio wizard, instructions-only, or deprecating the CLI
 - [x] Closing-keyword guard (#231) + three bypasses closed after an independent red-team (#241).
   Contributors run `./scripts/install-hooks.sh` once per clone
 - [x] **CI never ran the test suite (PR #247)** — the *required* `test-enhancements` check looked
@@ -388,6 +402,45 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
   (`articles/2026-08-08-*`) staged as drafts on Substack (post 210355914) and LinkedIn via
   browser automation; covers generated (sketch + PIL banner; interval labels PIL-patched).
   Publish buttons left to the user.
+- **Security scan swept and merged as #251** — 11 commits, one per security boundary, rebased onto
+  main so `git blame` on a guard lands on the commit explaining that guard. Twelve findings from a
+  repo-wide scan; **every one revalidated against current code first — all twelve were still live**,
+  none had been fixed by newer code. Eleven fixed; sandbox egress is the twelfth and is recorded as
+  a **known limitation**, not claimed as fixed.
+- **The authorization bypass was live, and measured rather than argued.** Student tools are
+  authorized by a hard-coded `/submissions/self` suffix, but identifiers are typed `str | int` and
+  interpolated into the path. With `assignment_id="123/submissions/456?"`, `get_my_submission`
+  issued a real request to `/api/v1/courses/60366/assignments/123/submissions/456` while the
+  endpoint string still ended in `/submissions/self` — Canvas answers that for any token that also
+  holds grading permission. Closed centrally in `make_canvas_request` (reject `?`/`#`/`..`, which
+  covers all 23 interpolation sites) plus an ASCII-digit grammar at the self-scoped routes.
+- **Both high-severity findings were the same shape**: a local-stdio file interface exposed
+  unchanged over shared HTTP (`download_course_file` = arbitrary write, `upload_course_file` =
+  arbitrary read). Refused **by transport** rather than removed, since both are correct when the
+  server's filesystem *is* the caller's machine.
+- **None of it could have been enforced as written.** `security-testing.yml` ran the security suite
+  with `continue-on-error: true`, so no security invariant — including the anonymization and authz
+  ones predating this work — could ever fail a build. And the new workflow-policy tests use
+  `importorskip`, so without `pyyaml` in the **required** job they would have skipped silently.
+  Both corrected. Same failure shape as #247, twice more.
+- **Codex round 1 found a P1 in my own fix**: the HTTPS rejection lived in `validate_config()`,
+  which `main()` calls **only** on the stdio branch — so HTTP mode, where the URL is server-pinned
+  and one typo leaks *every* caller's token, was entirely unprotected. Also caught an
+  `os.O_NOFOLLOW` AttributeError that would have broken every download on Windows. Round 2 clean.
+- **Verification lesson worth keeping**: stashing a fix and re-running the new tests proved almost
+  nothing — they failed on a *missing symbol*, not on vulnerable behavior. Throwaway exploit repros
+  against the unfixed code were what actually established the tests detect the bug. Two tests also
+  exposed gaps in my own drafts (a disabled sandbox lands on mode `disabled`, not `local`; and
+  registering a tool never materializes config, so one test silently exercised the default mode).
+- **Three breaking changes are now on main** — cleartext `CANVAS_API_URL` aborts startup (both
+  transports), the two file tools are stdio-only, and `download_course_file` no longer overwrites.
+  Registry anonymization default also flipped `false` → `true`. `CHANGELOG.md [Unreleased]` is
+  written and ready to become the next release's notes.
+- Filed **#249** (npm wizard still targets the retired `mcp.illinihunt.org`; no DNS record). Left as
+  a product decision — the stdio path needs an absolute venv binary path and `.env`, not a URL swap.
+- Merge used `--admin`: branch protection required a review and self-approval isn't possible, so the
+  review requirement was **bypassed, not satisfied**. Suite re-run on `main` after merge (1187
+  passed) per the #224/#225 sibling-conflict rule; #157 and #249 confirmed still open.
 - Next: (1) **#239** — audit complete, implementation not started; recommended insertion point is
   the tool output-formatting boundary, **not** `core/anonymization.py`, and the strongest
   recommendation is extending the `write_confirmation` token pattern to the educator destructive set
@@ -396,4 +449,7 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
   four other sites still use it). (3) Add `uv.lock` to `internal/release-checklist.md`.
   (4) Review draft PRs **#243** and **#191** (#191 still blocked on zqian's New-Quizzes sandbox).
   (5) Consider offering zqian an `allow_comments` guarantee for #235 — deliberately left as a
-  product decision.
+  product decision. (6) **Release with a minor bump** — three breaking changes are on main and
+  `[Unreleased]` notes are written. (7) **#249** CLI decision (stdio wizard / instructions-only /
+  deprecate). (8) **#157** sandbox egress needs a proxy or netns; the in-process Node guard is
+  bypassable and now says so. (9) `cli/package-lock.json` version drift (1.0.0 vs 1.1.0).
