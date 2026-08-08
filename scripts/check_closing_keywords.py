@@ -82,7 +82,35 @@ BYPASS_ENV = "ALLOW_CLOSING_KEYWORD"
 # hatch on nearly every fix PR, and a bypass used routinely stops being read.
 #
 # Leading list markers count as "start": "- Closes #12" is still a trailer.
-_LINE_PREFIX = re.compile(r"^[\s>*\-+]*")
+#
+# This must match *real* markdown markers only. An earlier version consumed any
+# run of [\s>*\-+], which handed the trailer exemption to "--- fixes #172 was
+# emitted by the bot" -- three hyphens are neither a list marker nor, followed
+# by prose, a thematic break. A bullet requires whitespace after it.
+_LINE_PREFIX = re.compile(
+    r"""^
+    [ \t]*                    # indent
+    (?:>[ \t]*)*              # blockquote markers, possibly nested
+    (?:
+        [-*+][ \t]+           # bullet: marker MUST be followed by whitespace
+      | \d+[.)][ \t]+         # ordered list item
+    )?
+    [ \t]*
+    """,
+    re.VERBOSE,
+)
+
+# Only separators may sit between two references for both to count as part of
+# the same deliberate trailer ("Closes #199, closes #198"). Prose in between
+# means the later reference is narration -- see _classify_line.
+_ONLY_SEPARATORS = re.compile(r"^(?:[\s,;&/]|and\b)*$", re.IGNORECASE)
+
+# `git commit` strips `#` comment lines and everything after a scissors line,
+# but ONLY under some cleanup modes -- and never in a PR body, where `#` opens
+# a markdown heading that GitHub parses like any other text. Applying git's
+# rules to a PR body is how "## Incident report: the bot fixes #172" slipped
+# through as a "comment".
+_SCISSORS = re.compile(r"^#[ \t]*-+[ \t]*>8[ \t]*-+")
 
 
 @dataclass(frozen=True)
@@ -103,25 +131,61 @@ def _content_start(line: str) -> int:
     return _LINE_PREFIX.match(line).end()
 
 
-def scan_text(text: str, source: str = "<text>") -> list[Match]:
+def _classify_line(line: str) -> list[tuple[re.Match[str], bool]]:
+    """Pair each match on ``line`` with whether it is a deliberate trailer.
+
+    Trailer status is earned per match, not granted per line. The first match
+    qualifies by opening the line; each later one qualifies only if nothing but
+    separators sits between it and the previous qualifying match. So
+    "Closes #199, closes #198" is entirely deliberate, while
+    "Closes #173. Historical note: the old bot fixes #172 by accident."
+    is deliberate for #173 and narration for #172 -- which is exactly the
+    accidental closure this guard exists to catch, and which an earlier
+    per-line rule laundered through.
+    """
+    matches = list(CLOSING_PATTERN.finditer(line))
+    if not matches:
+        return []
+
+    out: list[tuple[re.Match[str], bool]] = []
+    cursor = _content_start(line)
+    still_trailer = True
+    for m in matches:
+        if still_trailer and _ONLY_SEPARATORS.match(line[cursor:m.start()]):
+            out.append((m, True))
+            cursor = m.end()
+        else:
+            still_trailer = False
+            out.append((m, False))
+    return out
+
+
+def scan_text(
+    text: str, source: str = "<text>", *, git_comments: bool = False
+) -> list[Match]:
     """Return every closing-keyword reference in ``text``.
 
-    Comment lines are skipped: git strips them before the message is stored,
-    so a `#` -prefixed line never reaches GitHub's parser. Scanning them would
-    flag the commit template's own instructions on every single commit.
+    ``git_comments`` applies `git commit`'s own message cleanup before
+    scanning: drop `#` comment lines and truncate at a scissors marker. Pass it
+    ONLY for text git will actually clean up that way -- a commit message under
+    the default/strip cleanup mode. It must never be set for a PR body, where
+    `#` opens a markdown heading that GitHub parses like any other prose.
     """
+    if git_comments:
+        kept = []
+        for line in text.splitlines():
+            if _SCISSORS.match(line):
+                break
+            if line.lstrip().startswith("#"):
+                continue
+            kept.append(line)
+        lines = list(enumerate(kept, start=1))
+    else:
+        lines = list(enumerate(text.splitlines(), start=1))
+
     found: list[Match] = []
-    for lineno, line in enumerate(text.splitlines(), start=1):
-        if line.lstrip().startswith("#"):
-            continue
-        line_matches = list(CLOSING_PATTERN.finditer(line))
-        if not line_matches:
-            continue
-        # Deliberateness is a property of the line, not of each reference: once
-        # a line opens as a trailer, everything it goes on to list is equally
-        # intended ("Closes #199, closes #198").
-        is_trailer = line_matches[0].start() == _content_start(line)
-        for m in line_matches:
+    for lineno, line in lines:
+        for m, is_trailer in _classify_line(line):
             found.append(
                 Match(
                     source=source,
@@ -174,6 +238,14 @@ def main(argv: list[str] | None = None) -> int:
         help="also fail on deliberate trailer lines (e.g. 'Closes #12'), "
         "which are allowed by default",
     )
+    parser.add_argument(
+        "--git-comments",
+        action="store_true",
+        help="apply git's commit-message cleanup before scanning: drop '#' "
+        "comment lines and truncate at a scissors marker. ONLY for commit "
+        "messages under default/strip cleanup -- never for a PR body, where "
+        "'#' opens a markdown heading that GitHub parses as prose.",
+    )
     args = parser.parse_args(argv)
 
     if os.environ.get(BYPASS_ENV):
@@ -183,10 +255,16 @@ def main(argv: list[str] | None = None) -> int:
     matches: list[Match] = []
     for path in args.paths:
         if path == "-":
-            matches += scan_text(sys.stdin.read(), args.label or "<stdin>")
+            matches += scan_text(
+                sys.stdin.read(),
+                args.label or "<stdin>",
+                git_comments=args.git_comments,
+            )
         else:
             with open(path, encoding="utf-8") as fh:
-                matches += scan_text(fh.read(), args.label or path)
+                matches += scan_text(
+                    fh.read(), args.label or path, git_comments=args.git_comments
+                )
 
     blocking = matches if args.strict else [m for m in matches if not m.is_trailer]
 
