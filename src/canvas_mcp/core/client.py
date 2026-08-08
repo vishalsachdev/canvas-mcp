@@ -229,8 +229,11 @@ def _endpoint_anonymization_mode(endpoint: str) -> str:
       the participants are their own correspondents, not third parties whose
       records they are browsing — pseudonymising `participants[].name` would
       make "who emailed me?" unanswerable while protecting nobody.
-    - /pages, /courses/{id}/pages/{slug} -> ANONYMIZE_IDENTITY. Previously
-      ungated: `last_edited_by` leaked a display name and avatar URL. Page
+    - /pages, /courses/{id}/pages/{slug}, /courses/{id}/front_page ->
+      ANONYMIZE_IDENTITY. Previously ungated: `last_edited_by` leaked a display
+      name and avatar URL. front_page returns the same block but carries no
+      'pages' segment, so it stayed ungated after #179 until a live check found
+      it still returning display_name, pronouns and avatar_image_url. Page
       *bodies* are deliberately exempt — instructors publish office hours,
       contact addresses and phone numbers on course pages, and redacting those
       would break the page's purpose.
@@ -275,7 +278,12 @@ def _endpoint_anonymization_mode(endpoint: str) -> str:
     if _has_route_segment(segments, {'conversations'}):
         return ANONYMIZE_FREE_TEXT
 
-    if _has_route_segment(segments, {'pages'}):
+    # 'front_page' is a page too and returns the same last_edited_by block, but
+    # its path carries no 'pages' segment, so it slipped the slug rule and stayed
+    # ungated after #179. Unlike a page slug, 'front_page' is a fixed Canvas
+    # route word and cannot be user-controlled, so matching it needs no
+    # escalation guard.
+    if _has_route_segment(segments, {'pages'}) or 'front_page' in segments:
         return ANONYMIZE_IDENTITY
 
     return ANONYMIZE_NONE
