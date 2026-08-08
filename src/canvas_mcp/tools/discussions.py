@@ -93,6 +93,48 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
+    async def list_announcements(course_identifier: str) -> str:
+        """List a course's announcements, and nothing else.
+
+        Returns announcements only -- ordinary discussion topics are excluded.
+        Use list_discussion_topics for discussions.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+        """
+        course_id = await get_course_id(course_identifier)
+
+        params = {
+            # only_announcements is the filter Canvas honours. include[]=announcement
+            # is NOT a supported include value and is silently ignored (issue #238);
+            # measured identical result sets with and without it.
+            "only_announcements": True,
+            "per_page": 100
+        }
+
+        announcements = await fetch_all_paginated_results(f"/courses/{course_id}/discussion_topics", params)
+
+        if isinstance(announcements, dict) and "error" in announcements:
+            return f"Error fetching announcements: {announcements['error']}"
+
+        if not announcements:
+            return f"No announcements found for course {course_identifier}."
+
+        announcements_info = []
+        for announcement in announcements:
+            announcement_id = announcement.get("id")
+            title = announcement.get("title", "Untitled announcement")
+            posted_at = format_date(announcement.get("posted_at"))
+
+            announcements_info.append(
+                f"ID: {announcement_id}\nTitle: {title}\nPosted: {posted_at}\n"
+            )
+
+        course_display = await get_course_code(course_id) or course_identifier
+        return f"Announcements for Course {course_display}:\n\n" + "\n".join(announcements_info)
+
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @validate_params
     async def get_discussion_topic_details(course_identifier: str | int,
                                          topic_id: str | int) -> str:
         """Get detailed information about a specific discussion topic.
@@ -920,45 +962,6 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
         return result
 
     # ===== ANNOUNCEMENT TOOLS =====
-
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
-    @validate_params
-    async def list_announcements(course_identifier: str) -> str:
-        """List announcements for a specific course.
-
-        Args:
-            course_identifier: Course code or Canvas ID
-        """
-        course_id = await get_course_id(course_identifier)
-
-        params = {
-            # only_announcements is the filter Canvas honours. include[]=announcement
-            # is NOT a supported include value and is silently ignored (issue #238);
-            # measured identical result sets with and without it.
-            "only_announcements": True,
-            "per_page": 100
-        }
-
-        announcements = await fetch_all_paginated_results(f"/courses/{course_id}/discussion_topics", params)
-
-        if isinstance(announcements, dict) and "error" in announcements:
-            return f"Error fetching announcements: {announcements['error']}"
-
-        if not announcements:
-            return f"No announcements found for course {course_identifier}."
-
-        announcements_info = []
-        for announcement in announcements:
-            announcement_id = announcement.get("id")
-            title = announcement.get("title", "Untitled announcement")
-            posted_at = format_date(announcement.get("posted_at"))
-
-            announcements_info.append(
-                f"ID: {announcement_id}\nTitle: {title}\nPosted: {posted_at}\n"
-            )
-
-        course_display = await get_course_code(course_id) or course_identifier
-        return f"Announcements for Course {course_display}:\n\n" + "\n".join(announcements_info)
 
     @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
     @validate_params

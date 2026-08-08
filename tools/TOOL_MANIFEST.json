@@ -2209,8 +2209,8 @@
     },
     {
       "name": "list_announcements",
-      "category": "educator",
-      "description": "List announcements for a specific course.",
+      "category": "shared",
+      "description": "List a course's announcements, and nothing else. Ordinary discussion topics are excluded; use list_discussion_topics for those.",
       "parameters": [
         {
           "name": "course_identifier",
