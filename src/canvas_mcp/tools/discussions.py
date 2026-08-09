@@ -89,8 +89,13 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             topic_type = "Announcement" if is_announcement else "Discussion"
             status = "Published" if published else "Unpublished"
 
+            # Titles are author-controlled (students, where the course allows
+            # student topics) — fenced in listings too, not just detail views
+            # (issue 239).
             topics_info.append(
-                f"ID: {topic_id}\nType: {topic_type}\nTitle: {title}\nStatus: {status}\nPosted: {posted_at}\n"
+                f"ID: {topic_id}\nType: {topic_type}\n"
+                f"Title:\n{fence_untrusted(title, 'discussion topic title')}\n"
+                f"Status: {status}\nPosted: {posted_at}\n"
             )
 
         course_display = await get_course_code(course_id) or course_identifier

@@ -54,6 +54,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   This extends the `submit_assignment` confirmation pattern to the educator
   side, so prompt-injected content read from Canvas cannot silently trigger
   a fan-out send.
+- **Known limitation:** enabling `execute_typescript`
+  (`EXECUTE_TYPESCRIPT_ENABLED=true`; off by default, disabled on hosted
+  deployments) voids the confirmation-token and fencing guarantees above —
+  the sandbox receives `CANVAS_API_TOKEN` and can reach the Canvas API
+  directly, so code run there can fan out messages or write content without
+  any preview/confirm step. This is the known
+  [issue 157](https://github.com/vishalsachdev/canvas-mcp/issues/157) class
+  (the in-process network guard is bypassable); a tool-level block would be
+  security theater while raw fetch to the Canvas host remains open, so it is
+  documented rather than faked.
 - Write tools that publish free text (`create_page`, `edit_page_content`,
   `post_discussion_entry`, `reply_to_discussion_entry`,
   `create_discussion_topic`, `update_discussion_topic`, `create_announcement`,

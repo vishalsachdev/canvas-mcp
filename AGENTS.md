@@ -168,6 +168,16 @@ Advanced tools for bulk operations and custom logic.
 | `list_code_api_modules` | List TypeScript modules |
 | `execute_typescript` | Run TypeScript for bulk operations |
 
+> **⚠️ Security caveat:** enabling `execute_typescript`
+> (`EXECUTE_TYPESCRIPT_ENABLED=true`; it is **off by default** and disabled on
+> hosted deployments) **voids the confirmation-token and untrusted-content
+> fencing guarantees** described in this document. The sandbox holds
+> `CANVAS_API_TOKEN` and can reach the Canvas API directly (the in-process
+> network guard is bypassable — see issue 157), so code run there can send
+> messages or write content without any preview/confirm step or fence
+> markers. Treat every `execute_typescript` run as a fully privileged Canvas
+> action.
+
 ## When to Use What
 
 | Scenario | Recommended Approach | Why |

@@ -41,8 +41,23 @@ def _fence_conversation_fields(conversation: Any) -> None:
         if isinstance(value, str) and value:
             conversation[key] = fence_untrusted(value, "conversation message")
     for message in conversation.get("messages") or []:
-        if isinstance(message, dict) and isinstance(message.get("body"), str) and message["body"]:
-            message["body"] = fence_untrusted(message["body"], "conversation message")
+        _fence_message_body(message)
+
+
+def _fence_message_body(message: Any) -> None:
+    """Fence one conversation message's body, recursing through forwards.
+
+    Canvas messages carry a ``forwarded_messages`` array (which can itself
+    contain forwards) — those bodies are just as student-authored as the
+    top-level one, so a fence that stopped at the surface would hand
+    forwarded text to the model raw.
+    """
+    if not isinstance(message, dict):
+        return
+    if isinstance(message.get("body"), str) and message["body"]:
+        message["body"] = fence_untrusted(message["body"], "conversation message")
+    for forwarded in message.get("forwarded_messages") or []:
+        _fence_message_body(forwarded)
 
 
 _DIRECT_USER_ID = re.compile(r"^[0-9]+$")

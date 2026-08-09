@@ -342,6 +342,126 @@ class TestFencedReadSurfaces:
         assert conversation["messages"][1]["body"] == ""
 
     @pytest.mark.asyncio
+    async def test_forwarded_message_bodies_are_fenced_recursively(self):
+        """Canvas messages carry forwarded_messages (nestable) — forwarded
+        student-authored bodies must not reach the model raw."""
+        from canvas_mcp.tools.messaging import register_shared_messaging_tools
+
+        with patch(
+            "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_request.return_value = {
+                "id": 319,
+                "subject": "fw",
+                "messages": [
+                    {
+                        "id": 1,
+                        "body": "top-level body",
+                        "forwarded_messages": [
+                            {
+                                "id": 2,
+                                "body": "forwarded hostile text",
+                                "forwarded_messages": [
+                                    {"id": 3, "body": "nested forwarded text"},
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            }
+
+            tool = _get_tool(register_shared_messaging_tools, "get_conversation_details")
+            result = await tool(319)
+
+        message = result["conversation"]["messages"][0]
+        assert message["body"].startswith(FENCE_TEXT_START)
+        forwarded = message["forwarded_messages"][0]
+        assert forwarded["body"].startswith(FENCE_TEXT_START)
+        assert "forwarded hostile text" in forwarded["body"]
+        nested = forwarded["forwarded_messages"][0]
+        assert nested["body"].startswith(FENCE_TEXT_START)
+        assert "nested forwarded text" in nested["body"]
+
+    @pytest.mark.asyncio
+    async def test_list_discussion_topics_fences_titles(self):
+        from canvas_mcp.tools.discussions import register_shared_discussion_tools
+
+        with patch(
+            "canvas_mcp.tools.discussions.fetch_all_paginated_results",
+            new_callable=AsyncMock,
+        ) as mock_fetch, patch(
+            "canvas_mcp.tools.discussions.get_course_id", new_callable=AsyncMock
+        ) as mock_course_id:
+            mock_course_id.return_value = "12345"
+            mock_fetch.return_value = [
+                {"id": 1, "title": "hostile listing title", "published": True},
+            ]
+
+            tool = _get_tool(register_shared_discussion_tools, "list_discussion_topics")
+            result = await tool("CS101")
+
+        title_pos = result.index("hostile listing title")
+        assert result.index(FENCE_TEXT_START) < title_pos
+        assert title_pos < result.index(FENCE_TEXT_END)
+
+    @pytest.mark.asyncio
+    async def test_list_pages_fences_titles(self):
+        from canvas_mcp.tools.courses import register_shared_content_tools
+
+        with patch(
+            "canvas_mcp.tools.courses.fetch_all_paginated_results",
+            new_callable=AsyncMock,
+        ) as mock_fetch, patch(
+            "canvas_mcp.tools.courses.get_course_id", new_callable=AsyncMock
+        ) as mock_course_id, patch(
+            "canvas_mcp.tools.courses.get_course_code", new_callable=AsyncMock
+        ) as mock_course_code:
+            mock_course_id.return_value = "12345"
+            mock_course_code.return_value = "CS101"
+            mock_fetch.return_value = [
+                {"url": "p1", "title": "hostile page title", "published": True},
+            ]
+
+            tool = _get_tool(register_shared_content_tools, "list_pages")
+            result = await tool("CS101")
+
+        title_pos = result.index("hostile page title")
+        assert result.index(FENCE_TEXT_START) < title_pos
+        assert title_pos < result.index(FENCE_TEXT_END)
+
+    @pytest.mark.asyncio
+    async def test_course_overview_fences_page_titles(self):
+        from canvas_mcp.tools.courses import register_course_tools
+
+        with patch(
+            "canvas_mcp.tools.courses.fetch_all_paginated_results",
+            new_callable=AsyncMock,
+        ) as mock_fetch, patch(
+            "canvas_mcp.tools.courses.make_canvas_request", new_callable=AsyncMock
+        ) as mock_request, patch(
+            "canvas_mcp.tools.courses.get_course_id", new_callable=AsyncMock
+        ) as mock_course_id, patch(
+            "canvas_mcp.tools.courses.get_course_code", new_callable=AsyncMock
+        ) as mock_course_code:
+            mock_course_id.return_value = "12345"
+            mock_course_code.return_value = "CS101"
+            mock_fetch.return_value = [
+                {"title": "hostile overview title", "published": True,
+                 "updated_at": "2026-08-01T00:00:00Z"},
+            ]
+            mock_request.return_value = {"syllabus_body": ""}
+
+            tool = _get_tool(register_course_tools, "get_course_content_overview")
+            result = await tool(
+                "CS101", include_pages=True, include_modules=False,
+                include_syllabus=False,
+            )
+
+        title_pos = result.index("hostile overview title")
+        assert result.index(FENCE_TEXT_START) < title_pos
+        assert title_pos < result.index(FENCE_TEXT_END)
+
+    @pytest.mark.asyncio
     async def test_get_syllabus_fences_both_formats(self):
         from canvas_mcp.tools.courses import register_course_tools
 

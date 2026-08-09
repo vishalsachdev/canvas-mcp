@@ -384,7 +384,12 @@ def register_course_tools(mcp: FastMCP) -> None:
                     for page in sorted_pages[:5]:
                         title = page.get("title", "Untitled")
                         updated = format_date(page.get("updated_at"))
-                        pages_summary.append(f"    {title} (Updated: {updated})")
+                        # Page titles are author-controlled where page editing
+                        # is open to students (issue 239).
+                        pages_summary.append(
+                            f"    {fence_untrusted(title, 'page title')} "
+                            f"(Updated: {updated})"
+                        )
 
                 overview_sections.append("\n".join(pages_summary))
 
@@ -521,8 +526,12 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
 
             front_page_indicator = " (Front Page)" if is_front_page else ""
 
+            # Page titles are author-controlled where page editing is open to
+            # students (issue 239) — fenced in listings too.
             pages_info.append(
-                f"URL: {url}\nTitle: {title}{front_page_indicator}\nStatus: {published_status}\nUpdated: {updated_at}\n"
+                f"URL: {url}\n"
+                f"Title{front_page_indicator}:\n{fence_untrusted(title, 'page title')}\n"
+                f"Status: {published_status}\nUpdated: {updated_at}\n"
             )
 
         course_display = await get_course_code(course_id) or course_identifier
