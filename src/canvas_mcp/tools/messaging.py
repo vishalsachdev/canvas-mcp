@@ -63,6 +63,7 @@ def _render_bulk_messages(
     recipient_data: list[dict[str, Any]],
     subject_template: str,
     body_template: str,
+    mode: str,
 ) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
     """Render EVERY outbound bulk message, collecting per-row errors.
 
@@ -97,9 +98,11 @@ def _render_bulk_messages(
                 "error": f"template does not render against this recipient: {e}",
             })
             continue
-        # The same validation the send choke point enforces — a row that
-        # would be rejected at confirm time must fail the preview instead.
-        row_error = _validate_outbound_message([str(user_id)], subject, body, "sync")
+        # The same validation the send choke point enforces, with the
+        # caller's ACTUAL requested mode — a row (or a bogus mode) that would
+        # be rejected at confirm time must fail the preview instead of
+        # burning a token.
+        row_error = _validate_outbound_message([str(user_id)], subject, body, mode)
         if row_error:
             errors.append({
                 "index": index,
@@ -481,7 +484,14 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
         # human-visible preview. "Fan-out" means anything except exactly one
         # plain numeric user ID — a single course_/group_ alias expands
         # server-side to many users.
-        if not _is_single_direct_recipient(recipient_ids):
+        #
+        # ANY call bearing a confirmation_token is a confirmation attempt and
+        # must be validated against it — the single-recipient exemption
+        # applies only to token-less calls. Otherwise a token issued for a
+        # fan-out could ride along on a swapped-to-one-recipient call, be
+        # silently ignored, and the message would send to the NEW recipient
+        # with no check at all.
+        if confirmation_token or not _is_single_direct_recipient(recipient_ids):
             fingerprint = _SEND_CONVERSATION_GUARD.fingerprint(
                 str(course_identifier),
                 json.dumps(recipient_ids),
@@ -731,7 +741,7 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
 
         if not confirmation_token:
             rendered, render_errors = _render_bulk_messages(
-                recipient_data, subject_template, body_template
+                recipient_data, subject_template, body_template, mode
             )
             if render_errors:
                 return {
@@ -777,7 +787,7 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
         # previewed, so errors here should be impossible — but if one appears
         # anyway, fail before the first send rather than mid-batch.
         rendered, render_errors = _render_bulk_messages(
-            recipient_data, subject_template, body_template
+            recipient_data, subject_template, body_template, mode
         )
         if render_errors:
             _BULK_MESSAGE_GUARD.release(confirmation_token)
@@ -944,6 +954,24 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
             # rendered text of every batch. A completion shift or an
             # assignment rename in between changes the fingerprint and voids
             # the token.
+            # A confirmation whose recomposed plan is EMPTY (everyone finished
+            # their reviews since the preview) is a state mismatch: consume
+            # the token and say so. Skipping the token handling here would
+            # leave a "confirmed" token live — if the analytics drifted back
+            # before the TTL expired, it would replay.
+            if confirmation_token and not composed_batches:
+                _CAMPAIGN_GUARD.reserve(confirmation_token)
+                return {
+                    "error": (
+                        "❌ The completion picture changed since the preview: "
+                        "no one currently needs a reminder, so this "
+                        "confirmation no longer matches its plan. Nothing was "
+                        "sent, and the token has been retired. Run the "
+                        "preview again if reminders are still wanted."
+                    ),
+                    "nothing_sent": True,
+                }
+
             if composed_batches:
                 fingerprint = _CAMPAIGN_GUARD.fingerprint(
                     str(course_identifier),

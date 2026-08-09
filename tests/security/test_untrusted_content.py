@@ -720,6 +720,38 @@ class TestMultiRecipientSendGating:
         assert second.get("success") is True
 
     @pytest.mark.asyncio
+    async def test_token_cannot_ride_along_on_a_single_recipient_swap(self):
+        """A call BEARING a token is a confirmation attempt: swapping the
+        recipients down to one numeric ID must not make the token silently
+        ignored and the message sent to the new recipient unchecked."""
+        with patch(
+            "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
+        ) as mock_request:
+            tool = self._tool("send_conversation")
+            preview = await tool("CS101", ["101", "102"], "Hi", "Body")
+            result = await tool(
+                "CS101", ["999"], "Hi", "Body",
+                confirmation_token=preview["confirmation_token"],
+            )
+
+        mock_request.assert_not_called()
+        assert "error" in result
+        assert result["nothing_sent"] is True
+
+    @pytest.mark.asyncio
+    async def test_tokenless_single_recipient_still_friction_free(self):
+        """The single-recipient exemption applies only to token-less calls."""
+        with patch(
+            "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_request.return_value = {"id": 1}
+            tool = self._tool("send_conversation")
+            result = await tool("CS101", ["101"], "Hi", "Body")
+
+        assert result.get("success") is True
+        mock_request.assert_awaited_once()
+
+    @pytest.mark.asyncio
     async def test_peer_review_reminders_preview_then_confirm(self):
         assignment = {"name": "Essay 1", "html_url": "https://canvas/e1"}
 
@@ -830,6 +862,50 @@ class TestMultiRecipientSendGating:
         assert all(c.args[0] == "get" for c in mock_request.await_args_list)
         assert "error" in result
         assert result["nothing_sent"] is True
+
+    @pytest.mark.asyncio
+    async def test_campaign_empty_plan_confirmation_retires_the_token(self):
+        """If everyone finished between preview and confirm, the confirmation
+        must consume the token and reject — never return success with the
+        token still live (it would replay if analytics drifted back)."""
+        populated = {
+            "completion_groups": {
+                "none_complete": [{"student_id": 101}],
+                "partial_complete": [],
+            }
+        }
+        empty = {"completion_groups": {"none_complete": [], "partial_complete": []}}
+
+        with patch(
+            "canvas_mcp.core.peer_reviews.PeerReviewAnalyzer.get_completion_analytics",
+            new_callable=AsyncMock,
+        ) as mock_analytics, patch(
+            "canvas_mcp.core.cache.get_course_id", new_callable=AsyncMock
+        ) as mock_course_id, patch(
+            "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_course_id.return_value = "12345"
+            mock_request.return_value = {"name": "Essay 1", "html_url": ""}
+            tool = self._tool("send_peer_review_followup_campaign")
+
+            mock_analytics.return_value = populated
+            preview = await tool("CS101", 42)
+            token = preview["confirmation_token"]
+
+            mock_analytics.return_value = empty
+            emptied = await tool("CS101", 42, confirmation_token=token)
+
+            # Analytics drift back to the previewed state before TTL expiry —
+            # the retired token must NOT replay.
+            mock_analytics.return_value = populated
+            replay = await tool("CS101", 42, confirmation_token=token)
+
+        post_calls = [c for c in mock_request.await_args_list if c.args[0] == "post"]
+        assert post_calls == []
+        assert "error" in emptied
+        assert emptied["nothing_sent"] is True
+        assert "error" in replay
+        assert "already used" in replay["error"]
 
     @pytest.mark.asyncio
     async def test_campaign_token_void_if_assignment_renamed(self):
@@ -1207,6 +1283,23 @@ class TestBulkMessageConfirmation:
         mock_request.assert_not_called()
         assert "error" in result
         assert "255" in result["invalid_records"][0]["error"]
+
+    @pytest.mark.asyncio
+    async def test_invalid_mode_fails_the_preview_not_the_send(self):
+        """A bogus mode must never earn a token that then fails every row."""
+        with patch(
+            "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
+        ) as mock_request:
+            tool = self._tool()
+            result = await tool(
+                "CS101", self.RECIPIENTS, "Hi {name}", "Body for {name}",
+                mode="bogus",
+            )
+
+        mock_request.assert_not_called()
+        assert "error" in result
+        assert "confirmation_token" not in result
+        assert any("mode" in r["error"] for r in result["invalid_records"])
 
     @pytest.mark.asyncio
     async def test_alias_user_id_row_fails_the_preview(self):
