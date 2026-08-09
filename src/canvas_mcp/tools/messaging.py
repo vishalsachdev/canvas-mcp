@@ -40,6 +40,7 @@ def _fence_conversation_fields(conversation: Any) -> None:
         value = conversation.get(key)
         if isinstance(value, str) and value:
             conversation[key] = fence_untrusted(value, "conversation message")
+    _fence_attachments(conversation)
     for message in conversation.get("messages") or []:
         _fence_message_body(message)
 
@@ -50,14 +51,33 @@ def _fence_message_body(message: Any) -> None:
     Canvas messages carry a ``forwarded_messages`` array (which can itself
     contain forwards) — those bodies are just as student-authored as the
     top-level one, so a fence that stopped at the surface would hand
-    forwarded text to the model raw.
+    forwarded text to the model raw. Attachment labels ride along at every
+    level for the same reason.
     """
     if not isinstance(message, dict):
         return
     if isinstance(message.get("body"), str) and message["body"]:
         message["body"] = fence_untrusted(message["body"], "conversation message")
+    _fence_attachments(message)
     for forwarded in message.get("forwarded_messages") or []:
         _fence_message_body(forwarded)
+
+
+def _fence_attachments(container: Any) -> None:
+    """Fence sender-controlled attachment labels, in place.
+
+    Senders name their own uploads, so ``display_name`` and ``filename`` are
+    free-text injection channels just like the message body.
+    """
+    if not isinstance(container, dict):
+        return
+    for attachment in container.get("attachments") or []:
+        if not isinstance(attachment, dict):
+            continue
+        for key in ("display_name", "filename"):
+            value = attachment.get(key)
+            if isinstance(value, str) and value:
+                attachment[key] = fence_untrusted(value, "attachment name")
 
 
 _DIRECT_USER_ID = re.compile(r"^[0-9]+$")

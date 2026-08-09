@@ -41,12 +41,20 @@ UNTRUSTED_NOTICE = (
 # the consumer these markers exist for — reads "<<<end untrusted canvas
 # content>>>" as a closing marker even though a string comparison would not.
 #
-# The pattern consumes the ENTIRE run of 3+ brackets, not just the last three.
+# The ENTIRE run of 3+ brackets is consumed, not just the last three.
 # Matching exactly ``<<<`` was bypassable: in ``<<<<END UNTRUSTED ...`` only
 # the final three brackets sat before the phrase, so replacing them with
 # ``<<`` left the untouched first bracket to RECREATE an exact
 # ``<<<END ...`` delimiter.
-_SPOOF_PATTERN = re.compile(r"<{3,}(?=\s*(?:END\s+)?UNTRUSTED\s+CANVAS\s+CONTENT)", re.IGNORECASE)
+#
+# Implemented as ONE linear pass over maximal bracket runs, with the marker
+# phrase checked once at each run's end. The obvious single regex —
+# ``<{3,}(?=...phrase)`` — is QUADRATIC: on a long run of ``<`` not followed
+# by the phrase, the engine retries the greedy match from every offset
+# (measured ~24s for a 50,000-bracket run, blocking the event loop — a DoS
+# reachable through any fenced page or discussion body).
+_BRACKET_RUN = re.compile(r"<{3,}")
+_MARKER_PHRASE_AT = re.compile(r"\s*(?:END\s+)?UNTRUSTED\s+CANVAS\s+CONTENT", re.IGNORECASE)
 
 
 def neutralize_marker_spoofing(text: str) -> str:
@@ -54,8 +62,21 @@ def neutralize_marker_spoofing(text: str) -> str:
 
     A run of three or more ``<`` becomes exactly ``<<`` only when it precedes
     a marker phrase, so ordinary HTML and prose pass through byte-identical.
+    Linear time: each maximal bracket run is visited once (``<{3,}`` without
+    a lookahead cannot backtrack), and the phrase test is anchored at the
+    run's end via ``match(text, pos)``.
     """
-    return _SPOOF_PATTERN.sub("<<", text)
+    pieces: list[str] = []
+    last = 0
+    for run in _BRACKET_RUN.finditer(text):
+        if _MARKER_PHRASE_AT.match(text, run.end()):
+            pieces.append(text[last:run.start()])
+            pieces.append("<<")
+            last = run.end()
+    if not pieces:
+        return text
+    pieces.append(text[last:])
+    return "".join(pieces)
 
 
 def contains_fence_markers(text: str) -> bool:
