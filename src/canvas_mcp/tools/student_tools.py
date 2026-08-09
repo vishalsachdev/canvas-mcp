@@ -12,6 +12,7 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, parse_date
+from ..core.untrusted_content import fence_untrusted_inline
 from ..core.validation import validate_params
 
 
@@ -98,7 +99,7 @@ def register_student_tools(mcp: FastMCP) -> None:
             status = "✅ Submitted" if assignment["submitted"] else "❌ Not Submitted"
 
             output_lines.append(
-                f"• {assignment['name']}\n"
+                f"• {fence_untrusted_inline(assignment['name'], 'assignment title')}\n"
                 f"  Course: {course_display}\n"
                 f"  Due: {format_date(assignment['due_at'])}\n"
                 f"  Status: {status}\n"
@@ -192,7 +193,7 @@ def register_student_tools(mcp: FastMCP) -> None:
                 course_name = assignment.get("_course_name", "")
 
                 output_lines.append(
-                    f"• {name}\n"
+                    f"• {fence_untrusted_inline(name, 'assignment name')}\n"
                     f"  {f'Course: {course_name}' if course_name else ''}\n"
                     f"  Due: {due_at}\n"
                     f"  Status: {status}\n"
@@ -207,7 +208,7 @@ def register_student_tools(mcp: FastMCP) -> None:
                 course_name = assignment.get("_course_name", "")
 
                 output_lines.append(
-                    f"• {name}\n"
+                    f"• {fence_untrusted_inline(name, 'assignment name')}\n"
                     f"  {f'Course: {course_name}' if course_name else ''}\n"
                     f"  Submitted: {submitted_at}\n"
                 )
@@ -295,7 +296,7 @@ def register_student_tools(mcp: FastMCP) -> None:
             course_display = await get_course_code(course_id) if course_id else "Unknown Course"
 
             output_lines.append(
-                f"• {name}\n"
+                f"• {fence_untrusted_inline(name, 'assignment or item title')}\n"
                 f"  Type: {item_type.title()}\n"
                 f"  Course: {course_display}\n"
                 f"  Due: {due_at}\n"
@@ -403,7 +404,7 @@ def register_student_tools(mcp: FastMCP) -> None:
             user_id = review.get("user_id")
 
             output_lines.append(
-                f"• {assignment_name}\n"
+                f"• {fence_untrusted_inline(assignment_name, 'assignment name')}\n"
                 f"  Course: {course_display}\n"
                 f"  Reviewing: Student {user_id}\n"
                 f"  Status: Incomplete\n"

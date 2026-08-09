@@ -15,6 +15,7 @@ from ..core.untrusted_content import (
     FENCE_LEAK_ERROR,
     contains_fence_markers,
     fence_untrusted,
+    fence_untrusted_inline,
 )
 from ..core.validation import validate_params
 from ..core.write_confirmation import unconfirmed_write_warning
@@ -136,8 +137,11 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             title = announcement.get("title", "Untitled announcement")
             posted_at = format_date(announcement.get("posted_at"))
 
+            # Titles are author-controlled (issue 239) — fenced in the
+            # announcement-only path too, not just list_discussion_topics.
             announcements_info.append(
-                f"ID: {announcement_id}\nTitle: {title}\nPosted: {posted_at}\n"
+                f"ID: {announcement_id}\n"
+                f"Title:\n{fence_untrusted(title, 'announcement title')}\nPosted: {posted_at}\n"
             )
 
         course_display = await get_course_code(course_id) or course_identifier
@@ -193,7 +197,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         result += f"Title:\n{fence_untrusted(title, 'discussion topic title')}\n"
         result += f"ID: {topic_id}\n"
         result += f"Type: {topic_type}\n"
-        result += f"Author: {author_name} (ID: {author_id})\n"
+        result += f"Author: {fence_untrusted_inline(author_name, 'author name')} (ID: {author_id})\n"
         result += f"Created: {created_at}\n"
         result += f"Posted: {posted_at}\n"
 
@@ -390,7 +394,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                             reply_clean = "[No content]"
 
                         replies_info += (
-                            f"    {i}. {reply_user} ({reply_created}): "
+                            f"    {i}. {fence_untrusted_inline(reply_user, 'author name')} ({reply_created}): "
                             f"{fence_untrusted(reply_clean, 'discussion reply by a course participant')}\n"
                         )
                 else:
@@ -411,7 +415,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
             # Build entry info
             entry_info = f"Entry ID: {entry_id}\n"
-            entry_info += f"Author: {user_name} (ID: {user_id})\n"
+            entry_info += f"Author: {fence_untrusted_inline(user_name, 'author name')} (ID: {user_id})\n"
             entry_info += f"Posted: {created_at}{replies_info}\n"
 
             # Entry bodies are student-authored (issue 239): fence them so the
@@ -576,7 +580,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         )
         result += f"Topic ID: {topic_id}\n"
         result += f"Entry ID: {entry_id}\n"
-        result += f"Author: {user_name} (ID: {user_id})\n"
+        result += f"Author: {fence_untrusted_inline(user_name, 'author name')} (ID: {user_id})\n"
         result += f"Posted: {created_at}\n"
 
         if updated_at != "N/A" and updated_at != created_at:
@@ -605,7 +609,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
                     result += f"\nReply #{i}:\n"
                     result += f"Reply ID: {reply_id}\n"
-                    result += f"Author: {reply_user_name}\n"
+                    result += f"Author: {fence_untrusted_inline(reply_user_name, 'author name')}\n"
                     result += f"Posted: {reply_created_at}\n"
                     result += (
                         "Content:\n"
@@ -675,7 +679,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             else:
                 message_preview = "[No content]"
 
-            result += f"📝 Entry {entry_id} by {user_name}\n"
+            result += f"📝 Entry {entry_id} by {fence_untrusted_inline(user_name, 'author name')}\n"
             result += f"   Posted: {created_at}\n"
             result += (
                 "   Content: "
@@ -729,7 +733,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                             reply_preview = "[No content]"
 
                         result += (
-                            f"      └─ Reply {i} by {reply_user} ({reply_created}): "
+                            f"      └─ Reply {i} by {fence_untrusted_inline(reply_user, 'author name')} ({reply_created}): "
                             f"{fence_untrusted(reply_preview, 'discussion reply by a course participant')}\n"
                         )
                 else:
@@ -1127,7 +1131,9 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
         if "error" in announcement:
             return f"Error fetching announcement details: {announcement['error']}"
 
-        announcement_title = announcement.get("title", "Unknown Title")
+        announcement_title = fence_untrusted(
+            announcement.get("title", "Unknown Title"), "announcement title"
+        )
 
         # Proceed with deletion
         response = await make_canvas_request(
@@ -1197,7 +1203,7 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                 if dry_run:
                     previewed.append({
                         "id": str(announcement_id),
-                        "title": announcement.get("title", "Unknown Title")
+                        "title": fence_untrusted(announcement.get("title", "Unknown Title"), "announcement title")
                     })
                     continue
 
@@ -1209,7 +1215,7 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                 if "error" in response:
                     failed.append({
                         "id": str(announcement_id),
-                        "title": announcement.get("title", "Unknown Title"),
+                        "title": fence_untrusted(announcement.get("title", "Unknown Title"), "announcement title"),
                         "error": response["error"],
                         "message": "Failed to delete announcement"
                     })
@@ -1218,7 +1224,7 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                 else:
                     successful.append({
                         "id": str(announcement_id),
-                        "title": announcement.get("title", "Unknown Title")
+                        "title": fence_untrusted(announcement.get("title", "Unknown Title"), "announcement title")
                     })
 
             except Exception as e:
@@ -1316,7 +1322,9 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
             course_display = await get_course_code(course_id) or course_identifier
             result = f"DRY RUN - Would delete announcement from course {course_display}:\n\n"
             result += f"ID: {announcement_id}\n"
-            result += f"Title: {actual_title}\n"
+            # actual_title stays raw for the require_title_match comparison
+            # above; fenced only here at the display boundary (issue 239).
+            result += f"Title:\n{fence_untrusted(actual_title, 'announcement title')}\n"
             result += "Status: dry_run\n"
             result += "Message: Announcement would be deleted (dry run mode)\n"
             if require_title_match:
@@ -1329,12 +1337,15 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
         )
 
         if "error" in response:
-            return f"Error deleting announcement '{actual_title}': {response['error']}"
+            return (
+                "Error deleting announcement "
+                f"{fence_untrusted(actual_title, 'announcement title')}: {response['error']}"
+            )
 
         course_display = await get_course_code(course_id) or course_identifier
         result = f"Announcement deleted successfully from course {course_display}:\n\n"
         result += f"ID: {announcement_id}\n"
-        result += f"Title: {actual_title}\n"
+        result += f"Title:\n{fence_untrusted(actual_title, 'announcement title')}\n"
         result += "Status: deleted\n"
         result += "Message: Announcement deleted successfully\n"
         if require_title_match:
@@ -1472,19 +1483,19 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                 if "error" in response:
                     failed.append({
                         "id": str(announcement_id),
-                        "title": announcement.get("title", "Unknown Title"),
+                        "title": fence_untrusted(announcement.get("title", "Unknown Title"), "announcement title"),
                         "error": response["error"]
                     })
                 else:
                     deleted.append({
                         "id": str(announcement_id),
-                        "title": announcement.get("title", "Unknown Title")
+                        "title": fence_untrusted(announcement.get("title", "Unknown Title"), "announcement title")
                     })
 
             except Exception as e:
                 failed.append({
                     "id": str(announcement_id),
-                    "title": announcement.get("title", "Unknown Title"),
+                    "title": fence_untrusted(announcement.get("title", "Unknown Title"), "announcement title"),
                     "error": str(e)
                 })
 

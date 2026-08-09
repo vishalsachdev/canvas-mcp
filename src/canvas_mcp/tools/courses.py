@@ -17,7 +17,7 @@ from ..core.cache import (
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.config import get_config
 from ..core.dates import format_date
-from ..core.untrusted_content import fence_untrusted
+from ..core.untrusted_content import fence_untrusted, fence_untrusted_inline
 from ..core.validation import validate_params
 from .self_identity import _own_roles
 
@@ -431,7 +431,10 @@ def register_course_tools(mcp: FastMCP) -> None:
                     for module in modules[:3]:
                         name = module.get("name", "Unnamed")
                         state = module.get("state", "unknown")
-                        modules_summary.append(f"    {name} (Status: {state})")
+                        # Module names are instructor-authored (issue 239).
+                        modules_summary.append(
+                            f"    {fence_untrusted_inline(name, 'module name')} (Status: {state})"
+                        )
 
                 overview_sections.append("\n".join(modules_summary))
 
@@ -618,7 +621,9 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
 
         # Handle last edited by user info
         last_edited_by = response.get("last_edited_by", {})
-        editor_name = last_edited_by.get("display_name", "Unknown") if last_edited_by else "Unknown"
+        editor_name_raw = last_edited_by.get("display_name", "Unknown") if last_edited_by else "Unknown"
+        # Editor display name is author-controlled where names are editable (issue 239).
+        editor_name = fence_untrusted_inline(editor_name_raw, "editor display name")
 
         # Build a TEXT PREVIEW of the body. Both lossy steps below must announce
         # themselves: a silent strip made 4 embedded videos vanish from a real
@@ -746,7 +751,11 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
             module_name = module_response.get("name", "Unknown Module")
 
         course_display = await get_course_code(course_id) or course_identifier
-        result = f"Module Items for '{module_name}' in Course {course_display}:\n\n"
+        # Module name and item titles are instructor-authored (issue 239).
+        result = (
+            f"Module Items for {fence_untrusted_inline(module_name, 'module name')} "
+            f"in Course {course_display}:\n\n"
+        )
 
         for item in items:
             item_id = item.get("id")
@@ -757,7 +766,7 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
             external_url = item.get("external_url", "")
             published = item.get("published", False)
 
-            result += f"Item: {title}\n"
+            result += f"Item: {fence_untrusted_inline(title, 'module item title')}\n"
             result += f"Type: {item_type}\n"
             result += f"ID: {item_id}\n"
             if content_id:

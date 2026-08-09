@@ -10,7 +10,27 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_id
 from ..core.file_validation import sanitize_filename
 from ..core.peer_reviews import PeerReviewAnalyzer
+from ..core.untrusted_content import fence_untrusted_fields
 from ..core.validation import validate_params
+
+# Student display names in the analyzer JSON are author-controlled (issue 239).
+_PEER_REVIEW_NAME_FIELDS = {
+    "student_name": "student name",
+    "reviewer_name": "student name",
+    "reviewee_name": "student name",
+}
+
+
+def _fence_peer_review_names(result: object) -> None:
+    """Fence student names in a peer-review analyzer result, plus the
+    assignment name under assignment_info (a bare ``name`` key is fenced
+    only there, to avoid over-matching unrelated ``name`` keys)."""
+    fence_untrusted_fields(result, _PEER_REVIEW_NAME_FIELDS)
+    if isinstance(result, dict):
+        info = result.get("assignment_info")
+        if isinstance(info, dict) and isinstance(info.get("name"), str) and info["name"]:
+            from ..core.untrusted_content import fence_untrusted_inline
+            info["name"] = fence_untrusted_inline(info["name"], "assignment name")
 
 
 def register_peer_review_tools(mcp: FastMCP) -> None:
@@ -46,6 +66,7 @@ def register_peer_review_tools(mcp: FastMCP) -> None:
             if "error" in result:
                 return f"Error getting peer review assignments: {result['error']}"
 
+            _fence_peer_review_names(result)
             return json.dumps(result, indent=2)
 
         except Exception as e:
@@ -81,6 +102,7 @@ def register_peer_review_tools(mcp: FastMCP) -> None:
             if "error" in result:
                 return f"Error getting peer review completion analytics: {result['error']}"
 
+            _fence_peer_review_names(result)
             return json.dumps(result, indent=2)
 
         except Exception as e:
@@ -156,6 +178,7 @@ def register_peer_review_tools(mcp: FastMCP) -> None:
                 report: str = result.get("report", json.dumps(result, indent=2))
                 return report
             else:
+                _fence_peer_review_names(result)
                 return json.dumps(result, indent=2)
 
         except Exception as e:
@@ -199,6 +222,7 @@ def register_peer_review_tools(mcp: FastMCP) -> None:
             if "error" in result:
                 return f"Error getting peer review followup list: {result['error']}"
 
+            _fence_peer_review_names(result)
             return json.dumps(result, indent=2)
 
         except Exception as e:

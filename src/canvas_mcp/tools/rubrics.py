@@ -13,6 +13,7 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, truncate_text
+from ..core.untrusted_content import fence_untrusted_inline
 from ..core.validation import validate_params
 from ..core.write_confirmation import unconfirmed_write_warning
 
@@ -556,7 +557,9 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             read_only = response.get("read_only", False)
             data = response.get("data", [])
 
-            result = f"Rubric '{title}' in Course {course_display}:\n\n"
+            # Rubric title, criterion/rating descriptions are author-authored
+            # (issue 239).
+            result = f"Rubric {fence_untrusted_inline(title, 'rubric title')} in Course {course_display}:\n\n"
             result += f"Rubric ID: {rubric_id}\n"
             result += f"Total Points: {points_possible}\n"
             result += f"Reusable: {'Yes' if reusable else 'No'}\n"
@@ -574,12 +577,12 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                     points = criterion.get("points", 0)
                     ratings = criterion.get("ratings", [])
 
-                    result += f"\nCriterion #{i}: {description}\n"
+                    result += f"\nCriterion #{i}: {fence_untrusted_inline(description, 'rubric criterion description')}\n"
                     result += f"  ID: {criterion_id}\n"
                     result += f"  Points: {points}\n"
 
                     if long_description and long_description != description:
-                        result += f"  Description: {truncate_text(long_description, 200)}\n"
+                        result += f"  Description: {fence_untrusted_inline(truncate_text(long_description, 200), 'rubric criterion description')}\n"
 
                     if ratings:
                         sorted_ratings = sorted(ratings, key=lambda x: x.get("points", 0), reverse=True)
@@ -587,11 +590,11 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                             rating_desc = rating.get("description", "No description")
                             rating_points = rating.get("points", 0)
                             rating_id = rating.get("id", "N/A")
-                            result += f"  - {rating_points} pts: {rating_desc} [ID: {rating_id}]\n"
+                            result += f"  - {rating_points} pts: {fence_untrusted_inline(rating_desc, 'rubric rating description')} [ID: {rating_id}]\n"
 
                             rating_long_desc = rating.get("long_description", "")
                             if rating_long_desc and rating_long_desc != rating_desc:
-                                result += f"    {truncate_text(rating_long_desc, 100)}\n"
+                                result += f"    {fence_untrusted_inline(truncate_text(rating_long_desc, 100), 'rubric rating description')}\n"
 
                     result += "\n"
             else:
@@ -620,7 +623,11 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         rubric_settings = response.get("rubric_settings", {})
         use_rubric_for_grading = response.get("use_rubric_for_grading", False)
 
-        result = f"Rubric for Assignment '{assignment_name}' in Course {course_display}:\n\n"
+        result = (
+            "Rubric for Assignment "
+            f"{fence_untrusted_inline(assignment_name, 'assignment name')} "
+            f"in Course {course_display}:\n\n"
+        )
 
         # Grading config (only available via assignment path)
         result += "Grading Config:\n"
@@ -641,12 +648,12 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             points = criterion.get("points", 0)
             ratings = criterion.get("ratings", [])
 
-            result += f"\nCriterion #{i}: {description}\n"
+            result += f"\nCriterion #{i}: {fence_untrusted_inline(description, 'rubric criterion description')}\n"
             result += f"  ID: {criterion_id}\n"
             result += f"  Points: {points}\n"
 
             if long_description and long_description != description:
-                result += f"  Description: {truncate_text(long_description, 200)}\n"
+                result += f"  Description: {fence_untrusted_inline(truncate_text(long_description, 200), 'rubric criterion description')}\n"
 
             if ratings:
                 sorted_ratings = sorted(ratings, key=lambda x: x.get("points", 0), reverse=True)
@@ -654,11 +661,11 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                     rating_desc = rating.get("description", "No description")
                     rating_points = rating.get("points", 0)
                     rating_id = rating.get("id", "N/A")
-                    result += f"  - {rating_points} pts: {rating_desc} [ID: {rating_id}]\n"
+                    result += f"  - {rating_points} pts: {fence_untrusted_inline(rating_desc, 'rubric rating description')} [ID: {rating_id}]\n"
 
                     rating_long_desc = rating.get("long_description", "")
                     if rating_long_desc and rating_long_desc != rating_desc:
-                        result += f"    {truncate_text(rating_long_desc, 100)}\n"
+                        result += f"    {fence_untrusted_inline(truncate_text(rating_long_desc, 100), 'rubric rating description')}\n"
 
             total_points += points
             result += "\n"
@@ -721,7 +728,11 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         # Format rubric assessment
         course_display = await get_course_code(course_id) or course_identifier
 
-        result = f"Rubric Assessment for User {user_id} on '{assignment_name}' in Course {course_display}:\n\n"
+        result = (
+            f"Rubric Assessment for User {user_id} on "
+            f"{fence_untrusted_inline(assignment_name, 'assignment name')} "
+            f"in Course {course_display}:\n\n"
+        )
 
         # Submission details
         submitted_at = format_date(response.get("submitted_at"))
@@ -752,18 +763,20 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             comments = assessment.get("comments", "")
             rating_id = assessment.get("rating_id")
 
-            result += f"\n{criterion_description}:\n"
+            # Criterion/rating descriptions (author) and comments (grader/peer)
+            # are author-controlled (issue 239).
+            result += f"\n{fence_untrusted_inline(criterion_description, 'rubric criterion description')}:\n"
             result += f"  Points Awarded: {points}\n"
 
             if rating_id and criterion_info:
                 # Find the rating description
                 for rating in criterion_info.get("ratings", []):
                     if str(rating.get("id")) == str(rating_id):
-                        result += f"  Rating: {rating.get('description', 'N/A')} ({rating.get('points', 0)} pts)\n"
+                        result += f"  Rating: {fence_untrusted_inline(rating.get('description', 'N/A'), 'rubric rating description')} ({rating.get('points', 0)} pts)\n"
                         break
 
             if comments:
-                result += f"  Comments: {comments}\n"
+                result += f"  Comments: {fence_untrusted_inline(comments, 'rubric assessment comment')}\n"
 
             total_rubric_points += points
 
@@ -910,7 +923,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             data = rubric.get("data", [])
 
             result += "=" * 80 + "\n"
-            result += f"Rubric #{i}: {title} (ID: {rubric_id})\n"
+            result += f"Rubric #{i}: {fence_untrusted_inline(title, 'rubric title')} (ID: {rubric_id})\n"
             result += f"Total Points: {points_possible} | Criteria: {len(data)} | "
             result += f"Reusable: {'Yes' if reusable else 'No'} | "
             result += f"Read-only: {'Yes' if read_only else 'No'}\n"
@@ -926,12 +939,12 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                     points = criterion.get("points", 0)
                     ratings = criterion.get("ratings", [])
 
-                    result += f"\n{j}. {description} (ID: {criterion_id}) - {points} points\n"
+                    result += f"\n{j}. {fence_untrusted_inline(description, 'rubric criterion description')} (ID: {criterion_id}) - {points} points\n"
 
                     if long_description and long_description != description:
                         # Truncate long descriptions to keep output manageable
                         truncated_desc = truncate_text(long_description, 150)
-                        result += f"   Description: {truncated_desc}\n"
+                        result += f"   Description: {fence_untrusted_inline(truncated_desc, 'rubric criterion description')}\n"
 
                     if ratings:
                         # Sort ratings by points (highest to lowest)
@@ -942,13 +955,13 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                             rating_points = rating.get("points", 0)
                             rating_id = rating.get("id", "N/A")
 
-                            result += f"   - {rating_description} ({rating_points} pts) [ID: {rating_id}]\n"
+                            result += f"   - {fence_untrusted_inline(rating_description, 'rubric rating description')} ({rating_points} pts) [ID: {rating_id}]\n"
 
                             # Include long description if it exists and differs
                             rating_long_desc = rating.get("long_description", "")
                             if rating_long_desc and rating_long_desc != rating_description:
                                 truncated_rating_desc = truncate_text(rating_long_desc, 100)
-                                result += f"     {truncated_rating_desc}\n"
+                                result += f"     {fence_untrusted_inline(truncated_rating_desc, 'rubric rating description')}\n"
                     else:
                         result += "   No rating scale defined for this criterion.\n"
             elif include_criteria:

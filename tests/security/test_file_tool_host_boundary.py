@@ -126,7 +126,7 @@ class TestDownloadRefusedOverHttp:
             download = get_tool_function("download_course_file")
             result = await download("badm_350", 12345, save_directory=str(tmp_path))
 
-        assert "Downloaded: syllabus.pdf" in result
+        assert "syllabus.pdf" in result and "Downloaded:" in result
         assert (tmp_path / "syllabus.pdf").read_bytes() == b"file content here"
 
 
@@ -322,7 +322,7 @@ class TestDownloadIsPortable:
             download = get_tool_function("download_course_file")
             result = await download("badm_350", 12345, save_directory=str(tmp_path))
 
-        assert "Downloaded: syllabus.pdf" in result
+        assert "syllabus.pdf" in result and "Downloaded:" in result
         assert (tmp_path / "syllabus.pdf").read_bytes() == b"file content here"
 
     @pytest.mark.asyncio

@@ -15,7 +15,21 @@ from ..core.client import make_canvas_request
 from ..core.csv_safety import csv_safe_cell, rows_to_csv_string
 from ..core.file_validation import sanitize_filename
 from ..core.peer_review_comments import PeerReviewCommentAnalyzer
+from ..core.untrusted_content import fence_untrusted_fields, fence_untrusted_inline
 from ..core.validation import validate_params
+
+# Author-controlled keys in the analyzer JSON (issue 239). Fenced only on the
+# model-facing return path — NOT on the CSV export (csv_safe_cell handles a
+# different threat) nor the on-disk JSON export (a data artifact, not context).
+_PEER_REVIEW_FENCE_FIELDS = {
+    "comment_text": "peer review comment",
+    "comment": "peer review comment",
+    "comment_preview": "peer review comment",
+    "student_name": "student name",
+    "reviewer_name": "student name",
+    "reviewee_name": "student name",
+    "assignment_name": "assignment name",
+}
 
 _PEER_REVIEW_CSV_HEADER = (
     'review_id', 'reviewer_id', 'reviewer_name', 'reviewee_id', 'reviewee_name',
@@ -85,6 +99,7 @@ def register_peer_review_comment_tools(mcp: FastMCP) -> None:
             if "error" in result:
                 return f"Error getting peer review comments: {result['error']}"
 
+            fence_untrusted_fields(result, _PEER_REVIEW_FENCE_FIELDS)
             return json.dumps(result, indent=2)
 
         except Exception as e:
@@ -128,6 +143,7 @@ def register_peer_review_comment_tools(mcp: FastMCP) -> None:
             if "error" in result:
                 return f"Error analyzing peer review quality: {result['error']}"
 
+            fence_untrusted_fields(result, _PEER_REVIEW_FENCE_FIELDS)
             return json.dumps(result, indent=2)
 
         except Exception as e:
@@ -168,6 +184,7 @@ def register_peer_review_comment_tools(mcp: FastMCP) -> None:
             if "error" in result:
                 return f"Error identifying problematic reviews: {result['error']}"
 
+            fence_untrusted_fields(result, _PEER_REVIEW_FENCE_FIELDS)
             return json.dumps(result, indent=2)
 
         except Exception as e:
@@ -244,7 +261,12 @@ def register_peer_review_comment_tools(mcp: FastMCP) -> None:
                         json.dump(comments_data, f, indent=2, ensure_ascii=False)
                     return f"Data exported to {resolved}"
                 else:
-                    return json.dumps(comments_data, indent=2)
+                    # Fence only the model-facing copy — the on-disk export
+                    # above is a data artifact and stays raw.
+                    import copy
+                    fenced = copy.deepcopy(comments_data)
+                    fence_untrusted_fields(fenced, _PEER_REVIEW_FENCE_FIELDS)
+                    return json.dumps(fenced, indent=2)
 
             elif output_format.lower() == "csv":
                 output_filename = f"{filename}.csv"
@@ -359,7 +381,7 @@ def _generate_markdown_report(
     problematic_summary = problematic_data.get("flag_summary", {})
 
     report_lines = [
-        f"# Peer Review Quality Report: {assignment_name}",
+        f"# Peer Review Quality Report: {fence_untrusted_inline(assignment_name, 'assignment name')}",
         "",
         f"**Generated on:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         f"**Report Type:** {report_type.title()}",
@@ -414,7 +436,7 @@ def _generate_markdown_report(
                 f"- **Quality Score:** {review.get('quality_score', 0)}/5.0",
                 f"- **Word Count:** {review.get('word_count', 0)}",
                 f"- **Flag Reason:** {review.get('flag_reason', 'Unknown')}",
-                f"- **Comment Preview:** \"{review.get('comment', 'No comment')}\"",
+                f"- **Comment Preview:** {fence_untrusted_inline(review.get('comment', 'No comment'), 'peer review comment')}",
                 ""
             ])
 

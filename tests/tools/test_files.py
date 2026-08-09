@@ -752,7 +752,7 @@ class TestDownloadCourseFile:
         download_fn = get_tool_function('download_course_file')
         result = await download_fn("badm_350_120251", 12345, save_directory=str(tmp_path))
 
-        assert "Downloaded: syllabus.pdf" in result
+        assert "syllabus.pdf" in result and "Downloaded:" in result
         assert str(tmp_path) in result
         assert "application/pdf" in result
         assert "badm_350_120251" in result
@@ -773,7 +773,7 @@ class TestDownloadCourseFile:
         result = await download_fn("60366", 12345, save_directory=str(tmp_path))
 
         assert str(tmp_path) in result
-        assert "Downloaded: notes.pdf" in result
+        assert "notes.pdf" in result and "Downloaded:" in result
 
     @pytest.mark.asyncio
     async def test_download_api_error(self, mock_download_api):
@@ -853,7 +853,7 @@ class TestDownloadCourseFile:
         download_fn = get_tool_function('download_course_file')
         result = await download_fn("60366", 12345, save_directory=str(tmp_path))
 
-        assert "Downloaded: backup_name.pdf" in result
+        assert "backup_name.pdf" in result and "Downloaded:" in result
 
     @pytest.mark.asyncio
     async def test_download_http_error(self, mock_download_api, tmp_path):
@@ -956,7 +956,7 @@ class TestReadCourseFile:
         read_fn = get_tool_function('read_course_file')
         result = await read_fn("badm_350_120251", 12345)
 
-        assert "Read: syllabus.pdf" in result
+        assert "syllabus.pdf" in result and "Read:" in result
         assert "application/pdf" in result
         assert "badm_350_120251" in result
         assert "base64" in result
@@ -1049,7 +1049,7 @@ class TestReadCourseFile:
         result = await read_fn("60366", 12345, max_size_mb=0.001)
 
         # 10 bytes is within 0.001 MB (~1 KB), so should succeed
-        assert "Read: small.txt" in result
+        assert "small.txt" in result and "Read:" in result
 
     @pytest.mark.asyncio
     async def test_read_http_error(self, mock_read_api):
@@ -1097,7 +1097,7 @@ class TestReadCourseFile:
         read_fn = get_tool_function('read_course_file')
         result = await read_fn("60366", 12345)
 
-        assert "Read: backup_name.pdf" in result
+        assert "backup_name.pdf" in result and "Read:" in result
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("bad_value", [0, 0.0, -1, -25.0])
@@ -1164,7 +1164,7 @@ class TestReadCourseFile:
             read_fn = get_tool_function('read_course_file')
             result = await read_fn("60366", 12345, max_size_mb=1000.0)
 
-        assert "Read: small.txt" in result
+        assert "small.txt" in result and "Read:" in result
 
 
 class TestListCourseFiles:

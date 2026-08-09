@@ -11,6 +11,7 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, parse_date
+from ..core.untrusted_content import fence_untrusted, fence_untrusted_inline
 from ..core.validation import validate_params
 from .rubrics import build_rubric_assessment_form_data
 
@@ -48,8 +49,11 @@ def register_shared_assignment_tools(mcp: FastMCP) -> None:
             due_at = assignment.get("due_at", "No due date")
             points = assignment.get("points_possible", 0)
 
+            # Assignment names are instructor-authored free text (issue 239).
             assignments_info.append(
-                f"ID: {assignment_id}\nName: {name}\nDue: {due_at}\nPoints: {points}\n"
+                f"ID: {assignment_id}\n"
+                f"Name: {fence_untrusted_inline(name, 'assignment name')}\n"
+                f"Due: {due_at}\nPoints: {points}\n"
             )
 
         # Try to get the course code for display
@@ -77,9 +81,12 @@ def register_shared_assignment_tools(mcp: FastMCP) -> None:
         if "error" in response:
             return f"Error fetching assignment details: {response['error']}"
 
+        # Name and description are author-controlled; the description is full
+        # HTML that can carry paragraphs of injected directives (issue 239).
         details = [
-            f"Name: {response.get('name', 'N/A')}",
-            f"Description: {response.get('description', 'N/A')}",
+            f"Name: {fence_untrusted_inline(response.get('name', 'N/A'), 'assignment name')}",
+            "Description:\n"
+            + fence_untrusted(response.get('description') or 'N/A', 'assignment description'),
             f"Due Date: {format_date(response.get('due_at'))}",
             f"Points Possible: {response.get('points_possible', 'N/A')}",
             f"Submission Types: {', '.join(response.get('submission_types', ['N/A']))}",
@@ -252,7 +259,10 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             reviewee_id = data["user_id"]
             reviews = data["peer_reviews"]
 
-            output += f"Reviews for {reviewee_name} (ID: {reviewee_id}):\n"
+            output += (
+                f"Reviews for {fence_untrusted_inline(reviewee_name, 'student name')} "
+                f"(ID: {reviewee_id}):\n"
+            )
 
             if not reviews:
                 output += "  No peer reviews assigned.\n\n"
@@ -263,7 +273,7 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
                 reviewer_name = user_map.get(reviewer_id, f"User {reviewer_id}")
                 workflow_state = review.get("workflow_state", "Unknown")
 
-                output += f"  Reviewer: {reviewer_name} (ID: {reviewer_id})\n"
+                output += f"  Reviewer: {fence_untrusted_inline(reviewer_name, 'student name')} (ID: {reviewer_id})\n"
                 output += f"  Status: {workflow_state}\n"
 
                 # Add assessment details if available
@@ -521,7 +531,11 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
 
         # Format the output
         course_display = await get_course_code(course_id) or course_identifier
-        output = f"Assignment Analytics for '{assignment_name}' in Course {course_display}\n\n"
+        output = (
+            "Assignment Analytics for "
+            f"{fence_untrusted_inline(assignment_name, 'assignment name')} "
+            f"in Course {course_display}\n\n"
+        )
 
         # Assignment details
         output += "Assignment Details:\n"
@@ -562,22 +576,23 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             output += f"  Standard Deviation: {round(std_dev, 2)}\n"
 
             # High/Low scores
+            # Student display names are author-controlled (issue 239).
             if low_scoring_students:
                 output += "\nStudents Scoring Below 70%:\n"
                 for name, score, percentage in sorted(low_scoring_students, key=lambda x: x[2]):
-                    output += f"  {name}: {round(score, 1)}/{points_possible} ({round(percentage, 1)}%)\n"
+                    output += f"  {fence_untrusted_inline(name, 'student name')}: {round(score, 1)}/{points_possible} ({round(percentage, 1)}%)\n"
 
             if high_scoring_students:
                 output += "\nStudents Scoring Above 90%:\n"
                 for name, score, percentage in sorted(high_scoring_students, key=lambda x: x[2], reverse=True):
-                    output += f"  {name}: {round(score, 1)}/{points_possible} ({round(percentage, 1)}%)\n"
+                    output += f"  {fence_untrusted_inline(name, 'student name')}: {round(score, 1)}/{points_possible} ({round(percentage, 1)}%)\n"
 
         # Missing students
         if missing_students:
             output += "\nStudents Missing Submission:\n"
             # Sort alphabetically and show first 10
             for name in sorted(missing_students)[:10]:
-                output += f"  {name}\n"
+                output += f"  {fence_untrusted_inline(name, 'student name')}\n"
             if len(missing_students) > 10:
                 output += f"  ...and {len(missing_students) - 10} more\n"
 

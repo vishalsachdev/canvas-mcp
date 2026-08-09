@@ -54,6 +54,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   This extends the `submit_assignment` confirmation pattern to the educator
   side, so prompt-injected content read from Canvas cannot silently trigger
   a fan-out send.
+- **Completeness pass — author-controlled free text is fenced across every
+  read tool.** Beyond bodies and titles, the following author-set fields are
+  now provenance-fenced at their tool-output boundary: assignment
+  names/descriptions, module names + item titles, discussion/announcement
+  author display names, page editor display name, uploader-set filenames,
+  group names + member names/emails, roster user names/emails, student
+  analytics names, rubric titles + criterion/rating descriptions + assessment
+  comments, peer-review comment text + participant names, and student-planner
+  assignment titles. Short identity labels (names, emails, filenames) use a
+  compact single-line fence so dense rosters/analytics stay readable; bodies
+  and descriptions keep the block fence. A recursive key-based fence covers
+  the peer-review analyzer JSON at the model-facing return only (the CSV and
+  on-disk exports are untouched — CSV injection is handled separately). The
+  only author-controlled fields deliberately left unfenced are course
+  names/codes and the caller's own profile (low-risk course/self identity).
 - **Known limitation:** enabling `execute_typescript`
   (`EXECUTE_TYPESCRIPT_ENABLED=true`; off by default, disabled on hosted
   deployments) voids the confirmation-token and fencing guarantees above —

@@ -14,6 +14,7 @@ from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
+from ..core.untrusted_content import fence_untrusted, strip_fence_markers
 from ..core.validation import validate_params
 
 
@@ -65,11 +66,18 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
         if "error" in page_response:
             return json.dumps({"error": f"Error fetching page content: {page_response['error']}"})
 
+        # The UFIXIT page title and body are authored by whoever can edit that
+        # page (issue 239) and flow into the model here. Fence them at this
+        # output boundary. This is safe for the write-back path: the fenced
+        # JSON is consumed only by parse_ufixit_violations (which strips the
+        # markers before parsing) — fix_accessibility_issues re-fetches page
+        # bodies from Canvas independently and never sees this output, so no
+        # fence can be PUT back into a live page.
         return json.dumps({
-            "page_title": page_response.get("title", "Unknown"),
+            "page_title": fence_untrusted(page_response.get("title", "Unknown"), "page title"),
             "page_url": page_url,
             "page_id": page_response.get("page_id"),
-            "body": page_response.get("body", ""),
+            "body": fence_untrusted(page_response.get("body", ""), "page body"),
             "updated_at": page_response.get("updated_at"),
             "course_id": course_id
         })
@@ -93,6 +101,10 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
         body = report.get("body", "")
         if not body:
             return json.dumps({"error": "Report body is empty"})
+
+        # fetch_ufixit_report fences the body for the model; strip the marker
+        # lines before HTML parsing so extraction sees the real content.
+        body = strip_fence_markers(body)
 
         violations = _extract_violations_from_html(body)
 

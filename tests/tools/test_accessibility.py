@@ -84,8 +84,12 @@ class TestFetchUfixitReport:
         result = await fn("badm_350_120251")
         data = json.loads(result)
 
-        assert data["page_title"] == "UFIXIT"
-        assert "body" in data
+        # Title and body are provenance-fenced (issue 239); the real values
+        # are present inside the markers.
+        assert "UFIXIT" in data["page_title"]
+        assert "UNTRUSTED CANVAS CONTENT" in data["page_title"]
+        assert "Accessibility report body" in data["body"]
+        assert "UNTRUSTED CANVAS CONTENT" in data["body"]
         assert data["course_id"] == "60366"
 
     @pytest.mark.asyncio

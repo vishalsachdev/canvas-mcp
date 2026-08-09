@@ -34,6 +34,7 @@ from ..core.file_validation import (
     sanitize_filename,
     validate_file_for_upload,
 )
+from ..core.untrusted_content import fence_untrusted_inline
 from ..core.validation import validate_params
 
 
@@ -149,7 +150,9 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
         size_str = format_file_size(total_bytes)
         course_display = await get_course_code(course_id) or course_identifier
 
-        result = f"Downloaded: {filename}\n"
+        # Filename is uploader-controlled (issue 239); the on-disk path uses
+        # the sanitized value, only the display is fenced.
+        result = f"Downloaded: {fence_untrusted_inline(filename, 'file name')}\n"
         result += f"  Path: {save_path}\n"
         result += f"  Size: {size_str}\n"
         result += f"  Type: {content_type}\n"
@@ -236,7 +239,7 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
             size_str = format_file_size(len(buffer))
             course_display = await get_course_code(course_id) or course_identifier
 
-            result = f"Read: {filename}\n"
+            result = f"Read: {fence_untrusted_inline(filename, 'file name')}\n"
             result += f"  Size: {size_str}\n"
             result += f"  Type: {content_type}\n"
             result += f"  Course: {course_display}\n"
@@ -303,7 +306,7 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
             name = f.get("display_name") or f.get("filename", "unknown")
             size = format_file_size(f.get("size", 0))
             ctype = f.get("content-type", "unknown")
-            result += f"  ID: {fid} | {name} ({size}, {ctype})\n"
+            result += f"  ID: {fid} | {fence_untrusted_inline(name, 'file name')} ({size}, {ctype})\n"
 
         result += f"\nTotal: {len(files)} file(s)"
         return result

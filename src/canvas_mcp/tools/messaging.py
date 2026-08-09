@@ -40,6 +40,18 @@ def _fence_conversation_fields(conversation: Any) -> None:
         value = conversation.get(key)
         if isinstance(value, str) and value:
             conversation[key] = fence_untrusted(value, "conversation message")
+    # Participant display names are editable on many instances, so a
+    # student-controlled name sitting beside a fenced body is itself an
+    # injection channel. Fence the identity LABELS — deliberately without
+    # redacting, since anonymization elsewhere preserves participant names and
+    # this is a provenance mark, not a privacy scrub.
+    for participant in conversation.get("participants") or []:
+        if not isinstance(participant, dict):
+            continue
+        for key in ("name", "full_name"):
+            value = participant.get(key)
+            if isinstance(value, str) and value:
+                participant[key] = fence_untrusted(value, "participant name")
     _fence_attachments(conversation)
     for message in conversation.get("messages") or []:
         _fence_message_body(message)
@@ -566,6 +578,9 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                 }
             token_error = _SEND_CONVERSATION_GUARD.check(confirmation_token, fingerprint)
             if token_error:
+                # Burn the nonce so a swapped-then-reverted argument set cannot
+                # replay this token within its TTL.
+                _SEND_CONVERSATION_GUARD.reserve(confirmation_token)
                 return {"error": token_error, "nothing_sent": True}
             if not _SEND_CONVERSATION_GUARD.reserve(confirmation_token):
                 return {
@@ -689,6 +704,8 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
 
             token_error = _REMINDER_GUARD.check(confirmation_token, fingerprint)
             if token_error:
+                # Burn the nonce so a revert within the TTL cannot replay it.
+                _REMINDER_GUARD.reserve(confirmation_token)
                 return {"error": token_error, "nothing_sent": True}
             if not _REMINDER_GUARD.reserve(confirmation_token):
                 return {
@@ -806,6 +823,8 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
 
         token_error = _BULK_MESSAGE_GUARD.check(confirmation_token, fingerprint)
         if token_error:
+            # Burn the nonce so a revert within the TTL cannot replay it.
+            _BULK_MESSAGE_GUARD.reserve(confirmation_token)
             return {"error": token_error, "nothing_sent": True}
 
         # Claim before the first awaited send so two overlapping confirmations
@@ -1041,6 +1060,12 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                     }
                 token_error = _CAMPAIGN_GUARD.check(confirmation_token, fingerprint)
                 if token_error:
+                    # A mismatch means the plan or composed text changed since
+                    # the preview. Burn the nonce so a revert within the TTL
+                    # (analytics bouncing back, assignment renamed and renamed
+                    # again) cannot let this same token pass and send — exactly
+                    # as the empty-plan branch above already does.
+                    _CAMPAIGN_GUARD.reserve(confirmation_token)
                     return {"error": token_error, "nothing_sent": True}
                 if not _CAMPAIGN_GUARD.reserve(confirmation_token):
                     return {
