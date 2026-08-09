@@ -1003,8 +1003,13 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
                 # Backstop for issue 239: a comment lifted from fenced read
                 # output would publish our provenance markers into the
                 # student-visible gradebook. Refuse before any write (and
-                # before the dry-run echoes it).
-                if contains_fence_markers(grade_info.get("comment") or ""):
+                # before the dry-run echoes it). Covers the overall comment AND
+                # every per-criterion comment in the rubric assessment.
+                _texts = [grade_info.get("comment") or ""]
+                for _crit in (grade_info.get("rubric_assessment") or {}).values():
+                    if isinstance(_crit, dict):
+                        _texts.append(str(_crit.get("comments") or ""))
+                if any(contains_fence_markers(t) for t in _texts):
                     return {
                         "status": "failed",
                         "user_id": user_id,

@@ -55,12 +55,6 @@ class ConfirmationGuard:
     # legitimate token is well under this. Anything longer is rejected before
     # any hashing (cheap flood defense).
     _MAX_TOKEN_LEN = 256
-    # Hard ceiling on tracked nonces. Only genuinely-issued nonces are ever
-    # stored (reserve authenticates first), each needs a real preview call, and
-    # each drains on its own TTL — so this generous cap is a last-resort
-    # fail-closed bound, never an eviction trigger (evicting an unexpired used
-    # nonce would resurrect its token for replay).
-    _MAX_REDEEMED = 50_000
 
     def __init__(self, ttl_seconds: int = 300) -> None:
         self._ttl = ttl_seconds
@@ -180,32 +174,34 @@ class ConfirmationGuard:
         return None
 
     def reserve(self, token: str) -> bool:
-        """Atomically claim a token. False if unauthenticated or already claimed.
+        """Mark an authenticated token's nonce spent. Serves BOTH callers:
 
-        Authenticates the token's signature+expiry BEFORE recording its nonce,
-        so a flood of forged/unsigned tokens cannot grow the nonce map — the
-        token-store DoS. No ``await`` between the membership test and the write,
-        which keeps it atomic on the event loop.
+        - a fresh confirmation claiming its nonce (prevents double-submit), and
+        - the burn-on-mismatch path invalidating a genuine token whose
+          fingerprint no longer matches (prevents revert-replay).
+
+        Both must ALWAYS record for an authenticated, unexpired token — a burn
+        that failed to record would let the mismatched token become reusable
+        once an unrelated older claim expired, reopening revert-replay. There
+        is therefore NO capacity cap and NO eviction here (either would drop a
+        burn or resurrect a used nonce). It is safe because only authenticated,
+        unexpired tokens reach this point (round-9): forged/unsigned/expired
+        tokens are rejected by ``_authenticate`` and never recorded, so the map
+        holds at most the genuinely-issued unexpired tokens — itself bounded by
+        issuance-rate × TTL, and each entry self-drains on its own expiry.
+
+        The nonce is retained until the token's OWN signed expiry (not now+TTL),
+        which is exactly its remaining valid lifetime. No ``await`` between the
+        membership test and the write keeps it atomic on the event loop.
         """
         authed = self._authenticate(token)
         if authed is None:
             return False
-        _, nonce = authed
+        expiry, nonce = authed
         self._purge()
         if nonce in self._redeemed:
             return False
-        # Fail CLOSED at capacity, never evict. Evicting an unexpired used
-        # nonce would resurrect its still-signed token for replay: a caller
-        # could flood the map with burner preview tokens (via mismatched
-        # confirmations), push a genuinely-spent nonce out, then replay the
-        # original. So a used claim is kept until its token naturally EXPIRES
-        # (``_purge`` is purely time-based), and at capacity a new reservation
-        # is simply refused. The cap is generous and paired with the per-token
-        # TTL, so honest load self-drains; under attack, confirmations are
-        # refused (safe) rather than silently evicted (unsafe).
-        if len(self._redeemed) >= self._MAX_REDEEMED:
-            return False
-        self._redeemed[nonce] = time.time() + self._ttl
+        self._redeemed[nonce] = float(expiry)
         return True
 
     def release(self, token: str) -> None:

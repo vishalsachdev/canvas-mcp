@@ -333,38 +333,42 @@ class TestConfirmationGuard:
         assert guard.check("9." + "a" * 500, "fp") is not None
         assert guard.reserve("9." + "a" * 500) is False
 
-    def test_reserve_fails_closed_at_capacity_never_evicts(self):
-        """At capacity a new reservation is REFUSED (fail closed), and no
-        existing (unexpired) claim is evicted — so a used token can never be
-        resurrected for replay by flooding the map."""
+    def test_burn_always_records_even_under_heavy_load(self):
+        """A burn of a genuine mismatched token must ALWAYS record and keep the
+        nonce invalid for the token's remaining signed lifetime — even with many
+        other claims already present. (Round-10's fail-closed cap could drop the
+        burn, reopening revert-replay once an older claim expired.)"""
         guard = ConfirmationGuard()
-        guard._MAX_REDEEMED = 3  # instance override for the test
 
-        used = guard.issue(guard.fingerprint("victim"))
-        assert guard.reserve(used) is True  # the victim's spent claim
+        # Many existing claims (no cap now — authenticated recording is
+        # self-bounding by issuance rate x TTL).
+        for i in range(100):
+            assert guard.reserve(guard.issue(guard.fingerprint(f"other{i}"))) is True
 
-        # Fill remaining capacity with other genuine tokens.
-        assert guard.reserve(guard.issue(guard.fingerprint("a"))) is True
-        assert guard.reserve(guard.issue(guard.fingerprint("b"))) is True
+        # A genuine token issued for one fingerprint, "mismatched" at confirm:
+        # the burn path calls reserve() to invalidate it. It MUST record.
+        victim = guard.issue(guard.fingerprint("victim"))
+        assert guard.reserve(victim) is True
+        # Now, even after every other claim is force-expired (simulating drain),
+        # the burned token stays invalid — its nonce persists to its own expiry.
+        for nonce in list(guard._redeemed):
+            if guard._redeemed[nonce] != float(guard._parse(victim)[0]):
+                guard._redeemed[nonce] = time.time() - 1
+        assert "already used" in (guard.check(victim, guard.fingerprint("victim")) or "")
 
-        # At capacity: a further genuine reservation fails closed...
-        assert guard.reserve(guard.issue(guard.fingerprint("c"))) is False
-        # ...and the victim's nonce was NOT evicted, so replay stays blocked.
-        assert guard.reserve(used) is False
-        assert "already used" in (guard.check(used, guard.fingerprint("victim")) or "")
-
-    def test_expired_claims_purged_so_capacity_recovers(self):
-        """Honest callers are not permanently locked out: expired nonces drain
-        via the time-based purge, freeing capacity."""
+    def test_reserve_retains_nonce_until_token_expiry_not_now_plus_ttl(self):
+        """The nonce is retained until the token's OWN signed expiry."""
         guard = ConfirmationGuard(ttl_seconds=300)
-        guard._MAX_REDEEMED = 2
-        # Two claims that are already past their expiry.
-        guard._redeemed["old1"] = time.time() - 1
-        guard._redeemed["old2"] = time.time() - 1
-        # A fresh genuine reservation: purge drops the two expired, then stores.
+        token = guard.issue(guard.fingerprint("x"))
+        assert guard.reserve(token) is True
+        nonce = guard._parse(token)[1]
+        assert guard._redeemed[nonce] == float(guard._parse(token)[0])
+
+    def test_expired_nonces_purged(self):
+        guard = ConfirmationGuard(ttl_seconds=300)
+        guard._redeemed["old"] = time.time() - 1
         assert guard.reserve(guard.issue(guard.fingerprint("fresh"))) is True
-        assert "old1" not in guard._redeemed
-        assert "old2" not in guard._redeemed
+        assert "old" not in guard._redeemed
 
 
 class TestFencedReadSurfaces:
@@ -2414,3 +2418,125 @@ class TestRound10Surfaces:
                 include_analytics=False,
             )
         assert result.startswith(FENCE_TEXT_START)
+
+
+class TestRound11Surfaces:
+    """Round-11 (final) write backstops + remaining fences."""
+
+    FENCED = f"{FENCE_TEXT_START} (page body)>>>\n<p>hi</p>\n{FENCE_TEXT_END}"
+
+    def _student_tool(self, name: str):
+        import os
+        from unittest.mock import patch as _patch
+
+        # Student write tools register only when named in STUDENT_WRITE_TOOLS.
+        with _patch.dict(os.environ, {"STUDENT_WRITE_TOOLS": "submit_assignment,comment_on_my_submission"}):
+            import canvas_mcp.core.config as cfg
+            cfg._config = None
+            try:
+                from canvas_mcp.tools.student_write import register_student_write_tools
+                tool = _get_tool(register_student_write_tools, name)
+            finally:
+                cfg._config = None
+        return tool
+
+    @pytest.mark.asyncio
+    async def test_submit_assignment_rejects_fenced_body(self):
+        with patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new_callable=AsyncMock
+        ) as mock_req, patch(
+            "canvas_mcp.tools.student_write.get_course_id", new_callable=AsyncMock
+        ) as mock_cid, patch(
+            "canvas_mcp.tools.student_write.check_student_write_allowed",
+            new_callable=AsyncMock,
+        ) as mock_allowed:
+            mock_cid.return_value = "1"
+            mock_allowed.return_value = (True, "")
+            tool = self._student_tool("submit_assignment")
+            assert tool is not None
+            result = await tool("CS101", 5, "online_text_entry", body=self.FENCED)
+        assert not any(
+            c.args and c.args[0] in ("post", "put") for c in mock_req.await_args_list
+        )
+        assert result.startswith("Error")
+
+    @pytest.mark.asyncio
+    async def test_comment_on_my_submission_rejects_fenced_comment(self):
+        with patch(
+            "canvas_mcp.tools.student_write.make_canvas_request", new_callable=AsyncMock
+        ) as mock_req:
+            tool = self._student_tool("comment_on_my_submission")
+            assert tool is not None
+            result = await tool("CS101", 5, self.FENCED)
+        mock_req.assert_not_called()
+        assert result.startswith("Error")
+
+    @pytest.mark.asyncio
+    async def test_bulk_grade_rejects_fenced_criterion_comment(self):
+        from canvas_mcp.tools.assignments import register_educator_assignment_tools
+
+        with patch(
+            "canvas_mcp.tools.assignments.make_canvas_request", new_callable=AsyncMock
+        ) as mock_req, patch(
+            "canvas_mcp.tools.assignments.get_course_id", new_callable=AsyncMock
+        ) as mock_cid:
+            mock_cid.return_value = "1"
+            tool = _get_tool(register_educator_assignment_tools, "bulk_grade_submissions")
+            result = await tool(
+                "CS101", 5,
+                {"101": {"rubric_assessment": {"_1": {"points": 3, "comments": self.FENCED}}}},
+                dry_run=False,
+            )
+        assert not any(
+            c.args and c.args[0] == "put" for c in mock_req.await_args_list
+        )
+        assert "UNTRUSTED" in str(result) or "fence" in str(result).lower()
+
+    @pytest.mark.asyncio
+    async def test_create_rubric_rejects_fenced_criterion_description(self):
+        import json as _json
+
+        from canvas_mcp.tools.rubrics import register_rubric_tools
+
+        criteria = _json.dumps(
+            {"c1": {"description": self.FENCED, "points": 5}}
+        )
+        with patch(
+            "canvas_mcp.tools.rubrics.make_canvas_request", new_callable=AsyncMock
+        ) as mock_req, patch(
+            "canvas_mcp.tools.rubrics.get_course_id", new_callable=AsyncMock
+        ) as mock_cid:
+            mock_cid.return_value = "1"
+            tool = _get_tool(register_rubric_tools, "create_rubric")
+            result = await tool("CS101", "My Rubric", criteria)
+        mock_req.assert_not_called()
+        assert result.startswith("Error")
+
+    @pytest.mark.asyncio
+    async def test_parse_ufixit_fences_location_and_no_double_fence(self):
+        import json as _json
+
+        from canvas_mcp.tools.accessibility import register_accessibility_tools
+
+        # A report body that yields a violation with a location line (the
+        # extractor records `location` from a line mentioning "page").
+        report = _json.dumps({
+            "body": "WCAG 1.1.1\ncritical\nmissing alt text\non page: <img src=x> ATTACKER LINE",
+            "page_title": "t",
+            "updated_at": None,
+            "course_id": "1",
+        })
+        parse_tool = _get_tool(register_accessibility_tools, "parse_ufixit_violations")
+        parsed_json = await parse_tool(report)
+        parsed = _json.loads(parsed_json)
+        located = [v for v in parsed["violations"] if v.get("location")]
+        assert located, "expected a violation with a location"
+        for v in located:
+            assert FENCE_TEXT_START in v["location"]
+            # Single fence, not double.
+            assert v["location"].count(FENCE_TEXT_START) == 1
+
+        # And format_accessibility_summary does not double-fence.
+        fmt_tool = _get_tool(register_accessibility_tools, "format_accessibility_summary")
+        summary = await fmt_tool(parsed_json)
+        assert summary.count(FENCE_TEXT_START) == len(located)

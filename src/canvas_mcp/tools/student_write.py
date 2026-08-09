@@ -55,7 +55,12 @@ from ..core.file_validation import (
     detect_mime_type,
     sanitize_filename,
 )
-from ..core.untrusted_content import fence_untrusted, fence_untrusted_inline
+from ..core.untrusted_content import (
+    FENCE_LEAK_ERROR,
+    contains_fence_markers,
+    fence_untrusted,
+    fence_untrusted_inline,
+)
 from ..core.validation import coerce_canvas_id, validate_params
 from ..core.write_confirmation import unconfirmed_write_warning
 
@@ -757,6 +762,11 @@ def register_student_write_tools(mcp: FastMCP) -> None:
             if not allowed:
                 return f"❌ Submission blocked. {reason}"
 
+            # Backstop for issue 239: never publish our provenance markers into
+            # a submission body or its comment.
+            if contains_fence_markers(body or "") or contains_fence_markers(comment or ""):
+                return FENCE_LEAK_ERROR
+
             if submission_type == "online_text_entry" and not body:
                 return "Error: online_text_entry requires 'body'"
             if submission_type == "online_url" and not url:
@@ -969,6 +979,10 @@ def register_student_write_tools(mcp: FastMCP) -> None:
             """
             if not comment.strip():
                 return "Error: comment cannot be empty"
+
+            # Backstop for issue 239: never publish our provenance markers.
+            if contains_fence_markers(comment):
+                return FENCE_LEAK_ERROR
 
             validated_assignment_id = coerce_canvas_id(assignment_id)
             if validated_assignment_id is None:

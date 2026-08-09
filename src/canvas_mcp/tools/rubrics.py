@@ -1185,6 +1185,12 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             free_form_criterion_comments: Allow free-form comments per criterion
                                           instead of rating selection (default: False)
         """
+        # Backstop for issue 239: refuse to publish our provenance markers into
+        # the rubric's title or ANY criterion/rating description. Scanning the
+        # raw criteria JSON covers every nested text field in one check.
+        if contains_fence_markers(title) or contains_fence_markers(criteria):
+            return FENCE_LEAK_ERROR
+
         course_id = await get_course_id(course_identifier)
 
         # Validate and parse criteria JSON

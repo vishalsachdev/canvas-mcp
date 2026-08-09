@@ -17,7 +17,6 @@ from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.untrusted_content import (
     fence_untrusted,
     fence_untrusted_fields,
-    fence_untrusted_inline,
     strip_fence_markers,
 )
 from ..core.validation import validate_params
@@ -113,8 +112,14 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
 
         violations = _extract_violations_from_html(body)
 
-        # Generate summary statistics
+        # `location` is a raw author-controlled HTML line copied from the report
+        # body (issue 239). Fence it for the model-facing JSON only — this tool
+        # returns to the caller and is never fed into fix_accessibility_issues
+        # (which re-fetches page bodies from Canvas), so no fence reaches a
+        # write-back. type/severity/description are fixed lookups, not fenced.
+        # Fence AFTER the summary (which counts by type/severity, not location).
         summary = _generate_violation_summary(violations)
+        fence_untrusted_fields(violations, {"location": "content excerpt"})
 
         return json.dumps({
             "summary": summary,
@@ -187,10 +192,10 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
                 if violation.get("description"):
                     lines.append(f"**Description**: {violation['description']}")
                 if violation.get("location"):
-                    # location is a raw author-controlled HTML line (issue 239).
-                    lines.append(
-                        f"**Location**: {fence_untrusted_inline(violation['location'], 'content excerpt')}"
-                    )
+                    # location is already fenced by parse_ufixit_violations
+                    # (this tool's documented input), so it is emitted as-is to
+                    # avoid double-fencing (issue 239).
+                    lines.append(f"**Location**: {violation['location']}")
                 if violation.get("remediation"):
                     lines.append(f"**How to Fix**: {violation['remediation']}")
                 lines.append("")
