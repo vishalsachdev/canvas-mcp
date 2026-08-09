@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Removed
+
+- **The npm setup wizard (`npx canvas-mcp setup`) is retired and the `canvas-mcp`
+  npm package deprecated** (#249). The wizard wrote client configs pointing at
+  the retired `mcp.illinihunt.org` hosted endpoint (no DNS record) while also
+  collecting the user's Canvas API token, so every run produced a broken config.
+  The documented install paths — the Desktop Extension (`.mcpb`) and manual
+  client configuration per the README — were already the only ones referenced
+  anywhere in the docs. The npm package name remains reserved (deprecated, not
+  unpublished) so it cannot be claimed by a third party.
+- `docs/workshop.html` — an orphaned March 2026 workshop page (not linked from
+  the site) whose instructions were built around the retired wizard and hosted
+  endpoint.
+
 ## [1.8.0] — 2026-08-09
 
 ### Security
