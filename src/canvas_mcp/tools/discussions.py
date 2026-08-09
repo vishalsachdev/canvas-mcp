@@ -865,6 +865,10 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
             require_initial_post: Students must post before seeing others (default: False)
             pinned: Pin this discussion topic (default: False)
         """
+        # Backstop for issue 239: never publish our provenance fence markers.
+        if contains_fence_markers(message) or contains_fence_markers(title):
+            return FENCE_LEAK_ERROR
+
         course_id = await get_course_id(course_identifier)
 
         data = {
@@ -927,6 +931,12 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
             require_initial_post: Students must post before seeing others
         """
         course_id = await get_course_id(course_identifier)
+
+        # Backstop for issue 239: never publish our provenance fence markers.
+        if (message is not None and contains_fence_markers(message)) or (
+            title is not None and contains_fence_markers(title)
+        ):
+            return FENCE_LEAK_ERROR
 
         data: dict[str, str | bool] = {}
 
@@ -1017,6 +1027,10 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
             delayed_post_at: ISO 8601 datetime to schedule posting
             lock_at: ISO 8601 datetime to auto-lock the announcement
         """
+        # Backstop for issue 239: never publish our provenance fence markers.
+        if contains_fence_markers(message) or contains_fence_markers(title):
+            return FENCE_LEAK_ERROR
+
         course_id = await get_course_id(course_identifier)
 
         data = {

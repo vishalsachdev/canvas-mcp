@@ -437,7 +437,7 @@
     {
       "name": "send_conversation",
       "category": "educator",
-      "description": "Send messages to students via Canvas inbox",
+      "description": "Send messages to students via Canvas inbox. One recipient sends immediately; multiple recipients are two-step (preview + confirmation_token, then confirm with identical arguments).",
       "parameters": [
         {
           "name": "course_identifier",
@@ -462,9 +462,15 @@
           "type": "string",
           "required": true,
           "description": "Message content"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Single-use token from the preview call (multi-recipient sends only)"
         }
       ],
-      "returns": "Confirmation of message sent",
+      "returns": "Single recipient: confirmation of message sent. Multiple recipients without a token: a preview plus confirmation_token (nothing sent); with a valid token: confirmation of message sent",
       "examples": [
         "Message students who haven't submitted Assignment 3"
       ]
@@ -2403,7 +2409,7 @@
     {
       "name": "send_peer_review_followup_campaign",
       "category": "educator",
-      "description": "Complete workflow: analyze peer reviews and send targeted reminders.",
+      "description": "Complete workflow: analyze peer reviews and send targeted reminders. Two-step: preview returns the plan plus a confirmation_token; confirm with the token to send. The token is void if completion analytics shifted.",
       "parameters": [
         {
           "name": "course_identifier",
@@ -2416,9 +2422,15 @@
           "type": "string | integer",
           "required": true,
           "description": "Canvas assignment ID"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Single-use token from the preview call; omit to preview without sending"
         }
       ],
-      "returns": "Campaign summary: who was analyzed, who was messaged, and send results",
+      "returns": "Without a token: analytics, planned reminder groups, and a confirmation_token (nothing sent). With a valid token: campaign summary with send results",
       "examples": [
         "Analyze peer review completion and remind everyone who's behind"
       ]
@@ -2426,7 +2438,7 @@
     {
       "name": "send_peer_review_reminders",
       "category": "educator",
-      "description": "Send peer review completion reminders to specific students.",
+      "description": "Send peer review completion reminders to specific students. Two-step: preview returns the composed message plus a confirmation_token; confirm with the token and identical arguments to send.",
       "parameters": [
         {
           "name": "course_identifier",
@@ -2465,9 +2477,15 @@
           "required": false,
           "default": "Peer Review Reminder",
           "description": "Prefix for message subject"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Single-use token from the preview call; omit to preview without sending"
         }
       ],
-      "returns": "Per-student send results for the reminder messages",
+      "returns": "Without a token: a preview (recipients, composed subject and body) plus a confirmation_token (nothing sent). With a valid token: per-student send results",
       "examples": [
         "Send peer review reminders to these five students"
       ]

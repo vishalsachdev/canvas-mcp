@@ -786,18 +786,26 @@ Get a prioritized list of students needing follow-up on peer review completion.
 ---
 
 #### `send_peer_review_followup_campaign`
-Complete workflow: analyze peer review completion and send targeted reminders in one call.
+Complete workflow: analyze peer review completion and send targeted reminders.
+
+**Two-step by design.** Call it without a `confirmation_token` to get the
+analytics plus a plan of who receives urgent vs gentle reminders and a
+single-use token; call again with the token to send. The token is void if the
+completion analytics shifted in between.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `assignment_id`: Assignment ID
+- `confirmation_token` (optional): Token from the preview call; omit to preview
 
 **Example:**
 ```
 "Analyze peer review completion and remind everyone who's behind"
 ```
 
-**Returns:** Campaign summary: who was analyzed, who was messaged, and send results.
+**Returns:** Without a token: analytics, planned reminder groups, and a
+`confirmation_token` (nothing sent). With a valid token: campaign summary with
+send results.
 
 ---
 
@@ -842,11 +850,17 @@ Export all peer review data for external analysis.
 #### `send_conversation`
 Send messages to students.
 
+**Sending to one recipient is a single call. Sending to multiple recipients is
+two-step:** call without a `confirmation_token` to get a preview (recipients,
+subject, body) plus a single-use token, then call again with the token and
+identical arguments to send.
+
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `recipients`: User IDs (array)
 - `subject`: Message subject
 - `body`: Message content
+- `confirmation_token` (optional): Token from the preview call (multi-recipient only)
 
 **Example:**
 ```
@@ -858,11 +872,17 @@ Send messages to students.
 #### `send_peer_review_reminders`
 Automated peer review reminder workflow.
 
+**Two-step by design.** Call it without a `confirmation_token` to get a preview
+(recipients, composed subject and body) plus a single-use token; call again
+with the token and identical arguments to send. The token is void if the
+composed message changed (e.g. the assignment was renamed).
+
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `assignment_id`: Assignment ID
 - `user_ids`: Students to remind (array)
 - `custom_message` (optional): Custom message template
+- `confirmation_token` (optional): Token from the preview call; omit to preview
 
 **Example:**
 ```

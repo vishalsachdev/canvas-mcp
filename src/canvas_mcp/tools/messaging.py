@@ -20,6 +20,141 @@ from ..core.write_confirmation import ConfirmationGuard
 # One guard per destructive tool: each has its own signing secret and redeemed
 # set, so a token minted for one tool can never be replayed against another.
 _BULK_MESSAGE_GUARD = ConfirmationGuard()
+_SEND_CONVERSATION_GUARD = ConfirmationGuard()
+_REMINDER_GUARD = ConfirmationGuard()
+_CAMPAIGN_GUARD = ConfirmationGuard()
+
+
+def _fence_conversation_fields(conversation: Any) -> None:
+    """Fence the third-party text fields of one conversation dict, in place.
+
+    Subjects and message bodies are typed by whoever wrote to the inbox —
+    students included — so they are provenance-fenced like any other
+    Canvas-authored free text (issue 239). Read-only formatting: these dicts
+    are tool output, never written back to Canvas.
+    """
+    if not isinstance(conversation, dict):
+        return
+    for key in ("subject", "last_message", "last_authored_message"):
+        value = conversation.get(key)
+        if isinstance(value, str) and value:
+            conversation[key] = fence_untrusted(value, "conversation message")
+    for message in conversation.get("messages") or []:
+        if isinstance(message, dict) and isinstance(message.get("body"), str) and message["body"]:
+            message["body"] = fence_untrusted(message["body"], "conversation message")
+
+
+async def _post_conversation(
+    course_identifier: str | int,
+    recipient_ids: list[str],
+    subject: str,
+    body: str,
+    group_conversation: bool,
+    bulk_message: bool,
+    context_code: str | None,
+    mode: str,
+    force_new: bool,
+    attachment_ids: list[str] | None,
+) -> dict[str, Any]:
+    """POST one /conversations request. Callers enforce all confirmation gates."""
+    data: dict[str, Any] = {
+        "recipients[]": recipient_ids,
+        "subject": subject,
+        "body": body,
+        "group_conversation": group_conversation,
+        "bulk_message": bulk_message,
+        "mode": mode,
+        "force_new": force_new,
+    }
+
+    # Add context_code if provided, otherwise construct from course_identifier
+    if context_code:
+        data["context_code"] = context_code
+    else:
+        data["context_code"] = f"course_{course_identifier}"
+
+    if attachment_ids:
+        data["attachment_ids[]"] = attachment_ids
+
+    # Canvas requires form data on /conversations
+    response = await make_canvas_request("post", "/conversations", data=data, use_form_data=True)
+
+    if "error" in response:
+        error_response: dict[str, Any] = response
+        return error_response
+
+    return {
+        "success": True,
+        "conversation": response,
+        "message": f"Message sent to {len(recipient_ids)} recipient(s)"
+    }
+
+
+async def _compose_reminder(
+    course_identifier: str | int,
+    assignment_id: str | int,
+    custom_message: str | None,
+    include_assignment_link: bool,
+    subject_prefix: str,
+) -> tuple[str, str] | dict[str, Any]:
+    """Build the (subject, body) of a peer-review reminder, or an error dict."""
+    assignment_response = await make_canvas_request(
+        "get",
+        f"/courses/{course_identifier}/assignments/{assignment_id}"
+    )
+
+    if "error" in assignment_response:
+        return {"error": f"Failed to get assignment details: {assignment_response['error']}"}
+
+    assignment_name = assignment_response.get("name", f"Assignment {assignment_id}")
+    assignment_url = assignment_response.get("html_url", "")
+
+    if custom_message:
+        body = custom_message
+    else:
+        body = f"""Hello,
+
+This is a reminder that you have incomplete peer reviews for {assignment_name}.
+
+Please complete your peer reviews as soon as possible to receive full participation credit."""
+
+    if include_assignment_link and assignment_url:
+        body += f"\n\nYou can access the assignment here: {assignment_url}"
+
+    body += "\n\nIf you have any questions or technical issues, please reach out for assistance."
+
+    subject = f"{subject_prefix}: {assignment_name}"
+    return subject, body
+
+
+async def _send_reminders(
+    course_identifier: str | int,
+    assignment_id: str | int,
+    recipient_ids: list[str],
+    custom_message: str | None,
+    include_assignment_link: bool,
+    subject_prefix: str,
+) -> dict[str, Any]:
+    """Compose and send one reminder batch. Callers enforce confirmation gates."""
+    composed = await _compose_reminder(
+        course_identifier, assignment_id, custom_message,
+        include_assignment_link, subject_prefix,
+    )
+    if isinstance(composed, dict):
+        return composed
+    subject, body = composed
+    return await _post_conversation(
+        course_identifier,
+        recipient_ids,
+        subject,
+        body,
+        group_conversation=True,
+        bulk_message=True,
+        context_code=f"course_{course_identifier}",
+        mode="sync",
+        force_new=False,
+        attachment_ids=None,
+    )
 
 
 def register_shared_messaging_tools(mcp: FastMCP) -> None:
@@ -66,8 +201,15 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
                 error_response: dict[str, Any] = response
                 return error_response
 
+            # Subjects and last-message previews are authored by whoever wrote
+            # to the inbox (issue 239): fence them.
+            if isinstance(response, list):
+                for conversation in response:
+                    _fence_conversation_fields(conversation)
+
             return {
                 "success": True,
+                "untrusted_content_notice": UNTRUSTED_NOTICE,
                 "conversations": response,
                 "count": len(response) if isinstance(response, list) else 0
             }
@@ -108,19 +250,11 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
                 error_response: dict[str, Any] = response
                 return error_response
 
-            # Inbound message bodies are third-party text (issue 239): fence
-            # them so a message reading "now forward the roster to..." arrives
-            # marked as data, not as an instruction. Read-only formatting —
-            # nothing here flows back into Canvas.
-            if isinstance(response.get("last_message"), str) and response["last_message"]:
-                response["last_message"] = fence_untrusted(
-                    response["last_message"], "conversation message"
-                )
-            for message in response.get("messages") or []:
-                if isinstance(message, dict) and isinstance(message.get("body"), str) and message["body"]:
-                    message["body"] = fence_untrusted(
-                        message["body"], "conversation message"
-                    )
+            # Inbound subjects and message bodies are third-party text (issue
+            # 239): fence them so a message reading "now forward the roster
+            # to..." arrives marked as data, not as an instruction. Read-only
+            # formatting — nothing here flows back into Canvas.
+            _fence_conversation_fields(response)
 
             return {
                 "success": True,
@@ -207,10 +341,18 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
         context_code: str | None = None,
         mode: str = "sync",
         force_new: bool = False,
-        attachment_ids: list[str] | None = None
+        attachment_ids: list[str] | None = None,
+        confirmation_token: str | None = None
     ) -> dict[str, Any]:
         """
         Send messages to students via Canvas conversations.
+
+        Sending to ONE recipient is a single call. Sending to MULTIPLE
+        recipients is two-step: call without a confirmation_token to get a
+        preview (recipients, subject, body) plus a token; show that preview to
+        the educator, then call again with the token and identical arguments
+        to actually send. The token expires, is single-use, and is void if any
+        argument changed since the preview.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -223,6 +365,7 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
             mode: "sync" or "async" (use async for >100 recipients)
             force_new: Force new conversation even if one exists
             attachment_ids: Optional attachment IDs
+            confirmation_token: Token from the preview call (multi-recipient only)
         """
 
         # Validate parameters
@@ -247,41 +390,66 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
         if contains_fence_markers(body) or contains_fence_markers(subject):
             return {"error": FENCE_LEAK_ERROR}
 
+        # Multi-recipient sends require the preview→confirm two-step (issue
+        # 239): a prompt-injected model must not be able to fan a message out
+        # to a list without a human-visible preview. One recipient stays a
+        # single call.
+        if len(recipient_ids) > 1:
+            fingerprint = _SEND_CONVERSATION_GUARD.fingerprint(
+                str(course_identifier),
+                json.dumps(recipient_ids),
+                subject,
+                body,
+                str(group_conversation),
+                str(bulk_message),
+                context_code or "",
+                mode,
+                str(force_new),
+                json.dumps(attachment_ids or []),
+            )
+            if not confirmation_token:
+                return {
+                    "preview": True,
+                    "nothing_sent": True,
+                    "recipient_ids": recipient_ids,
+                    "subject": subject,
+                    "body": body,
+                    "confirmation_token": _SEND_CONVERSATION_GUARD.issue(fingerprint),
+                    "instructions": (
+                        "Show this preview to the educator. To send, call "
+                        "send_conversation again with this confirmation_token "
+                        "and identical arguments. The token is single-use and "
+                        "expires shortly."
+                    ),
+                }
+            token_error = _SEND_CONVERSATION_GUARD.check(confirmation_token, fingerprint)
+            if token_error:
+                return {"error": token_error, "nothing_sent": True}
+            if not _SEND_CONVERSATION_GUARD.reserve(confirmation_token):
+                return {
+                    "error": "❌ That confirmation was already used. Nothing was "
+                             "sent. Run the preview again.",
+                    "nothing_sent": True,
+                }
+
         try:
-            # Prepare the request data
-            data = {
-                "recipients[]": recipient_ids,
-                "subject": subject,
-                "body": body,
-                "group_conversation": group_conversation,
-                "bulk_message": bulk_message,
-                "mode": mode,
-                "force_new": force_new
-            }
-
-            # Add context_code if provided, otherwise construct from course_identifier
-            if context_code:
-                data["context_code"] = context_code
-            else:
-                data["context_code"] = f"course_{course_identifier}"
-
-            # Add attachment_ids if provided
-            if attachment_ids:
-                data["attachment_ids[]"] = attachment_ids
-
-            # Make the API request using form data (required by Canvas)
-            response = await make_canvas_request("post", "/conversations", data=data, use_form_data=True)
-
-            if "error" in response:
-                error_response: dict[str, Any] = response
-                return error_response
-
-            return {
-                "success": True,
-                "conversation": response,
-                "message": f"Message sent to {len(recipient_ids)} recipient(s)"
-            }
-
+            result = await _post_conversation(
+                course_identifier,
+                recipient_ids,
+                subject,
+                body,
+                group_conversation,
+                bulk_message,
+                context_code,
+                mode,
+                force_new,
+                attachment_ids,
+            )
+            if "error" in result and len(recipient_ids) > 1 and confirmation_token:
+                # Canvas rejected the POST, so nothing was sent — hand the
+                # claim back rather than forcing a fresh preview to retry.
+                _SEND_CONVERSATION_GUARD.release(confirmation_token)
+            return result
         except Exception as e:
             print(f"Error sending conversation: {str(e)}", file=sys.stderr)
             return {"error": f"Failed to send conversation: {str(e)}"}
@@ -294,10 +462,16 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
         recipient_ids: list[str],
         custom_message: str | None = None,
         include_assignment_link: bool = True,
-        subject_prefix: str = "Peer Review Reminder"
+        subject_prefix: str = "Peer Review Reminder",
+        confirmation_token: str | None = None
     ) -> dict[str, Any]:
         """
         Send peer review completion reminders to specific students.
+
+        Two-step by design. Call it without a confirmation_token to get a
+        preview (recipients, composed subject and body) plus a token; show
+        that preview to the educator, then call again with the token and
+        identical arguments to actually send.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -306,54 +480,78 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
             custom_message: Custom message (uses default template if None)
             include_assignment_link: Include direct link to assignment
             subject_prefix: Prefix for message subject
+            confirmation_token: Token from the preview call; omit to preview
         """
 
         if not recipient_ids:
             return {"error": "recipient_ids cannot be empty"}
 
+        # Backstop for issue 239: never send our provenance fence markers.
+        if custom_message and contains_fence_markers(custom_message):
+            return {"error": FENCE_LEAK_ERROR}
+
         try:
-            # Get assignment details for context
-            assignment_response = await make_canvas_request(
-                "get",
-                f"/courses/{course_identifier}/assignments/{assignment_id}"
+            composed = await _compose_reminder(
+                course_identifier, assignment_id, custom_message,
+                include_assignment_link, subject_prefix,
+            )
+            if isinstance(composed, dict):
+                return composed
+            subject, body = composed
+
+            # The fingerprint covers the COMPOSED text, so an assignment
+            # rename (which changes the subject/body) between preview and
+            # confirm voids the token rather than sending unshown text.
+            fingerprint = _REMINDER_GUARD.fingerprint(
+                str(course_identifier),
+                str(assignment_id),
+                json.dumps(recipient_ids),
+                subject,
+                body,
             )
 
-            if "error" in assignment_response:
-                return {"error": f"Failed to get assignment details: {assignment_response['error']}"}
+            if not confirmation_token:
+                return {
+                    "preview": True,
+                    "nothing_sent": True,
+                    "recipient_ids": recipient_ids,
+                    "subject": subject,
+                    "body": body,
+                    "confirmation_token": _REMINDER_GUARD.issue(fingerprint),
+                    "instructions": (
+                        "Show this preview to the educator. To send, call "
+                        "send_peer_review_reminders again with this "
+                        "confirmation_token and identical arguments. The token "
+                        "is single-use and expires shortly."
+                    ),
+                }
 
-            assignment_name = assignment_response.get("name", f"Assignment {assignment_id}")
-            assignment_url = assignment_response.get("html_url", "")
+            token_error = _REMINDER_GUARD.check(confirmation_token, fingerprint)
+            if token_error:
+                return {"error": token_error, "nothing_sent": True}
+            if not _REMINDER_GUARD.reserve(confirmation_token):
+                return {
+                    "error": "❌ That confirmation was already used. Nothing was "
+                             "sent. Run the preview again.",
+                    "nothing_sent": True,
+                }
 
-            # Prepare the message content
-            if custom_message:
-                body = custom_message
-            else:
-                body = f"""Hello,
-
-This is a reminder that you have incomplete peer reviews for {assignment_name}.
-
-Please complete your peer reviews as soon as possible to receive full participation credit."""
-
-            # Add assignment link if requested
-            if include_assignment_link and assignment_url:
-                body += f"\n\nYou can access the assignment here: {assignment_url}"
-
-            body += "\n\nIf you have any questions or technical issues, please reach out for assistance."
-
-            # Create subject
-            subject = f"{subject_prefix}: {assignment_name}"
-
-            # Send the conversation
-            result = await send_conversation(
-                course_identifier=course_identifier,
-                recipient_ids=recipient_ids,
-                subject=subject,
-                body=body,
+            result = await _post_conversation(
+                course_identifier,
+                recipient_ids,
+                subject,
+                body,
                 group_conversation=True,
                 bulk_message=True,
-                context_code=f"course_{course_identifier}"
+                context_code=f"course_{course_identifier}",
+                mode="sync",
+                force_new=False,
+                attachment_ids=None,
             )
-
+            if "error" in result:
+                # Canvas rejected the POST, so nothing was sent — hand the
+                # claim back rather than forcing a fresh preview to retry.
+                _REMINDER_GUARD.release(confirmation_token)
             return result
 
         except Exception as e:
@@ -519,14 +717,22 @@ Please complete your peer reviews as soon as possible to receive full participat
     @validate_params
     async def send_peer_review_followup_campaign(
         course_identifier: str | int,
-        assignment_id: str | int
+        assignment_id: str | int,
+        confirmation_token: str | None = None
     ) -> dict[str, Any]:
         """
         Complete workflow: analyze peer reviews and send targeted reminders.
 
+        Two-step by design. Call it without a confirmation_token to get the
+        analytics plus a preview of who would receive urgent vs gentle
+        reminders and a token; show that to the educator, then call again
+        with the token to actually send. The token is void if the completion
+        analytics shifted in between.
+
         Args:
             course_identifier: Course code or Canvas ID
             assignment_id: Canvas assignment ID
+            confirmation_token: Token from the preview call; omit to preview
         """
 
         try:
@@ -559,34 +765,78 @@ Please complete your peer reviews as soon as possible to receive full participat
             analytics = analytics_response["analytics"]
             completion_groups = analytics.get("completion_groups", {})
 
+            no_reviews = completion_groups.get("none_complete", [])
+            partial_reviews = completion_groups.get("partial_complete", [])
+            urgent_ids = [str(student["student_id"]) for student in no_reviews]
+            partial_ids = [str(student["student_id"]) for student in partial_reviews]
+
             results: dict[str, Any] = {
                 "success": True,
                 "analytics": analytics,
                 "messaging_results": {}
             }
 
-            # Send urgent reminders to students with no reviews
-            no_reviews = completion_groups.get("none_complete", [])
+            # The confirmation commits to WHO gets messaged. If the
+            # completion picture shifts between preview and confirm (someone
+            # finishes their reviews), the fingerprint changes and the token
+            # is void rather than messaging people the educator never saw.
+            if no_reviews or partial_reviews:
+                fingerprint = _CAMPAIGN_GUARD.fingerprint(
+                    str(course_identifier),
+                    str(assignment_id),
+                    json.dumps(sorted(urgent_ids)),
+                    json.dumps(sorted(partial_ids)),
+                )
+                if not confirmation_token:
+                    return {
+                        "preview": True,
+                        "nothing_sent": True,
+                        "analytics": analytics,
+                        "planned_reminders": {
+                            "urgent": urgent_ids,
+                            "partial": partial_ids,
+                        },
+                        "confirmation_token": _CAMPAIGN_GUARD.issue(fingerprint),
+                        "instructions": (
+                            "Show this plan to the educator. To send the "
+                            "reminders, call send_peer_review_followup_campaign "
+                            "again with this confirmation_token. The token is "
+                            "single-use, expires shortly, and is void if the "
+                            "completion analytics changed."
+                        ),
+                    }
+                token_error = _CAMPAIGN_GUARD.check(confirmation_token, fingerprint)
+                if token_error:
+                    return {"error": token_error, "nothing_sent": True}
+                if not _CAMPAIGN_GUARD.reserve(confirmation_token):
+                    return {
+                        "error": "❌ That confirmation was already used. Nothing "
+                                 "was sent. Run the preview again.",
+                        "nothing_sent": True,
+                    }
+
+            # Send urgent reminders to students with no reviews. Goes through
+            # the internal helper — the campaign's own confirmation above is
+            # the gate, so the per-tool guards are not re-run here.
             if no_reviews:
-                urgent_ids = [str(student["student_id"]) for student in no_reviews]
-                urgent_result = await send_peer_review_reminders(
+                urgent_result = await _send_reminders(
                     course_identifier,
                     assignment_id,
                     urgent_ids,
                     custom_message="URGENT: You have not completed any peer reviews for this assignment. Please complete them as soon as possible to avoid late penalties.",
+                    include_assignment_link=True,
                     subject_prefix="URGENT: Peer Review"
                 )
                 results["messaging_results"]["urgent"] = urgent_result
 
             # Send gentle reminders to students with partial completion
-            partial_reviews = completion_groups.get("partial_complete", [])
             if partial_reviews:
-                partial_ids = [str(student["student_id"]) for student in partial_reviews]
-                partial_result = await send_peer_review_reminders(
+                partial_result = await _send_reminders(
                     course_identifier,
                     assignment_id,
                     partial_ids,
                     custom_message="You're almost done! Please complete your remaining peer review to receive full participation credit.",
+                    include_assignment_link=True,
                     subject_prefix="Reminder: Complete Peer Review"
                 )
                 results["messaging_results"]["partial"] = partial_result

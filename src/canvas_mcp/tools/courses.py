@@ -554,19 +554,25 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
         published = response.get("published", False)
 
         if not body:
-            return f"Page '{title}' has no content."
+            return "This page has no content. Its title:\n" + fence_untrusted(
+                title, "page title"
+            )
 
         course_display = await get_course_code(course_id) or course_identifier
         status = "Published" if published else "Unpublished"
 
-        # The body is course-authored HTML flowing verbatim into model context
-        # — the surface issue 239 was filed on. Fence it (provenance marking,
-        # no content loss). The media inventory is derived from the raw body
-        # BEFORE fencing, so spoof-neutralization can never alter what it sees.
-        return (
-            f"Page Content for '{title}' in Course {course_display} ({status}):\n\n"
-            + fence_untrusted(body, "page body")
+        # Title, body, AND the media inventory derived from the body are all
+        # page-author-controlled (issue 239) — every one of them goes inside
+        # a single fence; only our own framing stays outside. The inventory is
+        # computed from the raw body BEFORE fencing, so spoof-neutralization
+        # can never alter what it sees.
+        untrusted = (
+            f"Title: {title}\n\n{body}"
             + format_media_inventory(extract_embedded_media(body))
+        )
+        return (
+            f"Page Content for page '{page_url_or_id}' in Course {course_display} ({status}):\n\n"
+            + fence_untrusted(untrusted, "page title, body, and media inventory")
         )
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
@@ -636,25 +642,28 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
         course_display = await get_course_code(course_id) or course_identifier
 
         result = f"Page Details for Course {course_display}:\n\n"
-        result += f"Title: {title}\n"
         result += f"URL: {url}\n"
         result += f"Status: {', '.join(status_info)}\n"
         result += f"Created: {created_at}\n"
         result += f"Updated: {updated_at}\n"
         result += f"Last Edited By: {editor_name}\n"
         result += f"Editing Roles: {editing_roles or 'Not specified'}\n"
-        result += (
-            "\nContent Preview (text only, truncated):\n"
-            f"{fence_untrusted(body_clean, 'page body (text preview)')}"
-        )
 
+        # Title, text preview, and media src URLs are all page-author-
+        # controlled (issue 239): one fence around the lot, our framing
+        # outside it.
+        untrusted = f"Title: {title}\n\nContent Preview (text only, truncated):\n{body_clean}"
         if media:
-            result += (
+            untrusted += (
                 f"\n\n{len(media)} embedded media item(s) are present but not shown "
                 "in this text preview — use get_page_content for the full HTML:"
             )
             for item in media:
-                result += f"\n- {item['tag']}: {item['src'] or '(no src attribute)'}"
+                untrusted += f"\n- {item['tag']}: {item['src'] or '(no src attribute)'}"
+
+        result += "\n" + fence_untrusted(
+            untrusted, "page title, text preview, and media inventory"
+        )
 
         return result
 
@@ -678,13 +687,16 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
         updated_at = format_date(response.get("updated_at"))
 
         if not body:
-            return f"Course front page '{title}' has no content."
+            return "The course front page has no content. Its title:\n" + fence_untrusted(
+                title, "front page title"
+            )
 
         # Try to get the course code for display
         course_display = await get_course_code(course_id) or course_identifier
+        # Title and body are both page-author-controlled (issue 239).
         return (
-            f"Front Page '{title}' for Course {course_display} (Updated: {updated_at}):\n\n"
-            + fence_untrusted(body, "front page body")
+            f"Front Page for Course {course_display} (Updated: {updated_at}):\n\n"
+            + fence_untrusted(f"Title: {title}\n\n{body}", "front page title and body")
         )
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))

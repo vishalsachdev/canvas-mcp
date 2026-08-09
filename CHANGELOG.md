@@ -11,24 +11,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Canvas-authored free text is now provenance-fenced before it reaches the
   model** ([issue 239](https://github.com/vishalsachdev/canvas-mcp/issues/239)).
-  Page bodies (`get_page_content`, `get_page_details`, `get_front_page`),
-  syllabus text (`get_syllabus`, `get_course_content_overview`), discussion
-  topics/entries/replies (`get_discussion_topic_details`,
-  `list_discussion_entries`, `get_discussion_entry_details`,
-  `get_discussion_with_replies`), and inbox message bodies
-  (`get_conversation_details`) are wrapped in explicit
+  Page content including titles and media inventories (`get_page_content`,
+  `get_page_details`, `get_front_page`), syllabus text (`get_syllabus`,
+  `get_course_content_overview`), discussion topics/entries/replies
+  (`get_discussion_topic_details`, `list_discussion_entries`,
+  `get_discussion_entry_details`, `get_discussion_with_replies`), and inbox
+  subjects and message bodies (`list_conversations`,
+  `get_conversation_details`) are wrapped in explicit
   `<<<UNTRUSTED CANVAS CONTENT ...>>>` markers stating the text is data, not
-  instructions. Content is otherwise unaltered (no sanitization or loss);
-  embedded marker lookalikes are degraded so fenced text cannot forge its own
-  boundary. Fencing is applied at the tool output-formatting boundary only —
-  never in the anonymization/client layer — so no fence can leak into content
-  written back to Canvas.
-- **`send_bulk_messages_from_list` is now two-step** (breaking): calling it
-  without a `confirmation_token` returns a preview (recipient count, rendered
-  sample) plus a single-use, content-bound token and sends nothing; sending
-  requires calling again with the token and identical arguments. This extends
-  the `submit_assignment` confirmation pattern to the educator side, so
-  prompt-injected content read from Canvas cannot silently trigger a bulk send.
+  instructions. Author-controlled *derived* values (page title, embedded-media
+  src/alt inventory) sit inside the fence too, not around it. Content is
+  otherwise unaltered (no sanitization or loss); embedded marker lookalikes
+  are degraded so fenced text cannot forge its own boundary. Fencing is
+  applied at the tool output-formatting boundary only — never in the
+  anonymization/client layer — so no fence can leak into content written back
+  to Canvas.
+- **All multi-recipient message sends are now two-step** (breaking):
+  `send_bulk_messages_from_list`, `send_conversation` with more than one
+  recipient, `send_peer_review_reminders`, and
+  `send_peer_review_followup_campaign` require a preview→confirm round-trip.
+  Calling without a `confirmation_token` returns a preview (recipients,
+  rendered subject/body — for the campaign, the completion analytics and who
+  gets which reminder) plus a single-use, content-bound token and sends
+  nothing; sending requires calling again with the token and identical
+  arguments. Tokens are void if anything changed in between (including the
+  campaign's completion analytics or an assignment rename that alters the
+  composed reminder). Single-recipient `send_conversation` stays a single
+  call. This extends the `submit_assignment` confirmation pattern to the
+  educator side, so prompt-injected content read from Canvas cannot silently
+  trigger a fan-out send.
+- Write tools that publish free text (`create_page`, `edit_page_content`,
+  `post_discussion_entry`, `reply_to_discussion_entry`,
+  `create_discussion_topic`, `update_discussion_topic`, `create_announcement`,
+  `send_conversation`, `send_peer_review_reminders`,
+  `send_bulk_messages_from_list`) refuse content containing the fence markers,
+  so a fenced read result cannot be round-tripped into live Canvas content.
 
 - **The npm setup wizard (`npx canvas-mcp setup`) is retired and the `canvas-mcp`
   npm package deprecated** (#249). The wizard wrote client configs pointing at
