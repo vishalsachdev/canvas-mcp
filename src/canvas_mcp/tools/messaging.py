@@ -14,6 +14,7 @@ from ..core.untrusted_content import (
     UNTRUSTED_NOTICE,
     contains_fence_markers,
     fence_untrusted,
+    fence_untrusted_fields,
 )
 from ..core.validation import validate_params
 from ..core.write_confirmation import ConfirmationGuard
@@ -956,12 +957,25 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
 
             no_reviews = completion_groups.get("none_complete", [])
             partial_reviews = completion_groups.get("partial_complete", [])
+            # IDs come from the RAW analytics — send logic must not read a
+            # fenced value. The DISPLAY copy returned to the model has its
+            # author-controlled student names fenced (issue 239): with
+            # anonymization off, a hostile display name sitting next to the
+            # confirmation token could otherwise instruct the model to redeem it.
             urgent_ids = [str(student["student_id"]) for student in no_reviews]
             partial_ids = [str(student["student_id"]) for student in partial_reviews]
 
+            import copy
+            display_analytics = copy.deepcopy(analytics)
+            fence_untrusted_fields(
+                display_analytics,
+                {"student_name": "student name", "reviewee_name": "student name",
+                 "reviewer_name": "student name"},
+            )
+
             results: dict[str, Any] = {
                 "success": True,
-                "analytics": analytics,
+                "analytics": display_analytics,
                 "messaging_results": {}
             }
 
@@ -1042,7 +1056,8 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                     return {
                         "preview": True,
                         "nothing_sent": True,
-                        "analytics": analytics,
+                        # Name-fenced display copy, next to the token.
+                        "analytics": display_analytics,
                         # Full rendered text per batch — this is what the
                         # token authorizes, so this is what the educator must
                         # be shown.

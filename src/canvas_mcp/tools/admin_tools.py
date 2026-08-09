@@ -79,7 +79,7 @@ def register_admin_tools(mcp: FastMCP) -> None:
 
         for group in groups:
             group_id = group.get("id")
-            group_name = group.get("name", "Unnamed group")
+            group_name = group.get("name") or "Unnamed group"
             group_category = group.get("group_category_id", "Uncategorized")
             member_count = group.get("members_count", 0)
 
@@ -105,8 +105,10 @@ def register_admin_tools(mcp: FastMCP) -> None:
                 output += "Members:\n"
                 for member in members:
                     member_id = member.get("id")
-                    member_name = member.get("name", "Unnamed user")
-                    member_email = member.get("email", "No email")
+                    # `or fallback` (not the get default) — Canvas sends an
+                    # explicit null email for accounts with no visible address.
+                    member_name = member.get("name") or "Unnamed user"
+                    member_email = member.get("email") or "No email"
                     output += (
                         f"  - {fence_untrusted_inline(member_name, 'user name')} "
                         f"(ID: {member_id}, Email: {fence_untrusted_inline(member_email, 'user email')})\n"
@@ -142,8 +144,10 @@ def register_admin_tools(mcp: FastMCP) -> None:
         users_info = []
         for user in users:
             user_id = user.get("id")
-            name = user.get("name", "Unknown")
-            email = user.get("email", "No email")
+            # `or fallback` — Canvas sends an explicit null email for accounts
+            # with no visible address; the get default only covers a missing key.
+            name = user.get("name") or "Unknown"
+            email = user.get("email") or "No email"
 
             # Get enrollment info
             enrollments = user.get("enrollments", [])
