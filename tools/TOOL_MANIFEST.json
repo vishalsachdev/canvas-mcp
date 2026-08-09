@@ -2349,7 +2349,7 @@
     {
       "name": "send_bulk_messages_from_list",
       "category": "educator",
-      "description": "Send customized messages to multiple recipients using templates.",
+      "description": "Send customized messages to multiple recipients using templates. Two-step: call without confirmation_token for a preview + token, then call again with the token and identical arguments to send.",
       "parameters": [
         {
           "name": "course_identifier",
@@ -2387,9 +2387,15 @@
           "required": false,
           "default": "sync",
           "description": "\"sync\" or \"async\""
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Single-use token from the preview call; omit to preview without sending"
         }
       ],
-      "returns": "Per-recipient success/failure summary of sent messages",
+      "returns": "Without confirmation_token: a preview (recipient count, rendered sample, token) and nothing sent. With a valid token: per-recipient success/failure summary of sent messages",
       "examples": [
         "Send this templated reminder to these 12 students"
       ]

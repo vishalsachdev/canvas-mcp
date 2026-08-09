@@ -874,6 +874,13 @@ Automated peer review reminder workflow.
 #### `send_bulk_messages_from_list`
 Send customized messages to multiple recipients using templates with per-recipient variables.
 
+**Two-step by design.** Call it without a `confirmation_token` to get a preview
+(recipient count, rendered sample message) plus a single-use token; show the
+preview to the educator, then call again with the token and identical arguments
+to actually send. The token expires after a few minutes and is void if any
+argument changed since the preview. This prevents content read from Canvas
+(e.g. a student-authored message) from silently triggering a bulk send.
+
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `recipient_data`: List of dicts with recipient info and template variables
@@ -881,13 +888,15 @@ Send customized messages to multiple recipients using templates with per-recipie
 - `body_template`: Body with placeholders (e.g., `"Hi {name}, you have {missing_count}..."`)
 - `context_code` (optional): Course context
 - `mode` (optional): `sync` (default) or `async`
+- `confirmation_token` (optional): Token from the preview call; omit to preview
 
 **Example:**
 ```
 "Send this templated reminder to these 12 students"
 ```
 
-**Returns:** Per-recipient success/failure summary of sent messages.
+**Returns:** Without a token: a preview with `confirmation_token` (nothing sent).
+With a valid token: per-recipient success/failure summary of sent messages.
 
 ---
 

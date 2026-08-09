@@ -17,6 +17,7 @@ from ..core.cache import (
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.config import get_config
 from ..core.dates import format_date
+from ..core.untrusted_content import fence_untrusted
 from ..core.validation import validate_params
 from .self_identity import _own_roles
 
@@ -316,13 +317,21 @@ def register_course_tools(mcp: FastMCP) -> None:
         labeled = fmt == "both"
         sections = [f"Syllabus for Course {course_display}:"]
 
+        # Syllabus bodies are course-authored free text (issue 239): fence them
+        # so embedded directives arrive marked as data, not instructions.
         if fmt in ("text", "both"):
             plain_text = _maybe_truncate(strip_html_tags(syllabus_body))
-            sections.append(("\n--- Plain Text ---\n" if labeled else "\n") + plain_text)
+            sections.append(
+                ("\n--- Plain Text ---\n" if labeled else "\n")
+                + fence_untrusted(plain_text, "course syllabus")
+            )
 
         if fmt in ("html", "both"):
             raw_html = _maybe_truncate(syllabus_body)
-            sections.append(("\n--- Raw HTML ---\n" if labeled else "\n") + raw_html)
+            sections.append(
+                ("\n--- Raw HTML ---\n" if labeled else "\n")
+                + fence_untrusted(raw_html, "course syllabus")
+            )
 
         return "\n".join(sections)
 
@@ -441,10 +450,13 @@ def register_course_tools(mcp: FastMCP) -> None:
                     if len(clean_syllabus) > 1000:
                         clean_syllabus = clean_syllabus[:1000] + "..."
 
+                    indented = "\n".join(
+                        [f"  {line}" for line in clean_syllabus.split('\n') if line.strip()]
+                    )
                     syllabus_summary = [
                         "\nSyllabus Content:",
-                        # Indent the content
-                        "\n".join([f"  {line}" for line in clean_syllabus.split('\n') if line.strip()])
+                        # Course-authored free text (issue 239): fence it.
+                        fence_untrusted(indented, "course syllabus (preview)")
                     ]
 
                     overview_sections.append("\n".join(syllabus_summary))
@@ -547,8 +559,13 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
         course_display = await get_course_code(course_id) or course_identifier
         status = "Published" if published else "Unpublished"
 
+        # The body is course-authored HTML flowing verbatim into model context
+        # — the surface issue 239 was filed on. Fence it (provenance marking,
+        # no content loss). The media inventory is derived from the raw body
+        # BEFORE fencing, so spoof-neutralization can never alter what it sees.
         return (
-            f"Page Content for '{title}' in Course {course_display} ({status}):\n\n{body}"
+            f"Page Content for '{title}' in Course {course_display} ({status}):\n\n"
+            + fence_untrusted(body, "page body")
             + format_media_inventory(extract_embedded_media(body))
         )
 
@@ -626,7 +643,10 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
         result += f"Updated: {updated_at}\n"
         result += f"Last Edited By: {editor_name}\n"
         result += f"Editing Roles: {editing_roles or 'Not specified'}\n"
-        result += f"\nContent Preview (text only, truncated):\n{body_clean}"
+        result += (
+            "\nContent Preview (text only, truncated):\n"
+            f"{fence_untrusted(body_clean, 'page body (text preview)')}"
+        )
 
         if media:
             result += (
@@ -662,7 +682,10 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
 
         # Try to get the course code for display
         course_display = await get_course_code(course_id) or course_identifier
-        return f"Front Page '{title}' for Course {course_display} (Updated: {updated_at}):\n\n{body}"
+        return (
+            f"Front Page '{title}' for Course {course_display} (Updated: {updated_at}):\n\n"
+            + fence_untrusted(body, "front page body")
+        )
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params

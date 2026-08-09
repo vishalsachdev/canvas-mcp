@@ -11,6 +11,11 @@ from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, parse_date, truncate_text
 from ..core.logging import log_warning
+from ..core.untrusted_content import (
+    FENCE_LEAK_ERROR,
+    contains_fence_markers,
+    fence_untrusted,
+)
 from ..core.validation import validate_params
 from ..core.write_confirmation import unconfirmed_write_warning
 
@@ -198,7 +203,9 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         result += f"Read State: {read_state.title()}\n"
 
         if message:
-            result += f"\nContent:\n{message}"
+            # Topic bodies are third-party text (issue 239): mark provenance
+            # so embedded directives read as data, not instructions.
+            result += f"\nContent:\n{fence_untrusted(message, 'discussion topic body')}"
 
         return result
 
@@ -375,7 +382,10 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                         else:
                             reply_clean = "[No content]"
 
-                        replies_info += f"    {i}. {reply_user} ({reply_created}): {reply_clean}\n"
+                        replies_info += (
+                            f"    {i}. {reply_user} ({reply_created}): "
+                            f"{fence_untrusted(reply_clean, 'discussion reply by a course participant')}\n"
+                        )
                 else:
                     replies_info = "\n  No replies found.\n"
             else:
@@ -397,10 +407,15 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             entry_info += f"Author: {user_name} (ID: {user_id})\n"
             entry_info += f"Posted: {created_at}{replies_info}\n"
 
+            # Entry bodies are student-authored (issue 239): fence them so the
+            # model reads them as data with visible provenance.
+            fenced_message = fence_untrusted(
+                message_display, "discussion entry by a course participant"
+            )
             if include_full_content:
-                entry_info += f"Full Content:\n{message_display}\n"
+                entry_info += f"Full Content:\n{fenced_message}\n"
             else:
-                entry_info += f"Content Preview: {message_display}\n"
+                entry_info += f"Content Preview:\n{fenced_message}\n"
 
             entries_info.append(entry_info)
 
@@ -553,7 +568,13 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             result += f"Updated: {updated_at}\n"
 
         result += f"Read State: {read_state.title()}\n"
-        result += f"\nContent:\n{message}\n"
+        # Student-authored, returned raw, and post_discussion_entry lives in
+        # the same shared toolset — the highest-risk read→write loop in the
+        # issue-239 audit. Provenance must be explicit.
+        result += (
+            "\nContent:\n"
+            f"{fence_untrusted(message, 'discussion entry by a course participant')}\n"
+        )
 
         # Format replies
         if include_replies:
@@ -571,7 +592,10 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                     result += f"Reply ID: {reply_id}\n"
                     result += f"Author: {reply_user_name}\n"
                     result += f"Posted: {reply_created_at}\n"
-                    result += f"Content:\n{reply_message}\n"
+                    result += (
+                        "Content:\n"
+                        f"{fence_untrusted(reply_message, 'discussion reply by a course participant')}\n"
+                    )
             else:
                 result += "\nNo replies found for this entry."
         else:
@@ -635,7 +659,10 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
             result += f"📝 Entry {entry_id} by {user_name}\n"
             result += f"   Posted: {created_at}\n"
-            result += f"   Content: {message_preview}\n"
+            result += (
+                "   Content: "
+                f"{fence_untrusted(message_preview, 'discussion entry by a course participant')}\n"
+            )
 
             # Handle replies
             if include_replies:
@@ -683,7 +710,10 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                         else:
                             reply_preview = "[No content]"
 
-                        result += f"      └─ Reply {i} by {reply_user} ({reply_created}): {reply_preview}\n"
+                        result += (
+                            f"      └─ Reply {i} by {reply_user} ({reply_created}): "
+                            f"{fence_untrusted(reply_preview, 'discussion reply by a course participant')}\n"
+                        )
                 else:
                     recent_count = len(entry.get("recent_replies", []))
                     has_more = entry.get("has_more_replies", False)
@@ -719,6 +749,10 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             topic_id: Discussion topic ID
             message: Entry message content
         """
+        # Backstop for issue 239: never publish our provenance fence markers.
+        if contains_fence_markers(message):
+            return FENCE_LEAK_ERROR
+
         course_id = await get_course_id(course_identifier)
 
         # Prepare the entry data
@@ -775,6 +809,10 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             entry_id: Discussion entry ID to reply to
             message: Reply message content
         """
+        # Backstop for issue 239: never publish our provenance fence markers.
+        if contains_fence_markers(message):
+            return FENCE_LEAK_ERROR
+
         course_id = await get_course_id(course_identifier)
 
         # Ensure IDs are strings

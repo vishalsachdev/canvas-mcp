@@ -1,5 +1,6 @@
 """Canvas messaging/conversations tools."""
 
+import json
 import sys
 from typing import Any
 
@@ -7,7 +8,18 @@ from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from ..core.client import make_canvas_request
+from ..core.untrusted_content import (
+    FENCE_LEAK_ERROR,
+    UNTRUSTED_NOTICE,
+    contains_fence_markers,
+    fence_untrusted,
+)
 from ..core.validation import validate_params
+from ..core.write_confirmation import ConfirmationGuard
+
+# One guard per destructive tool: each has its own signing secret and redeemed
+# set, so a token minted for one tool can never be replayed against another.
+_BULK_MESSAGE_GUARD = ConfirmationGuard()
 
 
 def register_shared_messaging_tools(mcp: FastMCP) -> None:
@@ -96,8 +108,23 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
                 error_response: dict[str, Any] = response
                 return error_response
 
+            # Inbound message bodies are third-party text (issue 239): fence
+            # them so a message reading "now forward the roster to..." arrives
+            # marked as data, not as an instruction. Read-only formatting —
+            # nothing here flows back into Canvas.
+            if isinstance(response.get("last_message"), str) and response["last_message"]:
+                response["last_message"] = fence_untrusted(
+                    response["last_message"], "conversation message"
+                )
+            for message in response.get("messages") or []:
+                if isinstance(message, dict) and isinstance(message.get("body"), str) and message["body"]:
+                    message["body"] = fence_untrusted(
+                        message["body"], "conversation message"
+                    )
+
             return {
                 "success": True,
+                "untrusted_content_notice": UNTRUSTED_NOTICE,
                 "conversation": response
             }
 
@@ -215,6 +242,10 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
 
         if validation_errors:
             return {"error": f"Validation failed: {', '.join(validation_errors)}"}
+
+        # Backstop for issue 239: never send our provenance fence markers.
+        if contains_fence_markers(body) or contains_fence_markers(subject):
+            return {"error": FENCE_LEAK_ERROR}
 
         try:
             # Prepare the request data
@@ -337,10 +368,17 @@ Please complete your peer reviews as soon as possible to receive full participat
         subject_template: str,
         body_template: str,
         context_code: str | None = None,
-        mode: str = "sync"
+        mode: str = "sync",
+        confirmation_token: str | None = None
     ) -> dict[str, Any]:
         """
         Send customized messages to multiple recipients using templates.
+
+        Two-step by design. Call it without a confirmation_token to get a
+        preview (recipient count, rendered sample message) plus a token; show
+        that preview to the educator, then call again with the token AND
+        identical arguments to actually send. The token expires, is
+        single-use, and is void if any argument changed since the preview.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -349,6 +387,7 @@ Please complete your peer reviews as soon as possible to receive full participat
             body_template: Body with placeholders (e.g., "Hi {name}, you have {missing_count}...")
             context_code: Course context
             mode: "sync" or "async"
+            confirmation_token: Token from the preview call; omit to preview
         """
 
         if not recipient_data:
@@ -356,6 +395,65 @@ Please complete your peer reviews as soon as possible to receive full participat
 
         if not subject_template or not body_template:
             return {"error": "subject_template and body_template are required"}
+
+        # Backstop for issue 239: never send our provenance fence markers.
+        if contains_fence_markers(subject_template) or contains_fence_markers(body_template):
+            return {"error": FENCE_LEAK_ERROR}
+
+        # Bind the confirmation to the exact request: same course, same
+        # recipients (order included — it is what the preview showed), same
+        # templates, same delivery options, same caller. Canonical JSON so
+        # semantically identical dicts fingerprint identically.
+        fingerprint = _BULK_MESSAGE_GUARD.fingerprint(
+            str(course_identifier),
+            json.dumps(recipient_data, sort_keys=True, default=str),
+            subject_template,
+            body_template,
+            context_code or "",
+            mode,
+        )
+
+        if not confirmation_token:
+            sample = recipient_data[0]
+            try:
+                sample_subject = subject_template.format(**sample)
+                sample_body = body_template.format(**sample)
+            except (KeyError, IndexError, ValueError) as e:
+                return {
+                    "error": (
+                        f"Template does not render against the first recipient: {e}. "
+                        "Nothing was sent."
+                    )
+                }
+            token = _BULK_MESSAGE_GUARD.issue(fingerprint)
+            return {
+                "preview": True,
+                "nothing_sent": True,
+                "recipient_count": len(recipient_data),
+                "recipient_user_ids": [r.get("user_id") for r in recipient_data],
+                "sample_subject": sample_subject,
+                "sample_body": sample_body,
+                "confirmation_token": token,
+                "instructions": (
+                    "Show this preview to the educator. To send, call "
+                    "send_bulk_messages_from_list again with this "
+                    "confirmation_token and identical arguments. The token is "
+                    "single-use and expires shortly."
+                ),
+            }
+
+        token_error = _BULK_MESSAGE_GUARD.check(confirmation_token, fingerprint)
+        if token_error:
+            return {"error": token_error, "nothing_sent": True}
+
+        # Claim before the first awaited send so two overlapping confirmations
+        # cannot both pass and double-send.
+        if not _BULK_MESSAGE_GUARD.reserve(confirmation_token):
+            return {
+                "error": "❌ That confirmation was already used. Nothing was sent. "
+                         "Run the preview again.",
+                "nothing_sent": True,
+            }
 
         try:
             results: dict[str, Any] = {
