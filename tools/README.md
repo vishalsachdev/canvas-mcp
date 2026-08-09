@@ -789,9 +789,10 @@ Get a prioritized list of students needing follow-up on peer review completion.
 Complete workflow: analyze peer review completion and send targeted reminders.
 
 **Two-step by design.** Call it without a `confirmation_token` to get the
-analytics plus a plan of who receives urgent vs gentle reminders and a
-single-use token; call again with the token to send. The token is void if the
-completion analytics shifted in between.
+analytics plus the fully rendered subject/body of each reminder batch (urgent
+vs gentle) and a single-use token; call again with the token to send. The
+token commits to the recipients AND the rendered text, so it is void if the
+completion analytics shifted or the assignment was renamed in between.
 
 **Parameters:**
 - `course_identifier`: Course code or ID

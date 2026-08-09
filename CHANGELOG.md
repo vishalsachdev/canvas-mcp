@@ -42,9 +42,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`course_*`/`group_*`) fan out server-side and are treated as
   multi-recipient. The bulk preview renders **every** outbound message (not
   a sample), and rows with invalid or alias user IDs fail the preview before
-  a token is issued. Confirmation claims are only released on provable
-  Canvas rejections; ambiguous transport failures (e.g. a timeout after
-  Canvas accepted the POST) retain the claim so a retry cannot double-send.
+  a token is issued. The campaign previews the full rendered subject/body of
+  every batch and its token commits to that text, so an assignment rename
+  between preview and confirm voids the token. Confirmation claims are only
+  released on provable rejections (4xx validation/auth statuses: 400, 401,
+  403, 404, 422, or pre-flight validation); timeouts, 408/409/429, and all
+  5xx are treated as ambiguous — the POST may have been processed — so the
+  claim stays spent and a retry cannot double-send. Shared outbound
+  validation (subject length, mode, marker check) is enforced at the
+  conversation-POST choke point, so no composed path can route around it.
   This extends the `submit_assignment` confirmation pattern to the educator
   side, so prompt-injected content read from Canvas cannot silently trigger
   a fan-out send.

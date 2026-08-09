@@ -86,35 +86,82 @@ def _render_bulk_messages(
         try:
             subject = subject_template.format(**recipient)
             body = body_template.format(**recipient)
-        except (KeyError, IndexError, ValueError) as e:
+        except (KeyError, IndexError, AttributeError, TypeError, ValueError) as e:
+            # AttributeError/TypeError cover format-spec shapes like
+            # "{name.foo}" / "{name[foo]}" — a poisoned row must become an
+            # invalid-record entry, not an unhandled exception that fails the
+            # whole call.
             errors.append({
                 "index": index,
                 "recipient": recipient,
                 "error": f"template does not render against this recipient: {e}",
             })
             continue
-        if contains_fence_markers(subject) or contains_fence_markers(body):
+        # The same validation the send choke point enforces — a row that
+        # would be rejected at confirm time must fail the preview instead.
+        row_error = _validate_outbound_message([str(user_id)], subject, body, "sync")
+        if row_error:
             errors.append({
                 "index": index,
                 "recipient": recipient,
-                "error": FENCE_LEAK_ERROR,
+                "error": row_error,
             })
             continue
         rendered.append({"user_id": str(user_id), "subject": subject, "body": body})
     return rendered, errors
 
 
+# Statuses that prove the request was REJECTED before any write: client-side
+# validation/auth failures. Deliberately excludes 408 (timeout — the server
+# may have processed it), 409, 429, and every 5xx (the failure can occur
+# after the write, or a proxy can emit it while Canvas succeeded).
+_NO_WRITE_STATUSES = frozenset({400, 401, 403, 404, 422})
+_HTTP_ERROR_STATUS = re.compile(r"^HTTP error: (\d+)")
+
+
 def _definitely_not_sent(error_message: str) -> bool:
-    """True only when the error PROVES Canvas rejected the request outright.
+    """True only when the error PROVES no write occurred.
 
     ``make_canvas_request`` folds transport exceptions (e.g. a read timeout
     AFTER Canvas accepted the POST) into the same error-dict shape as real
-    rejections. Releasing a confirmation claim on an ambiguous failure would
-    let a retry double-send the batch, so a claim is only handed back for
-    errors that carry a Canvas HTTP status — meaning Canvas answered and
-    refused — or that failed our own pre-flight validation before any I/O.
+    rejections, and even an HTTP status is only proof for the validation/auth
+    class — a 500 or gateway 502/504 can arrive after the POST was processed.
+    Releasing a confirmation claim on an ambiguous failure would let a retry
+    double-send the batch, so a claim is only handed back for provable
+    rejections and our own pre-flight validation (which runs before any I/O).
+    Everything else keeps the token spent.
     """
-    return error_message.startswith("HTTP error:") or error_message.startswith("Invalid endpoint")
+    if error_message.startswith("Invalid endpoint"):
+        return True
+    match = _HTTP_ERROR_STATUS.match(error_message)
+    return match is not None and int(match.group(1)) in _NO_WRITE_STATUSES
+
+
+def _validate_outbound_message(
+    recipient_ids: list[str], subject: str, body: str, mode: str
+) -> str | None:
+    """Shared validation for every outbound conversation. Error text, or None.
+
+    This is the single authority: the ``send_conversation`` tool calls it for
+    a friendly pre-preview error, and ``_post_conversation`` enforces it as a
+    choke point so no composed path (bulk, reminders, campaign) can POST an
+    invalid or marker-carrying message.
+    """
+    if not recipient_ids:
+        return "recipient_ids cannot be empty"
+    if not subject or len(subject) > 255:
+        return "subject is required and must be 255 characters or less"
+    if not body:
+        return "body is required"
+    if mode not in ("sync", "async"):
+        return "mode must be 'sync' or 'async'"
+    # Backstop for issue 239: composed text can pick up markers from
+    # Canvas-authored inputs (e.g. an assignment name inside a reminder
+    # subject), so the final outbound text is checked regardless of which
+    # tool assembled it.
+    if contains_fence_markers(subject) or contains_fence_markers(body):
+        return FENCE_LEAK_ERROR
+    return None
 
 
 async def _post_conversation(
@@ -129,13 +176,15 @@ async def _post_conversation(
     force_new: bool,
     attachment_ids: list[str] | None,
 ) -> dict[str, Any]:
-    """POST one /conversations request. Callers enforce all confirmation gates."""
-    # Choke-point backstop for issue 239: composed text can pick up markers
-    # from Canvas-authored inputs (e.g. an assignment name inside a reminder
-    # subject), so the final outbound text is checked here regardless of
-    # which tool assembled it.
-    if contains_fence_markers(subject) or contains_fence_markers(body):
-        return {"error": FENCE_LEAK_ERROR}
+    """POST one /conversations request. Callers enforce all confirmation gates.
+
+    Parameter validation lives HERE, not only in the ``send_conversation``
+    tool wrapper, so the bulk/reminder/campaign paths cannot route around it
+    with an over-long subject or a bogus mode.
+    """
+    error = _validate_outbound_message(recipient_ids, subject, body, mode)
+    if error:
+        return {"error": error}
 
     data: dict[str, Any] = {
         "recipients[]": recipient_ids,
@@ -207,34 +256,6 @@ Please complete your peer reviews as soon as possible to receive full participat
     return subject, body
 
 
-async def _send_reminders(
-    course_identifier: str | int,
-    assignment_id: str | int,
-    recipient_ids: list[str],
-    custom_message: str | None,
-    include_assignment_link: bool,
-    subject_prefix: str,
-) -> dict[str, Any]:
-    """Compose and send one reminder batch. Callers enforce confirmation gates."""
-    composed = await _compose_reminder(
-        course_identifier, assignment_id, custom_message,
-        include_assignment_link, subject_prefix,
-    )
-    if isinstance(composed, dict):
-        return composed
-    subject, body = composed
-    return await _post_conversation(
-        course_identifier,
-        recipient_ids,
-        subject,
-        body,
-        group_conversation=True,
-        bulk_message=True,
-        context_code=f"course_{course_identifier}",
-        mode="sync",
-        force_new=False,
-        attachment_ids=None,
-    )
 
 
 def register_shared_messaging_tools(mcp: FastMCP) -> None:
@@ -449,26 +470,11 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
         """
 
         # Validate parameters
-        validation_errors = []
-
-        if not recipient_ids:
-            validation_errors.append("recipient_ids cannot be empty")
-
-        if not subject or len(subject) > 255:
-            validation_errors.append("subject is required and must be 255 characters or less")
-
-        if not body:
-            validation_errors.append("body is required")
-
-        if mode not in ["sync", "async"]:
-            validation_errors.append("mode must be 'sync' or 'async'")
-
-        if validation_errors:
-            return {"error": f"Validation failed: {', '.join(validation_errors)}"}
-
-        # Backstop for issue 239: never send our provenance fence markers.
-        if contains_fence_markers(body) or contains_fence_markers(subject):
-            return {"error": FENCE_LEAK_ERROR}
+        # Shared validation — _post_conversation re-runs the same check as a
+        # choke point; running it here too fails fast before any preview.
+        validation_error = _validate_outbound_message(recipient_ids, subject, body, mode)
+        if validation_error:
+            return {"error": validation_error}
 
         # Fan-out sends require the preview→confirm two-step (issue 239): a
         # prompt-injected model must not be able to message a list without a
@@ -499,6 +505,7 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                     "subject": subject,
                     "body": body,
                     "attachment_ids": attachment_ids or [],
+                    "context_code": context_code or f"course_{course_identifier}",
                     "group_conversation": group_conversation,
                     "bulk_message": bulk_message,
                     "mode": mode,
@@ -597,12 +604,16 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                 return composed
             subject, body = composed
 
-            # The COMPOSED text can carry markers from inputs the
-            # custom_message check never sees — subject_prefix, and the
-            # assignment NAME, which is Canvas-authored. Check the final
-            # subject and body, not just the pieces.
-            if contains_fence_markers(subject) or contains_fence_markers(body):
-                return {"error": FENCE_LEAK_ERROR}
+            # The COMPOSED text can carry markers (or an over-length subject)
+            # from inputs the custom_message check never sees —
+            # subject_prefix, and the assignment NAME, which is
+            # Canvas-authored. Validate the final subject and body before any
+            # token exists, not just the pieces.
+            composed_error = _validate_outbound_message(
+                recipient_ids, subject, body, "sync"
+            )
+            if composed_error:
+                return {"error": composed_error}
 
             # The fingerprint covers the COMPOSED text, so an assignment
             # rename (which changes the subject/body) between preview and
@@ -890,33 +901,79 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                 "messaging_results": {}
             }
 
-            # The confirmation commits to WHO gets messaged. If the
-            # completion picture shifts between preview and confirm (someone
-            # finishes their reviews), the fingerprint changes and the token
-            # is void rather than messaging people the educator never saw.
-            if no_reviews or partial_reviews:
+            # Compose every batch's outbound text NOW, at preview time. The
+            # subject and body pick up the assignment's current name and URL,
+            # so a rename between preview and confirm must void the token —
+            # fingerprinting only the recipient groups would let content the
+            # educator never saw go out.
+            batch_specs = []
+            if no_reviews:
+                batch_specs.append((
+                    "urgent",
+                    urgent_ids,
+                    "URGENT: You have not completed any peer reviews for this assignment. Please complete them as soon as possible to avoid late penalties.",
+                    "URGENT: Peer Review",
+                ))
+            if partial_reviews:
+                batch_specs.append((
+                    "partial",
+                    partial_ids,
+                    "You're almost done! Please complete your remaining peer review to receive full participation credit.",
+                    "Reminder: Complete Peer Review",
+                ))
+
+            composed_batches: list[dict[str, Any]] = []
+            for label, ids, message, prefix in batch_specs:
+                composed = await _compose_reminder(
+                    course_identifier, assignment_id, message, True, prefix
+                )
+                if isinstance(composed, dict):
+                    return composed
+                subject, body = composed
+                batch_error = _validate_outbound_message(ids, subject, body, "sync")
+                if batch_error:
+                    return {"error": batch_error, "nothing_sent": True}
+                composed_batches.append({
+                    "label": label,
+                    "recipient_ids": ids,
+                    "subject": subject,
+                    "body": body,
+                })
+
+            # The confirmation commits to WHO gets messaged AND the exact
+            # rendered text of every batch. A completion shift or an
+            # assignment rename in between changes the fingerprint and voids
+            # the token.
+            if composed_batches:
                 fingerprint = _CAMPAIGN_GUARD.fingerprint(
                     str(course_identifier),
                     str(assignment_id),
                     json.dumps(sorted(urgent_ids)),
                     json.dumps(sorted(partial_ids)),
+                    *[
+                        part
+                        for batch in composed_batches
+                        for part in (batch["label"], batch["subject"], batch["body"])
+                    ],
                 )
                 if not confirmation_token:
                     return {
                         "preview": True,
                         "nothing_sent": True,
                         "analytics": analytics,
-                        "planned_reminders": {
-                            "urgent": urgent_ids,
-                            "partial": partial_ids,
-                        },
+                        # Full rendered text per batch — this is what the
+                        # token authorizes, so this is what the educator must
+                        # be shown.
+                        "planned_reminders": composed_batches,
                         "confirmation_token": _CAMPAIGN_GUARD.issue(fingerprint),
                         "instructions": (
-                            "Show this plan to the educator. To send the "
-                            "reminders, call send_peer_review_followup_campaign "
+                            "Show this plan — recipients AND the rendered "
+                            "message of every batch — to the educator. To "
+                            "send, call send_peer_review_followup_campaign "
                             "again with this confirmation_token. The token is "
                             "single-use, expires shortly, and is void if the "
-                            "completion analytics changed."
+                            "completion analytics or the composed messages "
+                            "changed."
                         ),
                     }
                 token_error = _CAMPAIGN_GUARD.check(confirmation_token, fingerprint)
@@ -929,31 +986,22 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                         "nothing_sent": True,
                     }
 
-            # Send urgent reminders to students with no reviews. Goes through
-            # the internal helper — the campaign's own confirmation above is
-            # the gate, so the per-tool guards are not re-run here.
-            if no_reviews:
-                urgent_result = await _send_reminders(
+            # Send using the EXACT text just fingerprinted — no recomposition
+            # between the token check and the POST.
+            for batch in composed_batches:
+                batch_result = await _post_conversation(
                     course_identifier,
-                    assignment_id,
-                    urgent_ids,
-                    custom_message="URGENT: You have not completed any peer reviews for this assignment. Please complete them as soon as possible to avoid late penalties.",
-                    include_assignment_link=True,
-                    subject_prefix="URGENT: Peer Review"
+                    batch["recipient_ids"],
+                    batch["subject"],
+                    batch["body"],
+                    group_conversation=True,
+                    bulk_message=True,
+                    context_code=f"course_{course_identifier}",
+                    mode="sync",
+                    force_new=False,
+                    attachment_ids=None,
                 )
-                results["messaging_results"]["urgent"] = urgent_result
-
-            # Send gentle reminders to students with partial completion
-            if partial_reviews:
-                partial_result = await _send_reminders(
-                    course_identifier,
-                    assignment_id,
-                    partial_ids,
-                    custom_message="You're almost done! Please complete your remaining peer review to receive full participation credit.",
-                    include_assignment_link=True,
-                    subject_prefix="Reminder: Complete Peer Review"
-                )
-                results["messaging_results"]["partial"] = partial_result
+                results["messaging_results"][batch["label"]] = batch_result
 
             # Summary
             urgent_sent = len(results["messaging_results"].get("urgent", {}).get("sent", []))

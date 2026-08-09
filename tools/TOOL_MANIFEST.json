@@ -2409,7 +2409,7 @@
     {
       "name": "send_peer_review_followup_campaign",
       "category": "educator",
-      "description": "Complete workflow: analyze peer reviews and send targeted reminders. Two-step: preview returns the plan plus a confirmation_token; confirm with the token to send. The token is void if completion analytics shifted.",
+      "description": "Complete workflow: analyze peer reviews and send targeted reminders. Two-step: preview returns each batch's rendered subject/body plus a confirmation_token; confirm with the token to send. The token is void if completion analytics shifted or the composed messages changed.",
       "parameters": [
         {
           "name": "course_identifier",

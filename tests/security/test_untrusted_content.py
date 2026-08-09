@@ -608,6 +608,75 @@ class TestMultiRecipientSendGating:
         assert preview["group_conversation"] is False
         assert preview["bulk_message"] is False
 
+    def test_definitely_not_sent_status_classes(self):
+        """Only statuses that PROVE no write release a claim — a 5xx or 408
+        can arrive after Canvas processed the POST."""
+        from canvas_mcp.tools.messaging import _definitely_not_sent
+
+        for status in (400, 401, 403, 404, 422):
+            assert _definitely_not_sent(f"HTTP error: {status}, Details: x"), status
+        for status in (408, 409, 429, 500, 502, 503, 504):
+            assert not _definitely_not_sent(f"HTTP error: {status}, Details: x"), status
+        assert not _definitely_not_sent("Request failed: ReadTimeout")
+        assert not _definitely_not_sent("Max retries exceeded")
+        assert not _definitely_not_sent("HTTP error: banana")
+        assert _definitely_not_sent("Invalid endpoint: '?' is not allowed in a request path")
+
+    @pytest.mark.asyncio
+    async def test_server_error_keeps_the_claim(self):
+        """A 500 is ambiguous — the POST may have been processed."""
+        with patch(
+            "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
+        ) as mock_request:
+            tool = self._tool("send_conversation")
+            preview = await tool("CS101", ["101", "102"], "Hi", "Body")
+            token = preview["confirmation_token"]
+
+            mock_request.return_value = {"error": "HTTP error: 500, Details: boom"}
+            first = await tool("CS101", ["101", "102"], "Hi", "Body",
+                               confirmation_token=token)
+            second = await tool("CS101", ["101", "102"], "Hi", "Body",
+                                confirmation_token=token)
+
+        assert "error" in first
+        assert "already used" in second["error"]
+
+    @pytest.mark.asyncio
+    async def test_post_conversation_validates_parameters(self):
+        """The choke point rejects what the tool wrapper would have — no
+        composed path can route around validation."""
+        from canvas_mcp.tools.messaging import _post_conversation
+
+        with patch(
+            "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
+        ) as mock_request:
+            bad_mode = await _post_conversation(
+                "CS101", ["101"], "Hi", "Body",
+                group_conversation=False, bulk_message=False,
+                context_code=None, mode="bogus", force_new=False,
+                attachment_ids=None,
+            )
+            long_subject = await _post_conversation(
+                "CS101", ["101"], "s" * 256, "Body",
+                group_conversation=False, bulk_message=False,
+                context_code=None, mode="sync", force_new=False,
+                attachment_ids=None,
+            )
+
+        mock_request.assert_not_called()
+        assert "mode" in bad_mode["error"]
+        assert "255" in long_subject["error"]
+
+    @pytest.mark.asyncio
+    async def test_preview_shows_effective_context_code(self):
+        with patch(
+            "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
+        ):
+            tool = self._tool("send_conversation")
+            preview = await tool("CS101", ["101", "102"], "Hi", "Body")
+
+        assert preview["context_code"] == "course_CS101"
+
     @pytest.mark.asyncio
     async def test_ambiguous_transport_failure_keeps_the_claim(self):
         """A timeout can land AFTER Canvas accepted the POST — the claim must
@@ -699,16 +768,21 @@ class TestMultiRecipientSendGating:
         ) as mock_request:
             mock_analytics.return_value = analytics
             mock_course_id.return_value = "12345"
+            mock_request.return_value = assignment  # GETs (compose); POSTs same dict
             tool = self._tool("send_peer_review_followup_campaign")
 
             preview = await tool("CS101", 42)
-            mock_request.assert_not_called()
+            # Preview composes (GETs the assignment) but never POSTs.
+            assert all(c.args[0] == "get" for c in mock_request.await_args_list)
             assert preview["preview"] is True
-            assert preview["planned_reminders"] == {
-                "urgent": ["101"], "partial": ["102"],
-            }
+            # The full rendered text of every batch is shown, not just IDs.
+            assert [b["label"] for b in preview["planned_reminders"]] == ["urgent", "partial"]
+            assert preview["planned_reminders"][0]["recipient_ids"] == ["101"]
+            assert preview["planned_reminders"][1]["recipient_ids"] == ["102"]
+            for batch in preview["planned_reminders"]:
+                assert "Essay 1" in batch["subject"]
+                assert batch["body"]
 
-            mock_request.return_value = assignment  # GETs; POSTs get same dict
             result = await tool(
                 "CS101", 42, confirmation_token=preview["confirmation_token"]
             )
@@ -741,6 +815,7 @@ class TestMultiRecipientSendGating:
             "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
         ) as mock_request:
             mock_course_id.return_value = "12345"
+            mock_request.return_value = {"name": "Essay 1", "html_url": ""}
             tool = self._tool("send_peer_review_followup_campaign")
 
             mock_analytics.return_value = first
@@ -751,7 +826,44 @@ class TestMultiRecipientSendGating:
                 "CS101", 42, confirmation_token=preview["confirmation_token"]
             )
 
-        mock_request.assert_not_called()
+        # Compose GETs happen, but nothing is ever POSTed.
+        assert all(c.args[0] == "get" for c in mock_request.await_args_list)
+        assert "error" in result
+        assert result["nothing_sent"] is True
+
+    @pytest.mark.asyncio
+    async def test_campaign_token_void_if_assignment_renamed(self):
+        """The token commits to the rendered text, not just the recipient
+        groups — an assignment rename between preview and confirm must void
+        it rather than send content the educator never saw."""
+        analytics = {
+            "completion_groups": {
+                "none_complete": [{"student_id": 101}],
+                "partial_complete": [],
+            }
+        }
+
+        with patch(
+            "canvas_mcp.core.peer_reviews.PeerReviewAnalyzer.get_completion_analytics",
+            new_callable=AsyncMock,
+        ) as mock_analytics, patch(
+            "canvas_mcp.core.cache.get_course_id", new_callable=AsyncMock
+        ) as mock_course_id, patch(
+            "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_analytics.return_value = analytics
+            mock_course_id.return_value = "12345"
+            tool = self._tool("send_peer_review_followup_campaign")
+
+            mock_request.return_value = {"name": "Essay 1", "html_url": ""}
+            preview = await tool("CS101", 42)
+
+            mock_request.return_value = {"name": "RENAMED Essay", "html_url": ""}
+            result = await tool(
+                "CS101", 42, confirmation_token=preview["confirmation_token"]
+            )
+
+        assert all(c.args[0] == "get" for c in mock_request.await_args_list)
         assert "error" in result
         assert result["nothing_sent"] is True
 
@@ -1063,6 +1175,38 @@ class TestBulkMessageConfirmation:
         assert result["nothing_sent"] is True
         assert result["invalid_records"][0]["index"] == 1
         assert "confirmation_token" not in result
+
+    @pytest.mark.asyncio
+    async def test_attribute_access_in_template_is_an_invalid_record(self):
+        """'{name.foo}' raises AttributeError, not KeyError — it must become
+        an invalid-record entry, never an unhandled exception."""
+        with patch(
+            "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
+        ) as mock_request:
+            tool = self._tool()
+            result = await tool(
+                "CS101", self.RECIPIENTS, "Hi {name.foo}", "Body for {name}"
+            )
+
+        mock_request.assert_not_called()
+        assert "error" in result
+        assert len(result["invalid_records"]) == 2
+        assert "confirmation_token" not in result
+
+    @pytest.mark.asyncio
+    async def test_overlong_rendered_subject_fails_the_preview(self):
+        """A row the send choke point would reject must fail preview-time
+        validation, not burn a token."""
+        rows = [{"user_id": 101, "name": "A" * 300}]
+        with patch(
+            "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
+        ) as mock_request:
+            tool = self._tool()
+            result = await tool("CS101", rows, "Hi {name}", "Body")
+
+        mock_request.assert_not_called()
+        assert "error" in result
+        assert "255" in result["invalid_records"][0]["error"]
 
     @pytest.mark.asyncio
     async def test_alias_user_id_row_fails_the_preview(self):
