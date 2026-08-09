@@ -55,6 +55,7 @@ from ..core.file_validation import (
     detect_mime_type,
     sanitize_filename,
 )
+from ..core.untrusted_content import fence_untrusted, fence_untrusted_inline
 from ..core.validation import coerce_canvas_id, validate_params
 from ..core.write_confirmation import unconfirmed_write_warning
 
@@ -664,7 +665,9 @@ def register_student_write_tools(mcp: FastMCP) -> None:
 
         assignment = submission.get("assignment") or {}
         lines = [
-            f"Submission for: {assignment.get('name', f'Assignment {assignment_id}')}",
+            # Assignment name and submission comments are author-controlled
+            # (teacher/peer feedback) — fenced (issue 239).
+            f"Submission for: {fence_untrusted_inline(assignment.get('name', f'Assignment {assignment_id}'), 'assignment name')}",
             f"Status: {submission.get('workflow_state', 'unsubmitted')}",
         ]
 
@@ -687,7 +690,15 @@ def register_student_write_tools(mcp: FastMCP) -> None:
         if comments:
             lines.append(f"\nComments ({len(comments)}):")
             for comment in comments:
-                lines.append(f"• {comment.get('comment', '')}")
+                author = comment.get("author_name")
+                prefix = (
+                    f"{fence_untrusted_inline(author, 'comment author')}: "
+                    if author else ""
+                )
+                lines.append(
+                    f"• {prefix}"
+                    f"{fence_untrusted(comment.get('comment', ''), 'submission comment')}"
+                )
 
         return "\n".join(lines)
 

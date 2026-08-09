@@ -13,7 +13,11 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, truncate_text
-from ..core.untrusted_content import fence_untrusted_inline
+from ..core.untrusted_content import (
+    FENCE_LEAK_ERROR,
+    contains_fence_markers,
+    fence_untrusted_inline,
+)
 from ..core.validation import validate_params
 from ..core.write_confirmation import unconfirmed_write_warning
 
@@ -817,6 +821,17 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                 cannot be un-sent. Never generate one that merely restates the
                 grade or narrates that grading happened.
         """
+        # Backstop for issue 239: a comment or criterion comment lifted from
+        # fenced read output would publish our provenance markers into the
+        # student-visible gradebook. Refuse before any write.
+        if contains_fence_markers(comment or ""):
+            return FENCE_LEAK_ERROR
+        for criterion in (rubric_assessment or {}).values():
+            if isinstance(criterion, dict) and contains_fence_markers(
+                str(criterion.get("comments") or "")
+            ):
+                return FENCE_LEAK_ERROR
+
         course_id = await get_course_id(course_identifier)
         assignment_id_str = str(assignment_id)
         user_id_str = str(user_id)
@@ -839,7 +854,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                     "1. Use get_rubric to verify rubric settings\n"
                     "2. Use associate_rubric with use_for_grading=True\n"
                     "3. Or configure the rubric in Canvas UI: Assignment Settings → Rubric → Use for Grading\n\n"
-                    f"Assignment: {assignment_check.get('name', 'Unknown')}\n"
+                    f"Assignment: {fence_untrusted_inline(assignment_check.get('name', 'Unknown'), 'assignment name')}\n"
                     f"Course ID: {course_id}\n"
                     f"Assignment ID: {assignment_id}\n"
                 )

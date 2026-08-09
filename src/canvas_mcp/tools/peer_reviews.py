@@ -182,11 +182,12 @@ def register_peer_review_tools(mcp: FastMCP) -> None:
                 report_md: str = result.get("report", json.dumps(result, indent=2))
                 return fence_untrusted(report_md, "peer review report (contains student names)")
             if report_format == "csv":
-                # CSV is a data-export format; wrapping would corrupt its
-                # structure. The file-save path is the intended sink (raw);
-                # the model-facing return stays raw here.
+                # The CSV embeds raw student names + comments; csv_safe_cell
+                # stops spreadsheet formulas, not prompt injection. The saved
+                # file above is raw (a data artifact); the MODEL-FACING return
+                # is wrapped in one provenance fence (issue 239).
                 report_csv: str = result.get("report", json.dumps(result, indent=2))
-                return report_csv
+                return fence_untrusted(report_csv, "peer review report CSV (contains student names)")
             else:
                 _fence_peer_review_names(result)
                 return json.dumps(result, indent=2)

@@ -1000,6 +1000,17 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
         ) -> dict[str, Any]:
             """Grade a single submission."""
             try:
+                # Backstop for issue 239: a comment lifted from fenced read
+                # output would publish our provenance markers into the
+                # student-visible gradebook. Refuse before any write (and
+                # before the dry-run echoes it).
+                if contains_fence_markers(grade_info.get("comment") or ""):
+                    return {
+                        "status": "failed",
+                        "user_id": user_id,
+                        "error": FENCE_LEAK_ERROR,
+                    }
+
                 if dry_run:
                     # In dry run mode, just validate the data.
                     # The preview MUST name any comment: it is student-visible,

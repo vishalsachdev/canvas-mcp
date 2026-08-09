@@ -84,7 +84,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (a memory-exhaustion DoS). Tokens gained a fingerprint-independent
   authenticator (so the burn-on-mismatch path can still authenticate a
   genuinely-issued token), a max-length cap, and a hard ceiling on the tracked
-  nonce set.
+  nonce set. **Behavior change: at that (generous) ceiling the guard fails
+  closed — a new confirmation is refused rather than evicting an existing
+  claim.** Evicting an unexpired used nonce would resurrect its still-signed
+  token for replay; used claims are now kept until their token naturally
+  expires. Under normal load the per-token TTL drains the set well below the
+  cap, so this is only observable under abuse.
+- Grading writers (`bulk_grade_submissions`, `grade_with_rubric`) reject
+  fenced content in grade comments and rubric criterion comments, so a comment
+  lifted from fenced read output cannot publish provenance markers into the
+  student-visible gradebook.
 - Write tools that publish free text (`create_page`, `edit_page_content`,
   `post_discussion_entry`, `reply_to_discussion_entry`,
   `create_discussion_topic`, `update_discussion_topic`, `create_announcement`,

@@ -15,7 +15,11 @@ from ..core.client import make_canvas_request
 from ..core.csv_safety import csv_safe_cell, rows_to_csv_string
 from ..core.file_validation import sanitize_filename
 from ..core.peer_review_comments import PeerReviewCommentAnalyzer
-from ..core.untrusted_content import fence_untrusted_fields, fence_untrusted_inline
+from ..core.untrusted_content import (
+    fence_untrusted,
+    fence_untrusted_fields,
+    fence_untrusted_inline,
+)
 from ..core.validation import validate_params
 
 # Author-controlled keys in the analyzer JSON (issue 239). Fenced only on the
@@ -288,13 +292,19 @@ def register_peer_review_comment_tools(mcp: FastMCP) -> None:
                 else:
                     # Return CSV as string. Built with the stdlib writer rather
                     # than f-string concatenation, which mis-quotes any comment
-                    # containing a comma or a newline.
-                    return rows_to_csv_string(
+                    # containing a comma or a newline. This model-facing return
+                    # embeds raw names + peer comments (csv_safe_cell stops
+                    # formulas, not prompt injection), so wrap it in one
+                    # provenance fence (issue 239); the saved file above is raw.
+                    csv_string = rows_to_csv_string(
                         _PEER_REVIEW_CSV_HEADER,
                         (
                             _peer_review_csv_row(review)
                             for review in comments_data.get("peer_reviews", [])
                         ),
+                    )
+                    return fence_untrusted(
+                        csv_string, "peer review dataset CSV (contains student names)"
                     )
 
             else:

@@ -56,9 +56,11 @@ class ConfirmationGuard:
     # any hashing (cheap flood defense).
     _MAX_TOKEN_LEN = 256
     # Hard ceiling on tracked nonces. Only genuinely-issued nonces are ever
-    # stored now (reserve authenticates first), and each needs a real preview
-    # call, so this is defense-in-depth against a caller spamming previews.
-    _MAX_REDEEMED = 10_000
+    # stored (reserve authenticates first), each needs a real preview call, and
+    # each drains on its own TTL — so this generous cap is a last-resort
+    # fail-closed bound, never an eviction trigger (evicting an unexpired used
+    # nonce would resurrect its token for replay).
+    _MAX_REDEEMED = 50_000
 
     def __init__(self, ttl_seconds: int = 300) -> None:
         self._ttl = ttl_seconds
@@ -192,12 +194,17 @@ class ConfirmationGuard:
         self._purge()
         if nonce in self._redeemed:
             return False
-        # Cap the map as a last-resort bound even against authenticated spam:
-        # evict the oldest-expiring entries.
+        # Fail CLOSED at capacity, never evict. Evicting an unexpired used
+        # nonce would resurrect its still-signed token for replay: a caller
+        # could flood the map with burner preview tokens (via mismatched
+        # confirmations), push a genuinely-spent nonce out, then replay the
+        # original. So a used claim is kept until its token naturally EXPIRES
+        # (``_purge`` is purely time-based), and at capacity a new reservation
+        # is simply refused. The cap is generous and paired with the per-token
+        # TTL, so honest load self-drains; under attack, confirmations are
+        # refused (safe) rather than silently evicted (unsafe).
         if len(self._redeemed) >= self._MAX_REDEEMED:
-            overflow = len(self._redeemed) - self._MAX_REDEEMED + 1
-            for stale in sorted(self._redeemed, key=lambda n: self._redeemed[n])[:overflow]:
-                self._redeemed.pop(stale, None)
+            return False
         self._redeemed[nonce] = time.time() + self._ttl
         return True
 
