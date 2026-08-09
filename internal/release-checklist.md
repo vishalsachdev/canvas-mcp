@@ -7,6 +7,7 @@ When bumping the version in `pyproject.toml`, also update:
 - [ ] `tools/TOOL_MANIFEST.json` - Update `version` field to match new version
 - [ ] `README.md` - Update "Latest Release" section with new version, date, and changelog
 - [ ] `docs/index.html` - Update version badge, tool count, and meta descriptions (GitHub Pages site)
+- [ ] `uv.lock` - Run `uv lock` after bumping `pyproject.toml`; the lock records the project version and drifts otherwise
 - [ ] Create git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
 
 > `manifest.json` (Desktop Extension) does **not** need a manual bump — `create-release.yml` stamps the tag version into it and attaches `canvas-mcp.mcpb` to the GitHub Release automatically. The committed `manifest.json` version is just a default.
