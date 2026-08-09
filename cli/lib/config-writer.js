@@ -1,12 +1,37 @@
-import { readFileSync, writeFileSync, copyFileSync, existsSync, mkdirSync } from "node:fs";
+import {
+  readFileSync,
+  writeFileSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  chmodSync,
+} from "node:fs";
 import { dirname } from "node:path";
 import TOML from "@iarna/toml";
 
 const HOSTED_URL = "https://mcp.illinihunt.org/mcp";
 
+// These files hold a Canvas API token in cleartext. Written with the default
+// umask they land as 0644, readable by every other account on the machine, so
+// the mode is set explicitly. writeFileSync's `mode` only applies when it
+// creates the file, so an existing config is chmod'ed too.
+const SECRET_FILE_MODE = 0o600;
+
+function restrictPermissions(filePath) {
+  try {
+    chmodSync(filePath, SECRET_FILE_MODE);
+  } catch {
+    // Non-POSIX filesystems may not support this; the write itself still stands.
+  }
+}
+
 function backup(filePath) {
   if (existsSync(filePath)) {
-    copyFileSync(filePath, filePath + ".bak");
+    const backupPath = filePath + ".bak";
+    copyFileSync(filePath, backupPath);
+    // The backup carries the same (or an older) token, so it needs the same
+    // protection — copyFileSync preserves nothing useful here.
+    restrictPermissions(backupPath);
   }
 }
 
@@ -29,12 +54,20 @@ function readToml(filePath) {
 
 function writeJson(filePath, data) {
   ensureDir(filePath);
-  writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n", "utf-8");
+  writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n", {
+    encoding: "utf-8",
+    mode: SECRET_FILE_MODE,
+  });
+  restrictPermissions(filePath);
 }
 
 function writeToml(filePath, data) {
   ensureDir(filePath);
-  writeFileSync(filePath, TOML.stringify(data), "utf-8");
+  writeFileSync(filePath, TOML.stringify(data), {
+    encoding: "utf-8",
+    mode: SECRET_FILE_MODE,
+  });
+  restrictPermissions(filePath);
 }
 
 function updateConfigFile(client, mutate) {
@@ -75,4 +108,10 @@ function configureClient(client, token, canvasUrl) {
   });
 }
 
-export { configureClient, readJson, readToml, HOSTED_URL };
+export {
+  configureClient,
+  readJson,
+  readToml,
+  HOSTED_URL,
+  SECRET_FILE_MODE,
+};

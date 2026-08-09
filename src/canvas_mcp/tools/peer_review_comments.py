@@ -12,9 +12,38 @@ from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_id
 from ..core.client import make_canvas_request
+from ..core.csv_safety import csv_safe_cell, rows_to_csv_string
 from ..core.file_validation import sanitize_filename
 from ..core.peer_review_comments import PeerReviewCommentAnalyzer
 from ..core.validation import validate_params
+
+_PEER_REVIEW_CSV_HEADER = (
+    'review_id', 'reviewer_id', 'reviewer_name', 'reviewee_id', 'reviewee_name',
+    'comment_text', 'word_count', 'character_count', 'timestamp',
+)
+
+
+def _peer_review_csv_row(review: dict[str, Any]) -> list[Any]:
+    """One export row, with the student-authored columns made formula-inert.
+
+    comment_text is written by a peer and the name fields come from Canvas, so
+    all four are neutralized. The counts are computed here and stay numeric.
+    """
+    reviewer = review.get("reviewer", {})
+    reviewee = review.get("reviewee", {})
+    content = review.get("review_content", {})
+
+    return [
+        review.get("review_id", ""),
+        reviewer.get("student_id", ""),
+        csv_safe_cell(reviewer.get("student_name", "")),
+        reviewee.get("student_id", ""),
+        csv_safe_cell(reviewee.get("student_name", "")),
+        csv_safe_cell(content.get("comment_text", "")),
+        content.get("word_count", 0),
+        content.get("character_count", 0),
+        csv_safe_cell(content.get("timestamp", "")),
+    ]
 
 
 def register_peer_review_comment_tools(mcp: FastMCP) -> None:
@@ -227,46 +256,24 @@ def register_peer_review_comment_tools(mcp: FastMCP) -> None:
                         writer = csv.writer(f)
 
                         # Write header
-                        writer.writerow([
-                            'review_id', 'reviewer_id', 'reviewer_name', 'reviewee_id', 'reviewee_name',
-                            'comment_text', 'word_count', 'character_count', 'timestamp'
-                        ])
+                        writer.writerow(_PEER_REVIEW_CSV_HEADER)
 
                         # Write data
                         for review in comments_data.get("peer_reviews", []):
-                            reviewer = review.get("reviewer", {})
-                            reviewee = review.get("reviewee", {})
-                            content = review.get("review_content", {})
-
-                            writer.writerow([
-                                review.get("review_id", ""),
-                                reviewer.get("student_id", ""),
-                                reviewer.get("student_name", ""),
-                                reviewee.get("student_id", ""),
-                                reviewee.get("student_name", ""),
-                                content.get("comment_text", ""),
-                                content.get("word_count", 0),
-                                content.get("character_count", 0),
-                                content.get("timestamp", "")
-                            ])
+                            writer.writerow(_peer_review_csv_row(review))
 
                     return f"Data exported to {resolved}"
                 else:
-                    # Return CSV as string
-                    csv_lines = []
-                    csv_lines.append("review_id,reviewer_id,reviewer_name,reviewee_id,reviewee_name,comment_text,word_count,character_count,timestamp")
-
-                    for review in comments_data.get("peer_reviews", []):
-                        reviewer = review.get("reviewer", {})
-                        reviewee = review.get("reviewee", {})
-                        content = review.get("review_content", {})
-
-                        # Escape quotes in comment text
-                        comment_text = content.get("comment_text", "").replace('"', '""')
-
-                        csv_lines.append(f'"{review.get("review_id", "")}","{reviewer.get("student_id", "")}","{reviewer.get("student_name", "")}","{reviewee.get("student_id", "")}","{reviewee.get("student_name", "")}","{comment_text}",{content.get("word_count", 0)},{content.get("character_count", 0)},"{content.get("timestamp", "")}"')
-
-                    return "\n".join(csv_lines)
+                    # Return CSV as string. Built with the stdlib writer rather
+                    # than f-string concatenation, which mis-quotes any comment
+                    # containing a comma or a newline.
+                    return rows_to_csv_string(
+                        _PEER_REVIEW_CSV_HEADER,
+                        (
+                            _peer_review_csv_row(review)
+                            for review in comments_data.get("peer_reviews", [])
+                        ),
+                    )
 
             else:
                 return f"Error: Unsupported output format '{output_format}'. Supported formats: csv, json"

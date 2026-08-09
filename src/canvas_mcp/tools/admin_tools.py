@@ -6,6 +6,7 @@ from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
+from ..core.csv_safety import csv_safe_cell
 from ..core.validation import validate_params
 
 
@@ -334,10 +335,13 @@ def register_admin_tools(mcp: FastMCP) -> None:
             # Generate the same anonymous ID that would be used by the anonymization system
             anonymous_id = generate_anonymous_id(real_id, prefix="Student")
 
+            # Names and emails are user-controlled on many Canvas instances, and
+            # this file exists to be opened in a spreadsheet, so neutralize any
+            # leading formula marker before it becomes an executable cell.
             mapping_data.append({
-                "real_name": real_name,
+                "real_name": csv_safe_cell(real_name),
                 "real_id": real_id,
-                "real_email": real_email,
+                "real_email": csv_safe_cell(real_email),
                 "anonymous_id": anonymous_id
             })
 

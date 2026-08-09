@@ -9,6 +9,7 @@ import datetime
 from typing import Any
 
 from .client import fetch_all_paginated_results, make_canvas_request
+from .csv_safety import csv_safe_cell, rows_to_csv_string
 from .dates import parse_date
 
 
@@ -419,49 +420,47 @@ class PeerReviewAnalyzer:
         return {"report": "\n".join(report_lines)}
 
     def _generate_csv_report(self, analytics: dict[str, Any], assignment_info: dict[str, Any]) -> dict[str, str]:
-        """Generate a CSV-formatted report."""
+        """Generate a CSV-formatted report.
 
-        csv_lines = [
-            "student_id,student_name,assigned_count,completed_count,completion_rate,status,pending_reviews,priority_level"
-        ]
+        Student names come from Canvas and are user-controlled on many
+        instances, so every name-bearing column is routed through
+        ``csv_safe_cell``; the counts are computed here and stay numeric.
+        Rows go through the stdlib writer rather than f-string concatenation,
+        which mis-quotes any name containing a comma or a quote.
+        """
+
+        header = (
+            "student_id", "student_name", "assigned_count", "completed_count",
+            "completion_rate", "status", "pending_reviews", "priority_level",
+        )
 
         completion_groups = analytics.get("completion_groups", {})
 
-        # Add urgent students
-        for student in completion_groups.get("none_complete", []):
-            pending_reviews = "; ".join([
+        def pending(student: dict[str, Any]) -> str:
+            return "; ".join([
                 f"{pr['reviewee_name']} ({pr['reviewee_id']})"
                 for pr in student.get("pending_reviews", [])
             ])
-            csv_lines.append(
-                f"{student['student_id']},{student['student_name']},"
-                f"{student['assigned_count']},{student['completed_count']},"
-                f"{student['completion_rate']},none_complete,"
-                f"\"{pending_reviews}\",urgent"
-            )
 
-        # Add partial completion students
-        for student in completion_groups.get("partial_complete", []):
-            pending_reviews = "; ".join([
-                f"{pr['reviewee_name']} ({pr['reviewee_id']})"
-                for pr in student.get("pending_reviews", [])
-            ])
-            csv_lines.append(
-                f"{student['student_id']},{student['student_name']},"
-                f"{student['assigned_count']},{student['completed_count']},"
-                f"{student['completion_rate']},partial_complete,"
-                f"\"{pending_reviews}\",medium"
-            )
+        rows: list[list[Any]] = []
+        for group, status, priority in (
+            ("none_complete", "none_complete", "urgent"),
+            ("partial_complete", "partial_complete", "medium"),
+            ("all_complete", "all_complete", "low"),
+        ):
+            for student in completion_groups.get(group, []):
+                rows.append([
+                    student["student_id"],
+                    csv_safe_cell(student["student_name"]),
+                    student["assigned_count"],
+                    student["completed_count"],
+                    student["completion_rate"],
+                    status,
+                    csv_safe_cell(pending(student)) if group != "all_complete" else "",
+                    priority,
+                ])
 
-        # Add complete students
-        for student in completion_groups.get("all_complete", []):
-            csv_lines.append(
-                f"{student['student_id']},{student['student_name']},"
-                f"{student['assigned_count']},{student['completed_count']},"
-                f"{student['completion_rate']},all_complete,,low"
-            )
-
-        return {"report": "\n".join(csv_lines)}
+        return {"report": rows_to_csv_string(header, rows)}
 
     async def get_followup_list(
         self,

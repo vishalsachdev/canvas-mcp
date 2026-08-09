@@ -55,13 +55,21 @@ from ..core.file_validation import (
     detect_mime_type,
     sanitize_filename,
 )
-from ..core.validation import validate_params
+from ..core.validation import coerce_canvas_id, validate_params
 from ..core.write_confirmation import unconfirmed_write_warning
 
 # Submission types this tool supports. Quiz and discussion types are absent by
 # design: quiz-taking is a separate academic-integrity decision behind its own
 # flag, and discussion participation already has dedicated tools.
 _SUPPORTED_TYPES = ("online_text_entry", "online_url", "online_upload")
+
+# These tools are self-scoped by a hard-coded "/submissions/self" path suffix. That
+# only holds while assignment_id cannot end the path early, so a non-numeric ID is
+# refused outright rather than passed to Canvas.
+_INVALID_ASSIGNMENT_ID = (
+    "Error: assignment_id must be a numeric Canvas assignment ID. "
+    "Use list_assignments to find it."
+)
 
 # Whole-request upload bounds. These exist on top of the per-file limit in
 # core/file_validation, which on its own would allow an unlimited number of
@@ -637,6 +645,11 @@ def register_student_write_tools(mcp: FastMCP) -> None:
             course_identifier: Course code or Canvas ID
             assignment_id: Canvas assignment ID
         """
+        validated_assignment_id = coerce_canvas_id(assignment_id)
+        if validated_assignment_id is None:
+            return _INVALID_ASSIGNMENT_ID
+        assignment_id = validated_assignment_id
+
         course_id = await get_course_id(course_identifier)
         if not course_id:
             return f"Error: Could not find course {course_identifier}"
@@ -717,6 +730,11 @@ def register_student_write_tools(mcp: FastMCP) -> None:
                     f"Error: submission_type must be one of "
                     f"{', '.join(_SUPPORTED_TYPES)} (got '{submission_type}')"
                 )
+
+            validated_assignment_id = coerce_canvas_id(assignment_id)
+            if validated_assignment_id is None:
+                return _INVALID_ASSIGNMENT_ID
+            assignment_id = validated_assignment_id
 
             course_id = await get_course_id(course_identifier)
             if not course_id:
@@ -940,6 +958,11 @@ def register_student_write_tools(mcp: FastMCP) -> None:
             """
             if not comment.strip():
                 return "Error: comment cannot be empty"
+
+            validated_assignment_id = coerce_canvas_id(assignment_id)
+            if validated_assignment_id is None:
+                return _INVALID_ASSIGNMENT_ID
+            assignment_id = validated_assignment_id
 
             course_id = await get_course_id(course_identifier)
             if not course_id:

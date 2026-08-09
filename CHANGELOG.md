@@ -7,6 +7,137 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+A repository-wide security scan produced twelve findings. Eleven are addressed
+here; the twelfth (sandbox egress) is partially addressed and labelled honestly
+rather than papered over. Two independent review rounds ran against the result.
+
+#### Cross-boundary primitives reachable from a remote caller
+
+- **`download_course_file` was an arbitrary write, and `upload_course_file` an
+  arbitrary read, on a shared HTTP server.** Download let the caller choose the
+  destination directory while Canvas supplied the filename and bytes; upload let
+  the caller name any path the service account could read and copy it into their
+  own Canvas course. Both are legitimate on a local stdio server — that
+  filesystem *is* the caller's own machine — so each is refused **by transport**
+  rather than removed. Download points at `read_course_file`, which returns
+  content in the response and was already the right tool for a remote caller.
+- **Local downloads no longer overwrite.** Canvas controls the filename, so a
+  course file named `.zshrc` could silently truncate a real file in the chosen
+  directory. The destination is now created exclusively and owner-only
+  (`O_EXCL`, `O_NOFOLLOW` where the platform has it, mode `0600`), which also
+  refuses a pre-planted symlink, and a failed download unlinks its partial file
+  instead of leaving truncated content behind.
+
+#### A hard-coded `/submissions/self` suffix did not guarantee self-scoping
+
+- **A path delimiter in an identifier retargeted self-scoped student tools at
+  another student's submission.** Identifiers are typed `str | int` and
+  interpolated into a path template, and that union accepts any string. Measured,
+  not inferred: with `assignment_id="123/submissions/456?"`, `get_my_submission`
+  issued a live request to `/api/v1/courses/60366/assignments/123/submissions/456`
+  while the endpoint string still ended in `/submissions/self`. Canvas answers
+  that for any token also holding grading permission, so a mixed student/grader
+  account could read or comment on another student's FERPA-protected submission.
+  `#` and percent-encoded `%2F` behaved the same. Closed in two layers:
+  `make_canvas_request` now refuses any endpoint containing `?`, `#`, or a `..`
+  segment — every caller passes query parameters via `params=`, so a delimiter in
+  the path is always smuggling, and this covers all 23 interpolation sites at
+  once — and `coerce_canvas_id()` pins the identifier grammar to ASCII digits at
+  the self-scoped routes.
+
+#### Privacy and untrusted content
+
+- **The MCP Registry manifest published `ENABLE_DATA_ANONYMIZATION` default
+  `false`** while the code, the Dockerfile, and `env.template` all defaulted it
+  to `true`. For any Registry client that materializes declared defaults, the
+  advertised install path started with student-data anonymization **off**. The
+  manifest now declares `true`, and a test compares all four sources so the
+  drift cannot recur silently.
+- **CSV exports could hand a spreadsheet an executable formula.** Peer-review
+  comment text is authored by another student, and Canvas names and emails are
+  user-controlled on many instances. A comment beginning `=`, `+`, `-`, `@`, tab,
+  or carriage return is evaluated as a formula when an instructor opens the
+  report; quoting does not prevent this. `core/csv_safety.py` is now the single
+  encoder for every export path. Two exporters also assembled CSV by string
+  concatenation and escaped only double quotes, so a comment containing a comma
+  or newline produced malformed rows; both now use the stdlib writer.
+
+#### Credentials
+
+- **A cleartext `http://` Canvas URL is refused instead of warned about.** The
+  token is sent in an `Authorization` header on every request, so a cleartext
+  origin exposes a credential for student records. Enforced on **both** startup
+  paths — HTTP mode never calls `validate_config()`, and it is the more
+  dangerous case, since the Canvas URL is server-pinned and one typo would leak
+  every caller's token rather than only the operator's. `CANVAS_ALLOW_INSECURE_HTTP`
+  is a development-only escape hatch restricted to loopback addresses.
+- **The setup CLI writes token-bearing configs and backups `0600`** instead of
+  inheriting an umask that yields `0644`, and no longer echoes the full token to
+  the terminal, where it would land in scrollback and shell history.
+
+#### Availability and blast radius
+
+- **The unauthenticated access-confirm route is bounded.** It is intercepted
+  ahead of every token gate and read an unlimited body; it now requires POST and
+  stops at 8 KiB, chunked uploads included, for a payload that only ever carries
+  one short signed token.
+- **Denied-identity notifications are rate-limited before any work happens.** The
+  403 is returned first (correctly), so a denied caller can repeat at will, and
+  the duplicate-mail cooldown lived inside the scheduled task — after an Azure
+  credential, a client, an asyncio task, and a storage round-trip. Admission
+  control now runs first: 200 repeated denials cause one client build.
+- **Code execution fails closed when isolation is unavailable.** An explicit
+  `TS_SANDBOX_MODE=container` fell back to running caller-supplied TypeScript
+  directly on the host when no runtime was present or the image name was
+  malformed. It now refuses, and no unsandboxed mode may run while serving an
+  HTTP request.
+- **The weekly AI maintenance workflow lost its excess privileges.** It reviews
+  public issue text and web results — writable by anyone — while holding a
+  GitHub token, so the token is the control: reduced from `contents:write` +
+  `pull-requests:write` + `Bash(gh:*)` to `contents:read` + `issues:write` and
+  four specific `gh` commands, with the prompt now framing fetched content as
+  data rather than instructions.
+- **Security tests can fail the build.** `security-testing.yml` ran
+  `tests/security/` with `continue-on-error: true`, so every invariant in that
+  suite — including the anonymization and authorization ones predating this
+  work — passed green through any regression.
+
+#### Known limitation
+
+- **Sandbox egress remains best-effort and now says so.** `--network=none` is
+  passed when outbound is blocked and the allowlist is empty, which is real
+  kernel-level enforcement — but when blocking is on, the Canvas host is
+  automatically allowlisted, because executed code exists to call Canvas. So in
+  every working configuration the allowlist is non-empty and egress falls back to
+  patching Node APIs in-process, which `child_process`, `dgram`, and bundled
+  utilities can step around while `CANVAS_API_TOKEN` is in the environment. The
+  tool now emits an explicit best-effort warning instead of implying enforcement.
+  Closing it needs an egress proxy or network namespace
+  ([#157](https://github.com/vishalsachdev/canvas-mcp/issues/157)).
+
+### Changed
+
+- **Breaking: an `http://` `CANVAS_API_URL` now aborts startup** in both stdio
+  and HTTP transports. Set `CANVAS_ALLOW_INSECURE_HTTP=true` for a loopback
+  development Canvas; it does not permit cleartext to a remote host.
+- **Breaking: `download_course_file` and `upload_course_file` are stdio-only.**
+  Over HTTP transport they refuse with a message pointing at the alternative.
+- **Breaking: `download_course_file` errors rather than overwriting** an existing
+  destination file.
+- **The MCP Registry manifest's anonymization default changed from `false` to
+  `true`**, matching every other distribution channel.
+
+### Known issues
+
+- The npm setup wizard still configures clients against the retired
+  `mcp.illinihunt.org` endpoint, which no longer resolves. Converting it to the
+  local stdio path is not a URL swap — the documented stdio config uses an
+  absolute venv binary path and credentials live in the server's `.env`
+  ([#249](https://github.com/vishalsachdev/canvas-mcp/issues/249)).
+
+
 ## [1.7.0] — 2026-08-08
 
 ### Added

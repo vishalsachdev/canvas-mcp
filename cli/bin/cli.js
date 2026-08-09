@@ -35,9 +35,13 @@ if (!command || command === "setup") {
     (r) => r.client.id === "codex" && r.success && typeof r.result === "object"
   );
   if (codexResult) {
+    // The token is deliberately not echoed. It would land in terminal
+    // scrollback and, once pasted, in shell history — and the person running
+    // this wizard just typed it, so reprinting it buys nothing.
     console.log(`\n  For Codex, set your token as an environment variable:`);
-    console.log(`  export CANVAS_API_TOKEN="${codexResult.result.token}"`);
-    console.log(`  (Add this to your ~/.zshrc or ~/.bashrc to persist it)\n`);
+    console.log(`  export CANVAS_API_TOKEN="<the token you just entered>"`);
+    console.log(`  (Add this to your ~/.zshrc or ~/.bashrc to persist it)`);
+    console.log(`  Tip: prefix the command with a space to keep it out of history.\n`);
   }
 
   console.log(`  Server: https://mcp.illinihunt.org/mcp`);

@@ -25,7 +25,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from .core.config import get_config, validate_config
+from .core.config import get_config, validate_canvas_url_scheme, validate_config
 from .core.credentials import (
     RequestCredentials,
     clear_http_request_context,
@@ -77,14 +77,45 @@ async def _send_json_error(send: Any, status: int, message: str) -> None:
     await send({"type": "http.response.body", "body": body})
 
 
-async def _read_body(receive: Any) -> bytes:
-    body: bytes = b""
+# The only public (pre-auth) route posts a form containing one short signed
+# token. 8 KiB is far more than that and far less than a useful memory-pressure
+# lever for an unauthenticated caller.
+_MAX_PUBLIC_BODY_BYTES = 8 * 1024
+
+
+def _declared_content_length(headers: Any) -> int | None:
+    """Parse Content-Length from raw ASGI headers, or None if absent/unparseable."""
+    for name, value in headers or []:
+        if name.lower() == b"content-length":
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
+async def _read_body(receive: Any, max_bytes: int | None = None) -> bytes | None:
+    """Read an ASGI request body, optionally refusing bodies over ``max_bytes``.
+
+    Returns ``None`` when the cap is exceeded. The check runs per chunk rather
+    than on the assembled body, so an oversized or chunked upload is abandoned
+    while it streams instead of being buffered first — and because the caller on
+    the public route is unauthenticated, the accumulated bytes are dropped rather
+    than kept for a request that will be rejected anyway.
+    """
+    chunks: list[bytes] = []
+    total = 0
     while True:
         msg = await receive()
-        body += msg.get("body", b"")
+        chunk = msg.get("body", b"")
+        if max_bytes is not None:
+            total += len(chunk)
+            if total > max_bytes:
+                return None
+        chunks.append(chunk)
         if not msg.get("more_body", False):
             break
-    return body
+    return b"".join(chunks)
 
 
 def _access_key_ok(presented: str, allowed: frozenset[str]) -> bool:
@@ -156,22 +187,78 @@ def reset_overlay_store() -> None:
     _overlay_store = None
 
 
+# Admission control for the denied-identity notification path. The email
+# cooldown lives in the storage backend, which is only consulted *inside* the
+# scheduled task — so without a gate here, every denied request already cost an
+# Azure client construction, an asyncio task, and a backend round-trip before
+# anything decided not to send. A denied caller can repeat at will (the 403 is
+# returned immediately), so that work is attacker-controlled.
+_NOTIFY_MIN_INTERVAL_SECONDS = 300
+_NOTIFY_MAX_INFLIGHT = 8
+_NOTIFY_MAX_TRACKED_OIDS = 1024
+
+_notify_last_scheduled: dict[str, float] = {}
+_notify_inflight: set[Any] = set()
+_email_sender = None
+
+
+def reset_notify_state() -> None:
+    """Clear notification admission state (test isolation)."""
+    global _email_sender
+    _notify_last_scheduled.clear()
+    _notify_inflight.clear()
+    _email_sender = None
+
+
+def _notify_admitted(oid: str, now: float) -> bool:
+    """Decide whether to do any notification work for ``oid``, cheaply."""
+    if len(_notify_inflight) >= _NOTIFY_MAX_INFLIGHT:
+        return False
+
+    last = _notify_last_scheduled.get(oid)
+    if last is not None and (now - last) < _NOTIFY_MIN_INTERVAL_SECONDS:
+        return False
+
+    # Bound the table itself: it is keyed by attacker-supplied identities, so an
+    # unbounded dict is the same leak one layer up. Oldest entries go first.
+    if len(_notify_last_scheduled) >= _NOTIFY_MAX_TRACKED_OIDS:
+        for stale, _ in sorted(_notify_last_scheduled.items(), key=lambda kv: kv[1])[:64]:
+            _notify_last_scheduled.pop(stale, None)
+
+    _notify_last_scheduled[oid] = now
+    return True
+
+
 def _schedule_notify(config: Any, store: Any, requester: Any) -> None:
     """Fire-and-forget admin email; never blocks or breaks the request path."""
+    global _email_sender
     from .core.access.factory import build_email_sender
     from .core.access.notify import notify_access_request
-    sender = build_email_sender(config)
+
+    now_float = time.time()
+    if not _notify_admitted(getattr(requester, "oid", ""), now_float):
+        return
+
+    # Memoized: this builds an Azure credential and client, which is far too
+    # much work to repeat per denied request.
+    if _email_sender is None:
+        _email_sender = build_email_sender(config)
+    sender = _email_sender
     if sender is None:
         return
     now = int(time.time())
     now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))
-    asyncio.create_task(notify_access_request(
+    task = asyncio.create_task(notify_access_request(
         store=store, requester=requester, secret=config.access_token_secret,
         approve_base_url=config.access_approve_base_url,
         admin_emails=config.access_admin_emails,
         cooldown_hours=config.access_notify_cooldown_hours,
         ttl_seconds=24 * 3600, send_email=sender,
         jti=uuid.uuid4().hex, now=now, now_iso=now_iso))
+    # Tracked so the in-flight cap above is real, and so the task is not garbage
+    # collected mid-flight (asyncio only holds a weak reference).
+    _notify_inflight.add(task)
+    task.add_done_callback(_notify_inflight.discard)
 
 
 class CanvasCredentialMiddleware:
@@ -219,7 +306,20 @@ class CanvasCredentialMiddleware:
                 await routes.handle_approve(scope.get("query_string", b""), send,
                                             store=store, secret=config.access_token_secret, now=now)
             else:
-                body = await _read_body(receive)
+                # This route is reached before any authentication, so bound it
+                # before reading anything. It only ever carries a short signed
+                # token in a form post.
+                if scope.get("method", "").upper() != "POST":
+                    await _send_json_error(send, 405, "Method not allowed")
+                    return
+                declared = _declared_content_length(scope.get("headers", []))
+                if declared is not None and declared > _MAX_PUBLIC_BODY_BYTES:
+                    await _send_json_error(send, 413, "Request body too large")
+                    return
+                body = await _read_body(receive, max_bytes=_MAX_PUBLIC_BODY_BYTES)
+                if body is None:
+                    await _send_json_error(send, 413, "Request body too large")
+                    return
                 await routes.handle_confirm(body, send, store=store,
                                             secret=config.access_token_secret, now=now)
             return
@@ -508,6 +608,12 @@ def main() -> None:
     if is_http:
         if not config.canvas_api_url:
             log_error("CANVAS_API_URL is required in HTTP mode (the Canvas API URL is server-pinned)")
+            sys.exit(1)
+        # HTTP mode never calls validate_config() (that path is stdio's .env
+        # check), so the cleartext-URL rejection has to be applied here too.
+        # It matters more here than in stdio: the URL is server-pinned, so one
+        # http:// typo leaks every caller's token, not just the operator's.
+        if not validate_canvas_url_scheme():
             sys.exit(1)
         if config.canvas_api_token:
             log_error(
