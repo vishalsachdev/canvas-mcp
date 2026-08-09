@@ -10,7 +10,7 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_id
 from ..core.file_validation import sanitize_filename
 from ..core.peer_reviews import PeerReviewAnalyzer
-from ..core.untrusted_content import fence_untrusted_fields
+from ..core.untrusted_content import fence_untrusted, fence_untrusted_fields
 from ..core.validation import validate_params
 
 # Student display names in the analyzer JSON are author-controlled (issue 239).
@@ -174,9 +174,19 @@ def register_peer_review_tools(mcp: FastMCP) -> None:
                     except Exception as save_error:
                         result["save_error"] = f"Failed to save file: {str(save_error)}"
 
-            if report_format in ["csv", "markdown"]:
-                report: str = result.get("report", json.dumps(result, indent=2))
-                return report
+            if report_format == "markdown":
+                # The markdown report embeds Canvas-authored student names as a
+                # pre-built string, so individual fields can't be fenced after
+                # the fact. Wrap the whole MODEL-FACING copy in one provenance
+                # fence (the raw on-disk file written above is untouched).
+                report_md: str = result.get("report", json.dumps(result, indent=2))
+                return fence_untrusted(report_md, "peer review report (contains student names)")
+            if report_format == "csv":
+                # CSV is a data-export format; wrapping would corrupt its
+                # structure. The file-save path is the intended sink (raw);
+                # the model-facing return stays raw here.
+                report_csv: str = result.get("report", json.dumps(result, indent=2))
+                return report_csv
             else:
                 _fence_peer_review_names(result)
                 return json.dumps(result, indent=2)

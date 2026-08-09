@@ -51,6 +51,15 @@ class ConfirmationGuard:
     confirmation just means previewing again.
     """
 
+    # A token is ``expiry.nonce.authmac.fpmac`` — all fixed-width hex/int, so a
+    # legitimate token is well under this. Anything longer is rejected before
+    # any hashing (cheap flood defense).
+    _MAX_TOKEN_LEN = 256
+    # Hard ceiling on tracked nonces. Only genuinely-issued nonces are ever
+    # stored now (reserve authenticates first), and each needs a real preview
+    # call, so this is defense-in-depth against a caller spamming previews.
+    _MAX_REDEEMED = 10_000
+
     def __init__(self, ttl_seconds: int = 300) -> None:
         self._ttl = ttl_seconds
         self._secret = secrets.token_bytes(32)
@@ -90,37 +99,67 @@ class ConfirmationGuard:
             hasher.update(chunk)
         return hasher.hexdigest()
 
+    def _auth_mac(self, expiry: int, nonce: str) -> str:
+        """Fingerprint-INDEPENDENT authenticator: proves this process issued
+        the token, so ``reserve`` can authenticate a token whose fingerprint no
+        longer matches (the burn-on-mismatch path) without being forgeable."""
+        return hmac.new(
+            self._secret, f"auth|{expiry}|{nonce}".encode(), hashlib.sha256
+        ).hexdigest()[:32]
+
+    def _fp_mac(self, expiry: int, nonce: str, fingerprint: str) -> str:
+        """Content binding: ties the token to the exact previewed request."""
+        return hmac.new(
+            self._secret, f"{expiry}|{nonce}|{fingerprint}".encode(), hashlib.sha256
+        ).hexdigest()[:32]
+
     def issue(self, fingerprint: str, now: float | None = None) -> str:
         """Mint a token committing to ``fingerprint`` until it expires."""
         expiry = int((now if now is not None else time.time()) + self._ttl)
         nonce = secrets.token_hex(8)
-        mac = hmac.new(
-            self._secret, f"{expiry}|{nonce}|{fingerprint}".encode(), hashlib.sha256
-        ).hexdigest()[:32]
-        return f"{expiry}.{nonce}.{mac}"
+        return (
+            f"{expiry}.{nonce}."
+            f"{self._auth_mac(expiry, nonce)}.{self._fp_mac(expiry, nonce, fingerprint)}"
+        )
 
-    @staticmethod
-    def _parse(token: str) -> tuple[int, str, str] | None:
+    def _parse(self, token: object) -> tuple[int, str, str, str] | None:
+        if not isinstance(token, str) or len(token) > self._MAX_TOKEN_LEN:
+            return None
         parts = token.split(".")
-        if len(parts) != 3:
+        if len(parts) != 4:
             return None
         try:
             expiry = int(parts[0])
         except ValueError:
             return None
-        return expiry, parts[1], parts[2]
+        return expiry, parts[1], parts[2], parts[3]
+
+    def _authenticate(self, token: object) -> tuple[int, str] | None:
+        """Return (expiry, nonce) if the token was genuinely issued by THIS
+        process and has not expired; else None. Never touches the fingerprint,
+        so it works on the burn-on-mismatch path — but a forged/unsigned token
+        fails here and is never recorded (closes the token-store DoS)."""
+        parsed = self._parse(token)
+        if parsed is None:
+            return None
+        expiry, nonce, authmac, _ = parsed
+        if not hmac.compare_digest(authmac, self._auth_mac(expiry, nonce)):
+            return None
+        if expiry < time.time():
+            return None
+        return expiry, nonce
 
     def check(self, token: str, fingerprint: str) -> str | None:
         """Verify a token against the current request. Returns an error, or None."""
         parsed = self._parse(token)
         if parsed is None:
             return "❌ That confirmation token is malformed. Run the preview again."
-        expiry, nonce, mac = parsed
+        expiry, nonce, authmac, fpmac = parsed
 
-        expected = hmac.new(
-            self._secret, f"{expiry}|{nonce}|{fingerprint}".encode(), hashlib.sha256
-        ).hexdigest()[:32]
-        if not hmac.compare_digest(mac, expected):
+        # Authenticator first: proves we issued it (and is what reserve checks).
+        if not hmac.compare_digest(authmac, self._auth_mac(expiry, nonce)):
+            return "❌ That confirmation token is malformed. Run the preview again."
+        if not hmac.compare_digest(fpmac, self._fp_mac(expiry, nonce, fingerprint)):
             return (
                 "❌ This confirmation does not match. Either the request changed "
                 "since the preview, or the preview was handled by a different "
@@ -139,19 +178,26 @@ class ConfirmationGuard:
         return None
 
     def reserve(self, token: str) -> bool:
-        """Atomically claim a token. False if it was already claimed.
+        """Atomically claim a token. False if unauthenticated or already claimed.
 
-        No ``await`` between the membership test and the write, which is what
-        makes this atomic on the event loop. Call ``check`` first — reserve
-        only tracks single-use; it does not verify the signature.
+        Authenticates the token's signature+expiry BEFORE recording its nonce,
+        so a flood of forged/unsigned tokens cannot grow the nonce map — the
+        token-store DoS. No ``await`` between the membership test and the write,
+        which keeps it atomic on the event loop.
         """
-        parsed = self._parse(token)
-        if parsed is None:
+        authed = self._authenticate(token)
+        if authed is None:
             return False
-        _, nonce, _ = parsed
+        _, nonce = authed
         self._purge()
         if nonce in self._redeemed:
             return False
+        # Cap the map as a last-resort bound even against authenticated spam:
+        # evict the oldest-expiring entries.
+        if len(self._redeemed) >= self._MAX_REDEEMED:
+            overflow = len(self._redeemed) - self._MAX_REDEEMED + 1
+            for stale in sorted(self._redeemed, key=lambda n: self._redeemed[n])[:overflow]:
+                self._redeemed.pop(stale, None)
         self._redeemed[nonce] = time.time() + self._ttl
         return True
 
@@ -164,5 +210,5 @@ class ConfirmationGuard:
     def _purge(self) -> None:
         """Forget claims whose tokens have expired anyway."""
         now = time.time()
-        for fingerprint in [f for f, expiry in self._redeemed.items() if expiry < now]:
-            self._redeemed.pop(fingerprint, None)
+        for nonce in [n for n, expiry in self._redeemed.items() if expiry < now]:
+            self._redeemed.pop(nonce, None)

@@ -79,9 +79,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (the in-process network guard is bypassable); a tool-level block would be
   security theater while raw fetch to the Canvas host remains open, so it is
   documented rather than faked.
+- **The confirmation-token guard authenticates before recording a nonce**, so
+  a flood of forged/unsigned tokens can no longer grow its in-memory map
+  (a memory-exhaustion DoS). Tokens gained a fingerprint-independent
+  authenticator (so the burn-on-mismatch path can still authenticate a
+  genuinely-issued token), a max-length cap, and a hard ceiling on the tracked
+  nonce set.
 - Write tools that publish free text (`create_page`, `edit_page_content`,
   `post_discussion_entry`, `reply_to_discussion_entry`,
   `create_discussion_topic`, `update_discussion_topic`, `create_announcement`,
+  `create_assignment`, `update_assignment`, `create_module`, `update_module`,
+  `add_module_item`, `update_module_item`,
   `send_conversation`, `send_peer_review_reminders`,
   `send_bulk_messages_from_list`) refuse content containing the fence markers
   in every writable text field, titles included, so a fenced read result

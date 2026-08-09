@@ -11,7 +11,12 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, parse_date
-from ..core.untrusted_content import fence_untrusted, fence_untrusted_inline
+from ..core.untrusted_content import (
+    FENCE_LEAK_ERROR,
+    contains_fence_markers,
+    fence_untrusted,
+    fence_untrusted_inline,
+)
 from ..core.validation import validate_params
 from .rubrics import build_rubric_assessment_form_data
 
@@ -634,6 +639,13 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             automatic_peer_reviews: Auto-assign peer reviews
             allowed_extensions: Comma-separated file extensions (e.g., "pdf,docx,txt")
         """
+        # Backstop for issue 239: a fenced read result (read→clone) must not
+        # publish our provenance markers into live Canvas.
+        if contains_fence_markers(name) or (
+            description is not None and contains_fence_markers(description)
+        ):
+            return FENCE_LEAK_ERROR
+
         course_id = await get_course_id(course_identifier)
 
         # Validate grading_type if provided
@@ -787,6 +799,12 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             automatic_peer_reviews: Auto-assign peer reviews
             allowed_extensions: Comma-separated file extensions (e.g., "pdf,docx,txt")
         """
+        # Backstop for issue 239: never publish our provenance markers.
+        if (name is not None and contains_fence_markers(name)) or (
+            description is not None and contains_fence_markers(description)
+        ):
+            return FENCE_LEAK_ERROR
+
         course_id = await get_course_id(course_identifier)
 
         # Build assignment data - only include fields that are provided

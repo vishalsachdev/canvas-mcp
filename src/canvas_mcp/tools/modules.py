@@ -13,7 +13,11 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, parse_date
-from ..core.untrusted_content import fence_untrusted_inline
+from ..core.untrusted_content import (
+    FENCE_LEAK_ERROR,
+    contains_fence_markers,
+    fence_untrusted_inline,
+)
 from ..core.validation import validate_params
 
 
@@ -227,6 +231,10 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             prerequisite_module_ids: Comma-separated module IDs that must be completed first
             published: Whether the module is published (default: True)
         """
+        # Backstop for issue 239: never publish our provenance markers.
+        if contains_fence_markers(name):
+            return FENCE_LEAK_ERROR
+
         course_id = await get_course_id(course_identifier)
 
         # Build module parameters
@@ -311,6 +319,10 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             prerequisite_module_ids: Comma-separated prerequisite module IDs, or empty to clear
             published: Whether the module is published
         """
+        # Backstop for issue 239: never publish our provenance markers.
+        if name is not None and contains_fence_markers(name):
+            return FENCE_LEAK_ERROR
+
         course_id = await get_course_id(course_identifier)
 
         # Build update parameters (only include changed fields)
@@ -461,6 +473,10 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             completion_requirement_type: One of: must_view, must_submit, must_contribute, min_score, must_mark_done
             completion_requirement_min_score: Minimum score (only for min_score type)
         """
+        # Backstop for issue 239: never publish our provenance markers.
+        if title is not None and contains_fence_markers(title):
+            return FENCE_LEAK_ERROR
+
         course_id = await get_course_id(course_identifier)
 
         # Validate item type
@@ -604,6 +620,10 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             published: Whether the item is published
             move_to_module_id: Move item to a different module
         """
+        # Backstop for issue 239: never publish our provenance markers.
+        if title is not None and contains_fence_markers(title):
+            return FENCE_LEAK_ERROR
+
         course_id = await get_course_id(course_identifier)
 
         # Build update parameters

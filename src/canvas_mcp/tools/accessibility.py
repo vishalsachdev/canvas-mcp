@@ -14,7 +14,12 @@ from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
-from ..core.untrusted_content import fence_untrusted, strip_fence_markers
+from ..core.untrusted_content import (
+    fence_untrusted,
+    fence_untrusted_fields,
+    fence_untrusted_inline,
+    strip_fence_markers,
+)
 from ..core.validation import validate_params
 
 
@@ -182,7 +187,10 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
                 if violation.get("description"):
                     lines.append(f"**Description**: {violation['description']}")
                 if violation.get("location"):
-                    lines.append(f"**Location**: {violation['location']}")
+                    # location is a raw author-controlled HTML line (issue 239).
+                    lines.append(
+                        f"**Location**: {fence_untrusted_inline(violation['location'], 'content excerpt')}"
+                    )
                 if violation.get("remediation"):
                     lines.append(f"**How to Fix**: {violation['remediation']}")
                 lines.append("")
@@ -243,6 +251,16 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
 
         # Generate summary
         summary = _generate_violation_summary(all_issues)
+
+        # content_title and location are author-controlled (page titles /
+        # assignment names / raw HTML lines). Fence them for the model-facing
+        # JSON only — this scan's output is never consumed by
+        # fix_accessibility_issues (which re-fetches page bodies from Canvas),
+        # so no fence can reach a write-back path.
+        fence_untrusted_fields(
+            all_issues,
+            {"content_title": "content title", "location": "content excerpt"},
+        )
 
         return json.dumps({
             "summary": summary,

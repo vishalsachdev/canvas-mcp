@@ -365,7 +365,8 @@ def register_student_tools(mcp: FastMCP) -> None:
                     if isinstance(peer_reviews, dict) and "error" in peer_reviews:
                         name = assignment.get("name", f"assignment {assignment_id}")
                         unchecked.append(
-                            f"{name} (course {course_id}): {peer_reviews['error']}"
+                            f"{fence_untrusted_inline(name, 'assignment name')} "
+                            f"(course {course_id}): {peer_reviews['error']}"
                         )
                         continue
 

@@ -617,7 +617,11 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         rubric = response.get("rubric")
         if not rubric:
             assignment_name = response.get("name", "Unknown Assignment")
-            return f"No rubric found for assignment '{assignment_name}' in course {course_display}."
+            return (
+                "No rubric found for assignment "
+                f"{fence_untrusted_inline(assignment_name, 'assignment name')} "
+                f"in course {course_display}."
+            )
 
         assignment_name = response.get("name", "Unknown Assignment")
         rubric_settings = response.get("rubric_settings", {})
@@ -714,7 +718,11 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             assignment_name = assignment_response.get("name", "Unknown Assignment") if "error" not in assignment_response else "Unknown Assignment"
 
             course_display = await get_course_code(course_id) or course_identifier
-            return f"No rubric assessment found for user {user_id} on assignment '{assignment_name}' in course {course_display}."
+            return (
+                f"No rubric assessment found for user {user_id} on assignment "
+                f"{fence_untrusted_inline(assignment_name, 'assignment name')} "
+                f"in course {course_display}."
+            )
 
         # Get assignment details for context
         assignment_response = await make_canvas_request(
@@ -863,7 +871,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         result = "Rubric Grade Submitted Successfully!\n\n"
         result += f"Course: {course_display}\n"
-        result += f"Assignment: {assignment_name}\n"
+        result += f"Assignment: {fence_untrusted_inline(assignment_name, 'assignment name')}\n"
         result += f"Student ID: {user_id}\n"
         result += f"Total Rubric Points: {total_points}\n"
         result += f"Grade: {response.get('grade', 'N/A')}\n"
@@ -1280,7 +1288,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                 "the rubric was associated with the assignment",
                 {
                     "Course": course_display,
-                    "Assignment": f"{assignment_name} (ID: {assignment_id})",
+                    "Assignment": f"{fence_untrusted_inline(assignment_name, 'assignment name')} (ID: {assignment_id})",
                     "Rubric ID": rubric_id,
                 },
                 "Canvas accepted the request but returned no association, so the "
@@ -1290,7 +1298,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         result = "Rubric associated with assignment successfully!\n\n"
         result += f"Course: {course_display}\n"
-        result += f"Assignment: {assignment_name} (ID: {assignment_id})\n"
+        result += f"Assignment: {fence_untrusted_inline(assignment_name, 'assignment name')} (ID: {assignment_id})\n"
         result += f"Rubric ID: {rubric_id}\n"
         result += f"Association ID: {association_id}\n"
         result += f"Used for Grading: {'Yes' if use_for_grading else 'No'}\n"

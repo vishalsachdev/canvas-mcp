@@ -688,12 +688,15 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
             )
 
             if not confirmation_token:
+                # The composed subject/body carry the Canvas-authored
+                # assignment name, next to a redeemable token — fence the
+                # DISPLAY copy while fingerprinting/sending the RAW text.
                 return {
                     "preview": True,
                     "nothing_sent": True,
                     "recipient_ids": recipient_ids,
-                    "subject": subject,
-                    "body": body,
+                    "subject": fence_untrusted(subject, "reminder subject"),
+                    "body": fence_untrusted(body, "reminder body"),
                     "confirmation_token": _REMINDER_GUARD.issue(fingerprint),
                     "instructions": (
                         "Show this preview to the educator. To send, call "
@@ -1058,10 +1061,19 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                         "nothing_sent": True,
                         # Name-fenced display copy, next to the token.
                         "analytics": display_analytics,
-                        # Full rendered text per batch — this is what the
-                        # token authorizes, so this is what the educator must
-                        # be shown.
-                        "planned_reminders": composed_batches,
+                        # Full rendered text per batch — this is what the token
+                        # authorizes, so this is what the educator must be
+                        # shown. Fence the DISPLAY copy (subject/body carry the
+                        # Canvas-authored assignment name next to the token);
+                        # composed_batches stays raw for fingerprint + send.
+                        "planned_reminders": [
+                            {
+                                **batch,
+                                "subject": fence_untrusted(batch["subject"], "reminder subject"),
+                                "body": fence_untrusted(batch["body"], "reminder body"),
+                            }
+                            for batch in composed_batches
+                        ],
                         "confirmation_token": _CAMPAIGN_GUARD.issue(fingerprint),
                         "instructions": (
                             "Show this plan — recipients AND the rendered "
