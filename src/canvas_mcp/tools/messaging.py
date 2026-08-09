@@ -1,6 +1,7 @@
 """Canvas messaging/conversations tools."""
 
 import json
+import re
 import sys
 from typing import Any
 
@@ -44,6 +45,78 @@ def _fence_conversation_fields(conversation: Any) -> None:
             message["body"] = fence_untrusted(message["body"], "conversation message")
 
 
+_DIRECT_USER_ID = re.compile(r"^[0-9]+$")
+
+
+def _is_single_direct_recipient(recipient_ids: list[str]) -> bool:
+    """True only for exactly one plain numeric Canvas user ID.
+
+    The Conversations API also accepts expandable aliases (``course_123``,
+    ``group_45``, section variants) that fan out to many users, so a
+    one-element list is NOT evidence of a one-person send. Anything that is
+    not a bare user ID gets the multi-recipient confirmation flow.
+    """
+    return len(recipient_ids) == 1 and bool(_DIRECT_USER_ID.match(str(recipient_ids[0])))
+
+
+def _render_bulk_messages(
+    recipient_data: list[dict[str, Any]],
+    subject_template: str,
+    body_template: str,
+) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
+    """Render EVERY outbound bulk message, collecting per-row errors.
+
+    The confirmation token authorizes the whole batch, so every message must
+    be renderable — and shown — before a token is issued: a poisoned later
+    row must fail the preview, not fire mid-send after earlier messages went
+    out. Row user_ids must be plain numeric Canvas IDs, because expandable
+    aliases (course_*/group_*) would fan one row out to many people.
+    """
+    rendered: list[dict[str, str]] = []
+    errors: list[dict[str, Any]] = []
+    for index, recipient in enumerate(recipient_data):
+        user_id = recipient.get("user_id")
+        if not user_id or not _DIRECT_USER_ID.match(str(user_id)):
+            errors.append({
+                "index": index,
+                "recipient": recipient,
+                "error": "user_id must be a plain numeric Canvas user ID",
+            })
+            continue
+        try:
+            subject = subject_template.format(**recipient)
+            body = body_template.format(**recipient)
+        except (KeyError, IndexError, ValueError) as e:
+            errors.append({
+                "index": index,
+                "recipient": recipient,
+                "error": f"template does not render against this recipient: {e}",
+            })
+            continue
+        if contains_fence_markers(subject) or contains_fence_markers(body):
+            errors.append({
+                "index": index,
+                "recipient": recipient,
+                "error": FENCE_LEAK_ERROR,
+            })
+            continue
+        rendered.append({"user_id": str(user_id), "subject": subject, "body": body})
+    return rendered, errors
+
+
+def _definitely_not_sent(error_message: str) -> bool:
+    """True only when the error PROVES Canvas rejected the request outright.
+
+    ``make_canvas_request`` folds transport exceptions (e.g. a read timeout
+    AFTER Canvas accepted the POST) into the same error-dict shape as real
+    rejections. Releasing a confirmation claim on an ambiguous failure would
+    let a retry double-send the batch, so a claim is only handed back for
+    errors that carry a Canvas HTTP status — meaning Canvas answered and
+    refused — or that failed our own pre-flight validation before any I/O.
+    """
+    return error_message.startswith("HTTP error:") or error_message.startswith("Invalid endpoint")
+
+
 async def _post_conversation(
     course_identifier: str | int,
     recipient_ids: list[str],
@@ -57,6 +130,13 @@ async def _post_conversation(
     attachment_ids: list[str] | None,
 ) -> dict[str, Any]:
     """POST one /conversations request. Callers enforce all confirmation gates."""
+    # Choke-point backstop for issue 239: composed text can pick up markers
+    # from Canvas-authored inputs (e.g. an assignment name inside a reminder
+    # subject), so the final outbound text is checked here regardless of
+    # which tool assembled it.
+    if contains_fence_markers(subject) or contains_fence_markers(body):
+        return {"error": FENCE_LEAK_ERROR}
+
     data: dict[str, Any] = {
         "recipients[]": recipient_ids,
         "subject": subject,
@@ -390,11 +470,12 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
         if contains_fence_markers(body) or contains_fence_markers(subject):
             return {"error": FENCE_LEAK_ERROR}
 
-        # Multi-recipient sends require the preview→confirm two-step (issue
-        # 239): a prompt-injected model must not be able to fan a message out
-        # to a list without a human-visible preview. One recipient stays a
-        # single call.
-        if len(recipient_ids) > 1:
+        # Fan-out sends require the preview→confirm two-step (issue 239): a
+        # prompt-injected model must not be able to message a list without a
+        # human-visible preview. "Fan-out" means anything except exactly one
+        # plain numeric user ID — a single course_/group_ alias expands
+        # server-side to many users.
+        if not _is_single_direct_recipient(recipient_ids):
             fingerprint = _SEND_CONVERSATION_GUARD.fingerprint(
                 str(course_identifier),
                 json.dumps(recipient_ids),
@@ -408,18 +489,27 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                 json.dumps(attachment_ids or []),
             )
             if not confirmation_token:
+                # The preview must show EVERYTHING the token authorizes —
+                # attachments disclose files, and the delivery flags change
+                # who sees what.
                 return {
                     "preview": True,
                     "nothing_sent": True,
                     "recipient_ids": recipient_ids,
                     "subject": subject,
                     "body": body,
+                    "attachment_ids": attachment_ids or [],
+                    "group_conversation": group_conversation,
+                    "bulk_message": bulk_message,
+                    "mode": mode,
+                    "force_new": force_new,
                     "confirmation_token": _SEND_CONVERSATION_GUARD.issue(fingerprint),
                     "instructions": (
-                        "Show this preview to the educator. To send, call "
-                        "send_conversation again with this confirmation_token "
-                        "and identical arguments. The token is single-use and "
-                        "expires shortly."
+                        "Show this preview to the educator, including any "
+                        "attachments listed. To send, call send_conversation "
+                        "again with this confirmation_token and identical "
+                        "arguments. The token is single-use and expires "
+                        "shortly."
                     ),
                 }
             token_error = _SEND_CONVERSATION_GUARD.check(confirmation_token, fingerprint)
@@ -445,9 +535,17 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                 force_new,
                 attachment_ids,
             )
-            if "error" in result and len(recipient_ids) > 1 and confirmation_token:
-                # Canvas rejected the POST, so nothing was sent — hand the
-                # claim back rather than forcing a fresh preview to retry.
+            if (
+                "error" in result
+                and confirmation_token
+                and not _is_single_direct_recipient(recipient_ids)
+                and _definitely_not_sent(result["error"])
+            ):
+                # Canvas provably rejected the POST, so nothing was sent —
+                # hand the claim back rather than forcing a fresh preview to
+                # retry. Ambiguous transport failures (a timeout can land
+                # AFTER Canvas accepted the send) keep the claim so a retry
+                # cannot double-send.
                 _SEND_CONVERSATION_GUARD.release(confirmation_token)
             return result
         except Exception as e:
@@ -499,6 +597,13 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                 return composed
             subject, body = composed
 
+            # The COMPOSED text can carry markers from inputs the
+            # custom_message check never sees — subject_prefix, and the
+            # assignment NAME, which is Canvas-authored. Check the final
+            # subject and body, not just the pieces.
+            if contains_fence_markers(subject) or contains_fence_markers(body):
+                return {"error": FENCE_LEAK_ERROR}
+
             # The fingerprint covers the COMPOSED text, so an assignment
             # rename (which changes the subject/body) between preview and
             # confirm voids the token rather than sending unshown text.
@@ -548,9 +653,11 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                 force_new=False,
                 attachment_ids=None,
             )
-            if "error" in result:
-                # Canvas rejected the POST, so nothing was sent — hand the
-                # claim back rather than forcing a fresh preview to retry.
+            if "error" in result and _definitely_not_sent(result["error"]):
+                # Canvas provably rejected the POST, so nothing was sent —
+                # hand the claim back rather than forcing a fresh preview to
+                # retry. Ambiguous transport failures keep the claim so a
+                # retry cannot double-send.
                 _REMINDER_GUARD.release(confirmation_token)
             return result
 
@@ -612,29 +719,30 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
         )
 
         if not confirmation_token:
-            sample = recipient_data[0]
-            try:
-                sample_subject = subject_template.format(**sample)
-                sample_body = body_template.format(**sample)
-            except (KeyError, IndexError, ValueError) as e:
+            rendered, render_errors = _render_bulk_messages(
+                recipient_data, subject_template, body_template
+            )
+            if render_errors:
                 return {
                     "error": (
-                        f"Template does not render against the first recipient: {e}. "
-                        "Nothing was sent."
-                    )
+                        f"{len(render_errors)} recipient record(s) cannot be "
+                        "sent. Fix them and preview again. Nothing was sent."
+                    ),
+                    "nothing_sent": True,
+                    "invalid_records": render_errors,
                 }
             token = _BULK_MESSAGE_GUARD.issue(fingerprint)
             return {
                 "preview": True,
                 "nothing_sent": True,
-                "recipient_count": len(recipient_data),
-                "recipient_user_ids": [r.get("user_id") for r in recipient_data],
-                "sample_subject": sample_subject,
-                "sample_body": sample_body,
+                "recipient_count": len(rendered),
+                # Every message the token authorizes, rendered in full — a
+                # sample would let a poisoned later row go out unseen.
+                "messages": rendered,
                 "confirmation_token": token,
                 "instructions": (
-                    "Show this preview to the educator. To send, call "
-                    "send_bulk_messages_from_list again with this "
+                    "Show ALL of these rendered messages to the educator. To "
+                    "send, call send_bulk_messages_from_list again with this "
                     "confirmation_token and identical arguments. The token is "
                     "single-use and expires shortly."
                 ),
@@ -653,54 +761,60 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                 "nothing_sent": True,
             }
 
+        # Re-render the WHOLE batch before any send. Rendering is
+        # deterministic and the fingerprint proved the arguments are the ones
+        # previewed, so errors here should be impossible — but if one appears
+        # anyway, fail before the first send rather than mid-batch.
+        rendered, render_errors = _render_bulk_messages(
+            recipient_data, subject_template, body_template
+        )
+        if render_errors:
+            _BULK_MESSAGE_GUARD.release(confirmation_token)
+            return {
+                "error": "Recipient records failed to render. Nothing was sent.",
+                "nothing_sent": True,
+                "invalid_records": render_errors,
+            }
+
         try:
             results: dict[str, Any] = {
                 "success": True,
                 "sent": [],
                 "failed": [],
-                "total": len(recipient_data)
+                "total": len(rendered)
             }
 
-            for recipient in recipient_data:
+            for message in rendered:
                 try:
-                    user_id = recipient.get("user_id")
-                    if not user_id:
-                        results["failed"].append({
-                            "recipient": recipient,
-                            "error": "user_id missing from recipient data"
-                        })
-                        continue
-
-                    # Format the templates with recipient data
-                    formatted_subject = subject_template.format(**recipient)
-                    formatted_body = body_template.format(**recipient)
-
-                    # Send individual message
-                    send_result = await send_conversation(
-                        course_identifier=course_identifier,
-                        recipient_ids=[str(user_id)],
-                        subject=formatted_subject,
-                        body=formatted_body,
+                    # The bulk tool's own confirmation above is the gate; each
+                    # row is a single validated numeric recipient.
+                    send_result = await _post_conversation(
+                        course_identifier,
+                        [message["user_id"]],
+                        message["subject"],
+                        message["body"],
                         group_conversation=True,
                         bulk_message=False,  # Individual messages
                         context_code=context_code or f"course_{course_identifier}",
-                        mode=mode
+                        mode=mode,
+                        force_new=False,
+                        attachment_ids=None,
                     )
 
                     if send_result.get("success"):
                         results["sent"].append({
-                            "user_id": user_id,
-                            "subject": formatted_subject
+                            "user_id": message["user_id"],
+                            "subject": message["subject"]
                         })
                     else:
                         results["failed"].append({
-                            "user_id": user_id,
+                            "user_id": message["user_id"],
                             "error": send_result.get("error", "Unknown error")
                         })
 
                 except Exception as e:
                     results["failed"].append({
-                        "recipient": recipient,
+                        "user_id": message["user_id"],
                         "error": str(e)
                     })
 

@@ -183,7 +183,9 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         topic_type = "Announcement" if is_announcement else "Discussion"
 
         result = f"{topic_type} Details for Course {course_display}:\n\n"
-        result += f"Title: {title}\n"
+        # Topic titles are author-controlled too (students, where the course
+        # allows student topics) — fenced like the body (issue 239).
+        result += f"Title:\n{fence_untrusted(title, 'discussion topic title')}\n"
         result += f"ID: {topic_id}\n"
         result += f"Type: {topic_type}\n"
         result += f"Author: {author_name} (ID: {author_id})\n"
@@ -426,7 +428,12 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         if not include_replies:
             footer += "\n💡 Tip: Use include_replies=True to fetch all replies"
 
-        return f"Discussion Entries for '{topic_title}' in Course {course_display}:\n\n" + "\n".join(entries_info) + footer
+        return (
+            f"Discussion Entries in Course {course_display} — topic title:\n"
+            f"{fence_untrusted(topic_title, 'discussion topic title')}\n\n"
+            + "\n".join(entries_info)
+            + footer
+        )
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
@@ -558,7 +565,10 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         updated_at = format_date(entry_response.get("updated_at"))
         read_state = entry_response.get("read_state", "unknown")
 
-        result = f"Discussion Entry Details for '{topic_title}' in Course {course_display}:\n\n"
+        result = (
+            f"Discussion Entry Details in Course {course_display} — topic title:\n"
+            f"{fence_untrusted(topic_title, 'discussion topic title')}\n\n"
+        )
         result += f"Topic ID: {topic_id}\n"
         result += f"Entry ID: {entry_id}\n"
         result += f"Author: {user_name} (ID: {user_id})\n"
@@ -639,7 +649,10 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             topic_title = topic_response.get("title", "Unknown Topic")
 
         course_display = await get_course_code(course_id) or course_identifier
-        result = f"Discussion '{topic_title}' in Course {course_display}:\n\n"
+        result = (
+            f"Discussion in Course {course_display} — topic title:\n"
+            f"{fence_untrusted(topic_title, 'discussion topic title')}\n\n"
+        )
 
         # Process each entry
         for entry in entries:

@@ -850,10 +850,12 @@ Export all peer review data for external analysis.
 #### `send_conversation`
 Send messages to students.
 
-**Sending to one recipient is a single call. Sending to multiple recipients is
-two-step:** call without a `confirmation_token` to get a preview (recipients,
-subject, body) plus a single-use token, then call again with the token and
-identical arguments to send.
+**Sending to exactly one plain numeric user ID is a single call. Anything else
+is two-step** — multiple recipients, or any expandable alias like `course_123`
+or `group_45` (which fans out server-side): call without a `confirmation_token`
+to get a preview (recipients, subject, body, attachments, delivery flags) plus
+a single-use token, then call again with the token and identical arguments to
+send.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
@@ -895,11 +897,13 @@ composed message changed (e.g. the assignment was renamed).
 Send customized messages to multiple recipients using templates with per-recipient variables.
 
 **Two-step by design.** Call it without a `confirmation_token` to get a preview
-(recipient count, rendered sample message) plus a single-use token; show the
+that renders **every** outbound message plus a single-use token; show the
 preview to the educator, then call again with the token and identical arguments
-to actually send. The token expires after a few minutes and is void if any
-argument changed since the preview. This prevents content read from Canvas
-(e.g. a student-authored message) from silently triggering a bulk send.
+to actually send. Rows with invalid or alias user IDs, or that fail to render,
+fail the preview before a token is issued. The token expires after a few
+minutes and is void if any argument changed since the preview. This prevents
+content read from Canvas (e.g. a student-authored message) from silently
+triggering a bulk send.
 
 **Parameters:**
 - `course_identifier`: Course code or ID

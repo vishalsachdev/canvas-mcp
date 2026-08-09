@@ -19,8 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   subjects and message bodies (`list_conversations`,
   `get_conversation_details`) are wrapped in explicit
   `<<<UNTRUSTED CANVAS CONTENT ...>>>` markers stating the text is data, not
-  instructions. Author-controlled *derived* values (page title, embedded-media
-  src/alt inventory) sit inside the fence too, not around it. Content is
+  instructions. Author-controlled *derived* values (page and discussion-topic
+  titles, embedded-media src/alt inventory) sit inside the fence too, not
+  around it. Content is
   otherwise unaltered (no sanitization or loss); embedded marker lookalikes
   are degraded so fenced text cannot forge its own boundary. Fencing is
   applied at the tool output-formatting boundary only — never in the
@@ -36,16 +37,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nothing; sending requires calling again with the token and identical
   arguments. Tokens are void if anything changed in between (including the
   campaign's completion analytics or an assignment rename that alters the
-  composed reminder). Single-recipient `send_conversation` stays a single
-  call. This extends the `submit_assignment` confirmation pattern to the
-  educator side, so prompt-injected content read from Canvas cannot silently
-  trigger a fan-out send.
+  composed reminder). `send_conversation` stays a single call only for
+  exactly one plain numeric user ID — expandable recipient aliases
+  (`course_*`/`group_*`) fan out server-side and are treated as
+  multi-recipient. The bulk preview renders **every** outbound message (not
+  a sample), and rows with invalid or alias user IDs fail the preview before
+  a token is issued. Confirmation claims are only released on provable
+  Canvas rejections; ambiguous transport failures (e.g. a timeout after
+  Canvas accepted the POST) retain the claim so a retry cannot double-send.
+  This extends the `submit_assignment` confirmation pattern to the educator
+  side, so prompt-injected content read from Canvas cannot silently trigger
+  a fan-out send.
 - Write tools that publish free text (`create_page`, `edit_page_content`,
   `post_discussion_entry`, `reply_to_discussion_entry`,
   `create_discussion_topic`, `update_discussion_topic`, `create_announcement`,
   `send_conversation`, `send_peer_review_reminders`,
-  `send_bulk_messages_from_list`) refuse content containing the fence markers,
-  so a fenced read result cannot be round-tripped into live Canvas content.
+  `send_bulk_messages_from_list`) refuse content containing the fence markers
+  in every writable text field, titles included, so a fenced read result
+  cannot be round-tripped into live Canvas content. The check also runs at
+  the shared conversation-POST choke point on the final composed subject and
+  body, catching markers that arrive via Canvas-authored inputs such as an
+  assignment name.
 
 - **The npm setup wizard (`npx canvas-mcp setup`) is retired and the `canvas-mcp`
   npm package deprecated** (#249). The wizard wrote client configs pointing at

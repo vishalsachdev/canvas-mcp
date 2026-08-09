@@ -297,7 +297,8 @@ def register_educator_page_crud_tools(mcp: FastMCP) -> None:
         """
         # Backstop for issue 239: a fenced read result pasted straight into a
         # write would publish our provenance markers into live course content.
-        if contains_fence_markers(body):
+        # Read tools fence titles too, so the title is checked like the body.
+        if contains_fence_markers(body) or contains_fence_markers(title):
             return FENCE_LEAK_ERROR
 
         course_id = await get_course_id(course_identifier)
@@ -351,7 +352,10 @@ def register_educator_page_crud_tools(mcp: FastMCP) -> None:
         """
         # Backstop for issue 239: refuse to write our own provenance fence
         # markers (added by read tools like get_page_content) into Canvas.
-        if contains_fence_markers(new_content):
+        # Read tools fence titles too, so the title is checked like the body.
+        if contains_fence_markers(new_content) or (
+            title is not None and contains_fence_markers(title)
+        ):
             return FENCE_LEAK_ERROR
 
         course_id = await get_course_id(course_identifier)

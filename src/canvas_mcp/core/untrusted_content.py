@@ -40,14 +40,20 @@ UNTRUSTED_NOTICE = (
 # can never open or close a real fence. Case-insensitive, because the model —
 # the consumer these markers exist for — reads "<<<end untrusted canvas
 # content>>>" as a closing marker even though a string comparison would not.
-_SPOOF_PATTERN = re.compile(r"<<<(?=\s*(?:END\s+)?UNTRUSTED\s+CANVAS\s+CONTENT)", re.IGNORECASE)
+#
+# The pattern consumes the ENTIRE run of 3+ brackets, not just the last three.
+# Matching exactly ``<<<`` was bypassable: in ``<<<<END UNTRUSTED ...`` only
+# the final three brackets sat before the phrase, so replacing them with
+# ``<<`` left the untouched first bracket to RECREATE an exact
+# ``<<<END ...`` delimiter.
+_SPOOF_PATTERN = re.compile(r"<{3,}(?=\s*(?:END\s+)?UNTRUSTED\s+CANVAS\s+CONTENT)", re.IGNORECASE)
 
 
 def neutralize_marker_spoofing(text: str) -> str:
     """Degrade any fence-marker lookalikes embedded in untrusted text.
 
-    ``<<<`` becomes ``<<`` only when it precedes a marker phrase, so ordinary
-    HTML and prose pass through byte-identical.
+    A run of three or more ``<`` becomes exactly ``<<`` only when it precedes
+    a marker phrase, so ordinary HTML and prose pass through byte-identical.
     """
     return _SPOOF_PATTERN.sub("<<", text)
 
