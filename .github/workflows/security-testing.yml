@@ -13,6 +13,8 @@ jobs:
   security-tests:
     name: Security Test Suite
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
       - name: Checkout code
@@ -53,6 +55,8 @@ jobs:
   sast-scan:
     name: Static Analysis Security Testing
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
       - name: Checkout code
@@ -95,6 +99,8 @@ jobs:
   dependency-scan:
     name: Dependency Vulnerability Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
       - name: Checkout code
@@ -150,6 +156,8 @@ jobs:
   secret-scan:
     name: Secret Detection Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
       - name: Checkout code

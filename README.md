@@ -115,7 +115,7 @@ Canvas MCP provides **99 tools** for interacting with Canvas LMS. Tools are orga
 
 **Course identifiers:** Canvas ID (`12345`), course code (`badm_350_120251_246794`), or SIS ID
 
-**Cannot do:** Create/delete courses, modify course settings, access other users' data, create/update rubrics (use Canvas UI)
+**Cannot do:** Create/delete courses, modify course settings, access other users' data
 
 **Rate limits:** ~700 requests/10 min. Use `max_concurrent=5` for bulk operations.
 

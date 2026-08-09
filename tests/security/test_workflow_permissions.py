@@ -19,6 +19,19 @@ yaml = pytest.importorskip("yaml")
 
 WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
 AI_WORKFLOW = WORKFLOWS / "weekly-maintenance.yml"
+WORKFLOWS_REQUIRING_CONTENTS_READ = {
+    "canvas-mcp-testing.yml": None,
+    "deploy-prod.yml": None,
+    "deploy-staging.yml": None,
+}
+JOBS_REQUIRING_CONTENTS_READ = {
+    "security-testing.yml": [
+        "security-tests",
+        "sast-scan",
+        "dependency-scan",
+        "secret-scan",
+    ],
+}
 
 # Permissions that let a hijacked run alter code or merge state.
 FORBIDDEN_WRITE_SCOPES = {"contents", "pull-requests", "packages", "actions",
@@ -114,3 +127,27 @@ class TestNoWorkflowReintroducesUnrestrictedGh:
             '          claude_args: \'--allowed-tools "Bash(gh:*),Read"\'\n'
         )
         assert any("Bash(gh:*)" in arg for arg in _tool_args_in(sample))
+
+
+class TestWorkflowPermissions:
+    @pytest.mark.parametrize(
+        ("workflow_name", "job_names"),
+        sorted(WORKFLOWS_REQUIRING_CONTENTS_READ.items()),
+    )
+    def test_workflow_level_contents_read_permissions(self, workflow_name, job_names):
+        workflow = _load(WORKFLOWS / workflow_name)
+        assert workflow.get("permissions", {}).get("contents") == "read", (
+            f"{workflow_name} should declare least-privilege checkout permissions"
+        )
+
+    @pytest.mark.parametrize(
+        ("workflow_name", "job_names"),
+        sorted(JOBS_REQUIRING_CONTENTS_READ.items()),
+    )
+    def test_job_level_contents_read_permissions(self, workflow_name, job_names):
+        workflow = _load(WORKFLOWS / workflow_name)
+        for job_name in job_names:
+            job = workflow["jobs"][job_name]
+            assert job.get("permissions", {}).get("contents") == "read", (
+                f"{workflow_name}:{job_name} should declare least-privilege checkout permissions"
+            )
