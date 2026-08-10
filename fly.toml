@@ -1,0 +1,42 @@
+app = "qwerzl-canvas-mcp"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8819"
+  MCP_HTTP_CREDENTIAL_MODE = "server"
+  CANVAS_ROLE = "student"
+  EXECUTE_TYPESCRIPT_ENABLED = "false"
+  QUIZ_TAKING_ENABLED = "false"
+  ENABLE_DATA_ANONYMIZATION = "true"
+  LOG_LEVEL = "INFO"
+
+[http_service]
+  internal_port = 8819
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 25
+    hard_limit = 50
+
+  [http_service.http_options]
+    idle_timeout = 600
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/healthz"
+    protocol = "http"
+    timeout = "5s"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "512mb"
