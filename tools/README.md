@@ -786,18 +786,27 @@ Get a prioritized list of students needing follow-up on peer review completion.
 ---
 
 #### `send_peer_review_followup_campaign`
-Complete workflow: analyze peer review completion and send targeted reminders in one call.
+Complete workflow: analyze peer review completion and send targeted reminders.
+
+**Two-step by design.** Call it without a `confirmation_token` to get the
+analytics plus the fully rendered subject/body of each reminder batch (urgent
+vs gentle) and a single-use token; call again with the token to send. The
+token commits to the recipients AND the rendered text, so it is void if the
+completion analytics shifted or the assignment was renamed in between.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `assignment_id`: Assignment ID
+- `confirmation_token` (optional): Token from the preview call; omit to preview
 
 **Example:**
 ```
 "Analyze peer review completion and remind everyone who's behind"
 ```
 
-**Returns:** Campaign summary: who was analyzed, who was messaged, and send results.
+**Returns:** Without a token: analytics, planned reminder groups, and a
+`confirmation_token` (nothing sent). With a valid token: campaign summary with
+send results.
 
 ---
 
@@ -842,11 +851,19 @@ Export all peer review data for external analysis.
 #### `send_conversation`
 Send messages to students.
 
+**Sending to exactly one plain numeric user ID is a single call. Anything else
+is two-step** — multiple recipients, or any expandable alias like `course_123`
+or `group_45` (which fans out server-side): call without a `confirmation_token`
+to get a preview (recipients, subject, body, attachments, delivery flags) plus
+a single-use token, then call again with the token and identical arguments to
+send.
+
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `recipients`: User IDs (array)
 - `subject`: Message subject
 - `body`: Message content
+- `confirmation_token` (optional): Token from the preview call (multi-recipient only)
 
 **Example:**
 ```
@@ -858,11 +875,17 @@ Send messages to students.
 #### `send_peer_review_reminders`
 Automated peer review reminder workflow.
 
+**Two-step by design.** Call it without a `confirmation_token` to get a preview
+(recipients, composed subject and body) plus a single-use token; call again
+with the token and identical arguments to send. The token is void if the
+composed message changed (e.g. the assignment was renamed).
+
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `assignment_id`: Assignment ID
 - `user_ids`: Students to remind (array)
 - `custom_message` (optional): Custom message template
+- `confirmation_token` (optional): Token from the preview call; omit to preview
 
 **Example:**
 ```
@@ -874,6 +897,15 @@ Automated peer review reminder workflow.
 #### `send_bulk_messages_from_list`
 Send customized messages to multiple recipients using templates with per-recipient variables.
 
+**Two-step by design.** Call it without a `confirmation_token` to get a preview
+that renders **every** outbound message plus a single-use token; show the
+preview to the educator, then call again with the token and identical arguments
+to actually send. Rows with invalid or alias user IDs, or that fail to render,
+fail the preview before a token is issued. The token expires after a few
+minutes and is void if any argument changed since the preview. This prevents
+content read from Canvas (e.g. a student-authored message) from silently
+triggering a bulk send.
+
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `recipient_data`: List of dicts with recipient info and template variables
@@ -881,13 +913,15 @@ Send customized messages to multiple recipients using templates with per-recipie
 - `body_template`: Body with placeholders (e.g., `"Hi {name}, you have {missing_count}..."`)
 - `context_code` (optional): Course context
 - `mode` (optional): `sync` (default) or `async`
+- `confirmation_token` (optional): Token from the preview call; omit to preview
 
 **Example:**
 ```
 "Send this templated reminder to these 12 students"
 ```
 
-**Returns:** Per-recipient success/failure summary of sent messages.
+**Returns:** Without a token: a preview with `confirmation_token` (nothing sent).
+With a valid token: per-recipient success/failure summary of sent messages.
 
 ---
 

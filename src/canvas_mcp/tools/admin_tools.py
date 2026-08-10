@@ -7,6 +7,7 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.csv_safety import csv_safe_cell
+from ..core.untrusted_content import fence_untrusted_inline
 from ..core.validation import validate_params
 
 
@@ -78,11 +79,13 @@ def register_admin_tools(mcp: FastMCP) -> None:
 
         for group in groups:
             group_id = group.get("id")
-            group_name = group.get("name", "Unnamed group")
+            group_name = group.get("name") or "Unnamed group"
             group_category = group.get("group_category_id", "Uncategorized")
             member_count = group.get("members_count", 0)
 
-            output += f"Group: {group_name}\n"
+            # Group names (self-signup) and member names/emails are
+            # author-controlled (issue 239).
+            output += f"Group: {fence_untrusted_inline(group_name, 'group name')}\n"
             output += f"ID: {group_id}\n"
             output += f"Category ID: {group_category}\n"
             output += f"Member Count: {member_count}\n"
@@ -102,9 +105,14 @@ def register_admin_tools(mcp: FastMCP) -> None:
                 output += "Members:\n"
                 for member in members:
                     member_id = member.get("id")
-                    member_name = member.get("name", "Unnamed user")
-                    member_email = member.get("email", "No email")
-                    output += f"  - {member_name} (ID: {member_id}, Email: {member_email})\n"
+                    # `or fallback` (not the get default) — Canvas sends an
+                    # explicit null email for accounts with no visible address.
+                    member_name = member.get("name") or "Unnamed user"
+                    member_email = member.get("email") or "No email"
+                    output += (
+                        f"  - {fence_untrusted_inline(member_name, 'user name')} "
+                        f"(ID: {member_id}, Email: {fence_untrusted_inline(member_email, 'user email')})\n"
+                    )
 
             output += "\n"
 
@@ -136,16 +144,22 @@ def register_admin_tools(mcp: FastMCP) -> None:
         users_info = []
         for user in users:
             user_id = user.get("id")
-            name = user.get("name", "Unknown")
-            email = user.get("email", "No email")
+            # `or fallback` — Canvas sends an explicit null email for accounts
+            # with no visible address; the get default only covers a missing key.
+            name = user.get("name") or "Unknown"
+            email = user.get("email") or "No email"
 
             # Get enrollment info
             enrollments = user.get("enrollments", [])
             roles = [enrollment.get("role", "Student") for enrollment in enrollments]
             role_list = ", ".join(set(roles)) if roles else "Student"
 
+            # Display names and emails are author-controlled (issue 239).
             users_info.append(
-                f"ID: {user_id}\nName: {name}\nEmail: {email}\nRoles: {role_list}\n"
+                f"ID: {user_id}\n"
+                f"Name: {fence_untrusted_inline(name, 'user name')}\n"
+                f"Email: {fence_untrusted_inline(email, 'user email')}\n"
+                f"Roles: {role_list}\n"
             )
 
         course_display = await get_course_code(course_id) or course_identifier
@@ -260,7 +274,12 @@ def register_admin_tools(mcp: FastMCP) -> None:
         lines.append("-" * 100)
 
         for r in rows:
-            parts = [r["name"][:30].ljust(30), str(r["engagement_score"]).rjust(3)]
+            # Student names are author-controlled (issue 239). Truncate the RAW
+            # name first, THEN fence — slicing a fenced string would split the
+            # marker. The fence makes the name column variable-width, so the
+            # fixed-column alignment no longer applies to it.
+            safe_name = fence_untrusted_inline(str(r["name"])[:30], "student name")
+            parts = [safe_name, str(r["engagement_score"]).rjust(3)]
             if include_access_stats:
                 parts += [str(r["page_views"]).rjust(5), f"{r['page_views_pct_of_max']}%".rjust(4)]
             if include_participation:

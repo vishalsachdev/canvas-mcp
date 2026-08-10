@@ -13,6 +13,11 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, parse_date
+from ..core.untrusted_content import (
+    FENCE_LEAK_ERROR,
+    contains_fence_markers,
+    fence_untrusted_inline,
+)
 from ..core.validation import validate_params
 
 
@@ -65,7 +70,8 @@ def register_shared_module_tools(mcp: FastMCP) -> None:
             require_sequential = module.get("require_sequential_progress", False)
             prerequisite_ids = module.get("prerequisite_module_ids", [])
 
-            result += f"**{name}**\n"
+            # Module names and item titles are instructor-authored (issue 239).
+            result += f"**{fence_untrusted_inline(name, 'module name')}**\n"
             result += f"  ID: {module_id}\n"
             result += f"  Position: {position}\n"
             result += f"  Status: {state} | Published: {'Yes' if published else 'No'}\n"
@@ -86,7 +92,7 @@ def register_shared_module_tools(mcp: FastMCP) -> None:
                     for item in items[:5]:  # Show first 5 items
                         item_title = item.get("title", "Untitled")
                         item_type = item.get("type", "Unknown")
-                        result += f"    - {item_title} ({item_type})\n"
+                        result += f"    - {fence_untrusted_inline(item_title, 'module item title')} ({item_type})\n"
                     if len(items) > 5:
                         result += f"    ... and {len(items) - 5} more items\n"
 
@@ -157,7 +163,9 @@ def register_shared_module_tools(mcp: FastMCP) -> None:
                 filtered_items.append({
                     "id": item.get("id"),
                     "type": item_type,
-                    "title": item.get("title", "Untitled"),
+                    # Author-controlled titles fenced even in the JSON payload
+                    # (issue 239).
+                    "title": fence_untrusted_inline(item.get("title", "Untitled"), "module item title"),
                     "published": item_published,
                     "position": item.get("position"),
                     "content_id": item.get("content_id"),
@@ -172,7 +180,7 @@ def register_shared_module_tools(mcp: FastMCP) -> None:
 
             structured_modules.append({
                 "id": module.get("id"),
-                "name": module.get("name", "Unnamed"),
+                "name": fence_untrusted_inline(module.get("name", "Unnamed"), "module name"),
                 "position": module.get("position"),
                 "published": module_published,
                 "unlock_at": format_date(module.get("unlock_at")) if module.get("unlock_at") else None,
@@ -223,6 +231,10 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             prerequisite_module_ids: Comma-separated module IDs that must be completed first
             published: Whether the module is published (default: True)
         """
+        # Backstop for issue 239: never publish our provenance markers.
+        if contains_fence_markers(name):
+            return FENCE_LEAK_ERROR
+
         course_id = await get_course_id(course_identifier)
 
         # Build module parameters
@@ -307,6 +319,10 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             prerequisite_module_ids: Comma-separated prerequisite module IDs, or empty to clear
             published: Whether the module is published
         """
+        # Backstop for issue 239: never publish our provenance markers.
+        if name is not None and contains_fence_markers(name):
+            return FENCE_LEAK_ERROR
+
         course_id = await get_course_id(course_identifier)
 
         # Build update parameters (only include changed fields)
@@ -457,6 +473,10 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             completion_requirement_type: One of: must_view, must_submit, must_contribute, min_score, must_mark_done
             completion_requirement_min_score: Minimum score (only for min_score type)
         """
+        # Backstop for issue 239: never publish our provenance markers.
+        if title is not None and contains_fence_markers(title):
+            return FENCE_LEAK_ERROR
+
         course_id = await get_course_id(course_identifier)
 
         # Validate item type
@@ -600,6 +620,10 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             published: Whether the item is published
             move_to_module_id: Move item to a different module
         """
+        # Backstop for issue 239: never publish our provenance markers.
+        if title is not None and contains_fence_markers(title):
+            return FENCE_LEAK_ERROR
+
         course_id = await get_course_id(course_identifier)
 
         # Build update parameters

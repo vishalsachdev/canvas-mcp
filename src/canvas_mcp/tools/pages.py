@@ -14,6 +14,7 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import make_canvas_request
 from ..core.dates import format_date, parse_date
+from ..core.untrusted_content import FENCE_LEAK_ERROR, contains_fence_markers
 from ..core.validation import validate_params
 from ..core.write_confirmation import unconfirmed_write_warning
 
@@ -294,6 +295,12 @@ def register_educator_page_crud_tools(mcp: FastMCP) -> None:
             front_page: Whether to set as front page (default: False)
             editing_roles: Who can edit (default: "teachers")
         """
+        # Backstop for issue 239: a fenced read result pasted straight into a
+        # write would publish our provenance markers into live course content.
+        # Read tools fence titles too, so the title is checked like the body.
+        if contains_fence_markers(body) or contains_fence_markers(title):
+            return FENCE_LEAK_ERROR
+
         course_id = await get_course_id(course_identifier)
 
         data = {
@@ -343,6 +350,14 @@ def register_educator_page_crud_tools(mcp: FastMCP) -> None:
             new_content: New HTML content for the page
             title: Optional new title for the page
         """
+        # Backstop for issue 239: refuse to write our own provenance fence
+        # markers (added by read tools like get_page_content) into Canvas.
+        # Read tools fence titles too, so the title is checked like the body.
+        if contains_fence_markers(new_content) or (
+            title is not None and contains_fence_markers(title)
+        ):
+            return FENCE_LEAK_ERROR
+
         course_id = await get_course_id(course_identifier)
 
         # Prepare the data for updating the page

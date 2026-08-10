@@ -125,7 +125,7 @@ class TestGetCourseStructure:
         # Verify first module structure
         mod1 = parsed["modules"][0]
         assert mod1["id"] == 12345
-        assert mod1["name"] == "Week 1: Introduction"
+        assert "Week 1: Introduction" in mod1["name"]
         assert mod1["position"] == 1
         assert mod1["published"] is True
         assert mod1["items_count"] == 3
@@ -134,12 +134,12 @@ class TestGetCourseStructure:
         items = mod1["items"]
         assert len(items) == 3
         assert items[0]["type"] == "SubHeader"
-        assert items[0]["title"] == "Overview"
+        assert "Overview" in items[0]["title"]
         assert items[1]["type"] == "Page"
-        assert items[1]["title"] == "Syllabus"
+        assert "Syllabus" in items[1]["title"]
         assert items[1]["page_url"] == "syllabus"
         assert items[2]["type"] == "Assignment"
-        assert items[2]["title"] == "HW 1"
+        assert "HW 1" in items[2]["title"]
         assert items[2]["content_id"] == 100
 
         # Verify second module
@@ -241,9 +241,9 @@ class TestGetCourseStructure:
 
         # Week 2 should only have 1 item (the unpublished Discussion is filtered)
         mod2 = parsed["modules"][1]
-        assert mod2["name"] == "Week 2: Core Concepts"
+        assert "Week 2: Core Concepts" in mod2["name"]
         assert mod2["items_count"] == 1
-        assert mod2["items"][0]["title"] == "Lecture Notes"
+        assert "Lecture Notes" in mod2["items"][0]["title"]
 
 
 if __name__ == "__main__":

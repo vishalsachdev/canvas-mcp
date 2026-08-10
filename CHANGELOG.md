@@ -7,7 +7,108 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Removed
+### Security
+
+- **Canvas-authored free text is now provenance-fenced before it reaches the
+  model** ([issue 239](https://github.com/vishalsachdev/canvas-mcp/issues/239)).
+  Page content including titles and media inventories (`get_page_content`,
+  `get_page_details`, `get_front_page`), syllabus text (`get_syllabus`,
+  `get_course_content_overview`), discussion topics/entries/replies
+  (`get_discussion_topic_details`, `list_discussion_entries`,
+  `get_discussion_entry_details`, `get_discussion_with_replies`), and inbox
+  subjects and message bodies (`list_conversations`,
+  `get_conversation_details`) are wrapped in explicit
+  `<<<UNTRUSTED CANVAS CONTENT ...>>>` markers stating the text is data, not
+  instructions. Author-controlled *derived* values (page and discussion-topic
+  titles, embedded-media src/alt inventory) sit inside the fence too, not
+  around it. Content is
+  otherwise unaltered (no sanitization or loss); embedded marker lookalikes
+  are degraded so fenced text cannot forge its own boundary. Fencing is
+  applied at the tool output-formatting boundary only — never in the
+  anonymization/client layer — so no fence can leak into content written back
+  to Canvas.
+- **All multi-recipient message sends are now two-step** (breaking):
+  `send_bulk_messages_from_list`, `send_conversation` with more than one
+  recipient, `send_peer_review_reminders`, and
+  `send_peer_review_followup_campaign` require a preview→confirm round-trip.
+  Calling without a `confirmation_token` returns a preview (recipients,
+  rendered subject/body — for the campaign, the completion analytics and who
+  gets which reminder) plus a single-use, content-bound token and sends
+  nothing; sending requires calling again with the token and identical
+  arguments. Tokens are void if anything changed in between (including the
+  campaign's completion analytics or an assignment rename that alters the
+  composed reminder). `send_conversation` stays a single call only for
+  exactly one plain numeric user ID — expandable recipient aliases
+  (`course_*`/`group_*`) fan out server-side and are treated as
+  multi-recipient. The bulk preview renders **every** outbound message (not
+  a sample), and rows with invalid or alias user IDs fail the preview before
+  a token is issued. The campaign previews the full rendered subject/body of
+  every batch and its token commits to that text, so an assignment rename
+  between preview and confirm voids the token. Confirmation claims are only
+  released on provable rejections (4xx validation/auth statuses: 400, 401,
+  403, 404, 422, or pre-flight validation); timeouts, 408/409/429, and all
+  5xx are treated as ambiguous — the POST may have been processed — so the
+  claim stays spent and a retry cannot double-send. Shared outbound
+  validation (subject length, mode, marker check) is enforced at the
+  conversation-POST choke point, so no composed path can route around it.
+  This extends the `submit_assignment` confirmation pattern to the educator
+  side, so prompt-injected content read from Canvas cannot silently trigger
+  a fan-out send.
+- **Completeness pass — author-controlled free text is fenced across every
+  read tool.** Beyond bodies and titles, the following author-set fields are
+  now provenance-fenced at their tool-output boundary: assignment
+  names/descriptions, module names + item titles, discussion/announcement
+  author display names, page editor display name, uploader-set filenames,
+  group names + member names/emails, roster user names/emails, student
+  analytics names, rubric titles + criterion/rating descriptions + assessment
+  comments, peer-review comment text + participant names, and student-planner
+  assignment titles. Short identity labels (names, emails, filenames) use a
+  compact single-line fence so dense rosters/analytics stay readable; bodies
+  and descriptions keep the block fence. A recursive key-based fence covers
+  the peer-review analyzer JSON at the model-facing return only (the CSV and
+  on-disk exports are untouched — CSV injection is handled separately). The
+  only author-controlled fields deliberately left unfenced are course
+  names/codes and the caller's own profile (low-risk course/self identity).
+- **Known limitation:** enabling `execute_typescript`
+  (`EXECUTE_TYPESCRIPT_ENABLED=true`; off by default, disabled on hosted
+  deployments) voids the confirmation-token and fencing guarantees above —
+  the sandbox receives `CANVAS_API_TOKEN` and can reach the Canvas API
+  directly, so code run there can fan out messages or write content without
+  any preview/confirm step. This is the known
+  [issue 157](https://github.com/vishalsachdev/canvas-mcp/issues/157) class
+  (the in-process network guard is bypassable); a tool-level block would be
+  security theater while raw fetch to the Canvas host remains open, so it is
+  documented rather than faked.
+- **The confirmation-token guard authenticates before recording a nonce**, so
+  a flood of forged/unsigned tokens can no longer grow its in-memory map
+  (a memory-exhaustion DoS). Tokens gained a fingerprint-independent
+  authenticator (so the burn-on-mismatch path can still authenticate a
+  genuinely-issued token), a max-length cap, and a hard ceiling on the tracked
+  nonce set. Because only authenticated, unexpired tokens can ever be
+  recorded, the tracked set is inherently bounded by issuance-rate × TTL and
+  each entry self-drains on its own expiry — so there is **no capacity cap and
+  no eviction** (either would drop a legitimate burn or resurrect a used
+  nonce). Recording is unconditional for an authenticated token, so a
+  burn-on-mismatch always keeps that token invalid for its full remaining
+  signed lifetime.
+- Grading writers (`bulk_grade_submissions`, `grade_with_rubric`) reject
+  fenced content in grade comments **and every per-criterion rubric comment**,
+  so a comment lifted from fenced read output cannot publish provenance markers
+  into the student-visible gradebook. The student write tools (`submit_assignment`
+  body/comment, `comment_on_my_submission`) and `create_rubric`
+  (title + all criterion/rating descriptions) carry the same backstop.
+- Write tools that publish free text (`create_page`, `edit_page_content`,
+  `post_discussion_entry`, `reply_to_discussion_entry`,
+  `create_discussion_topic`, `update_discussion_topic`, `create_announcement`,
+  `create_assignment`, `update_assignment`, `create_module`, `update_module`,
+  `add_module_item`, `update_module_item`,
+  `send_conversation`, `send_peer_review_reminders`,
+  `send_bulk_messages_from_list`) refuse content containing the fence markers
+  in every writable text field, titles included, so a fenced read result
+  cannot be round-tripped into live Canvas content. The check also runs at
+  the shared conversation-POST choke point on the final composed subject and
+  body, catching markers that arrive via Canvas-authored inputs such as an
+  assignment name.
 
 - **The npm setup wizard (`npx canvas-mcp setup`) is retired and the `canvas-mcp`
   npm package deprecated** (#249). The wizard wrote client configs pointing at

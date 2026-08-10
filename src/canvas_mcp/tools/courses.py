@@ -17,6 +17,7 @@ from ..core.cache import (
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.config import get_config
 from ..core.dates import format_date
+from ..core.untrusted_content import fence_untrusted, fence_untrusted_inline
 from ..core.validation import validate_params
 from .self_identity import _own_roles
 
@@ -316,13 +317,21 @@ def register_course_tools(mcp: FastMCP) -> None:
         labeled = fmt == "both"
         sections = [f"Syllabus for Course {course_display}:"]
 
+        # Syllabus bodies are course-authored free text (issue 239): fence them
+        # so embedded directives arrive marked as data, not instructions.
         if fmt in ("text", "both"):
             plain_text = _maybe_truncate(strip_html_tags(syllabus_body))
-            sections.append(("\n--- Plain Text ---\n" if labeled else "\n") + plain_text)
+            sections.append(
+                ("\n--- Plain Text ---\n" if labeled else "\n")
+                + fence_untrusted(plain_text, "course syllabus")
+            )
 
         if fmt in ("html", "both"):
             raw_html = _maybe_truncate(syllabus_body)
-            sections.append(("\n--- Raw HTML ---\n" if labeled else "\n") + raw_html)
+            sections.append(
+                ("\n--- Raw HTML ---\n" if labeled else "\n")
+                + fence_untrusted(raw_html, "course syllabus")
+            )
 
         return "\n".join(sections)
 
@@ -375,7 +384,12 @@ def register_course_tools(mcp: FastMCP) -> None:
                     for page in sorted_pages[:5]:
                         title = page.get("title", "Untitled")
                         updated = format_date(page.get("updated_at"))
-                        pages_summary.append(f"    {title} (Updated: {updated})")
+                        # Page titles are author-controlled where page editing
+                        # is open to students (issue 239).
+                        pages_summary.append(
+                            f"    {fence_untrusted(title, 'page title')} "
+                            f"(Updated: {updated})"
+                        )
 
                 overview_sections.append("\n".join(pages_summary))
 
@@ -417,7 +431,10 @@ def register_course_tools(mcp: FastMCP) -> None:
                     for module in modules[:3]:
                         name = module.get("name", "Unnamed")
                         state = module.get("state", "unknown")
-                        modules_summary.append(f"    {name} (Status: {state})")
+                        # Module names are instructor-authored (issue 239).
+                        modules_summary.append(
+                            f"    {fence_untrusted_inline(name, 'module name')} (Status: {state})"
+                        )
 
                 overview_sections.append("\n".join(modules_summary))
 
@@ -441,10 +458,13 @@ def register_course_tools(mcp: FastMCP) -> None:
                     if len(clean_syllabus) > 1000:
                         clean_syllabus = clean_syllabus[:1000] + "..."
 
+                    indented = "\n".join(
+                        [f"  {line}" for line in clean_syllabus.split('\n') if line.strip()]
+                    )
                     syllabus_summary = [
                         "\nSyllabus Content:",
-                        # Indent the content
-                        "\n".join([f"  {line}" for line in clean_syllabus.split('\n') if line.strip()])
+                        # Course-authored free text (issue 239): fence it.
+                        fence_untrusted(indented, "course syllabus (preview)")
                     ]
 
                     overview_sections.append("\n".join(syllabus_summary))
@@ -509,8 +529,12 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
 
             front_page_indicator = " (Front Page)" if is_front_page else ""
 
+            # Page titles are author-controlled where page editing is open to
+            # students (issue 239) — fenced in listings too.
             pages_info.append(
-                f"URL: {url}\nTitle: {title}{front_page_indicator}\nStatus: {published_status}\nUpdated: {updated_at}\n"
+                f"URL: {url}\n"
+                f"Title{front_page_indicator}:\n{fence_untrusted(title, 'page title')}\n"
+                f"Status: {published_status}\nUpdated: {updated_at}\n"
             )
 
         course_display = await get_course_code(course_id) or course_identifier
@@ -542,14 +566,25 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
         published = response.get("published", False)
 
         if not body:
-            return f"Page '{title}' has no content."
+            return "This page has no content. Its title:\n" + fence_untrusted(
+                title, "page title"
+            )
 
         course_display = await get_course_code(course_id) or course_identifier
         status = "Published" if published else "Unpublished"
 
-        return (
-            f"Page Content for '{title}' in Course {course_display} ({status}):\n\n{body}"
+        # Title, body, AND the media inventory derived from the body are all
+        # page-author-controlled (issue 239) — every one of them goes inside
+        # a single fence; only our own framing stays outside. The inventory is
+        # computed from the raw body BEFORE fencing, so spoof-neutralization
+        # can never alter what it sees.
+        untrusted = (
+            f"Title: {title}\n\n{body}"
             + format_media_inventory(extract_embedded_media(body))
+        )
+        return (
+            f"Page Content for page '{page_url_or_id}' in Course {course_display} ({status}):\n\n"
+            + fence_untrusted(untrusted, "page title, body, and media inventory")
         )
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
@@ -586,7 +621,9 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
 
         # Handle last edited by user info
         last_edited_by = response.get("last_edited_by", {})
-        editor_name = last_edited_by.get("display_name", "Unknown") if last_edited_by else "Unknown"
+        editor_name_raw = last_edited_by.get("display_name", "Unknown") if last_edited_by else "Unknown"
+        # Editor display name is author-controlled where names are editable (issue 239).
+        editor_name = fence_untrusted_inline(editor_name_raw, "editor display name")
 
         # Build a TEXT PREVIEW of the body. Both lossy steps below must announce
         # themselves: a silent strip made 4 embedded videos vanish from a real
@@ -619,22 +656,28 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
         course_display = await get_course_code(course_id) or course_identifier
 
         result = f"Page Details for Course {course_display}:\n\n"
-        result += f"Title: {title}\n"
         result += f"URL: {url}\n"
         result += f"Status: {', '.join(status_info)}\n"
         result += f"Created: {created_at}\n"
         result += f"Updated: {updated_at}\n"
         result += f"Last Edited By: {editor_name}\n"
         result += f"Editing Roles: {editing_roles or 'Not specified'}\n"
-        result += f"\nContent Preview (text only, truncated):\n{body_clean}"
 
+        # Title, text preview, and media src URLs are all page-author-
+        # controlled (issue 239): one fence around the lot, our framing
+        # outside it.
+        untrusted = f"Title: {title}\n\nContent Preview (text only, truncated):\n{body_clean}"
         if media:
-            result += (
+            untrusted += (
                 f"\n\n{len(media)} embedded media item(s) are present but not shown "
                 "in this text preview — use get_page_content for the full HTML:"
             )
             for item in media:
-                result += f"\n- {item['tag']}: {item['src'] or '(no src attribute)'}"
+                untrusted += f"\n- {item['tag']}: {item['src'] or '(no src attribute)'}"
+
+        result += "\n" + fence_untrusted(
+            untrusted, "page title, text preview, and media inventory"
+        )
 
         return result
 
@@ -658,11 +701,17 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
         updated_at = format_date(response.get("updated_at"))
 
         if not body:
-            return f"Course front page '{title}' has no content."
+            return "The course front page has no content. Its title:\n" + fence_untrusted(
+                title, "front page title"
+            )
 
         # Try to get the course code for display
         course_display = await get_course_code(course_id) or course_identifier
-        return f"Front Page '{title}' for Course {course_display} (Updated: {updated_at}):\n\n{body}"
+        # Title and body are both page-author-controlled (issue 239).
+        return (
+            f"Front Page for Course {course_display} (Updated: {updated_at}):\n\n"
+            + fence_untrusted(f"Title: {title}\n\n{body}", "front page title and body")
+        )
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
@@ -702,7 +751,11 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
             module_name = module_response.get("name", "Unknown Module")
 
         course_display = await get_course_code(course_id) or course_identifier
-        result = f"Module Items for '{module_name}' in Course {course_display}:\n\n"
+        # Module name and item titles are instructor-authored (issue 239).
+        result = (
+            f"Module Items for {fence_untrusted_inline(module_name, 'module name')} "
+            f"in Course {course_display}:\n\n"
+        )
 
         for item in items:
             item_id = item.get("id")
@@ -713,7 +766,7 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
             external_url = item.get("external_url", "")
             published = item.get("published", False)
 
-            result += f"Item: {title}\n"
+            result += f"Item: {fence_untrusted_inline(title, 'module item title')}\n"
             result += f"Type: {item_type}\n"
             result += f"ID: {item_id}\n"
             if content_id:
