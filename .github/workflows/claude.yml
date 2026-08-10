@@ -10,6 +10,10 @@ on:
   pull_request_review:
     types: [submitted]
 
+# Least privilege by default; jobs escalate only what they need.
+permissions:
+  contents: read
+
 jobs:
   claude:
     if: |

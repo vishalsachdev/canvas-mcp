@@ -9,6 +9,10 @@ on:
     # Run weekly security scans
     - cron: '0 0 * * 0'
 
+# Least privilege by default; jobs escalate only what they need.
+permissions:
+  contents: read
+
 jobs:
   security-tests:
     name: Security Test Suite

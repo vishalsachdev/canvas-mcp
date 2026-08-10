@@ -4,6 +4,10 @@ on:
   pull_request:
     types: [opened, synchronize]
 
+# Least privilege by default; jobs escalate only what they need.
+permissions:
+  contents: read
+
 jobs:
   claude-review:
     runs-on: ubuntu-latest

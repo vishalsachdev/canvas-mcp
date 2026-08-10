@@ -12,7 +12,7 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: create-release-${{ github.ref }}
@@ -21,6 +21,9 @@ concurrency:
 jobs:
   create-release:
     runs-on: ubuntu-latest
+    # Needs write to create the GitHub Release and attach the .mcpb asset.
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

@@ -5,6 +5,10 @@ on:
     - cron: '0 0 * * 0'  # Every Sunday at midnight UTC
   workflow_dispatch:  # Allow manual trigger
 
+# Least privilege by default; jobs escalate only what they need.
+permissions:
+  contents: read
+
 jobs:
   maintenance:
     runs-on: ubuntu-latest
