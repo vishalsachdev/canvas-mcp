@@ -1,3 +1,27 @@
+### 2026-08-09 — v1.8.0 released; #252 diagnosed; maintenance PR #255 merged
+
+- **Released v1.8.0 — all five channels live + verified** (GitHub Release + `.mcpb`, PyPI 200,
+  MCP Registry `isLatest=True`, hosted Azure auto-deploy, site wrangler-deployed with the v1.8.0
+  banner confirmed on both URLs). The security-scan remediation (11 fixes, 3 breaking changes)
+  plus #255's dependency floors shipped together. The PyPI→Registry propagation race did NOT fire
+  this time; keep the rerun procedure anyway. `uv.lock` added to the release checklist;
+  `cli/package-lock.json` drift fixed (1.0.0 → 1.1.0).
+- **#252/#253 (zqian: announcement not saved): diagnosed as NOT an encoding bug.** Measured both
+  wire encodings of the exact payload — equivalent. The contributor's form-data fix cites #210,
+  but #210's actual lesson is *match encoding to payload shape* (it fixed bugs in both
+  directions). Likely cause: reporter is on v1.6.0, which predates the #220 guard — Canvas 200s
+  the POST, drops `is_announcement` (permissions), creates a plain discussion topic, and v1.6.0
+  reported success anyway. Asked zqian to retry on v1.7.0+, check the Discussions page, and check
+  token permissions; falsifier stated explicitly. PR #253 stays open pending that result.
+- **Merged Copilot's maintenance PR #255** after re-verifying every claim: tool counts genuinely
+  measured (student 37 / educator 88 / all 94 / 99 all-gates — my first measurement was wrong, not
+  Copilot's: `STUDENT_WRITE_TOOLS` is a name allowlist, `"true"` silently registers nothing);
+  `uv lock --check` passes; deploy workflows use publish-profile (not OIDC) so `contents: read`
+  can't break them. Draft bot PRs get NO CI runs at all here; suite run locally (1191 passed).
+- **Copilot-PR CI unblock sequence learned**: approve-run API 403s ("not from a fork PR"),
+  `update-branch` no-ops when current — an **empty commit pushed by the user's actor** is the
+  reliable retrigger.
+
 ### 2026-08-08 — v1.7.0 shipped; guard shipped, red-teamed, and fixed same day
 
 - **Released v1.7.0** — all five channels verified live: GitHub Release (+`.mcpb`), PyPI, MCP

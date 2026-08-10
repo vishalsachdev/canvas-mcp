@@ -236,9 +236,9 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   so in any working config egress falls back to the in-process Node guard, which `child_process`
   and bundled utilities bypass while `CANVAS_API_TOKEN` is in the environment. Now warns honestly
   instead of implying enforcement. Real fix needs an egress proxy or network namespace
-- [ ] **#249 npm setup wizard targets the retired `mcp.illinihunt.org`** (no DNS record). Not a URL
-  swap: the stdio path needs an absolute venv binary path and `.env` credentials. Product decision
-  between a full stdio wizard, instructions-only, or deprecating the CLI
+- [x] **#249 npm setup wizard retired — CLOSED (PR #257, 2026-08-10).** Deprecated the npm package
+  (name retained), removed `cli/` + orphaned `docs/workshop.html`; restored the UIUC KB-150325 token
+  link into both docs guides (it had lived only on the deleted workshop page)
 - [x] Closing-keyword guard (#231) + three bypasses closed after an independent red-team (#241).
   Contributors run `./scripts/install-hooks.sh` once per clone
 - [x] **CI never ran the test suite (PR #247)** — the *required* `test-enhancements` check looked
@@ -271,15 +271,12 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] **`/front_page` was ungated (PR #244)** — returned `last_edited_by` (display name, pronouns,
   avatar) while `/pages/{slug}` was gated at `identity`; the tier rule matched the `pages` path
   segment, which `front_page` lacks. **Two tests asserted the gap as correct.** Same class as #164/#179
-- [ ] **#239** page bodies returned verbatim into model context (prompt-injection surface). Audit
-  done, not implemented: **21 surfaces** enumerated; highest risk is *not* pages but
-  `get_discussion_entry_details` (student-authored, raw, and `post_discussion_entry` is in the same
-  shared toolset → read→write loop) and `get_conversation_details` (inbound message →
-  `send_bulk_messages_from_list`). Recommended insertion point is the **tool output-formatting
-  boundary, NOT `core/anonymization.py`** — `fix_accessibility_issues` reads `body` through that same
-  path and PUTs it back, so a fence added there would be written into the customer's live Canvas.
-  Strongest recommendation: extend the existing `write_confirmation` token pattern to the educator
-  destructive set, above any text fencing. Two incidental findings from the audit remain **unverified**
+- [x] **#239 prompt-injection boundary — IMPLEMENTED + MERGED (PR #258, 2026-08-10).** 11 Codex
+  rounds; fencing at the tool output-formatting boundary (both forms), write-marker backstop, and
+  `write_confirmation` tokens making 4 fan-out senders two-step. ReDoS + token-DoS found and fixed
+  along the way; live-verified. **4 breaking changes → next release is a minor bump.** #239 stays
+  OPEN for 2 low-risk deferrals (course names, own profile); durability follow-up = **#262** (CI
+  guard). Full record: [[project-239-untrusted-content-boundary]]
 - [ ] **#236** OAuth2 developer-key flow (from discussion #229) — additive path only, blocked on
   admin access to pilot a scoped key
 - [x] Release **v1.8.0** (2026-08-09) — all five channels live + verified. Security release:
@@ -360,32 +357,41 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
 
-### 2026-08-09 — v1.8.0 released; #252 diagnosed; maintenance PR #255 merged
+### 2026-08-10 — #239 prompt-injection boundary MERGED (PR #258, 11 review rounds); #249 closed; triage executor built
 
-- **Released v1.8.0 — all five channels live + verified** (GitHub Release + `.mcpb`, PyPI 200,
-  MCP Registry `isLatest=True`, hosted Azure auto-deploy, site wrangler-deployed with the v1.8.0
-  banner confirmed on both URLs). The security-scan remediation (11 fixes, 3 breaking changes)
-  plus #255's dependency floors shipped together. The PyPI→Registry propagation race did NOT fire
-  this time; keep the rerun procedure anyway. `uv.lock` added to the release checklist;
-  `cli/package-lock.json` drift fixed (1.0.0 → 1.1.0).
-- **#252/#253 (zqian: announcement not saved): diagnosed as NOT an encoding bug.** Measured both
-  wire encodings of the exact payload — equivalent. The contributor's form-data fix cites #210,
-  but #210's actual lesson is *match encoding to payload shape* (it fixed bugs in both
-  directions). Likely cause: reporter is on v1.6.0, which predates the #220 guard — Canvas 200s
-  the POST, drops `is_announcement` (permissions), creates a plain discussion topic, and v1.6.0
-  reported success anyway. Asked zqian to retry on v1.7.0+, check the Discussions page, and check
-  token permissions; falsifier stated explicitly. PR #253 stays open pending that result.
-- **Merged Copilot's maintenance PR #255** after re-verifying every claim: tool counts genuinely
-  measured (student 37 / educator 88 / all 94 / 99 all-gates — my first measurement was wrong, not
-  Copilot's: `STUDENT_WRITE_TOOLS` is a name allowlist, `"true"` silently registers nothing);
-  `uv lock --check` passes; deploy workflows use publish-profile (not OIDC) so `contents: read`
-  can't break them. Draft bot PRs get NO CI runs at all here; suite run locally (1191 passed).
-- **Copilot-PR CI unblock sequence learned**: approve-run API 403s ("not from a fork PR"),
-  `update-branch` no-ops when current — an **empty commit pushed by the user's actor** is the
-  reliable retrigger.
-- Next: (1) **#252** — await zqian's v1.7.0+ retest; then close or reroute #253. (2) **#239**
-  prompt-injection implementation (insertion at the tool output-formatting boundary, NOT
-  core/anonymization.py; extend write_confirmation tokens to the educator destructive set).
-  (3) Review **PR #256** (triage brief) + draft PRs **#243**, **#191** (#191 blocked on zqian's
-  New-Quizzes sandbox). (4) **#254 leftover**: verify Instructure "Unauthenticated File Access"
-  change vs `files.py` (noted on the closed issue). (5) **#249** CLI decision; **#157** egress.
+- **#239 prompt-injection boundary — MERGED to main (PR #258)**, built by a worktree subagent and
+  hardened over **11 adversarial Codex rounds**. Mechanism at the tool output-formatting boundary
+  (`core/untrusted_content.py`): block + inline provenance fences on every author-controlled read
+  field (14+ tools incl. forwarded messages, attachment filenames, participant/student names,
+  titles); write backstop rejecting fence markers in 10+ writers; HMAC confirmation tokens making
+  **4 fan-out senders two-step** (`send_bulk_messages_from_list`, multi-recipient `send_conversation`,
+  `send_peer_review_reminders`, `send_peer_review_followup_campaign`). Along the way: a 24s ReDoS in
+  the neutralizer (fixed, linear + pinned perf test), a token-store memory-DoS (fixed by
+  authenticate-before-record, then cap removed entirely as self-bounding). **130 security tests,
+  suite 1321, ruff+mypy clean; live-verified against real Canvas** (33 student entries, alias grammar
+  `course_<id>` user_count=2 confirming the single-numeric-ID gate). Details, residual risks, and the
+  4 breaking changes: [[project-239-untrusted-content-boundary]] + PR-body coverage table.
+  **CodeQL at merge flagged a HIGH on write_confirmation.py:81 — verified false positive** (HMAC-keyed
+  identity handle from a high-entropy token, not password-at-rest); dismissed with justification, merged
+  clean. **#239 stays OPEN** for two conscious low-risk deferrals (course names/codes, own profile).
+- **#249 npm CLI retired — CLOSED (PR #257).** The `npx canvas-mcp setup` wizard targeted the dead
+  `mcp.illinihunt.org` endpoint while collecting a token; 162 total downloads, one published version.
+  `cli/` + orphaned `docs/workshop.html` removed, npm package **deprecated** (name retained). The
+  hard-to-find **UIUC token-request link (KB 150325) was restored into both docs guides** — it had
+  lived only on the deleted workshop page; site re-deployed to Cloudflare + verified live.
+- **PR #256 triage brief merged** with a "superseded" note (its #252 draft reply would have posted the
+  already-refuted encoding theory — do not send). PR #243 (site docs) also merged.
+- **Triage executor routine built + already fired successfully.** `trig_014kutd4SprRUiwRcLFR2Scz`
+  (Opus 5), GitHub webhook on `pull_request.opened` + 02:15 UTC cron fallback. Does mechanical work
+  (merge brief, retrigger stalled PRs, run suites, append `### Needs Vishal`), never posts publicly.
+  First run created the 2026-08-10 brief and self-merged it as PR #261. MCP connectors cleared.
+- **#262 filed**: CI guard to fail when a tool emits an unfenced author-controlled field (durable
+  successor to the manual coverage sweep). **Release checklist updated: next release MUST be a minor
+  bump** (4 breaking changes on main from #258).
+- Next: (1) **Next release = minor bump** — bundle #258's breaking changes; follow the pending-release
+  note in the checklist. (2) **#262** implement the CI coverage guard. (3) **#252** await zqian's
+  v1.7.0+ retest → close/reroute #253. (4) **#239** deferred surfaces (or close if the coverage table
+  is deemed complete). (5) Draft **PR #191** (quizzes, blocked on zqian's New-Quizzes sandbox).
+  (6) Glance at **#260** (HVTrust eval, Grade B, 25/718) + **#259** (goodwill). (7) **#236** OAuth;
+  **#157** egress. Uncommitted carry-forward: `docs/data/impact.json` (automated stats refresh, not
+  this session's work — impact-stats routine handles its own commit/deploy).
