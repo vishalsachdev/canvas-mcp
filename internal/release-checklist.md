@@ -12,6 +12,15 @@ When bumping the version in `pyproject.toml`, also update:
 
 > `manifest.json` (Desktop Extension) does **not** need a manual bump — `create-release.yml` stamps the tag version into it and attaches `canvas-mcp.mcpb` to the GitHub Release automatically. The committed `manifest.json` version is just a default.
 
+## Pending for the next release
+
+- **The next release MUST be a minor bump — unreleased `main` carries breaking changes.**
+  From PR #258 (#239 untrusted-content boundary): four fan-out message tools are now
+  two-step (preview→confirmation-token→send) — `send_bulk_messages_from_list`,
+  `send_conversation` (multi-recipient only), `send_peer_review_reminders`,
+  `send_peer_review_followup_campaign`. Also observable: the confirmation guard fails
+  closed / retires tokens on state change. See CHANGELOG `[Unreleased]`.
+
 ## Gotchas
 
 - A blanket `s/1.3.0/1.4.0/` also hits dep constraints (e.g. `pytest-asyncio>=1.3.0`) — verify `git diff` shows ONLY the package version before committing.
