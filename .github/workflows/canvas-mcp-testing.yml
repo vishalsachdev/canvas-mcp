@@ -28,9 +28,24 @@ jobs:
       run: ruff check src/ tests/
 
     - name: Install mypy
+      # Read the constraint from pyproject instead of repeating it. A literal
+      # here silently drifts: it said "<2" while pyproject said "<3", so CI
+      # would have kept type-checking on mypy 1.x forever while contributors
+      # running `uv sync` got 2.x — the gate asserting a version nobody uses.
       run: |
         python -m pip install -e .
-        python -m pip install "mypy>=1.15.0,<2"
+        CONSTRAINT=$(python - <<'PY'
+        import tomllib
+        with open("pyproject.toml", "rb") as fh:
+            groups = tomllib.load(fh)["dependency-groups"]["dev"]
+        specs = [d for d in groups if isinstance(d, str) and d.startswith("mypy")]
+        if len(specs) != 1:
+            raise SystemExit(f"expected exactly one mypy spec in dependency-groups.dev, found {specs}")
+        print(specs[0])
+        PY
+        )
+        echo "Installing $CONSTRAINT"
+        python -m pip install "$CONSTRAINT"
 
     - name: Run mypy
       run: mypy src/
