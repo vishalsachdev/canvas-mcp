@@ -357,6 +357,56 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
 
+### 2026-08-10 (later) — OSSF Scorecard published (PRs #263, #273); MCP spec conformance reviewed
+
+- **#260 HVTrust — CLOSED.** Their score is **half a published OSSF Scorecard we never had**:
+  methodology weights it 50% of Safety (12.5) + 50% of Transparency (8.5) = 21 points earning
+  zero. Confirmed arithmetically, not assumed (Safety 10.0/25 = provenance 7.5 + half the
+  signed-commit 2.5, exactly; Transparency 8.5/17 = the license half, exactly). **Publishing was
+  the lever, not hardening.**
+- **PR #263 MERGED** — `scorecard.yml` with `publish_results: true`; `dependabot.yml` (pip,
+  actions, npm, docker); Token-Permissions 0→10 (five workflows had no *top-level* permissions —
+  job-level was already right; `create-release.yml` had top-level `contents: write`);
+  **all 45 action refs SHA-pinned** (worst: `trufflesecurity/trufflehog@main`, a mutable branch);
+  Docker base pinned by digest; CodeQL v2→v4.
+- **PR #273 MERGED** — SLSA build provenance for `canvas-mcp.mcpb` attached as
+  `.intoto.jsonl` (PyPI provenance does NOT cover the separately-downloaded bundle); packing
+  split into a `contents: read` job so the third-party mcpb CLI no longer runs while holding
+  release-write; CLI pinned `@latest`→`@2.1.2`; npm override pins `diff>=4.0.4`
+  (GHSA-73rr-hh4g-fpgx via ts-node) → Vulnerabilities 9→10.
+- **Live and published: 5.4 → 7.1** at `api.scorecard.dev/projects/github.com/vishalsachdev/canvas-mcp`.
+  Projects to ~85 / Grade A on HVTrust. Measure locally before claiming numbers: prebuilt
+  `scorecard` binary, `--local <path>` A/Bs a branch. **Deliberate zeros:** Code-Review (needs an
+  independent human approver — self-approval would be gaming), Fuzzing, CII-Best-Practices.
+  Signed-Releases stays 0 until releases exist that carry provenance (Scorecard averages the
+  **latest five**, so the first signed release moves it 0→2).
+- **Dependabot security updates were DISABLED at the repo-settings level** — a config file does
+  not enable alerts. Now enabled; it immediately opened 6 PRs. **#269 (mcp `<2`→`<3`) CLOSED** —
+  it would silently remove the #142 gate on a major protocol revision. #264 (python 3.14) and
+  #266/#265 (TS 7, @types/node 26) commented and left for a human: 3.14 is not in the CI matrix,
+  and the npm devDeps belong to the sandbox, which the Python suite does not exercise.
+- **MCP spec conformance reviewed against the current 2026-07-28 revision** (verified on the spec
+  site). We resolve `mcp 1.28.1` (tops out at 2025-11-25) and **#142 remains correctly blocked** —
+  latest `fastmcp-slim` still declares `mcp<2.0`. Two unblocked defects filed, both verified
+  first-hand: **#270** zero `isError`/`ToolError` in `src/` against 150 `return "Error ..."` paths
+  (a client cannot tell a Canvas 403 from an empty result — same class as #199/#171, one layer
+  down; breaking, so bundle into the pending minor bump); **#271** 91 of 99 tools emit their
+  payload twice behind an information-free `{result: string}` schema (reproduced in the venv).
+  Good news: already clean on most of 2026-07-28 (no sessions, no Roots/Sampling/Logging, no
+  HTTP+SSE), and #258's HMAC handles are exactly its "Stateful Tools" pattern.
+- **`.mcpb` audit (asked directly):** the published bundle is the generic self-hosted stdio
+  server, not a UIUC artifact — verified by unzipping the actual v1.8.0 release asset. 7 entries,
+  no `internal/`, no hosted endpoint, no Entra IDs; user supplies their own Canvas URL + token.
+  The hosted variant and `internal/mcpb-hosted/` are gitignored and have never been attached.
+- Suite green on main after both merges: **1321 passed, 21 skipped**.
+- Next: (1) **watch the next release run** — `create-release.yml` was restructured and only
+  executes on a real `v*` tag; a Codex round-2 review wedged, so the `gh` flags (`--verify-tag`,
+  `edit --latest`, `view` exit codes) were verified by hand instead (recorded on PR #273).
+  (2) **#270** `isError` — bundle into the minor bump. (3) **#271** measure a real payload before
+  choosing `output_schema=None` vs real schemas. (4) Triage the 4 remaining Dependabot PRs.
+  (5) Carry-forward unchanged: **#262** CI coverage guard, **#252** await zqian's retest,
+  **#239** deferred surfaces, **#191** quizzes, **#236** OAuth, **#157** egress.
+
 ### 2026-08-10 — #239 prompt-injection boundary MERGED (PR #258, 11 review rounds); #249 closed; triage executor built
 
 - **#239 prompt-injection boundary — MERGED to main (PR #258)**, built by a worktree subagent and
