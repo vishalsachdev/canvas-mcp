@@ -9,6 +9,10 @@ on:
     # Run weekly security scans
     - cron: '0 0 * * 0'
 
+# Least privilege by default; jobs escalate only what they need.
+permissions:
+  contents: read
+
 jobs:
   security-tests:
     name: Security Test Suite
@@ -18,10 +22,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.11'
       
@@ -40,7 +44,7 @@ jobs:
           pytest tests/security/ -v --cov=src/canvas_mcp --cov-report=html --cov-report=term
       
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: coverage-report
           path: htmlcov/
@@ -60,10 +64,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.11'
       
@@ -82,7 +86,7 @@ jobs:
         continue-on-error: true
       
       - name: Upload SAST results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sast-reports
           path: |
@@ -104,10 +108,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.11'
       
@@ -139,7 +143,7 @@ jobs:
       
       - name: Upload dependency scan results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dependency-scan-reports
           path: |
@@ -161,12 +165,12 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0  # Full history for secret scanning
       
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.11'
       
@@ -180,7 +184,7 @@ jobs:
         continue-on-error: true
       
       - name: TruffleHog scan
-        uses: trufflesecurity/trufflehog@main
+        uses: trufflesecurity/trufflehog@a7082b69f5bc6167bbe27ebab82bf6707f267bf6 # main@2026-08-10
         with:
           path: ./
           base: main
@@ -188,7 +192,7 @@ jobs:
         continue-on-error: true
       
       - name: Upload secret scan results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: secret-scan-reports
           path: secrets-baseline.json
@@ -210,18 +214,18 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         with:
           languages: python
           queries: security-and-quality
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v2
+        uses: github/codeql-action/autobuild@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         with:
           category: "/language:python"
