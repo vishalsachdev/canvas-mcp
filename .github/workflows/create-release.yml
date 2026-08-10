@@ -14,8 +14,12 @@ on:
 permissions:
   contents: read
 
+# Key concurrency to the tag being released, not github.ref. On
+# workflow_dispatch github.ref is the dispatch branch, so a manual run and a
+# tag-push run for the SAME tag would otherwise land in different groups and
+# race each other onto one release.
 concurrency:
-  group: create-release-${{ github.ref }}
+  group: create-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -31,9 +35,13 @@ jobs:
       tag_name: ${{ steps.version.outputs.tag_name }}
       version: ${{ steps.version.outputs.version }}
     steps:
+      # Always build from the TAG, never from the dispatch ref. On
+      # workflow_dispatch github.ref is a branch, so building from it would
+      # pack branch bytes and then attest them as if they were the tag.
       - name: Checkout code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag_name) || github.ref }}
           persist-credentials: false
 
       - name: Extract version from tag
@@ -84,6 +92,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Same tag as build-mcpb, so release notes describe the shipped bytes.
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag_name) || github.ref }}
           fetch-depth: 0
 
       - name: Download bundle
@@ -137,11 +147,24 @@ jobs:
           echo "\`canvas-mcp.mcpb\` ships with SLSA build provenance." >> release_body.md
           echo "Verify it with: \`gh attestation verify canvas-mcp.mcpb --repo ${{ github.repository }}\`" >> release_body.md
 
-          # Create release using GitHub CLI
-          gh release create "$TAG_NAME" \
-            --title "$TAG_NAME" \
-            --notes-file release_body.md \
-            --latest
+          # Idempotent: if a previous run published the release but died before
+          # attaching assets, `create` would fail here and the upload step below
+          # would never run, leaving a permanently incomplete release that no
+          # rerun could repair. Update in place instead.
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Release $TAG_NAME already exists — updating notes."
+            gh release edit "$TAG_NAME" \
+              --notes-file release_body.md \
+              --latest
+          else
+            # --verify-tag: never invent a tag from the default branch. The tag
+            # must already exist and is what we built and attested.
+            gh release create "$TAG_NAME" \
+              --title "$TAG_NAME" \
+              --notes-file release_body.md \
+              --verify-tag \
+              --latest
+          fi
 
       - name: Attach bundle and provenance
         id: mcpb
