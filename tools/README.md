@@ -271,6 +271,100 @@ List peer reviews you need to complete.
 
 ---
 
+### Taking Quizzes (Classic Quizzes)
+
+> **Off by default.** These tools exist only when the server operator sets
+> `QUIZ_TAKING_ENABLED=true`. They take a **Classic Quiz** as the authenticated student. **New Quizzes**
+> (the `quiz_lti` engine) are not exposed by the Canvas REST API and must be taken in
+> the Canvas web UI. Browse/inspect quizzes with `list_quizzes` and `get_quiz_details`
+> (see [Shared Tools](#shared-tools-both-students--educators)).
+>
+> Starting and submitting are both two-call operations. First omit
+> `confirmation_token`, show the returned preview to the student, then repeat
+> the same call with that token. Tokens are caller-bound, single-use, expire in
+> five minutes, and fail if the observed Canvas state changes.
+
+#### `start_quiz_attempt`
+Preview, then start (or resume) an attempt at a Classic Quiz and return its questions.
+
+**Parameters:**
+- `course_identifier` (required): Course code or Canvas ID
+- `quiz_id` (required): Canvas quiz ID (from `list_quizzes`)
+- `access_code` (optional): Access code, if the quiz requires one
+- `confirmation_token` (optional): Token from the preview; omit to preview
+
+**Example:**
+```
+"Start the Hamlet quiz in BADM 350"                → returns a preview
+"Yes, start it"                                    → confirms with the token
+```
+
+**Returns:** The first call returns timing, attempt state, and a confirmation
+token without starting anything. The confirmed call returns the
+`quiz_submission_id`, `attempt` number, `validation_token`, end time, and
+questions. Starting may consume one allowed attempt; it does **not** submit.
+
+---
+
+#### `answer_quiz_questions`
+Record answers for an in-progress quiz attempt. Can be called repeatedly; never submits.
+
+**Parameters:**
+- `quiz_submission_id` (required): From `start_quiz_attempt`
+- `attempt` (required): The attempt number from `start_quiz_attempt` (must be the latest)
+- `validation_token` (required): The token from `start_quiz_attempt`
+- `answers` (required): A JSON string — either an object mapping question ID to answer value
+  (`{"4": 5, "5": "Paris"}`) or an array of `{"id": <question_id>, "answer": <value>}` objects.
+  The answer **value** format depends on the question type:
+  - `multiple_choice_question` / `true_false_question` → answer id (int)
+  - `multiple_answers_question` → array of answer ids, e.g. `[3, 6]`
+  - `short_answer_question` (fill-in-the-blank) → string
+  - `essay_question` → string (may contain HTML)
+  - `numerical_question` / `calculated_question` → number (or numeric string)
+  - `fill_in_multiple_blanks_question` → object `{"blank_name": "text"}`
+  - `multiple_dropdowns_question` → object `{"blank_name": answer_id}`
+  - `matching_question` → array of `{"answer_id": id, "match_id": id}`
+- `access_code` (optional): Access code, if the quiz requires one
+
+**Example:**
+```
+"Answer question 4 with choice 5 and question 5 with 'Paris'"
+→ answer_quiz_questions(submission_id, 1, token, answers='{"4": 5, "5": "Paris"}')
+```
+
+**Returns:** Confirmation of the recorded answers per question. The attempt is still open —
+nothing is turned in until you call `submit_quiz_attempt`.
+
+---
+
+#### `submit_quiz_attempt`
+Preview, then submit (turn in) an in-progress quiz attempt. **Irreversible** —
+once complete, no further changes are allowed.
+
+**Parameters:**
+- `course_identifier` (required): Course code or Canvas ID
+- `quiz_id` (required): Canvas quiz ID
+- `quiz_submission_id` (required): From `start_quiz_attempt`
+- `attempt` (required): The attempt number from `start_quiz_attempt` (must be the latest)
+- `validation_token` (required): The token from `start_quiz_attempt`
+- `access_code` (optional): Access code, if the quiz requires one
+- `confirmation_token` (optional): Token from the preview; omit to preview
+
+**Example:**
+```
+"Turn in my quiz"
+→ returns the current saved-answer preview
+"Yes, turn it in"
+→ repeats the call with the confirmation token
+```
+
+**Returns:** The first call returns the current attempt state and saved answers
+without submitting. The confirmed call returns the final workflow state
+(`complete` or `pending_review`) and score when available. Any saved-answer or
+attempt-state change invalidates the token.
+
+---
+
 ## Educator Tools
 
 These tools provide instructors and TAs with course management, grading, analytics, and communication capabilities.
@@ -1860,6 +1954,48 @@ Create a new discussion post.
 - `course_identifier`: Course code or ID
 - `topic_id`: Discussion topic ID
 - `message`: Post content
+
+---
+
+### Quizzes (Classic Quizzes)
+
+> Read-only browse/inspect for **Classic Quizzes**. To take a quiz as a student, see
+> [Taking Quizzes](#taking-quizzes-classic-quizzes) under Student Tools. **New Quizzes**
+> (`quiz_lti`) are not exposed by the REST API and appear via `list_assignments` instead.
+
+#### `list_quizzes`
+List the Classic Quizzes available in a course.
+
+**Parameters:**
+- `course_identifier` (required): Course code or Canvas ID
+- `search_term` (optional): Partial quiz title to filter by
+
+**Example:**
+```
+"What quizzes are in BADM 350?"
+"Find the midterm quiz"
+```
+
+**Returns:** Each quiz's ID, title, type, question count, points, due date, and
+published/locked status.
+
+---
+
+#### `get_quiz_details`
+Get detailed settings for a single Classic Quiz.
+
+**Parameters:**
+- `course_identifier` (required): Course code or Canvas ID
+- `quiz_id` (required): Canvas quiz ID (from `list_quizzes`)
+
+**Example:**
+```
+"Show me the settings for quiz 101"
+"How many attempts and how long do I get on the Hamlet quiz?"
+```
+
+**Returns:** Type, points, question count and types, allowed attempts, time limit, scoring
+policy, navigation settings, due/unlock/lock dates, access-code/lock state, and description.
 
 ---
 

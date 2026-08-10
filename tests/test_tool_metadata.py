@@ -30,15 +30,19 @@ from canvas_mcp.server import register_all_tools
 def _all_feature_gated_tools_enabled(monkeypatch):
     """Register the feature-gated tools too, or the gate has a blind spot.
 
-    ``execute_typescript`` (off unless ``EXECUTE_TYPESCRIPT_ENABLED``) and the
-    student write tools (off unless ``STUDENT_WRITE_TOOLS`` lists them) are
-    absent from a default registry. A gate that only sees the default set would
+    ``execute_typescript`` (off unless ``EXECUTE_TYPESCRIPT_ENABLED``), Classic
+    Quiz taking (off unless ``QUIZ_TAKING_ENABLED``), and the student write
+    tools (off unless ``STUDENT_WRITE_TOOLS`` lists them) are absent from a
+    default registry. A gate that only sees the default set would
     pass while the most powerful tool in the server — arbitrary TypeScript
     against the caller's Canvas token — shipped with no annotations at all.
     Coverage has to follow capability, not configuration.
     """
     monkeypatch.setenv("EXECUTE_TYPESCRIPT_ENABLED", "true")
-    monkeypatch.setenv("STUDENT_WRITE_TOOLS", ",".join(sorted(STUDENT_WRITE_TOOL_NAMES)))
+    monkeypatch.setenv("QUIZ_TAKING_ENABLED", "true")
+    monkeypatch.setenv(
+        "STUDENT_WRITE_TOOLS", ",".join(sorted(STUDENT_WRITE_TOOL_NAMES))
+    )
     monkeypatch.setattr(config_module, "_config", None, raising=False)
     yield
     monkeypatch.setattr(config_module, "_config", None, raising=False)
@@ -83,6 +87,11 @@ DESTRUCTIVE = {
     "delete_announcement_with_confirmation",
     "delete_announcements_by_criteria",
     "bulk_delete_announcements",
+    # Starts can spend an attempt; answer saves replace prior answer state;
+    # submit irreversibly completes the attempt.
+    "start_quiz_attempt",
+    "answer_quiz_questions",
+    "submit_quiz_attempt",
 }
 
 # Additive: each call adds something and removes nothing.
@@ -156,8 +165,15 @@ async def test_the_gate_actually_sees_the_feature_gated_tools():
         "EXECUTE_TYPESCRIPT_ENABLED is not reaching the registry — the gate is "
         "blind to the most powerful tool in the server"
     )
+    assert {
+        "start_quiz_attempt",
+        "answer_quiz_questions",
+        "submit_quiz_attempt",
+    } <= names, "QUIZ_TAKING_ENABLED is not reaching the registry"
     missing = STUDENT_WRITE_TOOL_NAMES - names
-    assert not missing, f"STUDENT_WRITE_TOOLS not reaching the registry: {sorted(missing)}"
+    assert (
+        not missing
+    ), f"STUDENT_WRITE_TOOLS not reaching the registry: {sorted(missing)}"
 
 
 @pytest.mark.asyncio
@@ -227,11 +243,17 @@ async def test_repeatable_tools_declare_idempotency_honestly():
     # Converge on the same end state AND have no repeat-triggered side effect:
     # edit_page_content notably does not expose notify_of_update, unlike its
     # two siblings above.
-    for name in ("update_assignment", "update_module", "update_discussion_topic",
-                 "edit_page_content", "delete_page", "bulk_delete_announcements"):
-        assert tools[name].annotations.idempotentHint is True, (
-            f"{name} converges on the same end state when repeated"
-        )
+    for name in (
+        "update_assignment",
+        "update_module",
+        "update_discussion_topic",
+        "edit_page_content",
+        "delete_page",
+        "bulk_delete_announcements",
+    ):
+        assert (
+            tools[name].annotations.idempotentHint is True
+        ), f"{name} converges on the same end state when repeated"
 
 
 @pytest.mark.asyncio
@@ -239,18 +261,24 @@ async def test_read_tools_are_marked_read_only():
     """Sampled rather than exhaustive: the gate above covers the general case."""
     tools = {tool.name: tool for tool in await _registry().list_tools()}
 
-    for name in ("list_courses", "get_course_details", "check_enrollment",
-                 "list_submissions", "get_syllabus", "read_course_file"):
-        assert tools[name].annotations.readOnlyHint is True, (
-            f"{name} does not write and should say so"
-        )
+    for name in (
+        "list_courses",
+        "get_course_details",
+        "check_enrollment",
+        "list_submissions",
+        "get_syllabus",
+        "read_course_file",
+    ):
+        assert (
+            tools[name].annotations.readOnlyHint is True
+        ), f"{name} does not write and should say so"
 
 
 @pytest.mark.asyncio
 async def test_tool_manifest_matches_registry_exactly():
     """tools/TOOL_MANIFEST.json must document exactly the registered tools (#173).
 
-    The manifest drifted to ~24 entries while the registry grew to 99 because
+    The manifest drifted to ~24 entries while the registry grew past 99 because
     nothing failed when a tool shipped undocumented. Same pattern as the
     annotation gate above: enumerate the live registry with every feature flag
     on, and require set equality — a missing manifest entry (new tool, no docs)
@@ -276,7 +304,9 @@ async def test_tool_manifest_matches_registry_exactly():
     )
 
     known_categories = {c["id"] for c in manifest["categories"]}
-    bad = [t["name"] for t in manifest["tools"] if t["category"] not in known_categories]
+    bad = [
+        t["name"] for t in manifest["tools"] if t["category"] not in known_categories
+    ]
     assert not bad, f"manifest entries with unknown category: {bad}"
 
 

@@ -15,17 +15,20 @@ _INVALID_INT_ENV_VARS: dict[str, str] = {}
 _INVALID_FLOAT_ENV_VARS: dict[str, str] = {}
 
 VALID_SANDBOX_MODES = frozenset({"auto", "local", "container"})
+VALID_HTTP_CREDENTIAL_MODES = frozenset({"request-header", "server"})
 
 # Canonical names of the student write tools an operator may enable via
 # STUDENT_WRITE_TOOLS. Declared here rather than in the tools package so config
 # stays free of imports from it. Quiz-taking is deliberately absent: it is an
 # academic-integrity decision gated behind its own separate flag, not something
 # an operator can switch on by naming it in this allowlist.
-STUDENT_WRITE_TOOL_NAMES = frozenset({
-    "submit_assignment",
-    "comment_on_my_submission",
-    "mark_module_item_done",
-})
+STUDENT_WRITE_TOOL_NAMES = frozenset(
+    {
+        "submit_assignment",
+        "comment_on_my_submission",
+        "mark_module_item_done",
+    }
+)
 
 
 def _parse_keys(raw: str) -> frozenset[str]:
@@ -210,12 +213,16 @@ class Config:
         # Code execution sandbox configuration (secure defaults)
         self.enable_ts_sandbox = _bool_env("ENABLE_TS_SANDBOX", True)
         self.ts_sandbox_mode = os.getenv("TS_SANDBOX_MODE", "auto").lower()
-        self.ts_sandbox_block_outbound_network = _bool_env("TS_SANDBOX_BLOCK_OUTBOUND_NETWORK", True)
+        self.ts_sandbox_block_outbound_network = _bool_env(
+            "TS_SANDBOX_BLOCK_OUTBOUND_NETWORK", True
+        )
         self.ts_sandbox_allowlist_hosts = os.getenv("TS_SANDBOX_ALLOWLIST_HOSTS", "")
         self.ts_sandbox_cpu_limit = _int_env("TS_SANDBOX_CPU_LIMIT", 30)
         self.ts_sandbox_memory_limit_mb = _int_env("TS_SANDBOX_MEMORY_LIMIT_MB", 512)
         self.ts_sandbox_timeout_sec = _int_env("TS_SANDBOX_TIMEOUT_SEC", 120)
-        self.ts_sandbox_container_image = os.getenv("TS_SANDBOX_CONTAINER_IMAGE", "node:20-alpine")
+        self.ts_sandbox_container_image = os.getenv(
+            "TS_SANDBOX_CONTAINER_IMAGE", "node:20-alpine"
+        )
 
         # Code execution is opt-in — set EXECUTE_TYPESCRIPT_ENABLED=true to
         # enable the execute_typescript tool (independent of CANVAS_ROLE).
@@ -223,11 +230,20 @@ class Config:
         # operator choice, not something a default install exposes (#157).
         self.execute_typescript_enabled = _bool_env("EXECUTE_TYPESCRIPT_ENABLED", False)
 
-        # HTTP access-key gate (v1, multi-user). Comma- or whitespace-separated
-        # list of accepted keys; an HTTP caller must present a matching
-        # X-MCP-Access-Key header. Empty disables the gate (rely on external
-        # auth). stdio mode ignores this entirely.
+        # HTTP access-key gate. Comma- or whitespace-separated accepted keys;
+        # callers use Authorization: Bearer (or legacy X-MCP-Access-Key).
+        # Empty disables the app gate in request-header mode only when external
+        # auth is explicitly acknowledged. stdio ignores this entirely.
         self.mcp_access_keys = _parse_keys(os.getenv("MCP_ACCESS_KEYS", ""))
+
+        # How HTTP requests obtain their Canvas API credential:
+        # - request-header: each caller supplies X-Canvas-Token (multi-user)
+        # - server: use CANVAS_API_TOKEN from the server secret store (private,
+        #   single-user deployments such as Poke)
+        # stdio ignores this setting and continues to use CANVAS_API_TOKEN.
+        self.mcp_http_credential_mode = (
+            os.getenv("MCP_HTTP_CREDENTIAL_MODE", "request-header").strip().lower()
+        )
 
         # Secure-by-default: in HTTP mode, an unconfigured key gate makes the
         # server exit unless the operator EXPLICITLY opts into unauthenticated
@@ -244,7 +260,9 @@ class Config:
         # Entra object IDs permitted to use this server (empty = allow any
         # platform-authenticated identity).
         self.entra_auth_enabled = _bool_env("ENTRA_AUTH_ENABLED", False)
-        self.mcp_entra_allowed_oids = _parse_keys(os.getenv("MCP_ENTRA_ALLOWED_OIDS", ""))
+        self.mcp_entra_allowed_oids = _parse_keys(
+            os.getenv("MCP_ENTRA_ALLOWED_OIDS", "")
+        )
 
         # --- Self-service access-approval flow (hosted-only; off by default) ---
         # Feature flag. When false (default) the gate behaves exactly as before
@@ -263,7 +281,9 @@ class Config:
             if e.strip()
         ]
         # Public base URL used to build approval links (no trailing slash).
-        self.access_approve_base_url = os.getenv("ACCESS_APPROVE_BASE_URL", "").rstrip("/")
+        self.access_approve_base_url = os.getenv("ACCESS_APPROVE_BASE_URL", "").rstrip(
+            "/"
+        )
         # HMAC secret for approval tokens; empty disables the feature (fail-closed).
         self.access_token_secret = os.getenv("ACCESS_TOKEN_SECRET", "")
         # Suppress re-emailing the admin for the same OID within this window.
@@ -285,18 +305,28 @@ class Config:
             for name in os.getenv("STUDENT_WRITE_TOOLS", "").replace(",", " ").split()
             if name.strip()
         )
+        # Classic Quiz taking is a separate academic-integrity decision from
+        # the Tier 1 student write allowlist. Read-only quiz discovery remains
+        # registered; attempt/answer/submit tools are absent unless enabled.
+        self.quiz_taking_enabled = _bool_env("QUIZ_TAKING_ENABLED", False)
         # Per-course instructor policy. Can further restrict (never expand) the
         # operator ceiling above.
-        self.course_agent_policy_enabled = _bool_env("COURSE_AGENT_POLICY_ENABLED", True)
+        self.course_agent_policy_enabled = _bool_env(
+            "COURSE_AGENT_POLICY_ENABLED", True
+        )
         # Posture when a course has no policy artifact. Institutional decision, so
         # it is operator-configurable; "deny" is the safe default.
-        self.course_agent_policy_default = os.getenv(
-            "COURSE_AGENT_POLICY_DEFAULT", "deny"
-        ).strip().lower()
+        self.course_agent_policy_default = (
+            os.getenv("COURSE_AGENT_POLICY_DEFAULT", "deny").strip().lower()
+        )
         # Denials cache longer than grants. A stale grant is a revocation window on
         # an attempt-consuming action, so it is deliberately short.
-        self.course_agent_policy_allow_ttl = _int_env("COURSE_AGENT_POLICY_ALLOW_TTL", 30)
-        self.course_agent_policy_deny_ttl = _int_env("COURSE_AGENT_POLICY_DENY_TTL", 300)
+        self.course_agent_policy_allow_ttl = _int_env(
+            "COURSE_AGENT_POLICY_ALLOW_TTL", 30
+        )
+        self.course_agent_policy_deny_ttl = _int_env(
+            "COURSE_AGENT_POLICY_DENY_TTL", 300
+        )
 
 
 # Global configuration instance

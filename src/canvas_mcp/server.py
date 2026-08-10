@@ -9,13 +9,15 @@ academic tracking.
 
 Supports two transport modes:
 - stdio (default): Local process communication, credentials from .env
-- streamable-http: HTTP server, per-request token via X-Canvas-Token header;
-  the Canvas API URL is pinned by server config (CANVAS_API_URL), not the client.
+- streamable-http: HTTP server with either per-request X-Canvas-Token
+  credentials or one server-held Canvas token; the Canvas API URL is always
+  pinned by server config (CANVAS_API_URL), not the client.
 """
 
 import argparse
 import asyncio
 import base64
+import hashlib
 import hmac
 import json
 import sys
@@ -25,7 +27,12 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from .core.config import get_config, validate_canvas_url_scheme, validate_config
+from .core.config import (
+    VALID_HTTP_CREDENTIAL_MODES,
+    get_config,
+    validate_canvas_url_scheme,
+    validate_config,
+)
 from .core.credentials import (
     RequestCredentials,
     clear_http_request_context,
@@ -58,23 +65,47 @@ from .tools import (
     register_shared_file_tools,
     register_shared_messaging_tools,
     register_shared_module_tools,
+    register_shared_quiz_tools,
+    register_student_quiz_tools,
     register_student_tools,
     register_student_write_tools,
 )
 
 
-async def _send_json_error(send: Any, status: int, message: str) -> None:
+async def _send_json_response(
+    send: Any,
+    status: int,
+    payload: dict[str, Any],
+    *,
+    extra_headers: list[tuple[bytes, bytes]] | None = None,
+    head_only: bool = False,
+) -> None:
+    """Emit a small ASGI JSON response without exposing server state."""
+    body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    headers = [
+        (b"content-type", b"application/json"),
+        (b"content-length", str(len(body)).encode("ascii")),
+    ]
+    if extra_headers:
+        headers.extend(extra_headers)
+    await send({"type": "http.response.start", "status": status, "headers": headers})
+    await send({"type": "http.response.body", "body": b"" if head_only else body})
+
+
+async def _send_json_error(
+    send: Any,
+    status: int,
+    message: str,
+    *,
+    bearer_challenge: bool = False,
+) -> None:
     """Emit a minimal ASGI JSON error response (used to fail closed)."""
-    body = json.dumps({"error": message}).encode("utf-8")
-    await send({
-        "type": "http.response.start",
-        "status": status,
-        "headers": [
-            (b"content-type", b"application/json"),
-            (b"content-length", str(len(body)).encode("ascii")),
-        ],
-    })
-    await send({"type": "http.response.body", "body": body})
+    extra = (
+        [(b"www-authenticate", b'Bearer realm="canvas-mcp"')]
+        if bearer_challenge
+        else None
+    )
+    await _send_json_response(send, status, {"error": message}, extra_headers=extra)
 
 
 # The only public (pre-auth) route posts a form containing one short signed
@@ -122,9 +153,45 @@ def _access_key_ok(presented: str, allowed: frozenset[str]) -> bool:
     """Constant-time check of a presented access key against the allowed set."""
     if not presented:
         return False
-    # compare_digest against each key; the any() still runs every comparison's
-    # constant-time op, avoiding early-exit timing leaks on the matched key.
-    return any(hmac.compare_digest(presented, key) for key in allowed)
+    # Compare against every configured key even after a match, so rotation does
+    # not expose which position matched through early-exit timing.
+    matched = False
+    for key in allowed:
+        matched |= hmac.compare_digest(presented, key)
+    return matched
+
+
+def _presented_access_key(headers: dict[bytes, bytes]) -> tuple[str, str | None]:
+    """Read a standard bearer key, with legacy header compatibility.
+
+    Returns ``(key, error)``. Supplying both forms is allowed only when they
+    match, so a proxy-injected header cannot silently override the credential
+    the client believes it sent.
+    """
+    legacy = (
+        headers.get(b"x-mcp-access-key", b"").decode("utf-8", errors="ignore").strip()
+    )
+    raw_authorization = (
+        headers.get(b"authorization", b"").decode("utf-8", errors="ignore").strip()
+    )
+    bearer = ""
+    if raw_authorization:
+        parts = raw_authorization.split()
+        if len(parts) != 2 or parts[0].lower() != "bearer" or not parts[1]:
+            return "", "Malformed Authorization bearer credential"
+        bearer = parts[1]
+
+    if bearer and legacy and not hmac.compare_digest(bearer, legacy):
+        return "", "Conflicting access credentials"
+    return bearer or legacy, None
+
+
+def _poke_user_audit_id(headers: dict[bytes, bytes]) -> str | None:
+    """Return a non-reversible short handle for Poke's untrusted user header."""
+    raw = headers.get(b"x-poke-user-id", b"").decode("utf-8", errors="ignore").strip()
+    if not raw:
+        return None
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
 
 
 def _client_principal_id(headers: dict[bytes, bytes]) -> str | None:
@@ -134,7 +201,11 @@ def _client_principal_id(headers: dict[bytes, bytes]) -> str | None:
     validates the token; external callers cannot spoof it (the platform strips
     inbound ``X-MS-*`` headers). Empty/absent → ``None``.
     """
-    pid = headers.get(b"x-ms-client-principal-id", b"").decode("utf-8", errors="ignore").strip()
+    pid = (
+        headers.get(b"x-ms-client-principal-id", b"")
+        .decode("utf-8", errors="ignore")
+        .strip()
+    )
     return pid or None
 
 
@@ -177,6 +248,7 @@ def _access_store(config: Any) -> Any:
     global _overlay_store
     if _overlay_store is None:
         from .core.access.factory import build_store
+
         _overlay_store = build_store(config)
     return _overlay_store
 
@@ -222,7 +294,9 @@ def _notify_admitted(oid: str, now: float) -> bool:
     # Bound the table itself: it is keyed by attacker-supplied identities, so an
     # unbounded dict is the same leak one layer up. Oldest entries go first.
     if len(_notify_last_scheduled) >= _NOTIFY_MAX_TRACKED_OIDS:
-        for stale, _ in sorted(_notify_last_scheduled.items(), key=lambda kv: kv[1])[:64]:
+        for stale, _ in sorted(_notify_last_scheduled.items(), key=lambda kv: kv[1])[
+            :64
+        ]:
             _notify_last_scheduled.pop(stale, None)
 
     _notify_last_scheduled[oid] = now
@@ -248,13 +322,21 @@ def _schedule_notify(config: Any, store: Any, requester: Any) -> None:
         return
     now = int(time.time())
     now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))
-    task = asyncio.create_task(notify_access_request(
-        store=store, requester=requester, secret=config.access_token_secret,
-        approve_base_url=config.access_approve_base_url,
-        admin_emails=config.access_admin_emails,
-        cooldown_hours=config.access_notify_cooldown_hours,
-        ttl_seconds=24 * 3600, send_email=sender,
-        jti=uuid.uuid4().hex, now=now, now_iso=now_iso))
+    task = asyncio.create_task(
+        notify_access_request(
+            store=store,
+            requester=requester,
+            secret=config.access_token_secret,
+            approve_base_url=config.access_approve_base_url,
+            admin_emails=config.access_admin_emails,
+            cooldown_hours=config.access_notify_cooldown_hours,
+            ttl_seconds=24 * 3600,
+            send_email=sender,
+            jti=uuid.uuid4().hex,
+            now=now,
+            now_iso=now_iso,
+        )
+    )
     # Tracked so the in-flight cap above is real, and so the task is not garbage
     # collected mid-flight (asyncio only holds a weak reference).
     _notify_inflight.add(task)
@@ -262,16 +344,16 @@ def _schedule_notify(config: Any, store: Any, requester: Any) -> None:
 
 
 class CanvasCredentialMiddleware:
-    """ASGI middleware that extracts the caller's Canvas token from headers.
+    """ASGI middleware for MCP access control and Canvas credentials.
 
-    For each incoming HTTP request, reads X-Canvas-Token and combines it with
-    the server-pinned CANVAS_API_URL so make_canvas_request uses the caller's
-    own Canvas token instead of any server .env token.
+    ``request-header`` mode reads X-Canvas-Token per caller. ``server`` mode
+    uses the operator's CANVAS_API_TOKEN from the server secret store. Both use
+    the server-pinned CANVAS_API_URL.
 
     Fail-closed semantics:
-    - When MCP_ACCESS_KEYS is configured, a missing/invalid X-MCP-Access-Key
-      returns HTTP 401 before anything else (the v1 multi-user gate).
-    - A missing/blank X-Canvas-Token returns HTTP 401 before the app runs.
+    - MCP_ACCESS_KEYS accepts standard Authorization: Bearer credentials and
+      the legacy X-MCP-Access-Key header.
+    - A missing credential for the configured mode fails before the app runs.
     - X-Canvas-URL is ignored (logged); the Canvas API URL is never
       client-controlled, which removes the SSRF surface entirely.
     - The "HTTP request active" marker is set so downstream code refuses to
@@ -290,9 +372,25 @@ class CanvasCredentialMiddleware:
         config = get_config()
         path = scope.get("path", "")
 
+        # Deliberately public and information-minimal so container platforms can
+        # check liveness without receiving either secret.
+        if path == "/healthz":
+            method = scope.get("method", "GET").upper()
+            if method not in {"GET", "HEAD"}:
+                await _send_json_error(send, 405, "Method not allowed")
+                return
+            await _send_json_response(
+                send,
+                200,
+                {"status": "ok"},
+                head_only=method == "HEAD",
+            )
+            return
+
         # --- Admin access-approval routes (intercepted before any token gate) ---
         if path in (_ADMIN_APPROVE_PATH, _ADMIN_CONFIRM_PATH):
             from .core.access.factory import feature_ready
+
             if not (config.access_request_enabled and feature_ready(config)):
                 await _send_json_error(send, 404, "Not found")
                 return
@@ -301,10 +399,16 @@ class CanvasCredentialMiddleware:
                 await _send_json_error(send, 503, "Access service unavailable")
                 return
             from .core.access import routes
+
             now = int(time.time())
             if path == _ADMIN_APPROVE_PATH:
-                await routes.handle_approve(scope.get("query_string", b""), send,
-                                            store=store, secret=config.access_token_secret, now=now)
+                await routes.handle_approve(
+                    scope.get("query_string", b""),
+                    send,
+                    store=store,
+                    secret=config.access_token_secret,
+                    now=now,
+                )
             else:
                 # This route is reached before any authentication, so bound it
                 # before reading anything. It only ever carries a short signed
@@ -320,8 +424,9 @@ class CanvasCredentialMiddleware:
                 if body is None:
                     await _send_json_error(send, 413, "Request body too large")
                     return
-                await routes.handle_confirm(body, send, store=store,
-                                            secret=config.access_token_secret, now=now)
+                await routes.handle_confirm(
+                    body, send, store=store, secret=config.access_token_secret, now=now
+                )
             return
 
         set_http_request_active(True)
@@ -351,16 +456,20 @@ class CanvasCredentialMiddleware:
                     # can never delay or break the 403 (auth boundary: respond,
                     # then notify). The notify is additionally guarded so a
                     # scheduling error degrades to "no email", never a dropped 403.
-                    await _send_json_error(send, 403, "Identity not authorized for this MCP server")
+                    await _send_json_error(
+                        send, 403, "Identity not authorized for this MCP server"
+                    )
                     if config.access_request_enabled and store is not None:
                         try:
                             claims_for_req = _client_principal_claims(headers)
                             from .core.access.store import Requester
+
                             requester = Requester(
                                 oid=oid,
                                 upn=claims_for_req.get("preferred_username")
                                 or claims_for_req.get("upn", ""),
-                                display_name=claims_for_req.get("name", ""))
+                                display_name=claims_for_req.get("name", ""),
+                            )
                             _schedule_notify(config, store, requester)
                         except Exception as exc:
                             log_error(f"access-request notify scheduling failed: {exc}")
@@ -382,24 +491,67 @@ class CanvasCredentialMiddleware:
                 # v1 access-key gate (when configured): reject before touching creds.
                 allowed_keys = config.mcp_access_keys
                 if allowed_keys:
-                    presented = headers.get(b"x-mcp-access-key", b"").decode("utf-8", errors="ignore").strip()
-                    if not _access_key_ok(presented, allowed_keys):
-                        await _send_json_error(send, 401, "Invalid or missing X-MCP-Access-Key")
+                    presented, credential_error = _presented_access_key(headers)
+                    if credential_error:
+                        await _send_json_error(
+                            send,
+                            401,
+                            credential_error,
+                            bearer_challenge=True,
+                        )
                         return
+                    if not _access_key_ok(presented, allowed_keys):
+                        await _send_json_error(
+                            send,
+                            401,
+                            "Invalid or missing MCP access key",
+                            bearer_challenge=True,
+                        )
+                        return
+                    poke_user = _poke_user_audit_id(headers)
+                    if poke_user:
+                        log_info(
+                            "MCP request authorized via access key",
+                            poke_user_hash=poke_user,
+                        )
 
-            token = headers.get(b"x-canvas-token", b"").decode("utf-8", errors="ignore").strip()
+            credential_mode = config.mcp_http_credential_mode
+            if credential_mode == "server":
+                if headers.get(b"x-canvas-token", b"").strip():
+                    await _send_json_error(
+                        send,
+                        400,
+                        "X-Canvas-Token is not accepted in server credential mode",
+                    )
+                    return
+                token = config.canvas_api_token.strip()
+                missing_token_message = "Server Canvas API token is not configured"
+            else:
+                token = (
+                    headers.get(b"x-canvas-token", b"")
+                    .decode("utf-8", errors="ignore")
+                    .strip()
+                )
+                missing_token_message = "Missing X-Canvas-Token header"
 
             if b"x-canvas-url" in headers:
-                log_warning("Ignoring X-Canvas-URL header; Canvas API URL is server-pinned")
+                log_warning(
+                    "Ignoring X-Canvas-URL header; Canvas API URL is server-pinned"
+                )
 
             if not token:
-                await _send_json_error(send, 401, "Missing X-Canvas-Token header")
+                status = 500 if credential_mode == "server" else 401
+                await _send_json_error(send, status, missing_token_message)
                 return
 
             canvas_url = config.canvas_api_url.strip()
             if not canvas_url:
-                log_error("CANVAS_API_URL is required in HTTP mode but is not configured")
-                await _send_json_error(send, 500, "Server Canvas API URL is not configured")
+                log_error(
+                    "CANVAS_API_URL is required in HTTP mode but is not configured"
+                )
+                await _send_json_error(
+                    send, 500, "Server Canvas API URL is not configured"
+                )
                 return
 
             set_request_credentials(
@@ -437,6 +589,7 @@ def register_all_tools(mcp: FastMCP, role: str = "all") -> None:
     register_shared_module_tools(mcp)
     register_shared_file_tools(mcp)
     register_shared_messaging_tools(mcp)
+    register_shared_quiz_tools(mcp)
     register_discovery_tools(mcp)
     # Caller-scoped identity: needs no roster permission, so every profile gets it.
     register_self_identity_tools(mcp)
@@ -447,6 +600,8 @@ def register_all_tools(mcp: FastMCP, role: str = "all") -> None:
         # Tier 1 writes register only for tools the operator named in
         # STUDENT_WRITE_TOOLS (default: none). See tools/student_write.py.
         register_student_write_tools(mcp)
+        if get_config().quiz_taking_enabled:
+            register_student_quiz_tools(mcp)
 
     # Educator-specific tools
     if role in ("educator", "all"):
@@ -485,7 +640,9 @@ async def _validate_token() -> tuple[bool, str]:
         response = await make_canvas_request("get", "/users/self")
         if isinstance(response, dict) and "error" in response:
             return (False, f"Token validation failed: {response['error']}")
-        user_name = response.get("name", "Unknown") if isinstance(response, dict) else "Unknown"
+        user_name = (
+            response.get("name", "Unknown") if isinstance(response, dict) else "Unknown"
+        )
         return (True, f"Authenticated as: {user_name}")
     except Exception as e:
         return (False, f"Token validation error: {type(e).__name__}: {e}")
@@ -496,6 +653,7 @@ def test_connection() -> bool:
     log_info("Testing Canvas API connection...")
 
     try:
+
         async def test_api() -> bool:
             ok, message = await _validate_token()
             if ok:
@@ -546,47 +704,38 @@ def main() -> None:
         description="Canvas MCP Server - AI-powered Canvas LMS integration"
     )
     parser.add_argument(
-        "--test",
-        action="store_true",
-        help="Test Canvas API connection and exit"
+        "--test", action="store_true", help="Test Canvas API connection and exit"
     )
     parser.add_argument(
-        "--config",
-        action="store_true",
-        help="Show current configuration and exit"
+        "--config", action="store_true", help="Show current configuration and exit"
     )
     parser.add_argument(
         "--transport",
         choices=["stdio", "streamable-http"],
         default="stdio",
-        help="Transport protocol (default: stdio)"
+        help="Transport protocol (default: stdio)",
     )
     parser.add_argument(
-        "--host",
-        default="0.0.0.0",
-        help="Host to bind HTTP server (default: 0.0.0.0)"
+        "--host", default="0.0.0.0", help="Host to bind HTTP server (default: 0.0.0.0)"
     )
     parser.add_argument(
-        "--port",
-        type=int,
-        default=8819,
-        help="Port for HTTP server (default: 8819)"
+        "--port", type=int, default=8819, help="Port for HTTP server (default: 8819)"
     )
     parser.add_argument(
         "--role",
         choices=["student", "educator", "all"],
         default=None,
-        help="Tool profile: student (~37 tools), educator (~88 tools), all (default: all)"
+        help="Tool profile: student (~39 tools), educator (~90 tools), all (default: all)",
     )
     parser.add_argument(
         "--list-grants",
         action="store_true",
-        help="List self-service access grants (hosted; needs az login) and exit"
+        help="List self-service access grants (hosted; needs az login) and exit",
     )
     parser.add_argument(
         "--revoke",
         metavar="OID",
-        help="Revoke a self-service access grant by Entra OID and exit"
+        help="Revoke a self-service access grant by Entra OID and exit",
     )
 
     args = parser.parse_args()
@@ -602,12 +751,18 @@ def main() -> None:
     if args.revoke:
         raise SystemExit(_cmd_revoke(args))
 
-    # HTTP mode: the Canvas URL is server-pinned and per-user tokens arrive via
-    # X-Canvas-Token. A server token must NOT be set, or a missing request token
-    # could silently fall back to it (mis-attributing actions to the operator).
+    # HTTP mode always pins the Canvas URL. Credential sourcing is explicit:
+    # request-header keeps the existing per-user model; server is a private,
+    # single-user mode for standard bearer-only clients such as Poke.
     if is_http:
+        credential_mode = config.mcp_http_credential_mode
+        if credential_mode not in VALID_HTTP_CREDENTIAL_MODES:
+            log_error("MCP_HTTP_CREDENTIAL_MODE must be 'request-header' or 'server'")
+            sys.exit(1)
         if not config.canvas_api_url:
-            log_error("CANVAS_API_URL is required in HTTP mode (the Canvas API URL is server-pinned)")
+            log_error(
+                "CANVAS_API_URL is required in HTTP mode (the Canvas API URL is server-pinned)"
+            )
             sys.exit(1)
         # HTTP mode never calls validate_config() (that path is stdio's .env
         # check), so the cleartext-URL rejection has to be applied here too.
@@ -615,13 +770,51 @@ def main() -> None:
         # http:// typo leaks every caller's token, not just the operator's.
         if not validate_canvas_url_scheme():
             sys.exit(1)
-        if config.canvas_api_token:
-            log_error(
-                "CANVAS_API_TOKEN must NOT be set in HTTP mode — clients supply their "
-                "own token via the X-Canvas-Token header. Unset it and restart."
-            )
-            sys.exit(1)
-        if config.entra_auth_enabled and not config.mcp_allow_unauthenticated:
+
+        if credential_mode == "server":
+            if not config.canvas_api_token:
+                log_error(
+                    "CANVAS_API_TOKEN is required when "
+                    "MCP_HTTP_CREDENTIAL_MODE=server"
+                )
+                sys.exit(1)
+            if not config.mcp_access_keys:
+                log_error(
+                    "MCP_ACCESS_KEYS is required when "
+                    "MCP_HTTP_CREDENTIAL_MODE=server"
+                )
+                sys.exit(1)
+            if config.mcp_allow_unauthenticated:
+                log_error(
+                    "MCP_ALLOW_UNAUTHENTICATED cannot be enabled in server "
+                    "credential mode"
+                )
+                sys.exit(1)
+            if config.entra_auth_enabled:
+                log_error(
+                    "ENTRA_AUTH_ENABLED is incompatible with server credential mode"
+                )
+                sys.exit(1)
+            if config.access_request_enabled:
+                log_error(
+                    "ACCESS_REQUEST_ENABLED is only supported with Entra "
+                    "request-header deployments"
+                )
+                sys.exit(1)
+        else:
+            if config.canvas_api_token:
+                log_error(
+                    "CANVAS_API_TOKEN must NOT be set in request-header HTTP "
+                    "mode — clients supply their own token via X-Canvas-Token. "
+                    "Unset it and restart."
+                )
+                sys.exit(1)
+
+        if (
+            credential_mode == "request-header"
+            and config.entra_auth_enabled
+            and not config.mcp_allow_unauthenticated
+        ):
             # Entra platform-auth trusts the X-MS-CLIENT-PRINCIPAL-ID header, which
             # is ONLY safe when Azure App Service auth actually fronts the endpoint
             # (it strips client-supplied X-MS-* headers). The app can't detect that
@@ -636,7 +829,11 @@ def main() -> None:
                 "platform, the identity header is client-spoofable."
             )
             sys.exit(1)
-        if not config.entra_auth_enabled and not config.mcp_access_keys:
+        if (
+            credential_mode == "request-header"
+            and not config.entra_auth_enabled
+            and not config.mcp_access_keys
+        ):
             # Secure-by-default: refuse to start an ungated endpoint unless the
             # operator has explicitly accepted that external auth fronts it.
             # Student education records are FERPA "Sensitive" data (U of I DAT01)
@@ -674,6 +871,10 @@ def main() -> None:
         if is_http:
             print(f"  Host: {args.host}", file=sys.stderr)
             print(f"  Port: {args.port}", file=sys.stderr)
+            print(
+                f"  HTTP Credential Mode: {config.mcp_http_credential_mode}",
+                file=sys.stderr,
+            )
         else:
             print(f"  Canvas API URL: {config.canvas_api_url}", file=sys.stderr)
         print(f"  Debug Mode: {config.debug}", file=sys.stderr)
@@ -688,24 +889,21 @@ def main() -> None:
             if config.ts_sandbox_timeout_sec > 0:
                 print(
                     f"  Sandbox Timeout: {config.ts_sandbox_timeout_sec}s",
-                    file=sys.stderr
+                    file=sys.stderr,
                 )
             if config.ts_sandbox_memory_limit_mb > 0:
                 print(
                     f"  Sandbox Memory: {config.ts_sandbox_memory_limit_mb}MB",
-                    file=sys.stderr
+                    file=sys.stderr,
                 )
             if config.ts_sandbox_cpu_limit > 0:
                 print(
                     f"  Sandbox CPU Limit: {config.ts_sandbox_cpu_limit}s",
-                    file=sys.stderr
+                    file=sys.stderr,
                 )
             if config.ts_sandbox_block_outbound_network:
                 allowlist = config.ts_sandbox_allowlist_hosts or "canvas API only"
-                print(
-                    f"  Sandbox Network Allowlist: {allowlist}",
-                    file=sys.stderr
-                )
+                print(f"  Sandbox Network Allowlist: {allowlist}", file=sys.stderr)
         if config.institution_name:
             print(f"  Institution: {config.institution_name}", file=sys.stderr)
         sys.exit(0)
@@ -720,14 +918,22 @@ def main() -> None:
 
     # Initialize audit logging (before any API calls)
     from .core.audit import init_audit_logging
+
     init_audit_logging()
 
     # Normal server startup
     if is_http:
-        log_info(
-            f"Starting Canvas MCP server in HTTP mode on {args.host}:{args.port}"
-        )
-        log_info("Credentials: per-request via X-Canvas-Token header; Canvas API URL is server-pinned")
+        log_info(f"Starting Canvas MCP server in HTTP mode on {args.host}:{args.port}")
+        if config.mcp_http_credential_mode == "server":
+            log_info(
+                "Credentials: server-held Canvas token behind bearer access "
+                "key; Canvas API URL is server-pinned"
+            )
+        else:
+            log_info(
+                "Credentials: per-request via X-Canvas-Token header; Canvas "
+                "API URL is server-pinned"
+            )
     else:
         log_info(f"Starting Canvas MCP server with API URL: {config.canvas_api_url}")
 
@@ -756,6 +962,7 @@ def main() -> None:
             # validation is now bound to that closed loop.  Reset them so they
             # are recreated fresh inside the event loop that mcp.run() starts.
             from .core import client as _client_module
+
             _client_module.http_client = None
             _client_module._http_client_loop_ref = None
             _client_module._request_semaphore = None
@@ -808,9 +1015,9 @@ def _run_http_server(mcp: FastMCP, host: str, port: int) -> None:
     # CanvasCredentialMiddleware passes lifespan scopes through, so the
     # inner app's lifespan (required by fastmcp) still runs under uvicorn.
     #
-    # stateless_http=True: every request is self-contained (credentials arrive
-    # per-request via X-Canvas-Token; no tool uses server-initiated session
-    # features), so keeping an in-memory session table only creates a failure
+    # stateless_http=True: every request is self-contained (Canvas credentials
+    # are installed into request-local context; no tool uses server-initiated
+    # session features), so keeping an in-memory session table only creates a failure
     # mode — an App Service recycle drops it, and mcp-remote hangs forever on
     # the resulting stale-session 404 instead of re-initializing (issue #159).
     starlette_app = mcp.http_app(stateless_http=True)

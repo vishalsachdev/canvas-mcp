@@ -23,14 +23,24 @@ CANVAS_API_URL=https://your-institution.instructure.com/api/v1
 
 Students and educators use the same server but have access to different tools based on Canvas API permissions.
 
+### Private Remote (Poke)
+For a private single-user remote server, set
+`MCP_HTTP_CREDENTIAL_MODE=server`, keep the Canvas URL/token in the server's
+secret store, and configure one or more random 256-bit values in
+`MCP_ACCESS_KEYS`. Poke sends the selected key as `Authorization: Bearer <key>`
+to `/mcp`; `X-MCP-Access-Key` is retained only for compatibility. Never treat
+`X-Poke-User-Id` as authenticated identity. Keep `CANVAS_ROLE=student`,
+`EXECUTE_TYPESCRIPT_ENABLED=false`, and `QUIZ_TAKING_ENABLED=false` unless the
+operator deliberately widens access.
+
 ### Tool Profile (Optional)
 Reduce tool overhead by setting a role-based profile. Only tools relevant to the selected role are registered:
 
 ```
 # In .env:
-CANVAS_ROLE=student    # ~37 tools (student + shared)
-CANVAS_ROLE=educator   # ~88 tools (educator + shared)
-CANVAS_ROLE=all        # Default profile; 94 tools by default, 99 with all feature-gated tools enabled
+CANVAS_ROLE=student    # ~39 tools by default (student + shared)
+CANVAS_ROLE=educator   # ~90 tools (educator + shared)
+CANVAS_ROLE=all        # 96 tools by default; 104 with all feature gates enabled
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
@@ -75,8 +85,21 @@ Three things to know before using them:
    or reuse one. Submitting spends an attempt the student may not be able to
    recover.
 
-Quiz-taking is deliberately not offered. Group assignments are refused, because
-submitting would bind classmates who never agreed to it.
+Group assignments are refused, because submitting would bind classmates who
+never agreed to it.
+
+### Classic Quiz Tools
+
+Read-only quiz discovery is always available. Taking a quiz is deliberately
+off by default and requires `QUIZ_TAKING_ENABLED=true` from the server operator.
+
+| Tool | Purpose |
+|------|---------|
+| `list_quizzes` | List Classic Quizzes in a course |
+| `get_quiz_details` | Inspect settings for a Classic Quiz |
+| `start_quiz_attempt` | Preview, then begin or resume a Classic Quiz attempt |
+| `answer_quiz_questions` | Record answers for an in-progress attempt (no submit) |
+| `submit_quiz_attempt` | Preview, then irreversibly turn in an attempt |
 
 ### Educator Tools
 Course management, grading, and analytics. Requires instructor/TA role.
@@ -154,6 +177,33 @@ Content access tools available to all authenticated users.
 | `list_discussion_entries` | Posts in a discussion |
 | `post_discussion_entry` | Add a discussion post |
 | `reply_to_discussion_entry` | Reply to a post |
+| `list_quizzes` | List Classic Quizzes in a course (read-only) |
+| `get_quiz_details` | Quiz settings: attempts, time limit, question count (read-only) |
+
+### Quiz Tools (Classic Quizzes)
+Browse/inspect any Classic Quiz; take one as a student. **New Quizzes** (the
+`quiz_lti` engine) are not supported by the Canvas REST API — they appear via
+`list_assignments` and cannot be taken through these tools.
+
+| Tool | Role | Purpose |
+|------|------|---------|
+| `list_quizzes` | Shared | List Classic Quizzes (optional `search_term`) |
+| `get_quiz_details` | Shared | Settings: type, attempts, time limit, question count, lock state |
+| `start_quiz_attempt` | Student | Preview, then start/resume an attempt; confirmation is required before Canvas creates or resumes the take session |
+| `answer_quiz_questions` | Student | Record answers for the open attempt (call repeatedly; never auto-submits) |
+| `submit_quiz_attempt` | Student | Preview current saved answers, then complete the attempt — **irreversible** |
+
+Taking a quiz is available only when `QUIZ_TAKING_ENABLED=true`. Starting and
+submitting each use two calls: first omit `confirmation_token`, show the
+human-readable preview to the student, then call again with the returned token
+and otherwise unchanged arguments. Confirmation tokens are caller-bound,
+single-use, expire after five minutes, and fail if Canvas attempt state or saved
+answers change. Carry the resulting `quiz_submission_id`, `attempt`, and
+`validation_token` through answer and submit calls. The `answer` value format
+depends on the question type
+(multiple-choice → answer id; multiple-answers → array of ids; essay/short-answer
+→ string; numerical → number; fill-in-multiple-blanks → `{blank: text}`;
+multiple-dropdowns → `{blank: answer_id}`; matching → `[{answer_id, match_id}]`).
 
 ### Learning Designer Tools
 Course design, quality assurance, and accessibility compliance.
@@ -222,6 +272,27 @@ Is it a simple query?
    → get_my_peer_reviews_todo()
 ```
 
+### Student: Take a Classic Quiz
+```
+1. "What quizzes are open in BADM 350?"
+   → list_quizzes(course_id)            # find the quiz_id
+
+2. "How is the quiz set up?"
+   → get_quiz_details(course_id, quiz_id)   # attempts, time limit, etc.
+
+3. "Start it and show me the questions"
+   → start_quiz_attempt(course_id, quiz_id)
+     # keep quiz_submission_id, attempt, validation_token from the response
+
+4. "Record my answers" (does NOT submit)
+   → answer_quiz_questions(quiz_submission_id, attempt, validation_token,
+                           answers='{"<q_id>": <answer>, ...}')
+
+5. "Turn it in" (irreversible — only when ready)
+   → submit_quiz_attempt(course_id, quiz_id, quiz_submission_id,
+                         attempt, validation_token)
+```
+
 ### Educator: Check Assignment Progress
 ```
 1. "Show me Assignment 3 submissions"
@@ -284,6 +355,7 @@ Some Canvas API endpoints have bugs or limitations that prevent certain operatio
 | Tool | Issue | Workaround |
 |------|-------|------------|
 | `update_rubric` | Partial updates wipe all criteria (full replacement, not PATCH) | Edit rubrics via Canvas web UI |
+| `list_quizzes` / quiz tools | Only **Classic Quizzes** are exposed by the REST API; **New Quizzes** (`quiz_lti`) cannot be listed or taken | Open New Quizzes in the Canvas web UI; they also appear via `list_assignments` |
 
 **Working rubric tools:** `create_rubric`, `list_rubrics`, `get_rubric`, `get_rubric_assessment`, `associate_rubric`, `grade_with_rubric`, `bulk_grade_submissions`
 

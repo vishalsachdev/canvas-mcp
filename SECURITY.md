@@ -108,7 +108,7 @@ Canvas MCP includes built-in privacy features for educational data:
 
 1. **HTTPS Only**
    - Canvas API requires HTTPS
-   - HTTP URLs are automatically upgraded to HTTPS
+   - Non-loopback HTTP Canvas URLs are rejected rather than upgraded
 
 2. **User-Agent Header**
    - Canvas MCP includes proper User-Agent identification
@@ -136,6 +136,14 @@ Canvas MCP includes built-in privacy features for educational data:
    - Enable API request logging for debugging: `LOG_API_REQUESTS=true`
    - Monitor for unusual API activity
    - Review error logs for security issues
+
+4. **Private Remote MCP**
+   - Use `MCP_HTTP_CREDENTIAL_MODE=server` only for a private, single-user service
+   - Require a random 256-bit `MCP_ACCESS_KEYS` bearer key and terminate public traffic with HTTPS
+   - Store both the Canvas token and MCP access key in the host's secret store; never bake them into the image
+   - Keep `CANVAS_ROLE=student`, `EXECUTE_TYPESCRIPT_ENABLED=false`, and `QUIZ_TAKING_ENABLED=false` unless the operator deliberately widens access
+   - Rotate the MCP access key independently of the Canvas token; overlapping keys in `MCP_ACCESS_KEYS` support rotation
+   - Treat `X-Poke-User-Id` as optional audit metadata only, never identity proof
 
 ---
 
@@ -172,10 +180,10 @@ Canvas MCP includes several security features:
 
 ## Known Security Limitations
 
-1. **No Authentication**
-   - MCP server trusts the local environment
-   - No built-in authentication for MCP clients
-   - Relies on Canvas API token for authorization
+1. **Authentication Boundaries**
+   - Stdio mode trusts the local process environment and has no separate MCP client authentication
+   - HTTP mode supports bearer access keys (with legacy `X-MCP-Access-Key` compatibility) or the documented Entra deployment
+   - Access keys protect the MCP endpoint; the Canvas token still determines Canvas authorization
 
 2. **Code Execution Risks**
    - `execute_typescript` tool executes arbitrary code
@@ -198,7 +206,6 @@ Canvas MCP includes several security features:
 
 Future security enhancements under consideration:
 
-- [ ] Optional MCP client authentication
 - [ ] Code execution sandboxing (Docker/VM isolation)
 - [ ] Token encryption at rest
 - [ ] Audit logging for sensitive operations

@@ -60,6 +60,15 @@ SHARED_TOOLS = {
     # self-identity (issue #171) — caller-scoped, no roster permission needed
     "get_my_enrollments",
     "get_my_profile",
+    # Classic Quiz discovery is read-only and shared.
+    "list_quizzes",
+    "get_quiz_details",
+}
+
+QUIZ_WRITE_TOOLS = {
+    "start_quiz_attempt",
+    "answer_quiz_questions",
+    "submit_quiz_attempt",
 }
 
 # These two answer only about the authenticated caller, so unlike
@@ -169,7 +178,9 @@ class TestRoleFiltering:
 
         combined = student_tools | educator_tools
         missing = all_tools - combined
-        assert not missing, f"Tools in 'all' but missing from student+educator: {missing}"
+        assert (
+            not missing
+        ), f"Tools in 'all' but missing from student+educator: {missing}"
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("role", ["student", "educator", "all"])
@@ -189,17 +200,48 @@ class TestRoleFiltering:
         assert "check_enrollment" not in await _get_tool_names(mcp)
 
     @pytest.mark.asyncio
+    async def test_quiz_taking_tools_are_absent_by_default(self, monkeypatch):
+        from canvas_mcp.core.config import reset_config
+
+        monkeypatch.delenv("QUIZ_TAKING_ENABLED", raising=False)
+        reset_config()
+        mcp = FastMCP(name="test-student")
+        register_all_tools(mcp, role="student")
+        assert not (QUIZ_WRITE_TOOLS & await _get_tool_names(mcp))
+        reset_config()
+
+    @pytest.mark.asyncio
+    async def test_quiz_taking_tools_require_student_role_and_flag(self, monkeypatch):
+        from canvas_mcp.core.config import reset_config
+
+        monkeypatch.setenv("QUIZ_TAKING_ENABLED", "true")
+        reset_config()
+
+        student = FastMCP(name="test-student")
+        register_all_tools(student, role="student")
+        assert QUIZ_WRITE_TOOLS <= await _get_tool_names(student)
+
+        educator = FastMCP(name="test-educator")
+        register_all_tools(educator, role="educator")
+        assert not (QUIZ_WRITE_TOOLS & await _get_tool_names(educator))
+        reset_config()
+
+    @pytest.mark.asyncio
     async def test_student_tool_count(self):
-        """Student role should have approximately 37 tools."""
+        """Student role should have approximately 39 tools."""
         mcp = FastMCP(name="test-student")
         register_all_tools(mcp, role="student")
         tools = await _get_tool_names(mcp)
-        assert 25 <= len(tools) <= 40, f"Expected ~37 student tools, got {len(tools)}: {sorted(tools)}"
+        assert (
+            25 <= len(tools) <= 40
+        ), f"Expected ~39 student tools, got {len(tools)}: {sorted(tools)}"
 
     @pytest.mark.asyncio
     async def test_educator_tool_count(self):
-        """Educator role should have approximately 88 tools."""
+        """Educator role should have approximately 90 tools."""
         mcp = FastMCP(name="test-educator")
         register_all_tools(mcp, role="educator")
         tools = await _get_tool_names(mcp)
-        assert 75 <= len(tools) <= 95, f"Expected ~88 educator tools, got {len(tools)}: {sorted(tools)}"
+        assert (
+            75 <= len(tools) <= 95
+        ), f"Expected ~90 educator tools, got {len(tools)}: {sorted(tools)}"

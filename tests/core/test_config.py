@@ -68,7 +68,10 @@ def test_reset_config_clears_invalid_env_caches(monkeypatch):
         ("https://canvas.school.edu/api/v1#frag", "https://canvas.school.edu/api/v1"),
         # Over-specified path (copied from a browser) is truncated, not
         # double-appended into '…/courses/api/v1'.
-        ("https://canvas.school.edu/api/v1/courses", "https://canvas.school.edu/api/v1"),
+        (
+            "https://canvas.school.edu/api/v1/courses",
+            "https://canvas.school.edu/api/v1",
+        ),
         # Alternate Canvas API roots are not inferred from CANVAS_API_URL.
         ("https://canvas.school.edu/api/quiz/v1", "https://canvas.school.edu/api/v1"),
         # An explicit version segment is preserved, not downgraded to /api/v1,
@@ -77,7 +80,10 @@ def test_reset_config_clears_invalid_env_caches(monkeypatch):
         ("https://canvas.school.edu/api/v2/foo", "https://canvas.school.edu/api/v2"),
         ("https://canvas.school.edu/api/v10", "https://canvas.school.edu/api/v10"),
         # A Canvas install under a sub-path keeps that prefix.
-        ("https://canvas.school.edu/lms/api/v1", "https://canvas.school.edu/lms/api/v1"),
+        (
+            "https://canvas.school.edu/lms/api/v1",
+            "https://canvas.school.edu/lms/api/v1",
+        ),
         # Host:port is preserved.
         ("https://canvas.school.edu:8443", "https://canvas.school.edu:8443/api/v1"),
         # A scheme-less value is left untouched for validate_config() to flag.
@@ -106,7 +112,9 @@ def test_normalize_canvas_url(raw, expected):
         ("https:///canvas.school.edu", "hostname"),
     ],
 )
-def test_validate_config_warns_with_specific_diagnostic(url, expected_fragment, monkeypatch):
+def test_validate_config_warns_with_specific_diagnostic(
+    url, expected_fragment, monkeypatch
+):
     """A bad CANVAS_API_URL is accepted but warned about with a message that
     names the actual defect (scheme vs. missing host)."""
     monkeypatch.setenv("CANVAS_API_TOKEN", "test-token")
@@ -197,7 +205,9 @@ def test_config_normalizes_canvas_api_url(monkeypatch):
     monkeypatch.setenv("CANVAS_API_TOKEN", "test-token")
     monkeypatch.setenv("CANVAS_API_URL", "https://canvas.school.edu")
     config_module.reset_config()
-    assert config_module.get_config().canvas_api_url == "https://canvas.school.edu/api/v1"
+    assert (
+        config_module.get_config().canvas_api_url == "https://canvas.school.edu/api/v1"
+    )
 
 
 def test_execute_typescript_disabled_by_default(monkeypatch):
@@ -205,6 +215,30 @@ def test_execute_typescript_disabled_by_default(monkeypatch):
     monkeypatch.delenv("EXECUTE_TYPESCRIPT_ENABLED", raising=False)
     config_module.reset_config()
     assert config_module.get_config().execute_typescript_enabled is False
+
+
+def test_http_credential_mode_defaults_to_request_header(monkeypatch):
+    monkeypatch.delenv("MCP_HTTP_CREDENTIAL_MODE", raising=False)
+    config_module.reset_config()
+    assert config_module.get_config().mcp_http_credential_mode == "request-header"
+
+
+def test_http_credential_mode_reads_server_value(monkeypatch):
+    monkeypatch.setenv("MCP_HTTP_CREDENTIAL_MODE", " SERVER ")
+    config_module.reset_config()
+    assert config_module.get_config().mcp_http_credential_mode == "server"
+
+
+def test_quiz_taking_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("QUIZ_TAKING_ENABLED", raising=False)
+    config_module.reset_config()
+    assert config_module.get_config().quiz_taking_enabled is False
+
+
+def test_quiz_taking_can_be_enabled(monkeypatch):
+    monkeypatch.setenv("QUIZ_TAKING_ENABLED", "true")
+    config_module.reset_config()
+    assert config_module.get_config().quiz_taking_enabled is True
 
 
 def test_anonymization_enabled_by_default(monkeypatch):

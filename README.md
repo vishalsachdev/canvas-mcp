@@ -8,7 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![skills.sh](https://img.shields.io/badge/skills.sh-canvas--mcp-blue)](https://skills.sh)
 
-MCP server for Canvas LMS with **99 tools** and **8 agent skills**. Works with Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh).
+MCP server for Canvas LMS with **104 tools** and **8 agent skills**. Works with Claude Desktop, Cursor, Codex, Windsurf, Poke, and [40+ other agents](https://skills.sh).
 
 ```bash
 npx skills add vishalsachdev/canvas-mcp
@@ -23,7 +23,7 @@ npx skills add vishalsachdev/canvas-mcp
   See CLAUDE.md "Documentation Maintenance" for full guidelines.
 -->
 
-Canvas MCP provides **99 tools** for interacting with Canvas LMS. Tools are organized by user type:
+Canvas MCP provides **104 tools** for interacting with Canvas LMS. Tools are organized by user type:
 
 <details>
 <summary><strong>Student Tools</strong> (click to expand)</summary>
@@ -262,7 +262,7 @@ All student data is anonymized **before** it reaches AI systems. See [Educator G
 ### For Students: Your Data Stays Private
 
 - **Your data only**: Student tools access only your own Canvas data via Canvas API's "self" endpoints
-- **No credential storage**: In hosted mode, your Canvas token is sent as an HTTP header per-request and never stored on the server. In local mode, everything runs on your machine.
+- **Explicit credential mode**: Shared HTTP deployments keep Canvas tokens request-local. A private single-user deployment may instead keep one Canvas token in its secret store and require a separate bearer access key.
 - **No tracking**: Your Canvas usage and AI interactions remain private
 - **No anonymization needed**: Since you're only accessing your own data, there are no privacy concerns
 
@@ -271,6 +271,51 @@ All student data is anonymized **before** it reaches AI systems. See [Educator G
 The public hosted server (`mcp.illinihunt.org`) has been **retired**. A public MCP endpoint without an access gate isn't safe to operate — it would expose the built-in code-execution tool — so the supported path is **[local installation](#local-installation)** below.
 
 The HTTP/streamable transport itself remains fully supported for **self-hosting behind your own authentication** (`canvas-mcp-server --transport streamable-http`). Running a shared, authenticated instance for your institution? See **[deploy/azure/](deploy/azure/)** for a production-tested deployment specification (Azure App Service + Entra ID platform auth, per-user Canvas tokens) with sample workflow and config templates.
+
+### Private Remote Server for Poke
+
+Poke connects to standard remote MCP servers with an `Authorization: Bearer …`
+header. For a private, single-user Canvas MCP, store the Canvas credential on
+the server and give Poke only a separate random access key:
+
+```bash
+export MCP_HTTP_CREDENTIAL_MODE=server
+export CANVAS_API_URL=https://your-institution.instructure.com/api/v1
+export CANVAS_API_TOKEN=your_canvas_api_token
+export MCP_ACCESS_KEYS="$(openssl rand -hex 32)"
+export CANVAS_ROLE=student
+export EXECUTE_TYPESCRIPT_ENABLED=false
+export QUIZ_TAKING_ENABLED=false
+
+canvas-mcp-server --transport streamable-http --host 127.0.0.1 --port 8819
+```
+
+Keep the generated access key in a password manager or deployment secret store;
+never commit it. The MCP URL is `http://localhost:8819/mcp`. The public
+`/healthz` endpoint returns only `{"status":"ok"}`.
+
+For local development, expose that endpoint through Poke's tunnel:
+
+```bash
+npx poke@latest tunnel http://localhost:8819/mcp
+```
+
+For an always-on installation, build the existing OCI image and run it on any
+compatible container host with the same environment variables. Put `/mcp`
+behind HTTPS, keep the service private, and configure Poke with the generated
+key as its bearer API key. `X-Poke-User-Id` is accepted only as hashed audit
+metadata; it never authenticates a request. See the
+[Poke MCP documentation](https://poke.com/docs/mcp-servers) for its current
+connection UI and tunnel behavior.
+
+```bash
+docker build -t canvas-mcp .
+docker run --rm --env-file .env -p 127.0.0.1:8819:8819 canvas-mcp
+```
+
+On a persistent container host, supply the same values through its secret and
+environment settings and route HTTPS traffic to container port `8819`. Hosting
+provider selection and external deployment are intentionally outside this repo.
 
 ---
 
@@ -544,7 +589,7 @@ Quick start guides: [Student](examples/student_quickstart.md) | [Educator](examp
 
 ## Documentation
 
-- **[Tool Documentation](tools/README.md)** — Complete reference for all 99 tools
+- **[Tool Documentation](tools/README.md)** — Complete reference for all 104 tools
 - **[Student Guide](https://canvas-mcp.illinihunt.org/student-guide.html)** — Getting started as a student
 - **[Educator Guide](https://canvas-mcp.illinihunt.org/educator-guide.html)** — FERPA compliance and educator workflows
 - **[Bulk Grading Example](examples/bulk_grading_example.md)** — Token-efficient batch grading walkthrough

@@ -146,6 +146,135 @@
       ]
     },
     {
+      "name": "start_quiz_attempt",
+      "category": "student",
+      "description": "Preview, then start or resume a Classic Quiz attempt and return its questions. Available only when QUIZ_TAKING_ENABLED=true",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "quiz_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Canvas quiz ID (from list_quizzes)"
+        },
+        {
+          "name": "access_code",
+          "type": "string",
+          "required": false,
+          "description": "Access code, if the quiz requires one"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Short-lived token from the preview call; omit to preview"
+        }
+      ],
+      "returns": "First call: human-readable preview and confirmation token, with no attempt started. Confirmed call: quiz_submission_id, attempt, validation_token, and fenced questions",
+      "examples": [
+        "Start the Hamlet quiz and show me the questions"
+      ]
+    },
+    {
+      "name": "answer_quiz_questions",
+      "category": "student",
+      "description": "Record answers for an in-progress quiz attempt (repeatable; never submits). Available only when QUIZ_TAKING_ENABLED=true",
+      "parameters": [
+        {
+          "name": "quiz_submission_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "From start_quiz_attempt"
+        },
+        {
+          "name": "attempt",
+          "type": "integer",
+          "required": true,
+          "description": "Attempt number from start_quiz_attempt (must be the latest)"
+        },
+        {
+          "name": "validation_token",
+          "type": "string",
+          "required": true,
+          "description": "Token from start_quiz_attempt"
+        },
+        {
+          "name": "answers",
+          "type": "string",
+          "required": true,
+          "description": "JSON string: object {question_id: answer} or array of {id, answer}. Answer value format depends on question type (mc/true-false=int id; multiple-answers=array of ids; essay/short=string; numerical=number; fill-in-blanks={blank: text}; dropdowns={blank: id}; matching=[{answer_id, match_id}])"
+        },
+        {
+          "name": "access_code",
+          "type": "string",
+          "required": false,
+          "description": "Access code, if the quiz requires one"
+        }
+      ],
+      "returns": "Confirmation of recorded answers per question. Attempt stays open until submit_quiz_attempt",
+      "examples": [
+        "Answer question 4 with choice 5 and question 5 with 'Paris'"
+      ]
+    },
+    {
+      "name": "submit_quiz_attempt",
+      "category": "student",
+      "description": "Preview current answers, then submit an in-progress quiz attempt. Irreversible and available only when QUIZ_TAKING_ENABLED=true",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "quiz_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Canvas quiz ID"
+        },
+        {
+          "name": "quiz_submission_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "From start_quiz_attempt"
+        },
+        {
+          "name": "attempt",
+          "type": "integer",
+          "required": true,
+          "description": "Attempt number from start_quiz_attempt (must be the latest)"
+        },
+        {
+          "name": "validation_token",
+          "type": "string",
+          "required": true,
+          "description": "Token from start_quiz_attempt"
+        },
+        {
+          "name": "access_code",
+          "type": "string",
+          "required": false,
+          "description": "Access code, if the quiz requires one"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Short-lived token from the preview call; omit to preview"
+        }
+      ],
+      "returns": "First call: saved-answer preview and confirmation token, with no submission. Confirmed call: final workflow state and score when available",
+      "examples": [
+        "Turn in my quiz"
+      ]
+    },
+    {
       "name": "list_assignments",
       "category": "educator",
       "description": "List all assignments for a course",
@@ -687,6 +816,54 @@
       "returns": "Confirmation with updated fields and topic type",
       "examples": [
         "Update the Week 1 discussion prompt to mention Claude and Gemini"
+      ]
+    },
+    {
+      "name": "list_quizzes",
+      "category": "shared",
+      "description": "List Classic Quizzes in a course. New Quizzes (quiz_lti) are not exposed by the REST API and appear via list_assignments",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "search_term",
+          "type": "string",
+          "required": false,
+          "description": "Partial quiz title to filter by"
+        }
+      ],
+      "returns": "Each quiz's ID, title, type, question count, points, due date, and published/locked status",
+      "examples": [
+        "What quizzes are in BADM 350?",
+        "Find the midterm quiz"
+      ]
+    },
+    {
+      "name": "get_quiz_details",
+      "category": "shared",
+      "description": "Get detailed settings for a single Classic Quiz",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "quiz_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Canvas quiz ID (from list_quizzes)"
+        }
+      ],
+      "returns": "Type, points, question count/types, allowed attempts, time limit, scoring policy, navigation settings, due/unlock/lock dates, access-code/lock state, and description",
+      "examples": [
+        "Show me the settings for quiz 101",
+        "How many attempts do I get on the Hamlet quiz?"
       ]
     },
     {
@@ -3423,6 +3600,19 @@
         "get_my_upcoming_assignments(days=7)",
         "get_my_submission_status()",
         "get_my_peer_reviews_todo()"
+      ]
+    },
+    {
+      "name": "student_take_quiz",
+      "description": "Take a Classic Quiz end to end when QUIZ_TAKING_ENABLED=true; start and submit each require preview then confirmation",
+      "steps": [
+        "list_quizzes(course_id)",
+        "get_quiz_details(course_id, quiz_id)",
+        "start_quiz_attempt(course_id, quiz_id) to preview",
+        "start_quiz_attempt(course_id, quiz_id, confirmation_token=token) to begin",
+        "answer_quiz_questions(quiz_submission_id, attempt, validation_token, answers)",
+        "submit_quiz_attempt(course_id, quiz_id, quiz_submission_id, attempt, validation_token) to preview",
+        "submit_quiz_attempt(course_id, quiz_id, quiz_submission_id, attempt, validation_token, confirmation_token=token) to turn in"
       ]
     },
     {

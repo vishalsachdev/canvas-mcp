@@ -26,8 +26,9 @@ RUN adduser --disabled-password --gecos '' mcp && \
     chown -R mcp:mcp /app
 
 # Set environment variables.
-# HTTP deployments pin CANVAS_API_URL at runtime and must NOT set CANVAS_API_TOKEN —
-# callers supply their own token per request via the X-Canvas-Token header.
+# HTTP deployments pin CANVAS_API_URL at runtime. In the default request-header
+# mode callers supply X-Canvas-Token and the container must not hold a token. In
+# server mode a private deployment supplies CANVAS_API_TOKEN and MCP_ACCESS_KEYS.
 # Code execution (execute_typescript) ships OFF by default for this network-facing
 # image; opt in with -e EXECUTE_TYPESCRIPT_ENABLED=true only behind real auth.
 # Anonymization ships ON — institutional deployments must opt OUT deliberately
@@ -36,7 +37,9 @@ RUN adduser --disabled-password --gecos '' mcp && \
 ENV MCP_SERVER_NAME="canvas-mcp" \
     ENABLE_DATA_ANONYMIZATION="true" \
     ANONYMIZATION_DEBUG="false" \
-    EXECUTE_TYPESCRIPT_ENABLED="false"
+    EXECUTE_TYPESCRIPT_ENABLED="false" \
+    QUIZ_TAKING_ENABLED="false" \
+    CANVAS_ROLE="student"
 
 # Switch to non-root user
 USER mcp
@@ -44,9 +47,9 @@ USER mcp
 # HTTP port the container listens on (App Service injects PORT/WEBSITES_PORT)
 EXPOSE 8819
 
-# Health check to verify installation
+# Health check the running HTTP service without credentials or configuration data.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD python -c "import canvas_mcp; print('OK')" || exit 1
+  CMD python -c "import os, urllib.request; port = os.getenv('PORT', os.getenv('WEBSITES_PORT', '8819')); urllib.request.urlopen(f'http://127.0.0.1:{port}/healthz', timeout=2)" || exit 1
 
 # Run the MCP server over HTTP (required for container/ingress; stdio is unreachable).
 # Honors the platform-injected port, falling back to 8819.

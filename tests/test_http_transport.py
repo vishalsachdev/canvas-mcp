@@ -1,7 +1,8 @@
 """Tests for HTTP transport: credential middleware, ContextVar flow, and CLI args."""
 
-from urllib.parse import urlparse
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
+from urllib.parse import urlparse
 
 import pytest
 
@@ -26,12 +27,17 @@ class _FakeConfig:
         entra_auth_enabled=False,
         mcp_entra_allowed_oids=frozenset(),
         access_request_enabled=False,
+        mcp_http_credential_mode="request-header",
+        canvas_api_token="",
     ):
         self.canvas_api_url = canvas_api_url
         self.mcp_access_keys = mcp_access_keys
         self.entra_auth_enabled = entra_auth_enabled
         self.mcp_entra_allowed_oids = mcp_entra_allowed_oids
         self.access_request_enabled = access_request_enabled
+        self.mcp_http_credential_mode = mcp_http_credential_mode
+        self.canvas_api_token = canvas_api_token
+
 
 # ---------------------------------------------------------------------------
 # ContextVar credential tests
@@ -61,9 +67,7 @@ class TestRequestCredentials:
 
     def test_clear_resets_to_none(self):
         """clear_request_credentials resets to None."""
-        set_request_credentials(
-            RequestCredentials(api_token="t", api_url="u")
-        )
+        set_request_credentials(RequestCredentials(api_token="t", api_url="u"))
         clear_request_credentials()
         assert get_request_credentials() is None
 
@@ -191,6 +195,7 @@ class TestCanvasCredentialMiddleware:
     @pytest.mark.asyncio
     async def test_clears_context_after_error(self, middleware):
         """Credentials AND the http-active marker are cleared even if the app raises."""
+
         async def failing_app(scope, receive, send):
             raise ValueError("boom")
 
@@ -221,6 +226,47 @@ class TestCanvasCredentialMiddleware:
         scope = {"type": "lifespan"}
         await middleware(scope, AsyncMock(), AsyncMock())
         assert called["value"] is True
+
+    @pytest.mark.asyncio
+    async def test_concurrent_request_credentials_remain_isolated(self, middleware):
+        observed = {}
+
+        async def capture_app(scope, receive, send):
+            label = scope["path"]
+            before = get_request_credentials().api_token
+            await asyncio.sleep(0)
+            after = get_request_credentials().api_token
+            observed[label] = (before, after)
+
+        middleware.app = capture_app
+        cfg = _FakeConfig()
+        with patch("canvas_mcp.server.get_config", return_value=cfg):
+            await asyncio.gather(
+                middleware(
+                    {
+                        "type": "http",
+                        "path": "/a",
+                        "headers": [(b"x-canvas-token", b"token-a")],
+                    },
+                    AsyncMock(),
+                    AsyncMock(),
+                ),
+                middleware(
+                    {
+                        "type": "http",
+                        "path": "/b",
+                        "headers": [(b"x-canvas-token", b"token-b")],
+                    },
+                    AsyncMock(),
+                    AsyncMock(),
+                ),
+            )
+
+        assert observed == {
+            "/a": ("token-a", "token-a"),
+            "/b": ("token-b", "token-b"),
+        }
+        assert get_request_credentials() is None
 
 
 class TestAccessKeyGate:
@@ -267,7 +313,9 @@ class TestAccessKeyGate:
         send = AsyncMock()
         scope = {
             "type": "http",
-            "headers": [(b"x-canvas-token", b"tok")],  # valid canvas token, but no access key
+            "headers": [
+                (b"x-canvas-token", b"tok")
+            ],  # valid canvas token, but no access key
         }
         cfg = _FakeConfig(mcp_access_keys=frozenset({"key-abc"}))
         with patch("canvas_mcp.server.get_config", return_value=cfg):
@@ -311,6 +359,227 @@ class TestAccessKeyGate:
             await middleware(scope, AsyncMock(), AsyncMock())
 
         assert captured["token"] == "tok"
+
+    @pytest.mark.asyncio
+    async def test_standard_bearer_key_is_accepted(self, middleware):
+        """Poke's Authorization bearer header authenticates the MCP request."""
+        captured = {}
+
+        async def capture_app(scope, receive, send):
+            captured["token"] = get_request_credentials().api_token
+
+        middleware.app = capture_app
+        scope = {
+            "type": "http",
+            "headers": [
+                (b"authorization", b"Bearer key-def"),
+                (b"x-canvas-token", b"canvas-token"),
+            ],
+        }
+        cfg = _FakeConfig(mcp_access_keys=frozenset({"key-abc", "key-def"}))
+        with patch("canvas_mcp.server.get_config", return_value=cfg):
+            await middleware(scope, AsyncMock(), AsyncMock())
+
+        assert captured["token"] == "canvas-token"
+
+    @pytest.mark.asyncio
+    async def test_rotated_bearer_keys_are_both_accepted(self, middleware):
+        accepted = []
+
+        async def capture_app(scope, receive, send):
+            accepted.append(get_request_credentials().api_token)
+
+        middleware.app = capture_app
+        cfg = _FakeConfig(mcp_access_keys=frozenset({"current-key", "next-key"}))
+        for access_key in ("current-key", "next-key"):
+            scope = {
+                "type": "http",
+                "headers": [
+                    (b"authorization", f"Bearer {access_key}".encode()),
+                    (b"x-canvas-token", b"canvas-token"),
+                ],
+            }
+            with patch("canvas_mcp.server.get_config", return_value=cfg):
+                await middleware(scope, AsyncMock(), AsyncMock())
+
+        assert accepted == ["canvas-token", "canvas-token"]
+
+    @pytest.mark.asyncio
+    async def test_malformed_bearer_returns_challenge(self, middleware):
+        send = AsyncMock()
+        scope = {
+            "type": "http",
+            "headers": [
+                (b"authorization", b"Basic abc"),
+                (b"x-canvas-token", b"canvas-token"),
+            ],
+        }
+        cfg = _FakeConfig(mcp_access_keys=frozenset({"key-abc"}))
+        with patch("canvas_mcp.server.get_config", return_value=cfg):
+            await middleware(scope, AsyncMock(), send)
+
+        response_start = send.call_args_list[0][0][0]
+        assert response_start["status"] == 401
+        assert (b"www-authenticate", b'Bearer realm="canvas-mcp"') in response_start[
+            "headers"
+        ]
+
+    @pytest.mark.asyncio
+    async def test_conflicting_bearer_and_legacy_keys_fail_closed(self, middleware):
+        send = AsyncMock()
+        scope = {
+            "type": "http",
+            "headers": [
+                (b"authorization", b"Bearer key-abc"),
+                (b"x-mcp-access-key", b"key-def"),
+                (b"x-canvas-token", b"canvas-token"),
+            ],
+        }
+        cfg = _FakeConfig(mcp_access_keys=frozenset({"key-abc", "key-def"}))
+        with patch("canvas_mcp.server.get_config", return_value=cfg):
+            await middleware(scope, AsyncMock(), send)
+
+        assert send.call_args_list[0][0][0]["status"] == 401
+
+
+class TestServerCredentialMode:
+    @pytest.fixture
+    def middleware(self):
+        from canvas_mcp.server import CanvasCredentialMiddleware
+
+        return CanvasCredentialMiddleware(AsyncMock())
+
+    @pytest.mark.asyncio
+    async def test_bearer_key_uses_server_canvas_token(self, middleware):
+        captured = {}
+
+        async def capture_app(scope, receive, send):
+            creds = get_request_credentials()
+            captured.update(token=creds.api_token, url=creds.api_url)
+
+        middleware.app = capture_app
+        cfg = _FakeConfig(
+            mcp_access_keys=frozenset({"poke-key"}),
+            mcp_http_credential_mode="server",
+            canvas_api_token="server-canvas-token",
+        )
+        scope = {
+            "type": "http",
+            "headers": [
+                (b"authorization", b"Bearer poke-key"),
+                (b"x-poke-user-id", b"00000000-0000-0000-0000-000000000000"),
+            ],
+        }
+        with (
+            patch("canvas_mcp.server.get_config", return_value=cfg),
+            patch("canvas_mcp.server.log_info") as mock_log,
+        ):
+            await middleware(scope, AsyncMock(), AsyncMock())
+
+        assert captured == {
+            "token": "server-canvas-token",
+            "url": "https://canvas.illinois.edu/api/v1",
+        }
+        logged = " ".join(str(call) for call in mock_log.call_args_list)
+        assert "poke-key" not in logged
+        assert "server-canvas-token" not in logged
+        assert "00000000-0000-0000-0000-000000000000" not in logged
+        assert get_request_credentials() is None
+
+    @pytest.mark.asyncio
+    async def test_server_mode_rejects_client_canvas_token(self, middleware):
+        send = AsyncMock()
+        cfg = _FakeConfig(
+            mcp_access_keys=frozenset({"poke-key"}),
+            mcp_http_credential_mode="server",
+            canvas_api_token="server-canvas-token",
+        )
+        scope = {
+            "type": "http",
+            "headers": [
+                (b"authorization", b"Bearer poke-key"),
+                (b"x-canvas-token", b"client-token"),
+            ],
+        }
+        with patch("canvas_mcp.server.get_config", return_value=cfg):
+            await middleware(scope, AsyncMock(), send)
+
+        assert send.call_args_list[0][0][0]["status"] == 400
+
+
+class TestHealthEndpoint:
+    @pytest.mark.asyncio
+    async def test_health_is_public_and_information_minimal(self):
+        from canvas_mcp.server import CanvasCredentialMiddleware
+
+        inner = AsyncMock()
+        middleware = CanvasCredentialMiddleware(inner)
+        send = AsyncMock()
+        await middleware(
+            {"type": "http", "method": "GET", "path": "/healthz", "headers": []},
+            AsyncMock(),
+            send,
+        )
+
+        assert send.call_args_list[0][0][0]["status"] == 200
+        body = send.call_args_list[1][0][0]["body"]
+        assert body == b'{"status":"ok"}'
+        assert b"canvas" not in body.lower()
+        inner.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_health_head_has_no_body(self):
+        from canvas_mcp.server import CanvasCredentialMiddleware
+
+        send = AsyncMock()
+        await CanvasCredentialMiddleware(AsyncMock())(
+            {"type": "http", "method": "HEAD", "path": "/healthz", "headers": []},
+            AsyncMock(),
+            send,
+        )
+
+        response_start = send.call_args_list[0][0][0]
+        response_body = send.call_args_list[1][0][0]
+        assert response_start["status"] == 200
+        assert (b"content-length", b"15") in response_start["headers"]
+        assert response_body["body"] == b""
+
+
+def test_poke_shaped_tools_list_request_uses_only_bearer_key():
+    """End-to-end ASGI discovery works with exactly the headers Poke sends."""
+    from fastmcp import FastMCP
+    from starlette.testclient import TestClient
+
+    from canvas_mcp.server import CanvasCredentialMiddleware
+
+    mcp = FastMCP(name="poke-compat")
+
+    @mcp.tool()
+    async def sample_tool() -> str:
+        return "ok"
+
+    app = CanvasCredentialMiddleware(mcp.http_app(stateless_http=True))
+    cfg = _FakeConfig(
+        mcp_access_keys=frozenset({"poke-key"}),
+        mcp_http_credential_mode="server",
+        canvas_api_token="server-canvas-token",
+    )
+    headers = {
+        "Authorization": "Bearer poke-key",
+        "X-Poke-User-Id": "00000000-0000-0000-0000-000000000000",
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+    }
+    with patch("canvas_mcp.server.get_config", return_value=cfg):
+        with TestClient(app) as client:
+            response = client.post(
+                "/mcp",
+                headers=headers,
+                json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+            )
+
+    assert response.status_code == 200
+    assert "sample_tool" in response.text
 
 
 # ---------------------------------------------------------------------------
@@ -438,6 +707,7 @@ class TestEventLoopChangeDetection:
     def setup_method(self):
         """Reset client globals before each test."""
         import canvas_mcp.core.client as _cm
+
         _cm.http_client = None
         _cm._http_client_loop_ref = None
         _cm._request_semaphore = None
@@ -446,6 +716,7 @@ class TestEventLoopChangeDetection:
     def teardown_method(self):
         """Reset client globals after each test."""
         import canvas_mcp.core.client as _cm
+
         _cm.http_client = None
         _cm._http_client_loop_ref = None
         _cm._request_semaphore = None
@@ -509,7 +780,9 @@ class TestEventLoopChangeDetection:
 
         # Next call must return a fresh client (not the stale one)
         second_client = _get_http_client()
-        assert second_client is not first_client, "Stale client was not replaced when loop weakref died"
+        assert (
+            second_client is not first_client
+        ), "Stale client was not replaced when loop weakref died"
 
     @pytest.mark.asyncio
     async def test_semaphore_recreated_when_stored_loop_gone(self):
@@ -532,7 +805,9 @@ class TestEventLoopChangeDetection:
         assert _cm._semaphore_loop_ref() is None
 
         second_sem = _get_request_semaphore()
-        assert second_sem is not first_sem, "Stale semaphore was not replaced when loop weakref died"
+        assert (
+            second_sem is not first_sem
+        ), "Stale semaphore was not replaced when loop weakref died"
 
     def test_http_client_recreated_across_asyncio_run_calls(self):
         """A fresh client is created in loop B when loop A was closed by asyncio.run().
@@ -564,9 +839,9 @@ class TestEventLoopChangeDetection:
 
         # Weakref to loop A must be dead before loop B can detect the stale state
         assert _cm._http_client_loop_ref is not None
-        assert _cm._http_client_loop_ref() is None, (
-            "Weakref to loop A must be dead after asyncio.run() exits"
-        )
+        assert (
+            _cm._http_client_loop_ref() is None
+        ), "Weakref to loop A must be dead after asyncio.run() exits"
         assert state_a["loop_ref_alive"], "Loop ref should be alive INSIDE loop A"
 
         # Loop B — simulate mcp.run()
@@ -589,12 +864,12 @@ class TestEventLoopChangeDetection:
         asyncio.run(_loop_b())
 
         # The loop weakref must have been live INSIDE loop B (proves fresh client was created)
-        assert state_b["loop_ref_alive"], (
-            "Loop weakref must be alive inside loop B — proves a fresh client was created"
-        )
-        assert state_b["loop_ref_is_current"], (
-            "Loop weakref must point to loop B's running loop"
-        )
+        assert state_b[
+            "loop_ref_alive"
+        ], "Loop weakref must be alive inside loop B — proves a fresh client was created"
+        assert state_b[
+            "loop_ref_is_current"
+        ], "Loop weakref must point to loop B's running loop"
 
     def test_server_startup_resets_globals_after_asyncio_run(self):
         """server.main() resets http_client globals after asyncio.run() token validation.
@@ -632,10 +907,11 @@ class TestCLIArgs:
         """Default transport is stdio."""
         import argparse
 
-
         # We can't easily test main() directly, but we can test the argparse
         parser = argparse.ArgumentParser()
-        parser.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
+        parser.add_argument(
+            "--transport", choices=["stdio", "streamable-http"], default="stdio"
+        )
         parser.add_argument("--host", default="0.0.0.0")
         parser.add_argument("--port", type=int, default=8819)
         args = parser.parse_args([])
@@ -648,7 +924,9 @@ class TestCLIArgs:
         import argparse
 
         parser = argparse.ArgumentParser()
-        parser.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
+        parser.add_argument(
+            "--transport", choices=["stdio", "streamable-http"], default="stdio"
+        )
         parser.add_argument("--host", default="0.0.0.0")
         parser.add_argument("--port", type=int, default=8819)
         args = parser.parse_args(["--transport", "streamable-http", "--port", "9000"])
@@ -761,6 +1039,8 @@ class TestHttpAccessKeyStartupGuard:
         monkeypatch.delenv("MCP_ACCESS_KEYS", raising=False)
         monkeypatch.delenv("MCP_ALLOW_UNAUTHENTICATED", raising=False)
         monkeypatch.delenv("ENTRA_AUTH_ENABLED", raising=False)
+        monkeypatch.delenv("MCP_HTTP_CREDENTIAL_MODE", raising=False)
+        monkeypatch.delenv("ACCESS_REQUEST_ENABLED", raising=False)
         for key, value in env.items():
             monkeypatch.setenv(key, value)
 
@@ -783,9 +1063,7 @@ class TestHttpAccessKeyStartupGuard:
 
     def test_no_keys_with_explicit_optin_starts(self, monkeypatch):
         """No keys but MCP_ALLOW_UNAUTHENTICATED=true -> guard passes (exit 0)."""
-        exc = self._run_main(
-            monkeypatch, env={"MCP_ALLOW_UNAUTHENTICATED": "true"}
-        )
+        exc = self._run_main(monkeypatch, env={"MCP_ALLOW_UNAUTHENTICATED": "true"})
         assert exc.code == 0
 
     def test_entra_enabled_without_optin_exits_nonzero(self, monkeypatch):
@@ -814,10 +1092,75 @@ class TestHttpAccessKeyStartupGuard:
 
     def test_keys_configured_starts(self, monkeypatch):
         """MCP_ACCESS_KEYS configured -> guard passes regardless of opt-in (exit 0)."""
+        exc = self._run_main(monkeypatch, env={"MCP_ACCESS_KEYS": "key-abc,key-def"})
+        assert exc.code == 0
+
+    def test_request_header_mode_rejects_server_canvas_token(self, monkeypatch):
         exc = self._run_main(
-            monkeypatch, env={"MCP_ACCESS_KEYS": "key-abc,key-def"}
+            monkeypatch,
+            env={
+                "MCP_HTTP_CREDENTIAL_MODE": "request-header",
+                "CANVAS_API_TOKEN": "must-not-fallback",
+                "MCP_ACCESS_KEYS": "key-abc",
+            },
+        )
+        assert exc.code == 1
+
+    def test_server_mode_requires_canvas_token(self, monkeypatch):
+        exc = self._run_main(
+            monkeypatch,
+            env={
+                "MCP_HTTP_CREDENTIAL_MODE": "server",
+                "MCP_ACCESS_KEYS": "poke-key",
+            },
+        )
+        assert exc.code == 1
+
+    def test_server_mode_requires_access_key(self, monkeypatch):
+        exc = self._run_main(
+            monkeypatch,
+            env={
+                "MCP_HTTP_CREDENTIAL_MODE": "server",
+                "CANVAS_API_TOKEN": "canvas-token",
+            },
+        )
+        assert exc.code == 1
+
+    def test_server_mode_valid_configuration_starts(self, monkeypatch):
+        exc = self._run_main(
+            monkeypatch,
+            env={
+                "MCP_HTTP_CREDENTIAL_MODE": "server",
+                "CANVAS_API_TOKEN": "canvas-token",
+                "MCP_ACCESS_KEYS": "poke-key,next-key",
+            },
         )
         assert exc.code == 0
+
+    @pytest.mark.parametrize(
+        "conflict",
+        [
+            {"MCP_ALLOW_UNAUTHENTICATED": "true"},
+            {"ENTRA_AUTH_ENABLED": "true"},
+            {"ACCESS_REQUEST_ENABLED": "true"},
+        ],
+    )
+    def test_server_mode_rejects_conflicting_auth_modes(self, monkeypatch, conflict):
+        env = {
+            "MCP_HTTP_CREDENTIAL_MODE": "server",
+            "CANVAS_API_TOKEN": "canvas-token",
+            "MCP_ACCESS_KEYS": "poke-key",
+            **conflict,
+        }
+        exc = self._run_main(monkeypatch, env=env)
+        assert exc.code == 1
+
+    def test_invalid_credential_mode_exits_nonzero(self, monkeypatch):
+        exc = self._run_main(
+            monkeypatch,
+            env={"MCP_HTTP_CREDENTIAL_MODE": "something-else"},
+        )
+        assert exc.code == 1
 
 
 # ---------------------------------------------------------------------------
@@ -923,7 +1266,10 @@ class TestEntraPlatformAuth:
             "type": "http",
             "headers": [
                 (b"x-ms-client-principal-id", b"oid-anyone"),
-                (b"x-ms-client-principal", _principal_header({"scp": "access_as_user"})),
+                (
+                    b"x-ms-client-principal",
+                    _principal_header({"scp": "access_as_user"}),
+                ),
                 (b"x-canvas-token", b"tok"),
             ],
         }
@@ -943,16 +1289,20 @@ class TestAccessOverlayGate:
     @pytest.fixture
     def middleware(self):
         from canvas_mcp.server import CanvasCredentialMiddleware
+
         return CanvasCredentialMiddleware(AsyncMock())
 
     def _cfg(self, **kw):
         # Minimal config double with feature enabled + an in-memory store.
         from types import SimpleNamespace
+
         base = {
             "entra_auth_enabled": True,
             "mcp_entra_allowed_oids": frozenset({"oid-env"}),
             "canvas_api_url": "https://c.edu/api/v1",
             "mcp_access_keys": frozenset(),
+            "mcp_http_credential_mode": "request-header",
+            "canvas_api_token": "",
             "access_request_enabled": True,
             "access_token_secret": "s",
             "access_table_account": "acct",
@@ -968,34 +1318,60 @@ class TestAccessOverlayGate:
     @pytest.mark.asyncio
     async def test_overlay_oid_is_authorized(self, middleware):
         from canvas_mcp.core.access.store import AccessStore, InMemoryBackend, Requester
+
         store = AccessStore(InMemoryBackend(), cache_ttl_seconds=0)
         store.grant(Requester("oid-new", "j@x", "Jane"), jti="j1")
         captured = {}
+
         async def inner(scope, receive, send):
             captured["ran"] = True
+
         middleware.app = inner
-        scope = {"type": "http", "path": "/mcp", "headers": [
-            (b"x-ms-client-principal-id", b"oid-new"),
-            (b"x-ms-client-principal", _principal_header({"scp": "x"})),
-            (b"x-canvas-token", b"tok")]}
-        with patch("canvas_mcp.server.get_config", return_value=self._cfg()), \
-             patch("canvas_mcp.server._access_store", return_value=store):
+        scope = {
+            "type": "http",
+            "path": "/mcp",
+            "headers": [
+                (b"x-ms-client-principal-id", b"oid-new"),
+                (b"x-ms-client-principal", _principal_header({"scp": "x"})),
+                (b"x-canvas-token", b"tok"),
+            ],
+        }
+        with (
+            patch("canvas_mcp.server.get_config", return_value=self._cfg()),
+            patch("canvas_mcp.server._access_store", return_value=store),
+        ):
             await middleware(scope, AsyncMock(), AsyncMock())
         assert captured.get("ran") is True  # overlay grant -> allowed
 
     @pytest.mark.asyncio
     async def test_unlisted_oid_403_and_schedules_notify(self, middleware):
         from canvas_mcp.core.access.store import AccessStore, InMemoryBackend
+
         store = AccessStore(InMemoryBackend(), cache_ttl_seconds=0)
         send = AsyncMock()
-        scope = {"type": "http", "path": "/mcp", "headers": [
-            (b"x-ms-client-principal-id", b"oid-unknown"),
-            (b"x-ms-client-principal", _principal_header(
-                {"scp": "x", "name": "Stranger", "preferred_username": "s@x.edu"})),
-            (b"x-canvas-token", b"tok")]}
-        with patch("canvas_mcp.server.get_config", return_value=self._cfg()), \
-             patch("canvas_mcp.server._access_store", return_value=store), \
-             patch("canvas_mcp.server._schedule_notify") as sched:
+        scope = {
+            "type": "http",
+            "path": "/mcp",
+            "headers": [
+                (b"x-ms-client-principal-id", b"oid-unknown"),
+                (
+                    b"x-ms-client-principal",
+                    _principal_header(
+                        {
+                            "scp": "x",
+                            "name": "Stranger",
+                            "preferred_username": "s@x.edu",
+                        }
+                    ),
+                ),
+                (b"x-canvas-token", b"tok"),
+            ],
+        }
+        with (
+            patch("canvas_mcp.server.get_config", return_value=self._cfg()),
+            patch("canvas_mcp.server._access_store", return_value=store),
+            patch("canvas_mcp.server._schedule_notify") as sched,
+        ):
             await middleware(scope, AsyncMock(), send)
         assert send.call_args_list[0][0][0]["status"] == 403
         sched.assert_called_once()
@@ -1003,12 +1379,19 @@ class TestAccessOverlayGate:
     @pytest.mark.asyncio
     async def test_approve_path_served_without_canvas_token(self, middleware):
         from canvas_mcp.core.access.store import AccessStore, InMemoryBackend
+
         store = AccessStore(InMemoryBackend(), cache_ttl_seconds=0)
         send = AsyncMock()
-        scope = {"type": "http", "path": "/admin/access/approve",
-                 "query_string": b"token=garbage", "headers": []}
-        with patch("canvas_mcp.server.get_config", return_value=self._cfg()), \
-             patch("canvas_mcp.server._access_store", return_value=store):
+        scope = {
+            "type": "http",
+            "path": "/admin/access/approve",
+            "query_string": b"token=garbage",
+            "headers": [],
+        }
+        with (
+            patch("canvas_mcp.server.get_config", return_value=self._cfg()),
+            patch("canvas_mcp.server._access_store", return_value=store),
+        ):
             await middleware(scope, AsyncMock(), send)
         status = send.call_args_list[0][0][0]["status"]
         assert status == 200  # served by route handler, not the 401 token gate
@@ -1016,9 +1399,15 @@ class TestAccessOverlayGate:
     @pytest.mark.asyncio
     async def test_admin_path_404_when_feature_disabled(self, middleware):
         send = AsyncMock()
-        scope = {"type": "http", "path": "/admin/access/approve",
-                 "query_string": b"", "headers": []}
-        with patch("canvas_mcp.server.get_config",
-                   return_value=self._cfg(access_request_enabled=False)):
+        scope = {
+            "type": "http",
+            "path": "/admin/access/approve",
+            "query_string": b"",
+            "headers": [],
+        }
+        with patch(
+            "canvas_mcp.server.get_config",
+            return_value=self._cfg(access_request_enabled=False),
+        ):
             await middleware(scope, AsyncMock(), send)
         assert send.call_args_list[0][0][0]["status"] == 404
