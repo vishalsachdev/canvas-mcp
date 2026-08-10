@@ -119,7 +119,7 @@ pip install -e .</code></pre>
                         <pre><code>CANVAS_API_TOKEN=your_token_here
 CANVAS_API_URL=https://canvas.youruniversity.edu</code></pre>
 
-                        <p>Add to your MCP client config:</p>
+                        <p>Add to your MCP client config &mdash; most clients read this exact entry and differ only in where the file lives:</p>
                         <pre><code>{
   "mcpServers": {
     "canvas-api": {
@@ -127,6 +127,7 @@ CANVAS_API_URL=https://canvas.youruniversity.edu</code></pre>
     }
   }
 }</code></pre>
+                        <p>The <a href="https://github.com/vishalsachdev/canvas-mcp#3-mcp-client-configuration">client configuration guide</a> lists where that file lives for Claude Desktop, Cursor, Zed, Windsurf, Continue and others &mdash; check it for your client, since some use their own schema (Zed nests the server under <code>context_servers</code>).</p>
                     </section>
 
                     <section id="available-tools">

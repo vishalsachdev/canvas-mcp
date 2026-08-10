@@ -1943,7 +1943,7 @@ cp env.template .env<br>
                     <div class="step-number">3</div>
                     <div class="step-content">
                         <h3>Connect Your MCP Client</h3>
-                        <p>Add the server to your client's MCP config. The entry is identical for every client — only the file location differs. <a href="#clients">See supported clients</a> or the <a href="https://github.com/vishalsachdev/canvas-mcp#3-mcp-client-configuration">config file locations</a> for Claude Desktop, Cursor, Zed, Windsurf, Continue, and others.</p>
+                        <p>Add the server to your client's MCP config. Most clients read this exact entry and differ only in where the file lives; some use their own schema (Zed nests it under <code>context_servers</code>). <a href="#clients">See supported clients</a> or the <a href="https://github.com/vishalsachdev/canvas-mcp#3-mcp-client-configuration">per-client config blocks and file locations</a> for Claude Desktop, Cursor, Zed, Windsurf, Continue, and others.</p>
                         <div class="step-code">
 {<br>
 &nbsp;&nbsp;"mcpServers": {<br>
