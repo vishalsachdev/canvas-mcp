@@ -344,7 +344,7 @@ def register_student_tools(mcp: FastMCP) -> None:
             # Get assignments for this course
             assignments = await fetch_all_paginated_results(
                 f"/courses/{course_id}/assignments",
-                params={"per_page": 100}
+                params={"per_page": 100, "include[]": ["all_dates", "submission"]}
             )
 
             if isinstance(assignments, dict) and "error" in assignments:

@@ -437,6 +437,29 @@ class TestGetMyPeerReviewsTodo:
         assert "Student 13" not in result
 
     @pytest.mark.asyncio
+    async def test_past_due_assignment_still_checks_peer_reviews(self):
+        fetch_side_effect = [
+            [{
+                "id": 1,
+                "name": "Essay",
+                "peer_reviews": True,
+                "due_at": "2024-02-01T12:00:00Z",
+                "peer_review_due_at": "2024-02-03T12:00:00Z",
+            }],
+            [{"assessor_id": self.SELF_ID, "user_id": 11, "workflow_state": "assigned"}],
+        ]
+        p1, p2, p3, p4 = self._patches(fetch_side_effect)
+        with p1 as mock_fetch, p2, p3, p4:
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(course_identifier="505")
+
+        assert "Student 11" in result
+        assert mock_fetch.await_args_list[0].kwargs["params"] == {
+            "per_page": 100,
+            "include[]": ["all_dates", "submission"],
+        }
+
+    @pytest.mark.asyncio
     async def test_all_own_reviews_complete_reports_done(self):
         fetch_side_effect = [
             [{"id": 1, "name": "Essay", "peer_reviews": True}],
