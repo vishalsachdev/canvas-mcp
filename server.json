@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.vishalsachdev/canvas-mcp",
   "description": "Canvas LMS integration for students and educators with FERPA-compliant analytics and workflows",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "websiteUrl": "https://canvas-mcp.illinihunt.org/",
   "repository": {
     "url": "https://github.com/vishalsachdev/canvas-mcp",
@@ -31,7 +31,7 @@
     {
       "registryType": "pypi",
       "identifier": "canvas-mcp",
-      "version": "1.7.0",
+      "version": "1.8.0",
       "transport": {
         "type": "stdio",
         "python": {
@@ -52,9 +52,9 @@
         "required": true
       },
       "ENABLE_DATA_ANONYMIZATION": {
-        "description": "Enable FERPA-compliant student data anonymization (educators only)",
+        "description": "Enable FERPA-compliant student data anonymization (educators only). Defaults to true; set to false only after your own privacy review.",
         "required": false,
-        "default": "false"
+        "default": "true"
       },
       "ANONYMIZATION_DEBUG": {
         "description": "Enable anonymization debugging output",

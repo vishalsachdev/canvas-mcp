@@ -13,6 +13,8 @@ jobs:
   security-tests:
     name: Security Test Suite
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
       - name: Checkout code
@@ -27,12 +29,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-          pip install pytest pytest-asyncio pytest-cov
+          pip install pytest pytest-asyncio pytest-cov pyyaml
       
+      # No continue-on-error: a security suite that cannot fail the build is
+      # decoration. It previously passed green through any regression, including
+      # the anonymization, authorization, and sandbox invariants it exists to
+      # protect.
       - name: Run security tests
         run: |
           pytest tests/security/ -v --cov=src/canvas_mcp --cov-report=html --cov-report=term
-        continue-on-error: true
       
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -50,6 +55,8 @@ jobs:
   sast-scan:
     name: Static Analysis Security Testing
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
       - name: Checkout code
@@ -92,6 +99,8 @@ jobs:
   dependency-scan:
     name: Dependency Vulnerability Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
       - name: Checkout code
@@ -147,6 +156,8 @@ jobs:
   secret-scan:
     name: Secret Detection Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
       - name: Checkout code

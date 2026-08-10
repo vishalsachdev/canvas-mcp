@@ -65,6 +65,22 @@ def _build_safe_env(config: Any) -> dict[str, str]:
     return env
 
 
+def _sandbox_unavailable_error(reason: str) -> str:
+    """Refuse to execute when the requested isolation cannot be provided.
+
+    Isolation is a boundary, not a preference: if it is unavailable, the correct
+    outcome is no execution, not execution somewhere less safe.
+    """
+    log_warning(f"Refusing code execution: {reason}")
+    return (
+        f"❌ Code execution refused: {reason}\n\n"
+        "Sandboxing failed closed rather than running this code directly on the "
+        "server. Start a container runtime, fix TS_SANDBOX_CONTAINER_IMAGE, or "
+        "set TS_SANDBOX_MODE=local on a local (stdio) server where running code "
+        "on the host is the intended behavior."
+    )
+
+
 def _validate_container_image(image: str) -> bool:
     """Validate container image name format to prevent command injection.
 
@@ -370,6 +386,18 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
         sandbox_mode = "disabled"
         container_runtime: str | None = None
 
+        # Anything other than container mode runs the caller's TypeScript directly
+        # on the host, with the service account's environment and the Canvas token
+        # in it. That is a developer convenience on a local stdio server, where the
+        # caller already owns the machine, and a host-execution primitive on a
+        # shared HTTP one. This is checked again after mode resolution, because
+        # "auto" and a disabled sandbox both land on host execution too.
+        if is_http_request_active() and not sandbox_enabled:
+            return _sandbox_unavailable_error(
+                "Sandboxing is disabled and unsandboxed execution is not permitted "
+                "over HTTP."
+            )
+
         if sandbox_enabled:
             if block_outbound and not allowlist_hosts:
                 warnings.append(
@@ -383,10 +411,15 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                 if not _validate_container_image(config.ts_sandbox_container_image):
                     message = (
                         f"Invalid container image format: '{config.ts_sandbox_container_image}'. "
-                        "Expected format: 'name:tag' (e.g., 'node:20-alpine'). "
-                        "Falling back to local sandbox."
+                        "Expected format: 'name:tag' (e.g., 'node:20-alpine')."
                     )
-                    warnings.append(message)
+                    if sandbox_mode_setting == "container":
+                        # Isolation was explicitly requested. Falling back to
+                        # running the caller's code directly on the host would
+                        # turn a misconfigured image name into host execution,
+                        # so refuse instead.
+                        return _sandbox_unavailable_error(message)
+                    warnings.append(f"{message} Falling back to local sandbox.")
                     log_warning(message)
                     sandbox_mode = "local"
                 else:
@@ -394,19 +427,40 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     if container_runtime and await _runtime_available(container_runtime):
                         sandbox_mode = "container"
                     elif sandbox_mode_setting == "container":
-                        message = (
-                            "Container sandbox requested but no runtime is available; "
-                            "falling back to local best-effort sandbox."
+                        return _sandbox_unavailable_error(
+                            "Container sandbox was requested but no container runtime "
+                            "is available."
                         )
-                        warnings.append(message)
-                        log_warning(message)
-                        sandbox_mode = "local"
                     else:
                         sandbox_mode = "local"
             else:
                 sandbox_mode = "local"
 
+            # Mode is resolved: container is the only one that confines the code.
+            if sandbox_mode != "container" and is_http_request_active():
+                return _sandbox_unavailable_error(
+                    "Container isolation is unavailable and unsandboxed execution "
+                    "is not permitted over HTTP."
+                )
+
             if block_outbound:
+                # Say plainly when the block is advisory. The guard patches
+                # net/tls/http/https and fetch inside the Node process, which
+                # executed code can step around via child_process, dgram, or a
+                # utility shipped in the image — and CANVAS_API_TOKEN is in that
+                # process's environment. Only the --network=none case above is
+                # actually enforced.
+                if sandbox_mode != "container" or allowlist_hosts:
+                    message = (
+                        "Outbound blocking is best-effort here: it is enforced by "
+                        "patching Node APIs in-process, which executed code can "
+                        "bypass (child_process, dgram, bundled utilities). Kernel-"
+                        "level enforcement applies only to container mode with an "
+                        "empty allowlist."
+                    )
+                    warnings.append(message)
+                    log_warning(message)
+
                 guard_path = _write_network_guard(allowlist_hosts, code_api_dir)
                 if guard_path.is_relative_to(repo_root):
                     relative_guard = guard_path.relative_to(repo_root)
@@ -490,6 +544,13 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     # Cap process count to contain fork bombs.
                     "--pids-limit=256",
                 ]
+                # Egress: the in-process JS guard only patches net/tls/http/https
+                # and fetch, so executed code can reach the network through
+                # child_process, dgram, or a shipped binary like wget. When the
+                # operator asked for no outbound access at all, enforce it in the
+                # kernel, where nothing running inside the guest can undo it.
+                if block_outbound and not allowlist_hosts:
+                    cmd.append("--network=none")
                 if config.ts_sandbox_memory_limit_mb > 0:
                     cmd.extend(["--memory", f"{config.ts_sandbox_memory_limit_mb}m"])
                 if config.ts_sandbox_cpu_limit > 0:

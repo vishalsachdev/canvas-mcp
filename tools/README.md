@@ -567,17 +567,24 @@ Grade multiple submissions efficiently with concurrent processing. **Most effici
 - User 9826: 50 points for criterion _8027 with comment 'Needs improvement'"
 ```
 
-**Example Usage - Simple Grading:**
+**Example Usage - Simple Grading (no comments):**
 ```
 "Grade these submissions with simple points:
-- User 9824: 100 points, comment 'Perfect!'
-- User 9825: 85 points, comment 'Very good'"
+- User 9824: 100 points
+- User 9825: 85 points"
 ```
+
+> **Comments are opt-in.** `comment` is student-visible in SpeedGrader, it
+> **appends** on every call rather than replacing, and it cannot be un-sent.
+> Ask for one only when you want written feedback — "assign grade 8" means the
+> grade alone. A comment that only restates the grade or notes that grading
+> happened is worse than none.
 
 **Returns:** Summary of grading operation including total submissions, successfully graded, failed attempts, and any error details.
 
 **Notes:**
 - Supports both rubric-based grading and simple point-based grading
+- `dry_run: true` previews the grade **and** any comment that would be posted
 - Can mix and match grading styles for different students
 - Automatically validates rubric configuration before grading
 - Use `dry_run=true` to preview grades before applying
@@ -1082,9 +1089,14 @@ For listing, downloading, and reading course files (available to both roles), se
 #### `upload_course_file`
 Upload a local file to Canvas course storage.
 
+> **Local (stdio) servers only.** `file_path` is read from the *server's*
+> filesystem. On a shared HTTP server that is somebody else's host, so the tool
+> refuses the request rather than let a remote caller name any file the service
+> account can read.
+
 **Parameters:**
 - `course_identifier`: Course code or ID
-- `file_path`: Absolute path to the local file to upload
+- `file_path`: Absolute path to the local file to upload (stdio only)
 - `folder_path` (optional): Canvas folder path (default: "course files" root)
 - `display_name` (optional): Override the filename shown in Canvas
 - `on_duplicate` (optional): `rename` (default) or `overwrite`
@@ -1614,6 +1626,12 @@ List files in a course with optional search.
 #### `download_course_file`
 Download a course file to the local filesystem of the machine running the MCP server.
 
+> **Local (stdio) servers only.** The write lands on the *server's* filesystem,
+> which a remote caller cannot read anyway, so the tool refuses over HTTP and
+> points at `read_course_file` instead. It also never overwrites: the
+> destination is created exclusively, so a Canvas file named e.g. `.zshrc`
+> cannot clobber a real file in the chosen directory.
+
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `file_id`: Canvas file ID (find it with `list_course_files` or `list_module_items`)
@@ -1624,7 +1642,8 @@ Download a course file to the local filesystem of the machine running the MCP se
 "Download the syllabus PDF from the course files"
 ```
 
-**Returns:** Local path of the downloaded file with size and content type.
+**Returns:** Local path of the downloaded file with size and content type. Errors
+if the destination already exists rather than overwriting it.
 
 ---
 

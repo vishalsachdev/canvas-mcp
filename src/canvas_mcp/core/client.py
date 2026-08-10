@@ -229,8 +229,11 @@ def _endpoint_anonymization_mode(endpoint: str) -> str:
       the participants are their own correspondents, not third parties whose
       records they are browsing — pseudonymising `participants[].name` would
       make "who emailed me?" unanswerable while protecting nobody.
-    - /pages, /courses/{id}/pages/{slug} -> ANONYMIZE_IDENTITY. Previously
-      ungated: `last_edited_by` leaked a display name and avatar URL. Page
+    - /pages, /courses/{id}/pages/{slug}, /courses/{id}/front_page ->
+      ANONYMIZE_IDENTITY. Previously ungated: `last_edited_by` leaked a display
+      name and avatar URL. front_page returns the same block but carries no
+      'pages' segment, so it stayed ungated after #179 until a live check found
+      it still returning display_name, pronouns and avatar_image_url. Page
       *bodies* are deliberately exempt — instructors publish office hours,
       contact addresses and phone numbers on course pages, and redacting those
       would break the page's purpose.
@@ -275,7 +278,12 @@ def _endpoint_anonymization_mode(endpoint: str) -> str:
     if _has_route_segment(segments, {'conversations'}):
         return ANONYMIZE_FREE_TEXT
 
-    if _has_route_segment(segments, {'pages'}):
+    # 'front_page' is a page too and returns the same last_edited_by block, but
+    # its path carries no 'pages' segment, so it slipped the slug rule and stayed
+    # ungated after #179. Unlike a page slug, 'front_page' is a fixed Canvas
+    # route word and cannot be user-controlled, so matching it needs no
+    # escalation guard.
+    if _has_route_segment(segments, {'pages'}) or 'front_page' in segments:
         return ANONYMIZE_IDENTITY
 
     return ANONYMIZE_NONE
@@ -422,6 +430,27 @@ async def make_canvas_request(
     # Ensure the endpoint starts with a slash
     if not endpoint.startswith('/'):
         endpoint = f"/{endpoint}"
+
+    # Endpoints are built by f-string interpolation of caller-supplied identifiers
+    # (".../assignments/{assignment_id}/submissions/self"). A '?' or '#' inside an
+    # identifier ends the path early and demotes everything after it to the query
+    # or fragment, so a value like "123/submissions/456?" silently retargets a
+    # hard-coded self-scoped route at another user's record. Every caller passes
+    # query parameters via `params=`, so a delimiter in the path is always
+    # smuggling, never a legitimate call.
+    bad_delimiter = next((c for c in ("?", "#") if c in endpoint), None)
+    if bad_delimiter is not None:
+        log_warning(
+            "Blocked Canvas API request with a delimiter in the endpoint path",
+            endpoint=sanitize_url(endpoint),
+        )
+        return {"error": f"Invalid endpoint: '{bad_delimiter}' is not allowed in a request path"}
+    if any(seg == ".." for seg in endpoint.split("/")):
+        log_warning(
+            "Blocked Canvas API request with a traversal segment in the endpoint path",
+            endpoint=sanitize_url(endpoint),
+        )
+        return {"error": "Invalid endpoint: '..' is not allowed in a request path"}
 
     if api_root not in (API_ROOT_REST, API_ROOT_QUIZ):
         return {"error": f"Unsupported api_root: {api_root}"}

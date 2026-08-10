@@ -319,6 +319,26 @@ def test_report_tells_the_user_how_to_rephrase():
 # --------------------------------------------------------------------------
 
 
+def _git(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", *args], cwd=REPO_ROOT, capture_output=True, text=True
+    )
+
+
+def _history_ref() -> str | None:
+    """First ref that resolves: local main, the remote branch, then HEAD.
+
+    A CI checkout (actions/checkout) lands on a detached HEAD with no local
+    `main`, so `git log main` exits 128 there while passing on any developer
+    machine. Resolving a ref instead of hard-coding one keeps this test running
+    in both places rather than being a local-only test.
+    """
+    for ref in ("main", "origin/main", "HEAD"):
+        if _git("rev-parse", "--verify", "--quiet", ref).returncode == 0:
+            return ref
+    return None
+
+
 def test_acceptance_replay_real_history():
     """Run the checker over every real commit message on main.
 
@@ -332,13 +352,17 @@ def test_acceptance_replay_real_history():
     accidental closures nobody had recorded -- 2bee9f2 and c63b23b -- plus a
     second reference inside 98643ce itself.
     """
-    log = subprocess.run(
-        ["git", "log", "--format=%H%x00%B%x1e", "main"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
+    ref = _history_ref()
+    if ref is None:
+        pytest.skip("no resolvable git history ref (not a git checkout?)")
+
+    if _git("rev-parse", "--is-shallow-repository").stdout.strip() == "true":
+        pytest.skip(
+            "shallow clone: the replay needs full history to be meaningful. "
+            "CI sets fetch-depth: 0 for exactly this test."
+        )
+
+    log = _git("log", "--format=%H%x00%B%x1e", ref).stdout
 
     # Every accidental closure in this repo's history, and nothing else.
     EXPECTED_PROSE = {
@@ -360,6 +384,14 @@ def test_acceptance_replay_real_history():
             flagged_prose[sha[:7]] = prose
         if any(m.is_trailer for m in matches):
             trailer_shas.add(sha[:7])
+
+    # Pinned shas absent means we are looking at a partial history (a truncated
+    # fetch, or a fork without the original commits), not a regex regression.
+    # Skipping is honest; asserting here would report a false failure.
+    seen_shas = {record.strip()[:7] for record in log.split("\x1e") if record.strip()}
+    missing = sorted(set(EXPECTED_PROSE) - seen_shas)
+    if missing:
+        pytest.skip(f"partial history: pinned commits not present ({missing})")
 
     assert flagged_prose == EXPECTED_PROSE, (
         "replay drifted from the known corpus. New keys are either a real "

@@ -115,7 +115,7 @@ Canvas MCP provides **99 tools** for interacting with Canvas LMS. Tools are orga
 
 **Course identifiers:** Canvas ID (`12345`), course code (`badm_350_120251_246794`), or SIS ID
 
-**Cannot do:** Create/delete courses, modify course settings, access other users' data, create/update rubrics (use Canvas UI)
+**Cannot do:** Create/delete courses, modify course settings, access other users' data
 
 **Rate limits:** ~700 requests/10 min. Use `max_concurrent=5` for bulk operations.
 
@@ -125,24 +125,27 @@ Canvas MCP provides **99 tools** for interacting with Canvas LMS. Tools are orga
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data through any MCP-compatible client.
 
-## Latest Release: v1.7.0
+## Latest Release: v1.8.0
 
 **Released:** August 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
 
-A correctness release. Most of it comes from bug reports by instructors running v1.6.0 against real courses — several while testing with a **student** token, which exercised paths an educator token never reaches.
+A security release. A repository-wide scan produced twelve findings; eleven are fixed here, and the twelfth (sandbox egress, [#157](https://github.com/vishalsachdev/canvas-mcp/issues/157)) is now labelled honestly as best-effort instead of implying enforcement. Three changes are **breaking** — see below before upgrading.
 
-- **Writes no longer report success when Canvas quietly did less than asked.** `create_announcement` was creating plain discussion topics while reporting an announcement; `mark_module_item_done` no-op'd on items with no mark-done requirement; `get_my_peer_reviews_todo` turned a permission error into a cheerful "no pending peer reviews". All three were one defect — trusting an HTTP 200 instead of confirming the intended effect — and the guard behind the fix is now shared infrastructure ([#219](https://github.com/vishalsachdev/canvas-mcp/issues/219), [#220](https://github.com/vishalsachdev/canvas-mcp/issues/220), [#221](https://github.com/vishalsachdev/canvas-mcp/issues/221))
-- **`get_my_upcoming_assignments` honors the range you ask for.** It was pinned to Canvas's 7-day dashboard feed, so `days=30` silently returned 7 days. Now uses the Planner API, which also removes an N+1 and includes graded discussions ([#222](https://github.com/vishalsachdev/canvas-mcp/issues/222))
-- **`check_enrollment` works at institutions that store email-style Canvas logins**, and a role-scoped "NO" now names the roles the person actually holds instead of implying they aren't in the course. Anything unverifiable returns **AMBIGUOUS** rather than a confident wrong answer ([#199](https://github.com/vishalsachdev/canvas-mcp/issues/199))
-- **Page and inbox fixes** — `bulk_update_pages` failed with a Canvas 500 on every call and `mark_conversations_read` errored on every call, both from wire-format mismatches; `upload_course_file` no longer creates a stray `unfiled` folder when you asked for the course root ([#207](https://github.com/vishalsachdev/canvas-mcp/issues/207), [#208](https://github.com/vishalsachdev/canvas-mcp/issues/208), [#198](https://github.com/vishalsachdev/canvas-mcp/issues/198))
-- **Tool annotations now follow the MCP spec**, so a client can tell which tools overwrite data and which are safe to retry. Grading tools are correctly marked non-idempotent — a retry appends another comment to the student's submission rather than converging ([#204](https://github.com/vishalsachdev/canvas-mcp/issues/204), [#200](https://github.com/vishalsachdev/canvas-mcp/issues/200))
-- **`create_rubric_from_csv`'s documented format was wrong** and produced zero rubrics for anyone following the docs ([#190](https://github.com/vishalsachdev/canvas-mcp/issues/190))
-- **Security** — `cryptography` 49 → 50 clears CVE-2026-69247; anonymization consolidated into the client layer so coverage follows the request rather than the author's memory ([#179](https://github.com/vishalsachdev/canvas-mcp/issues/179))
+- **Breaking: a cleartext `http://` Canvas URL now aborts startup** on both transports — the API token rides in a header on every request, so a cleartext origin exposes a credential for student records. `CANVAS_ALLOW_INSECURE_HTTP=true` remains as a loopback-only development escape hatch
+- **Breaking: `download_course_file` and `upload_course_file` are stdio-only.** On a shared HTTP server they were an arbitrary file write and read respectively; on a local stdio server the filesystem is the caller's own machine, so both remain available there. Remote callers get pointed at `read_course_file`
+- **Breaking: `download_course_file` no longer overwrites an existing file.** Canvas controls the filename, so a course file named `.zshrc` could truncate a real file; destinations are now created exclusively, owner-only, and cleaned up on failure
+- **A path delimiter in an identifier could retarget self-scoped student tools at another student's submission** (measured live, not inferred). Closed centrally in the request layer — any endpoint containing `?`, `#`, or `..` is refused, covering all 23 interpolation sites — plus a digits-only identifier grammar at the self-scoped routes
+- **CSV exports are formula-injection-safe.** Student-authored comment text starting with `=`, `+`, `-`, `@` and friends is neutralized by a single shared encoder on every export path, and two exporters that hand-assembled CSV now use the stdlib writer
+- **The MCP Registry manifest's anonymization default flipped `false` → `true`**, matching the code, Dockerfile, and `env.template`; a test now compares all four sources
+- **Code execution fails closed** when the requested container isolation is unavailable, and the security test suite can actually fail the build (it previously ran with `continue-on-error`)
+- **Dependency floors raised** to `fastmcp>=3.4.4` (the old floor admitted versions carrying CVE-2026-32871/CVE-2026-27124 on fresh installs) and `uvicorn>=0.50.0`; deploy and test workflows scoped to `contents: read` with a policy test (PR #255)
 
-Thanks to [@khagyard](https://github.com/khagyard) and [@zqian](https://github.com/zqian) — most of this release came from their reports.
+Two independent review rounds ran against the result; round one found a real gap in one of the fixes, which is why it exists.
 
 <details>
 <summary>Previous releases</summary>
+
+**v1.7.0** — Correctness release from instructor bug reports: writes no longer report success when Canvas quietly did less than asked ([#219](https://github.com/vishalsachdev/canvas-mcp/issues/219)–[#221](https://github.com/vishalsachdev/canvas-mcp/issues/221)), Planner-API upcoming assignments ([#222](https://github.com/vishalsachdev/canvas-mcp/issues/222)), `check_enrollment` AMBIGUOUS answers ([#199](https://github.com/vishalsachdev/canvas-mcp/issues/199)), wire-format fixes for pages/inbox ([#207](https://github.com/vishalsachdev/canvas-mcp/issues/207), [#208](https://github.com/vishalsachdev/canvas-mcp/issues/208)), MCP-spec tool annotations ([#204](https://github.com/vishalsachdev/canvas-mcp/issues/204)), CSV rubric format fix ([#190](https://github.com/vishalsachdev/canvas-mcp/issues/190)), anonymization consolidated to the client layer ([#179](https://github.com/vishalsachdev/canvas-mcp/issues/179)). Thanks [@khagyard](https://github.com/khagyard) and [@zqian](https://github.com/zqian)
 
 **v1.6.0** — Tier 1 student write tools behind an explicit allowlist ([#170](https://github.com/vishalsachdev/canvas-mcp/issues/170)), `get_my_enrollments` / `get_my_profile` ([#171](https://github.com/vishalsachdev/canvas-mcp/issues/171)), three-tier anonymization ([#166](https://github.com/vishalsachdev/canvas-mcp/issues/166), [#179](https://github.com/vishalsachdev/canvas-mcp/issues/179)), rubric association fixes ([#180](https://github.com/vishalsachdev/canvas-mcp/issues/180), [#181](https://github.com/vishalsachdev/canvas-mcp/issues/181)), `execute_typescript` became opt-in ([#178](https://github.com/vishalsachdev/canvas-mcp/issues/178)), ruff gating CI ([@w3lld1](https://github.com/w3lld1), PR #186)
 

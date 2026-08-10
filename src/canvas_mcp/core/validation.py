@@ -3,6 +3,7 @@
 import functools
 import inspect
 import json
+import re
 import types
 from collections.abc import Callable
 from typing import (
@@ -380,3 +381,23 @@ def validate_params(func: F) -> F:
         return await func(**bound_args.arguments)
 
     return cast(F, wrapper)
+
+
+_NUMERIC_CANVAS_ID = re.compile(r"^[0-9]+$")
+
+
+def coerce_canvas_id(value: str | int) -> str | None:
+    """Return a Canvas ID's canonical digit string, or None if it is not one.
+
+    Tool parameters are typed ``str | int`` so callers may pass either form, but
+    that union accepts *any* string, and these values are interpolated straight
+    into request paths. A value carrying a delimiter — ``"123/submissions/456?"``
+    — ends the path early and pushes a hard-coded self-scoped suffix such as
+    ``/submissions/self`` into the query string, retargeting the call at another
+    user's record. Canvas object IDs are plain ASCII digits, so anything else is
+    rejected at the boundary rather than sanitized. (Course identifiers are the
+    exception: they legitimately accept course codes and ``sis_course_id:`` forms
+    and are resolved to a numeric ID by ``get_course_id`` before interpolation.)
+    """
+    text = str(value).strip()
+    return text if _NUMERIC_CANVAS_ID.match(text) else None

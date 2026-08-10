@@ -81,11 +81,70 @@ def _normalize_canvas_url(raw: str) -> str:
     return urlunparse(parsed._replace(path=path, params="", query="", fragment=""))
 
 
+def _is_loopback(hostname: str | None) -> bool:
+    """True for addresses that never leave the machine.
+
+    The only place cleartext HTTP is defensible is a local development Canvas,
+    where there is no network path to sniff.
+    """
+    if not hostname:
+        return False
+    host = hostname.strip().strip("[]").lower()
+    if host in {"localhost", "::1"}:
+        return True
+    try:
+        import ipaddress
+
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
 def _bool_env(name: str, default: bool) -> bool:
     value = os.getenv(name)
     if value is None:
         return default
     return value.strip().lower() == "true"
+
+
+def validate_canvas_url_scheme() -> bool:
+    """Reject a cleartext Canvas origin. Returns False when startup must abort.
+
+    Every Canvas request carries the token in an Authorization header, so an
+    http:// origin puts a credential for student records on the wire for anyone
+    on the path. A warning is not proportionate to that.
+
+    Called from BOTH startup paths. validate_config() runs only in stdio mode,
+    and HTTP mode is where this matters most: the Canvas URL is server-pinned,
+    so one operator typo would leak *every* caller's token, not just their own.
+    """
+    from urllib.parse import urlparse
+
+    config = get_config()
+    parsed = urlparse(config.canvas_api_url)
+    if not parsed.scheme or parsed.scheme == "https" or not parsed.netloc:
+        # Missing scheme / missing host are reported separately by
+        # validate_config(); this function only owns the cleartext case.
+        return True
+    if parsed.scheme != "http":
+        return True
+
+    if _is_loopback(parsed.hostname) and _bool_env("CANVAS_ALLOW_INSECURE_HTTP", False):
+        log_warning(
+            "CANVAS_API_URL uses cleartext http:// to a loopback address; "
+            "allowed because CANVAS_ALLOW_INSECURE_HTTP is set. Never use "
+            "this against a real Canvas instance.",
+            current_url=config.canvas_api_url,
+        )
+        return True
+
+    log_error(
+        "CANVAS_API_URL must use 'https://'. The Canvas API token is sent "
+        "on every request, so a cleartext URL exposes it on the network. "
+        "For local development against a loopback address only, set "
+        "CANVAS_ALLOW_INSECURE_HTTP=true.",
+    )
+    return False
 
 
 def _int_env(name: str, default: int) -> int:
@@ -321,11 +380,8 @@ def validate_config() -> bool:
             "CANVAS_API_URL is missing a hostname",
             current_url=config.canvas_api_url,
         )
-    elif parsed_url.scheme != "https":
-        log_warning(
-            "CANVAS_API_URL should use the 'https://' scheme",
-            current_url=config.canvas_api_url,
-        )
+    elif not validate_canvas_url_scheme():
+        return False
 
     if (
         config.canvas_api_url_configured

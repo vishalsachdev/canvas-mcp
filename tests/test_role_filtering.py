@@ -190,16 +190,16 @@ class TestRoleFiltering:
 
     @pytest.mark.asyncio
     async def test_student_tool_count(self):
-        """Student role should have approximately 31 tools."""
+        """Student role should have approximately 37 tools."""
         mcp = FastMCP(name="test-student")
         register_all_tools(mcp, role="student")
         tools = await _get_tool_names(mcp)
-        assert 25 <= len(tools) <= 40, f"Expected ~31 student tools, got {len(tools)}: {sorted(tools)}"
+        assert 25 <= len(tools) <= 40, f"Expected ~37 student tools, got {len(tools)}: {sorted(tools)}"
 
     @pytest.mark.asyncio
     async def test_educator_tool_count(self):
-        """Educator role should have approximately 86 tools."""
+        """Educator role should have approximately 88 tools."""
         mcp = FastMCP(name="test-educator")
         register_all_tools(mcp, role="educator")
         tools = await _get_tool_names(mcp)
-        assert 75 <= len(tools) <= 95, f"Expected ~86 educator tools, got {len(tools)}: {sorted(tools)}"
+        assert 75 <= len(tools) <= 95, f"Expected ~88 educator tools, got {len(tools)}: {sorted(tools)}"

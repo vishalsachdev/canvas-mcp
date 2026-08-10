@@ -52,9 +52,12 @@ jobs:
           uv pip install --system -e .
 
       - name: Run tests
+        # No `|| echo ... skipping`: that swallowed real failures, so a broken
+        # suite could not stop a release. pytest exit code 5 is the genuine
+        # "no tests collected" case and is the only one tolerated here.
         run: |
           uv pip install --system pytest pytest-asyncio
-          pytest tests/ || echo "No tests found - skipping"
+          pytest tests/ -q || { code=$?; [ "$code" -eq 5 ] && echo "No tests collected" || exit "$code"; }
 
       - name: Build package
         run: |
