@@ -460,5 +460,96 @@ class TestGetMyPeerReviewsTodo:
         assert "no pending peer reviews" not in result.lower()
 
 
+class TestGetMyPeerReviewsTodoDirectAssignment:
+    """#275: the per-course discovery scan only checks assignments whose
+    listing carried peer_reviews=True; if that flag is missing/stale for any
+    reason (still uninvestigated on real student data), the caller has no way
+    to check a specific assignment they already know has their review. This
+    param bypasses the flag gate entirely and queries the assignment's
+    peer-review listing directly.
+    """
+
+    SELF_ID = 2407
+
+    @pytest.mark.asyncio
+    async def test_finds_review_bypassing_discovery_scan_flag(self):
+        # Note: no "peer_reviews" flag anywhere in this path — the direct
+        # lookup does not gate on it at all.
+        request_side_effect = [
+            {"id": self.SELF_ID},                                    # /users/self
+            {"id": 1, "name": "Essay"},                                # assignment GET
+        ]
+        with (
+            patch('canvas_mcp.tools.student_tools.make_canvas_request',
+                  new_callable=AsyncMock, side_effect=request_side_effect),
+            patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results',
+                  new_callable=AsyncMock,
+                  return_value=[
+                      {"assessor_id": self.SELF_ID, "user_id": 11, "workflow_state": "assigned"},
+                      {"assessor_id": 9999, "user_id": 12, "workflow_state": "assigned"},
+                  ]),
+            patch('canvas_mcp.tools.student_tools.get_course_id',
+                  new=AsyncMock(return_value="505")),
+            patch('canvas_mcp.tools.student_tools.get_course_code',
+                  new=AsyncMock(return_value="TEST-505")),
+        ):
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(course_identifier="505", assignment_identifier="1")
+
+        assert "Essay" in result
+        assert "Student 11" in result
+        assert "Student 12" not in result
+
+    @pytest.mark.asyncio
+    async def test_no_match_reports_none_for_this_assignment(self):
+        request_side_effect = [
+            {"id": self.SELF_ID},
+            {"id": 1, "name": "Essay"},
+        ]
+        with (
+            patch('canvas_mcp.tools.student_tools.make_canvas_request',
+                  new_callable=AsyncMock, side_effect=request_side_effect),
+            patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results',
+                  new_callable=AsyncMock,
+                  return_value=[{"assessor_id": 9999, "user_id": 12, "workflow_state": "assigned"}]),
+            patch('canvas_mcp.tools.student_tools.get_course_id',
+                  new=AsyncMock(return_value="505")),
+            patch('canvas_mcp.tools.student_tools.get_course_code',
+                  new=AsyncMock(return_value="TEST-505")),
+        ):
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(course_identifier="505", assignment_identifier="1")
+
+        assert "No pending peer review found" in result
+        assert "Essay" in result
+
+    @pytest.mark.asyncio
+    async def test_requires_course_identifier(self):
+        with patch('canvas_mcp.tools.student_tools.make_canvas_request',
+                    new_callable=AsyncMock, return_value={"id": self.SELF_ID}):
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(assignment_identifier="1")
+
+        assert "requires course_identifier" in result
+
+    @pytest.mark.asyncio
+    async def test_assignment_fetch_error_surfaces(self):
+        request_side_effect = [
+            {"id": self.SELF_ID},
+            {"error": "not found"},
+        ]
+        with (
+            patch('canvas_mcp.tools.student_tools.make_canvas_request',
+                  new_callable=AsyncMock, side_effect=request_side_effect),
+            patch('canvas_mcp.tools.student_tools.get_course_id',
+                  new=AsyncMock(return_value="505")),
+        ):
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(course_identifier="505", assignment_identifier="999")
+
+        assert "Error fetching assignment" in result
+        assert "not found" in result
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
