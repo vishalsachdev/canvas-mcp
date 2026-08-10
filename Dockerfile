@@ -1,5 +1,7 @@
-# Use Python 3.12 slim image for smaller size
-FROM python:3.12-slim
+# Use Python 3.12 slim image for smaller size.
+# Pinned by digest so the build is reproducible; Dependabot's docker
+# ecosystem entry keeps the digest current.
+FROM python:3.12-slim@sha256:229a2c5bfa27522db7815ea81f9bed70af17ccb9de9fc7ad142b1877b5830d36
 
 # Set working directory
 WORKDIR /app

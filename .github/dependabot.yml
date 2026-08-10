@@ -22,6 +22,17 @@ updates:
       actions:
         patterns: ["*"]
 
+  # Root package-lock.json belongs to the execute_typescript sandbox.
+  # Without this entry nothing maintains it — it currently locks a
+  # vulnerable transitive `diff` (GHSA-73rr-hh4g-fpgx) via ts-node.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "sandbox"]
+
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
