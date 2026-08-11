@@ -1,7 +1,7 @@
 """Tests for HTTP transport: credential middleware, ContextVar flow, and CLI args."""
 
-from urllib.parse import urlparse
 from unittest.mock import AsyncMock, MagicMock, patch
+from urllib.parse import urlparse
 
 import pytest
 
