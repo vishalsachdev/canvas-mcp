@@ -1,3 +1,21 @@
+### 2026-08-10 (evening) — Release v1.9.0 shipped, all five channels verified
+
+- **v1.9.0 released** (the pending minor bump): #258's four two-step fan-out senders +
+  fencing, the supply-chain work, sandbox `diff` patch, npm wizard retirement. All five
+  channels live + verified: GitHub Release (+`.mcpb` + **`.intoto.jsonl` provenance —
+  `gh attestation verify` passes against the release commit**), PyPI 1.9.0 (no propagation
+  race this release), MCP Registry `isLatest=True`, hosted (deploy-prod @ release commit),
+  site (wrangler-deployed, custom domain confirmed after ~1min edge lag).
+- **The restructured create-release.yml survived its first live run** — both jobs green,
+  version stamp reached the packed bundle, attestation covers the shipped bytes. This
+  unblocks Dependabot **#272** (Actions majors), which was parked on exactly this.
+- Merged en route: **#268** (tsx, verified the `diff` override survived + `dist/cli.mjs`
+  still present), **#267 + #274** (mypy `<3` — the lint job hardcoded its own `<2` copy
+  and never read pyproject, so #267 alone was inert and its green check meaningless;
+  lint now derives the constraint from pyproject and CI-verified installing mypy 2.3.0).
+- Remaining Dependabot: #264 (needs 3.14 in the CI matrix first), #265/#266 (sandbox
+  majors — pair with a sandbox smoke test), #272 (now unblocked). #253/#191 parked on zqian.
+
 ### 2026-08-10 (later) — OSSF Scorecard published (PRs #263, #273); MCP spec conformance reviewed
 
 - **#260 HVTrust — CLOSED.** Their score is **half a published OSSF Scorecard we never had**:

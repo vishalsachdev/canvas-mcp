@@ -319,6 +319,15 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   module, not CWD). Cost if adopted: a 4th version-stamp location in the release checklist
 - [ ] Backlog triage (module templates, bulk creation, page versioning — feature ideas only, no owner)
 - [x] Issue #106: mypy 229 → 0 errors + mypy in CI lint job (PR #213, 2026-08-01)
+- [ ] **#275 `get_my_peer_reviews_todo` false negative — PR #277 merged, issue stays OPEN.**
+  `assignment_identifier` param added (direct per-assignment lookup, bypasses the
+  discovery scan's `peer_reviews`-flag gate) but root cause of the discovery-scan miss
+  is still unconfirmed — no student-scoped token available to reproduce. Rejected a
+  Copilot-authored PR (#276) whose fix didn't match how the Canvas endpoint actually
+  behaves. Reporter (`khagyard`) confirmed: regular assignment, not anonymous, assigned
+  before due date — still not found even with the direct lookup, per the daily triage
+  routine's follow-up on the issue. Next lead floated (unverified): check the student
+  TODO feed instead of the assignment-scoped peer_reviews endpoint.
 
 ## Roadmap
 - [x] Release v1.0.8 — all CI/CD pipelines passing (PyPI, MCP Registry, GitHub Release)
@@ -361,20 +370,29 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
 
-### 2026-08-10 (evening) — Release v1.9.0 shipped, all five channels verified
+### 2026-08-10 (night) — #275 peer-review false-negative triaged; PR #277 merged; Copilot's PR #276 rejected
 
-- **v1.9.0 released** (the pending minor bump): #258's four two-step fan-out senders +
-  fencing, the supply-chain work, sandbox `diff` patch, npm wizard retirement. All five
-  channels live + verified: GitHub Release (+`.mcpb` + **`.intoto.jsonl` provenance —
-  `gh attestation verify` passes against the release commit**), PyPI 1.9.0 (no propagation
-  race this release), MCP Registry `isLatest=True`, hosted (deploy-prod @ release commit),
-  site (wrangler-deployed, custom domain confirmed after ~1min edge lag).
-- **The restructured create-release.yml survived its first live run** — both jobs green,
-  version stamp reached the packed bundle, attestation covers the shipped bytes. This
-  unblocks Dependabot **#272** (Actions majors), which was parked on exactly this.
-- Merged en route: **#268** (tsx, verified the `diff` override survived + `dist/cli.mjs`
-  still present), **#267 + #274** (mypy `<3` — the lint job hardcoded its own `<2` copy
-  and never read pyproject, so #267 alone was inert and its green check meaningless;
-  lint now derives the constraint from pyproject and CI-verified installing mypy 2.3.0).
-- Remaining Dependabot: #264 (needs 3.14 in the CI matrix first), #265/#266 (sandbox
-  majors — pair with a sandbox smoke test), #272 (now unblocked). #253/#191 parked on zqian.
+- **#275 reported**: `get_my_peer_reviews_todo` answers "no pending peer reviews" for a
+  caller (`khagyard`) with a real, incomplete review assigned — on v1.9.0, despite #219
+  already fixing this exact tool's error-swallowing + missing assessor-filter defects.
+- **PR #276 (Copilot bot) closed, not merged.** Its fix added `include[]=all_dates`/
+  `submission` to the assignments listing, but those params don't filter which
+  assignments Canvas returns — the premise didn't match the endpoint's actual behavior,
+  and its regression test only asserted the params were *passed*, not that real API
+  results changed. Same "green test proves the fixture, not reality" class as #191.
+- **PR #277 MERGED** (admin-bypass — checks green, review-approval requirement waived).
+  Adds optional `assignment_identifier` to `get_my_peer_reviews_todo`, letting a caller
+  check one known assignment directly, bypassing the per-course discovery scan's
+  `peer_reviews`-flag gate entirely. Confirmed via live API-doc lookup: `assessor_id`/
+  `user_id` field mapping is correct, and this endpoint isn't touched by the
+  anonymization layer — both ruled out as the cause. **Root cause still not found** — no
+  student-scoped token available to reproduce.
+- Independent Codex diagnosis (`codex:codex-rescue`) never returned a usable result —
+  the wrapper agent is stdout-forwarding-only, no polling/status capability. Proceeded
+  without it per direct instruction.
+- **#275 stays open.** Reporter replied post-merge: regular assignment, not anonymous,
+  assigned before due date — still not found. A separate process (daily triage routine,
+  `trig_011HVR6j4c5hDR2fj7k3ujxC`) caught that #277 merged *after* v1.9.0 shipped, so the
+  reporter's original test was against code that didn't have the new parameter yet, and
+  floated checking the student TODO feed next — that thread continued independently,
+  not yet reconciled with this session.
