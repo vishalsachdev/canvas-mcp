@@ -14,12 +14,7 @@ When bumping the version in `pyproject.toml`, also update:
 
 ## Pending for the next release
 
-- **The next release MUST be a minor bump — unreleased `main` carries breaking changes.**
-  From PR #258 (#239 untrusted-content boundary): four fan-out message tools are now
-  two-step (preview→confirmation-token→send) — `send_bulk_messages_from_list`,
-  `send_conversation` (multi-recipient only), `send_peer_review_reminders`,
-  `send_peer_review_followup_campaign`. Also observable: the confirmation guard fails
-  closed / retires tokens on state change. See CHANGELOG `[Unreleased]`.
+- Nothing flagged. (The #258 breaking changes shipped in v1.9.0, 2026-08-10.)
 
 ## Gotchas
 
