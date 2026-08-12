@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] — 2026-08-10
+
 ### Security
 
 - **Canvas-authored free text is now provenance-fenced before it reaches the
@@ -109,6 +111,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the shared conversation-POST choke point on the final composed subject and
   body, catching markers that arrive via Canvas-authored inputs such as an
   assignment name.
+
+### Supply chain
+
+- **The repository now publishes an OSSF Scorecard** to the public OpenSSF API
+  (`api.scorecard.dev/projects/github.com/vishalsachdev/canvas-mcp`), currently
+  7.1/10, refreshed weekly and on every push to `main`. Along the way: all
+  GitHub Action references are pinned by commit SHA (one was a mutable branch
+  ref), every workflow declares least-privilege token permissions, the Docker
+  base image is pinned by digest, and Dependabot covers pip, npm, docker, and
+  Actions.
+- **`canvas-mcp.mcpb` releases now ship SLSA build provenance** (attached as
+  `canvas-mcp.mcpb.intoto.jsonl`, starting with this release). The bundle is
+  downloaded independently of PyPI, so PyPI's provenance never covered it.
+  Verify with `gh attestation verify canvas-mcp.mcpb --repo
+  vishalsachdev/canvas-mcp`. The bundle is also now built in a job with no
+  release-write authority, and the packing CLI is version-pinned instead of
+  `@latest`.
+- Patched a DoS in the `execute_typescript` sandbox's transitive `diff`
+  dependency (GHSA-73rr-hh4g-fpgx; 4.0.2 → 4.0.4 via npm override).
+
+### Removed
 
 - **The npm setup wizard (`npx canvas-mcp setup`) is retired and the `canvas-mcp`
   npm package deprecated** (#249). The wizard wrote client configs pointing at

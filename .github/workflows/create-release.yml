@@ -14,21 +14,35 @@ on:
 permissions:
   contents: read
 
+# Key concurrency to the tag being released, not github.ref. On
+# workflow_dispatch github.ref is the dispatch branch, so a manual run and a
+# tag-push run for the SAME tag would otherwise land in different groups and
+# race each other onto one release.
 concurrency:
-  group: create-release-${{ github.ref }}
+  group: create-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref }}
   cancel-in-progress: false
 
 jobs:
-  create-release:
+  # Packing runs third-party tooling (the mcpb CLI). Keep it in a job that
+  # cannot write to the repo, so a compromised build tool cannot touch
+  # releases or mint an attestation. It only produces an artifact.
+  build-mcpb:
+    name: Build Desktop Extension
     runs-on: ubuntu-latest
-    # Needs write to create the GitHub Release and attach the .mcpb asset.
     permissions:
-      contents: write
+      contents: read
+    outputs:
+      tag_name: ${{ steps.version.outputs.tag_name }}
+      version: ${{ steps.version.outputs.version }}
     steps:
+      # Always build from the TAG, never from the dispatch ref. On
+      # workflow_dispatch github.ref is a branch, so building from it would
+      # pack branch bytes and then attest them as if they were the tag.
       - name: Checkout code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag_name) || github.ref }}
+          persist-credentials: false
 
       - name: Extract version from tag
         id: version
@@ -43,18 +57,62 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Tag: $TAG_NAME, Version: $VERSION"
 
-      - name: Get current date
-        id: date
+      - name: Build Claude Desktop Extension (.mcpb)
         run: |
-          RELEASE_DATE=$(date -u +"%B %d, %Y")
-          echo "release_date=$RELEASE_DATE" >> $GITHUB_OUTPUT
-          echo "Release date: $RELEASE_DATE"
+          VERSION="${{ steps.version.outputs.version }}"
+          # Stamp the release version into the manifest so the bundle version can't
+          # drift from the tag (the committed manifest.json value is just a default).
+          tmp=$(mktemp)
+          jq --arg v "$VERSION" '.version = $v' manifest.json > "$tmp" && mv "$tmp" manifest.json
+          # Validate + pack the bundle (uv runtime — Python deps resolve on the user's machine).
+          # CLI version is pinned: `@latest` let an upstream npm release change what
+          # this workflow executes, silently, on every tag.
+          npx -y @anthropic-ai/mcpb@2.1.2 validate manifest.json
+          npx -y @anthropic-ai/mcpb@2.1.2 pack . canvas-mcp.mcpb
+
+      - name: Upload bundle for the release job
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: canvas-mcp-mcpb
+          path: canvas-mcp.mcpb
+          if-no-files-found: error
+          retention-days: 1
+
+  create-release:
+    name: Create Release
+    needs: build-mcpb
+    runs-on: ubuntu-latest
+    permissions:
+      # Create the release and attach assets.
+      contents: write
+      # Mint build provenance for the bundle.
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # Same tag as build-mcpb, so release notes describe the shipped bytes.
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag_name) || github.ref }}
+          fetch-depth: 0
+
+      - name: Download bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: canvas-mcp-mcpb
+
+      # The .mcpb is downloaded independently of PyPI, so our PyPI build
+      # provenance does not cover it. Attest the exact bytes we ship.
+      - name: Attest build provenance
+        id: attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: canvas-mcp.mcpb
 
       - name: Extract release notes from commits
-        id: notes
         run: |
-          TAG_NAME="${{ steps.version.outputs.tag_name }}"
-          
+          TAG_NAME="${{ needs.build-mcpb.outputs.tag_name }}"
+
           # Get commits since last tag (more reliable method)
           LAST_TAG=$(git tag --sort=-v:refname | grep -v "^$TAG_NAME$" | head -n1)
           if [ -z "$LAST_TAG" ]; then
@@ -62,7 +120,7 @@ jobs:
           else
             COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --no-merges)
           fi
-          
+
           # Save to file for multi-line content
           echo "$COMMITS" > release_notes.txt
           echo "Release notes extracted"
@@ -71,9 +129,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG_NAME="${{ steps.version.outputs.tag_name }}"
-          RELEASE_DATE="${{ steps.date.outputs.release_date }}"
-          
+          TAG_NAME="${{ needs.build-mcpb.outputs.tag_name }}"
+          RELEASE_DATE=$(date -u +"%B %d, %Y")
+
           # Create release body
           echo "## What's New in ${TAG_NAME}" > release_body.md
           echo "" >> release_body.md
@@ -85,34 +143,47 @@ jobs:
           echo "**Released:** ${RELEASE_DATE}" >> release_body.md
           echo "" >> release_body.md
           echo "For installation instructions, see the [README](https://github.com/${{ github.repository }})." >> release_body.md
-          
-          # Create release using GitHub CLI
-          gh release create "$TAG_NAME" \
-            --title "$TAG_NAME" \
-            --notes-file release_body.md \
-            --latest
+          echo "" >> release_body.md
+          echo "\`canvas-mcp.mcpb\` ships with SLSA build provenance." >> release_body.md
+          echo "Verify it with: \`gh attestation verify canvas-mcp.mcpb --repo ${{ github.repository }}\`" >> release_body.md
 
-      - name: Build & attach Claude Desktop Extension (.mcpb)
+          # Idempotent: if a previous run published the release but died before
+          # attaching assets, `create` would fail here and the upload step below
+          # would never run, leaving a permanently incomplete release that no
+          # rerun could repair. Update in place instead.
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Release $TAG_NAME already exists — updating notes."
+            gh release edit "$TAG_NAME" \
+              --notes-file release_body.md \
+              --latest
+          else
+            # --verify-tag: never invent a tag from the default branch. The tag
+            # must already exist and is what we built and attested.
+            gh release create "$TAG_NAME" \
+              --title "$TAG_NAME" \
+              --notes-file release_body.md \
+              --verify-tag \
+              --latest
+          fi
+
+      - name: Attach bundle and provenance
+        id: mcpb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG_NAME="${{ steps.version.outputs.tag_name }}"
-          VERSION="${{ steps.version.outputs.version }}"
-          # Stamp the release version into the manifest so the bundle version can't
-          # drift from the tag (the committed manifest.json value is just a default).
-          tmp=$(mktemp)
-          jq --arg v "$VERSION" '.version = $v' manifest.json > "$tmp" && mv "$tmp" manifest.json
-          # Validate + pack the bundle (uv runtime — Python deps resolve on the user's machine).
-          npx -y @anthropic-ai/mcpb@latest validate manifest.json
-          npx -y @anthropic-ai/mcpb@latest pack . canvas-mcp.mcpb
-          # Attach to the release just created (--clobber so re-runs replace, not duplicate).
-          gh release upload "$TAG_NAME" canvas-mcp.mcpb --clobber
+          TAG_NAME="${{ needs.build-mcpb.outputs.tag_name }}"
+          # Attach the provenance beside the bundle. The .intoto.jsonl name is
+          # what supply-chain scanners (incl. OSSF Scorecard) look for; the
+          # attestation is also queryable via `gh attestation verify`.
+          cp "${{ steps.attest.outputs.bundle-path }}" canvas-mcp.mcpb.intoto.jsonl
+          # --clobber so re-runs replace rather than duplicate.
+          gh release upload "$TAG_NAME" canvas-mcp.mcpb canvas-mcp.mcpb.intoto.jsonl --clobber
           echo "mcpb_size=$(du -h canvas-mcp.mcpb | cut -f1)" >> "$GITHUB_OUTPUT"
-        id: mcpb
 
       - name: Summary
         run: |
           echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tag:** ${{ steps.version.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** ${{ needs.build-mcpb.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
           echo "- **GitHub Release:** Created" >> $GITHUB_STEP_SUMMARY
           echo "- **Desktop Extension:** canvas-mcp.mcpb (${{ steps.mcpb.outputs.mcpb_size }}) attached" >> $GITHUB_STEP_SUMMARY
+          echo "- **Provenance:** canvas-mcp.mcpb.intoto.jsonl attached" >> $GITHUB_STEP_SUMMARY

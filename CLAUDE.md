@@ -283,6 +283,10 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   the 11 scan fixes + 3 breaking changes (HTTPS-only, stdio-only file tools, no-overwrite
   downloads) + #255 dependency floors/workflow least-privilege. `uv.lock` now on the release
   checklist; `cli/package-lock.json` drift fixed
+- [x] Release **v1.9.0** (2026-08-10) — all five channels live + verified. The #258 breaking
+  changes (4 two-step fan-out senders) + provenance fencing + OSSF Scorecard/supply-chain work.
+  **First release with `.mcpb` SLSA provenance** (`gh attestation verify` passes); the
+  restructured two-job `create-release.yml` survived its first live run; no PyPI propagation race
 - [x] **#252 diagnosed (not merged as reported)**: PR #253's form-data fix measured unnecessary —
   wire encodings equivalent; likely the pre-#220-guard permission failure on v1.6.0. Awaiting
   zqian's retest on v1.7.0+; #253 open pending that
@@ -315,6 +319,15 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   module, not CWD). Cost if adopted: a 4th version-stamp location in the release checklist
 - [ ] Backlog triage (module templates, bulk creation, page versioning — feature ideas only, no owner)
 - [x] Issue #106: mypy 229 → 0 errors + mypy in CI lint job (PR #213, 2026-08-01)
+- [ ] **#275 `get_my_peer_reviews_todo` false negative — PR #277 merged, issue stays OPEN.**
+  `assignment_identifier` param added (direct per-assignment lookup, bypasses the
+  discovery scan's `peer_reviews`-flag gate) but root cause of the discovery-scan miss
+  is still unconfirmed — no student-scoped token available to reproduce. Rejected a
+  Copilot-authored PR (#276) whose fix didn't match how the Canvas endpoint actually
+  behaves. Reporter (`khagyard`) confirmed: regular assignment, not anonymous, assigned
+  before due date — still not found even with the direct lookup, per the daily triage
+  routine's follow-up on the issue. Next lead floated (unverified): check the student
+  TODO feed instead of the assignment-scoped peer_reviews endpoint.
 
 ## Roadmap
 - [x] Release v1.0.8 — all CI/CD pipelines passing (PyPI, MCP Registry, GitHub Release)
@@ -357,41 +370,29 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
 
-### 2026-08-10 — #239 prompt-injection boundary MERGED (PR #258, 11 review rounds); #249 closed; triage executor built
+### 2026-08-10 (night) — #275 peer-review false-negative triaged; PR #277 merged; Copilot's PR #276 rejected
 
-- **#239 prompt-injection boundary — MERGED to main (PR #258)**, built by a worktree subagent and
-  hardened over **11 adversarial Codex rounds**. Mechanism at the tool output-formatting boundary
-  (`core/untrusted_content.py`): block + inline provenance fences on every author-controlled read
-  field (14+ tools incl. forwarded messages, attachment filenames, participant/student names,
-  titles); write backstop rejecting fence markers in 10+ writers; HMAC confirmation tokens making
-  **4 fan-out senders two-step** (`send_bulk_messages_from_list`, multi-recipient `send_conversation`,
-  `send_peer_review_reminders`, `send_peer_review_followup_campaign`). Along the way: a 24s ReDoS in
-  the neutralizer (fixed, linear + pinned perf test), a token-store memory-DoS (fixed by
-  authenticate-before-record, then cap removed entirely as self-bounding). **130 security tests,
-  suite 1321, ruff+mypy clean; live-verified against real Canvas** (33 student entries, alias grammar
-  `course_<id>` user_count=2 confirming the single-numeric-ID gate). Details, residual risks, and the
-  4 breaking changes: [[project-239-untrusted-content-boundary]] + PR-body coverage table.
-  **CodeQL at merge flagged a HIGH on write_confirmation.py:81 — verified false positive** (HMAC-keyed
-  identity handle from a high-entropy token, not password-at-rest); dismissed with justification, merged
-  clean. **#239 stays OPEN** for two conscious low-risk deferrals (course names/codes, own profile).
-- **#249 npm CLI retired — CLOSED (PR #257).** The `npx canvas-mcp setup` wizard targeted the dead
-  `mcp.illinihunt.org` endpoint while collecting a token; 162 total downloads, one published version.
-  `cli/` + orphaned `docs/workshop.html` removed, npm package **deprecated** (name retained). The
-  hard-to-find **UIUC token-request link (KB 150325) was restored into both docs guides** — it had
-  lived only on the deleted workshop page; site re-deployed to Cloudflare + verified live.
-- **PR #256 triage brief merged** with a "superseded" note (its #252 draft reply would have posted the
-  already-refuted encoding theory — do not send). PR #243 (site docs) also merged.
-- **Triage executor routine built + already fired successfully.** `trig_014kutd4SprRUiwRcLFR2Scz`
-  (Opus 5), GitHub webhook on `pull_request.opened` + 02:15 UTC cron fallback. Does mechanical work
-  (merge brief, retrigger stalled PRs, run suites, append `### Needs Vishal`), never posts publicly.
-  First run created the 2026-08-10 brief and self-merged it as PR #261. MCP connectors cleared.
-- **#262 filed**: CI guard to fail when a tool emits an unfenced author-controlled field (durable
-  successor to the manual coverage sweep). **Release checklist updated: next release MUST be a minor
-  bump** (4 breaking changes on main from #258).
-- Next: (1) **Next release = minor bump** — bundle #258's breaking changes; follow the pending-release
-  note in the checklist. (2) **#262** implement the CI coverage guard. (3) **#252** await zqian's
-  v1.7.0+ retest → close/reroute #253. (4) **#239** deferred surfaces (or close if the coverage table
-  is deemed complete). (5) Draft **PR #191** (quizzes, blocked on zqian's New-Quizzes sandbox).
-  (6) Glance at **#260** (HVTrust eval, Grade B, 25/718) + **#259** (goodwill). (7) **#236** OAuth;
-  **#157** egress. Uncommitted carry-forward: `docs/data/impact.json` (automated stats refresh, not
-  this session's work — impact-stats routine handles its own commit/deploy).
+- **#275 reported**: `get_my_peer_reviews_todo` answers "no pending peer reviews" for a
+  caller (`khagyard`) with a real, incomplete review assigned — on v1.9.0, despite #219
+  already fixing this exact tool's error-swallowing + missing assessor-filter defects.
+- **PR #276 (Copilot bot) closed, not merged.** Its fix added `include[]=all_dates`/
+  `submission` to the assignments listing, but those params don't filter which
+  assignments Canvas returns — the premise didn't match the endpoint's actual behavior,
+  and its regression test only asserted the params were *passed*, not that real API
+  results changed. Same "green test proves the fixture, not reality" class as #191.
+- **PR #277 MERGED** (admin-bypass — checks green, review-approval requirement waived).
+  Adds optional `assignment_identifier` to `get_my_peer_reviews_todo`, letting a caller
+  check one known assignment directly, bypassing the per-course discovery scan's
+  `peer_reviews`-flag gate entirely. Confirmed via live API-doc lookup: `assessor_id`/
+  `user_id` field mapping is correct, and this endpoint isn't touched by the
+  anonymization layer — both ruled out as the cause. **Root cause still not found** — no
+  student-scoped token available to reproduce.
+- Independent Codex diagnosis (`codex:codex-rescue`) never returned a usable result —
+  the wrapper agent is stdout-forwarding-only, no polling/status capability. Proceeded
+  without it per direct instruction.
+- **#275 stays open.** Reporter replied post-merge: regular assignment, not anonymous,
+  assigned before due date — still not found. A separate process (daily triage routine,
+  `trig_011HVR6j4c5hDR2fj7k3ujxC`) caught that #277 merged *after* v1.9.0 shipped, so the
+  reporter's original test was against code that didn't have the new parameter yet, and
+  floated checking the student TODO feed next — that thread continued independently,
+  not yet reconciled with this session.
