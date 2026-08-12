@@ -306,11 +306,21 @@ def register_student_tools(mcp: FastMCP) -> None:
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
-    async def get_my_peer_reviews_todo(course_identifier: str | int | None = None) -> str:
+    async def get_my_peer_reviews_todo(
+        course_identifier: str | int | None = None,
+        assignment_identifier: str | int | None = None,
+    ) -> str:
         """Get peer reviews YOU need to complete.
 
         Args:
-            course_identifier: Course code or Canvas ID (omit for all courses)
+            course_identifier: Course code or Canvas ID (omit for all courses).
+                Required if assignment_identifier is given.
+            assignment_identifier: Canvas assignment ID to check directly, bypassing
+                the per-course discovery scan. Use this when you already know which
+                assignment has your peer review — the discovery scan only queries
+                assignments whose "peer_reviews" flag came back true on the course's
+                assignment listing, so an assignment where that flag is missing or
+                stale for any reason would otherwise be silently skipped.
         """
         # The peer-review listing is only meaningful relative to the caller:
         # reviews are filtered to assessor_id == the current user.
@@ -319,6 +329,53 @@ def register_student_tools(mcp: FastMCP) -> None:
             detail = me.get("error") if isinstance(me, dict) else me
             return f"Error identifying current user: {detail}"
         my_id = me["id"]
+
+        if assignment_identifier is not None:
+            if not course_identifier:
+                return (
+                    "Error: assignment_identifier requires course_identifier "
+                    "(peer reviews are looked up within a specific course)."
+                )
+            course_id = await get_course_id(course_identifier)
+
+            assignment = await make_canvas_request(
+                "get", f"/courses/{course_id}/assignments/{assignment_identifier}"
+            )
+            if not isinstance(assignment, dict) or "error" in assignment:
+                detail = assignment.get("error") if isinstance(assignment, dict) else assignment
+                return f"Error fetching assignment {assignment_identifier}: {detail}"
+
+            peer_reviews = await fetch_all_paginated_results(
+                f"/courses/{course_id}/assignments/{assignment_identifier}/peer_reviews",
+                params={"include[]": ["user"], "per_page": 100}
+            )
+            if isinstance(peer_reviews, dict) and "error" in peer_reviews:
+                return f"Error fetching peer reviews: {peer_reviews['error']}"
+
+            assignment_name = assignment.get("name", f"assignment {assignment_identifier}")
+            course_display = await get_course_code(course_id)
+            my_reviews = [
+                review for review in (peer_reviews if isinstance(peer_reviews, list) else [])
+                if review.get("assessor_id") == my_id
+                and review.get("workflow_state") != "completed"
+            ]
+
+            if not my_reviews:
+                return (
+                    f"No pending peer review found for you on "
+                    f"{fence_untrusted_inline(assignment_name, 'assignment name')} "
+                    f"({course_display})."
+                )
+
+            output_lines = ["Peer Reviews You Need to Complete:\n"]
+            for review in my_reviews:
+                output_lines.append(
+                    f"• {fence_untrusted_inline(assignment_name, 'assignment name')}\n"
+                    f"  Course: {course_display}\n"
+                    f"  Reviewing: Student {review.get('user_id')}\n"
+                    f"  Status: Incomplete\n"
+                )
+            return "\n".join(output_lines)
 
         if course_identifier:
             course_ids = [await get_course_id(course_identifier)]

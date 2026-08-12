@@ -1,6 +1,7 @@
 """Tests for HTTP transport: credential middleware, ContextVar flow, and CLI args."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
+from urllib.parse import urlparse
 
 import pytest
 
@@ -359,7 +360,9 @@ class TestClientPerRequestCredentials:
             # Verify the URL uses per-request base URL
             mock_client_instance.get.assert_called_once()
             call_args = mock_client_instance.get.call_args
-            assert "per-request.instructure.com" in call_args[0][0]
+            request_url = call_args[0][0]
+            parsed_url = urlparse(request_url)
+            assert parsed_url.hostname == "per-request.instructure.com"
 
             # Client should be closed after use
             mock_client_instance.aclose.assert_called_once()
