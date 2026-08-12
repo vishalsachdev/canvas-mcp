@@ -257,12 +257,14 @@ View your current grades across all enrolled courses.
 List peer reviews you need to complete.
 
 **Parameters:**
-- `course_identifier` (optional): Filter by specific course
+- `course_identifier` (optional): Filter by specific course. Required if `assignment_identifier` is given.
+- `assignment_identifier` (optional): Check a specific assignment directly, bypassing the per-course discovery scan. Use this if you know which assignment has your peer review but the general scan doesn't find it.
 
 **Example:**
 ```
 "What peer reviews do I need to complete?"
 "Show me my pending peer reviews for ENGL 101"
+"Do I have a peer review to do for assignment 4821 in ENGL 101?"
 ```
 
 **Returns:** Incomplete peer reviews with assignment and course information.

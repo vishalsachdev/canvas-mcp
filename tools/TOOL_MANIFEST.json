@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "name": "canvas-mcp",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "MCP server for Canvas Learning Management System API",
   "categories": [
     {
@@ -129,13 +129,20 @@
           "name": "course_identifier",
           "type": "string | integer",
           "required": false,
-          "description": "Course code or ID to filter (optional)"
+          "description": "Course code or ID to filter (optional; required if assignment_identifier is given)"
+        },
+        {
+          "name": "assignment_identifier",
+          "type": "string | integer",
+          "required": false,
+          "description": "Check a specific assignment directly, bypassing the per-course discovery scan"
         }
       ],
       "returns": "Incomplete peer reviews with assignment and course info",
       "examples": [
         "What peer reviews do I need to complete?",
-        "Show me my pending peer reviews"
+        "Show me my pending peer reviews",
+        "Do I have a peer review to do for assignment 4821 in ENGL 101?"
       ]
     },
     {
