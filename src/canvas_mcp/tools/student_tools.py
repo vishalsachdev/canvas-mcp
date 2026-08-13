@@ -5,6 +5,7 @@ to access only the student's own data across their enrolled courses.
 """
 
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -14,6 +15,113 @@ from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, parse_date
 from ..core.untrusted_content import fence_untrusted_inline
 from ..core.validation import validate_params
+
+
+async def _fetch_planner_peer_reviews(
+    my_id: int, course_id: int | str | None = None
+) -> tuple[list[dict], str | None]:
+    """Discover pending peer reviews via the Planner API (#275).
+
+    The per-course discovery scan in ``get_my_peer_reviews_todo`` only checks
+    assignments whose listing carries ``peer_reviews: true`` and then reads
+    the assignment-scoped ``/peer_reviews`` endpoint — but per community
+    input on #275 (aesse97, jonespm), Canvas's own student "To Do" UI builds
+    its list from the Planner feed instead, where a pending peer review shows
+    up as an item with ``plannable_type: "assessment_request"``. That scan
+    reportedly misses reviews the Planner feed would have caught, so this is
+    queried as an *additional* source, not a replacement.
+
+    No ``start_date`` is passed: ``filter=incomplete_items`` already scopes
+    Canvas's response to pending items, and a peer review assigned weeks ago
+    and still incomplete is exactly the case #275 is about — a start-date
+    window would silently drop it (review round 1 caught this).
+
+    Field shapes are now **live-verified**: the #275 reporter (khagyard)
+    posted a real ``/planner/items`` payload from a production UIUC Canvas
+    (three ``assessment_request`` items — see the issue for the full JSON).
+    That measurement **falsified** the original field assumption, which was
+    sourced only from the canvas-lms serializer
+    (``lib/api/v1/planner_item.rb``, ``ASSESSMENT_REQUEST_FIELDS``) and the
+    Canvas Planner API docs, neither of which is a captured real response.
+    The measured ``plannable`` object for ``assessment_request`` items
+    carries exactly six keys: ``id``, ``title``, ``todo_date``,
+    ``created_at``, ``updated_at``, ``workflow_state`` — **no ``user_id``
+    and no ``assessor_id``** on this instance. (Top-level item fields:
+    ``course_id``, ``plannable_id``, ``plannable_type``, ``plannable_date``,
+    ``html_url`` — which does carry the assignment id in its path, e.g.
+    ``/courses/505/assignments/5066/submissions/2898`` — ``context_name``,
+    ``context_image``.) The observed payload also confirms
+    ``workflow_state == "completed"`` items DO still appear in the
+    ``filter=incomplete_items`` feed, so the completed-state filter below is
+    load-bearing, not defensive dead code.
+
+    Two consequences of the missing ``user_id``/``assessor_id``:
+    - ``found["user_id"]`` is frequently ``None`` on real data; the caller
+      must render that case rather than print a bare "Student None".
+    - The assessor guard below stays deliberately permissive (skip only on a
+      *positively different* assessor) rather than requiring a match,
+      because ``assessor_id`` was absent from every item in the real
+      payload — a strict requirement would silently discard every Planner
+      finding on this instance. It remains in place because some other
+      Canvas serialization or version may still include it.
+
+    No other student's name is serialized into this object on any of the
+    documented/measured sources, which is also why this endpoint needs no
+    additional anonymization gate (see
+    ``core/client.py::_endpoint_anonymization_mode`` — same self-scoped-feed
+    reasoning already applied to ``/planner/items`` by #222's
+    ``get_my_upcoming_assignments``).
+
+    Args:
+        my_id: The caller's Canvas user id, used for the assessor guard below.
+        course_id: When given, passed as Canvas's own ``context_codes[]``
+            filter so the server pre-filters; the caller must still apply a
+            client-side filter as backstop since this is not a documented
+            guarantee.
+
+    Returns (found_reviews, error). A non-``None`` error means the Planner
+    query failed; callers must still surface whatever the assignment-scoped
+    scan found rather than let this failure blank out the whole answer.
+    """
+    params: dict[str, Any] = {
+        "filter": "incomplete_items",
+        "per_page": 100,
+    }
+    if course_id is not None:
+        params["context_codes[]"] = [f"course_{course_id}"]
+
+    items = await fetch_all_paginated_results("/planner/items", params=params)
+
+    if isinstance(items, dict) and "error" in items:
+        return [], str(items["error"])
+    if not isinstance(items, list):
+        return [], None
+
+    found: list[dict] = []
+    for item in items:
+        if not isinstance(item, dict) or item.get("plannable_type") != "assessment_request":
+            continue
+        plannable = item.get("plannable") or {}
+        if plannable.get("workflow_state") == "completed":
+            continue
+        # Permissive assessor guard: the assignment-scan path filters on
+        # assessor_id == my_id explicitly. The Planner feed is meant to be
+        # the caller's own to-do list, so it should already be self-scoped —
+        # but that is not documented, so only skip an item when Canvas
+        # positively names a *different* assessor. A missing/None
+        # assessor_id (undocumented field, may not always be populated) does
+        # not exclude the item.
+        item_assessor_id = plannable.get("assessor_id")
+        if item_assessor_id is not None and item_assessor_id != my_id:
+            continue
+        found.append({
+            "id": plannable.get("id") or item.get("plannable_id"),
+            "user_id": plannable.get("user_id"),
+            "_course_id": item.get("course_id"),
+            "_assignment_name": plannable.get("title") or "Unnamed Assignment",
+            "_source": "planner",
+        })
+    return found, None
 
 
 def register_student_tools(mcp: FastMCP) -> None:
@@ -434,18 +542,66 @@ def register_student_tools(mcp: FastMCP) -> None:
                         ):
                             review["_course_id"] = course_id
                             review["_assignment_name"] = assignment.get("name")
+                            review["_source"] = "assignment scan"
                             all_peer_reviews.append(review)
+
+        # Merge in the Planner-based discovery path (#275). Union, not
+        # replacement — the assignment-scoped scan above works on some
+        # instances, and we have no way to live-verify the Planner feed
+        # against a real pending review, so neither path is dropped.
+        # Course IDs are cached/compared as strings (get_course_id's return
+        # type), but Canvas returns course_id as a JSON number on planner
+        # items — compare both sides as strings or every planner item gets
+        # silently filtered out / never dedups against the assignment scan.
+        # A single course_id is passed through to Canvas's own
+        # context_codes[] filter (server-side pre-filter); the client-side
+        # filter below stays as a backstop since that behavior isn't
+        # documented as guaranteed.
+        planner_course_id = course_ids[0] if course_identifier and len(course_ids) == 1 else None
+        planner_reviews, planner_error = await _fetch_planner_peer_reviews(
+            my_id, course_id=planner_course_id
+        )
+        if course_identifier:
+            course_id_strs = {str(c) for c in course_ids}
+            planner_reviews = [
+                r for r in planner_reviews if str(r.get("_course_id")) in course_id_strs
+            ]
+
+        # Review "id" is an AssessmentRequest id on both paths, but its type
+        # isn't guaranteed to match: the assignment-scan path gets it from
+        # the /peer_reviews endpoint (typically an int), while the Planner
+        # docs describe the top-level plannable_id as a string even though
+        # plannable.id (used here) is typically an int. Normalize with
+        # str() on both sides of the key so a type-only mismatch never
+        # produces a duplicate entry.
+        dedup_keys = {
+            (str(r.get("_course_id")), str(r.get("id")))
+            for r in all_peer_reviews
+            if r.get("id") is not None
+        }
+        for review in planner_reviews:
+            key = (str(review.get("_course_id")), str(review.get("id")))
+            if review.get("id") is not None and key in dedup_keys:
+                continue
+            all_peer_reviews.append(review)
+            if review.get("id") is not None:
+                dedup_keys.add(key)
 
         failure_note = ""
         if unchecked:
-            failure_note = (
+            failure_note += (
                 "\n⚠️  Could not check peer reviews for:\n"
                 + "".join(f"  • {item}\n" for item in unchecked)
                 + "These assignments may still have reviews assigned to you."
             )
+        if planner_error:
+            failure_note += (
+                "\n⚠️  Could not check the Planner feed for additional peer "
+                f"reviews: {planner_error}"
+            )
 
         if not all_peer_reviews:
-            if unchecked:
+            if unchecked or planner_error:
                 return (
                     "Could not confirm your peer-review to-do list — some "
                     "peer-review listings failed." + failure_note
@@ -460,12 +616,24 @@ def register_student_tools(mcp: FastMCP) -> None:
             course_display = await get_course_code(course_id) if course_id else "Unknown Course"
 
             user_id = review.get("user_id")
+            source = review.get("_source", "assignment scan")
+            source_label = "Planner feed" if source == "planner" else "Assignment scan"
+            # Measured live (#275, khagyard): the Planner feed's
+            # assessment_request plannable carries no user_id at all, so
+            # this must render an honest "not identified" note rather than
+            # the literal string "Student None".
+            reviewing_line = (
+                f"  Reviewing: Student {user_id}\n"
+                if user_id is not None
+                else "  Reviewing: (reviewee not identified in Planner feed)\n"
+            )
 
             output_lines.append(
                 f"• {fence_untrusted_inline(assignment_name, 'assignment name')}\n"
                 f"  Course: {course_display}\n"
-                f"  Reviewing: Student {user_id}\n"
+                f"{reviewing_line}"
                 f"  Status: Incomplete\n"
+                f"  Source: {source_label}\n"
             )
 
         return "\n".join(output_lines) + failure_note

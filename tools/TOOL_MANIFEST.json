@@ -138,7 +138,7 @@
           "description": "Check a specific assignment directly, bypassing the per-course discovery scan"
         }
       ],
-      "returns": "Incomplete peer reviews with assignment and course info",
+      "returns": "Incomplete peer reviews with assignment and course info, labeled with discovery source (assignment scan or Planner feed)",
       "examples": [
         "What peer reviews do I need to complete?",
         "Show me my pending peer reviews",

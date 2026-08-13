@@ -267,7 +267,13 @@ List peer reviews you need to complete.
 "Do I have a peer review to do for assignment 4821 in ENGL 101?"
 ```
 
-**Returns:** Incomplete peer reviews with assignment and course information.
+**Returns:** Incomplete peer reviews with assignment and course information, each
+labeled with its discovery source (`Assignment scan` or `Planner feed`). The
+per-course discovery scan (`Assignment scan`) only checks assignments whose
+listing carries `peer_reviews: true`; as of #275 it is supplemented with a
+Planner API query (`Planner feed`) that mirrors how Canvas's own student
+"To Do" list finds pending peer reviews, since the two sources can disagree
+on some instances. Results from both are merged and deduplicated.
 
 ---
 

@@ -404,6 +404,7 @@ class TestGetMyPeerReviewsTodo:
         fetch_side_effect = [
             [{"id": 1, "name": "Essay", "peer_reviews": True}],   # assignments
             {"error": "unauthorized: insufficient permissions"},   # peer_reviews
+            [],                                                    # planner items
         ]
         p1, p2, p3, p4 = self._patches(fetch_side_effect)
         with p1, p2, p3, p4:
@@ -426,6 +427,7 @@ class TestGetMyPeerReviewsTodo:
                 # someone else's -> hidden
                 {"assessor_id": 9999, "user_id": 13, "workflow_state": "assigned"},
             ],
+            [],  # planner items
         ]
         p1, p2, p3, p4 = self._patches(fetch_side_effect)
         with p1, p2, p3, p4:
@@ -441,6 +443,7 @@ class TestGetMyPeerReviewsTodo:
         fetch_side_effect = [
             [{"id": 1, "name": "Essay", "peer_reviews": True}],
             [{"assessor_id": self.SELF_ID, "user_id": 11, "workflow_state": "completed"}],
+            [],  # planner items
         ]
         p1, p2, p3, p4 = self._patches(fetch_side_effect)
         with p1, p2, p3, p4:
@@ -549,6 +552,348 @@ class TestGetMyPeerReviewsTodoDirectAssignment:
 
         assert "Error fetching assignment" in result
         assert "not found" in result
+
+
+# Real /planner/items payload posted by the #275 reporter (khagyard) from a
+# production UIUC Canvas instance (see the issue for the full JSON) —
+# verbatim keys and shape, with context_image (a signed JWT file URL)
+# stripped entirely rather than copied into the repo. Two of the three
+# assessment_request items are workflow_state=="completed" (and Canvas DOES
+# still return those through filter=incomplete_items — confirmed live, not
+# an assumption); the middle item (workflow_state=="assigned") is the one
+# genuinely pending review. Notably: no user_id, no assessor_id anywhere —
+# that falsified this PR's original field assumption (see git history /
+# PR #288 review round 2) and is why the assessor guard stays permissive
+# and the "Reviewing:" line has a no-user_id fallback.
+REAL_PLANNER_PAYLOAD_275 = [
+    {
+        "context_type": "Course",
+        "course_id": 505,
+        "plannable_id": 115,
+        "planner_override": None,
+        "plannable_type": "assessment_request",
+        "new_activity": False,
+        "submissions": False,
+        "plannable_date": "2026-08-08T05:59:59Z",
+        "plannable": {
+            "id": 115,
+            "title": "Online assignment",
+            "todo_date": "2026-08-08T05:59:59Z",
+            "created_at": "2026-08-03T14:26:04Z",
+            "updated_at": "2026-08-03T14:52:17Z",
+            "workflow_state": "completed",
+        },
+        "html_url": "/courses/505/assignments/5066/submissions/2898",
+        "context_name": "UIUC MCP Test Course - Updated",
+    },
+    {
+        "context_type": "Course",
+        "course_id": 505,
+        "plannable_id": 116,
+        "planner_override": None,
+        "plannable_type": "assessment_request",
+        "new_activity": False,
+        "submissions": False,
+        "plannable_date": "2026-08-08T05:59:59Z",
+        "plannable": {
+            "id": 116,
+            "title": "Online assignment",
+            "todo_date": "2026-08-08T05:59:59Z",
+            "created_at": "2026-08-03T14:33:39Z",
+            "updated_at": "2026-08-03T14:33:39Z",
+            "workflow_state": "assigned",
+        },
+        "html_url": "/courses/505/assignments/5066/submissions/2549",
+        "context_name": "UIUC MCP Test Course - Updated",
+    },
+    {
+        "context_type": "Course",
+        "course_id": 505,
+        "plannable_id": 117,
+        "planner_override": None,
+        "plannable_type": "assessment_request",
+        "new_activity": False,
+        "submissions": False,
+        "plannable_date": "2026-08-09T06:00:00Z",
+        "plannable": {
+            "id": 117,
+            "title": "Peer review assignment",
+            "todo_date": "2026-08-09T06:00:00Z",
+            "created_at": "2026-08-06T20:50:49Z",
+            "updated_at": "2026-08-11T16:28:51Z",
+            "workflow_state": "completed",
+        },
+        "html_url": "/courses/505/assignments/5095/submissions/2892",
+        "context_name": "UIUC MCP Test Course - Updated",
+    },
+]
+
+
+class TestGetMyPeerReviewsTodoPlannerDiscovery:
+    """#275: the assignment-scoped discovery scan reportedly misses real
+    pending peer reviews. Canvas's own student "To Do" UI builds its list
+    from the Planner feed instead (assessment_request items), so that feed
+    is queried as an additional source and merged into the scan's results
+    rather than replacing it — the merge must degrade gracefully if the
+    Planner query fails, and must not double-report a review both paths find.
+    """
+
+    SELF_ID = 2407
+
+    def _patches(self, fetch_side_effect):
+        return (
+            patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results',
+                  new_callable=AsyncMock, side_effect=fetch_side_effect),
+            patch('canvas_mcp.tools.student_tools.make_canvas_request',
+                  new_callable=AsyncMock, return_value={"id": self.SELF_ID}),
+            patch('canvas_mcp.tools.student_tools.get_course_id',
+                  new=AsyncMock(return_value="505")),
+            patch('canvas_mcp.tools.student_tools.get_course_code',
+                  new=AsyncMock(return_value="TEST-505")),
+        )
+
+    @pytest.mark.asyncio
+    async def test_real_payload_acceptance_replay(self):
+        """Acceptance replay against REAL_PLANNER_PAYLOAD_275 — the actual
+        production payload from #275, not a hand-written fixture. Confirms:
+        the genuinely-pending item (workflow_state=="assigned") is found;
+        both workflow_state=="completed" items are excluded even though
+        Canvas returned them through filter=incomplete_items (measured, not
+        assumed); and the no-user_id reality renders as an honest note
+        rather than "Student None"."""
+        # No assignment carries peer_reviews=True, so the assignment scan
+        # finds nothing — only the Planner feed surfaces anything here.
+        fetch_side_effect = [
+            [{"id": 1, "name": "Essay", "peer_reviews": False}],  # assignments
+            REAL_PLANNER_PAYLOAD_275,  # planner items — real production payload
+        ]
+        p1, p2, p3, p4 = self._patches(fetch_side_effect)
+        with p1, p2, p3, p4:
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(course_identifier="505")
+
+        # Exactly one bullet: the two completed items must not appear.
+        # ("Planner feed" itself appears twice for that one bullet — once in
+        # the source label, once in the no-user_id fallback note — so this
+        # counts the "Source:" label specifically.)
+        assert result.count("•") == 1
+        assert result.count("Source: Planner feed") == 1
+        assert "Online assignment" in result  # the assigned item's title
+        assert "Peer review assignment" not in result  # the completed one
+        assert "Student None" not in result
+        assert "(reviewee not identified in Planner feed)" in result
+
+    @pytest.mark.asyncio
+    async def test_planner_only_review_without_user_id_renders_without_student_none(self):
+        """Direct pin for the None-user_id rendering fix: a Planner-sourced
+        review with no user_id (the measured real shape) must never print
+        the literal string "Student None"."""
+        fetch_side_effect = [
+            [{"id": 1, "name": "Essay", "peer_reviews": False}],  # assignments
+            [
+                {
+                    "plannable_type": "assessment_request",
+                    "course_id": 505,
+                    "plannable": {
+                        "id": 116,
+                        "title": "Online assignment",
+                        "workflow_state": "assigned",
+                        # no user_id — matches the real #275 payload
+                    },
+                },
+            ],  # planner items
+        ]
+        p1, p2, p3, p4 = self._patches(fetch_side_effect)
+        with p1, p2, p3, p4:
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(course_identifier="505")
+
+        assert "Student None" not in result
+        assert "(reviewee not identified in Planner feed)" in result
+
+    @pytest.mark.asyncio
+    async def test_planner_error_does_not_break_existing_scan(self):
+        # Assignment scan succeeds and finds a review; the Planner feed call
+        # itself errors. The tool must still report the scan's finding, with
+        # a warning about the Planner failure, not a blank/broken answer.
+        fetch_side_effect = [
+            [{"id": 1, "name": "Essay", "peer_reviews": True}],   # assignments
+            [{"assessor_id": self.SELF_ID, "user_id": 11, "workflow_state": "assigned"}],  # peer_reviews
+            {"error": "service unavailable"},                     # planner items
+        ]
+        p1, p2, p3, p4 = self._patches(fetch_side_effect)
+        with p1, p2, p3, p4:
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(course_identifier="505")
+
+        assert "Student 11" in result
+        assert (
+            "Could not check the Planner feed for additional peer reviews: "
+            "service unavailable" in result
+        )
+
+    @pytest.mark.asyncio
+    async def test_dedup_when_both_paths_find_same_review(self):
+        # Assignment scan and Planner feed both surface the same
+        # AssessmentRequest (id=77) — it must appear exactly once.
+        fetch_side_effect = [
+            [{"id": 1, "name": "Essay", "peer_reviews": True}],
+            [{"id": 77, "assessor_id": self.SELF_ID, "user_id": 11, "workflow_state": "assigned"}],
+            [
+                {
+                    "plannable_type": "assessment_request",
+                    "course_id": 505,
+                    "plannable": {
+                        "id": 77,
+                        "user_id": 11,
+                        "title": "Essay",
+                        "workflow_state": "assigned",
+                    },
+                },
+            ],
+        ]
+        p1, p2, p3, p4 = self._patches(fetch_side_effect)
+        with p1, p2, p3, p4:
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(course_identifier="505")
+
+        assert result.count("Student 11") == 1
+
+    @pytest.mark.asyncio
+    async def test_stale_pending_review_not_dropped_by_date_window(self):
+        """Regression pin (review round 1): a peer review assigned more
+        than 28 days ago and still incomplete is exactly the #275 scenario.
+        No start_date is sent to Canvas, so filter=incomplete_items alone
+        must be trusted — an old item must still surface."""
+        old_date = (
+            datetime.now(timezone.utc) - timedelta(days=60)
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        fetch_side_effect = [
+            [{"id": 1, "name": "Essay", "peer_reviews": False}],  # assignments
+            [
+                {
+                    "plannable_type": "assessment_request",
+                    "course_id": 505,
+                    "plannable_date": old_date,
+                    "plannable": {
+                        "id": 77,
+                        "user_id": 11,
+                        "title": "Essay",
+                        "workflow_state": "assigned",
+                    },
+                },
+            ],  # planner items
+        ]
+        p1, p2, p3, p4 = self._patches(fetch_side_effect)
+        with p1, p2, p3, p4:
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(course_identifier="505")
+
+        assert "Student 11" in result
+
+    @pytest.mark.asyncio
+    async def test_planner_item_with_different_assessor_is_skipped(self):
+        """The Planner feed is meant to already be the caller's own to-do
+        list, but that isn't documented as guaranteed — an item Canvas
+        positively attributes to a different assessor must not be reported
+        as the caller's own pending review.
+
+        assessor_id/user_id are synthetic here — the real #275 production
+        payload (REAL_PLANNER_PAYLOAD_275 above) carries neither field, but
+        this guard exists for a Canvas serialization/version that does."""
+        fetch_side_effect = [
+            [{"id": 1, "name": "Essay", "peer_reviews": False}],  # assignments
+            [
+                {
+                    "plannable_type": "assessment_request",
+                    "course_id": 505,
+                    "plannable": {
+                        "id": 77,
+                        "user_id": 11,
+                        "assessor_id": 9999,  # not the caller
+                        "title": "Essay",
+                        "workflow_state": "assigned",
+                    },
+                },
+            ],  # planner items
+        ]
+        p1, p2, p3, p4 = self._patches(fetch_side_effect)
+        with p1, p2, p3, p4:
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(course_identifier="505")
+
+        assert "no pending peer reviews" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_planner_item_with_matching_or_missing_assessor_is_kept(self):
+        """The guard is permissive: an item naming the caller as assessor is
+        kept, and so is one that omits assessor_id entirely (undocumented
+        field, may not always be populated — the real #275 production
+        payload omits it on every item) — only a positively different
+        assessor excludes an item."""
+        fetch_side_effect = [
+            [{"id": 1, "name": "Essay", "peer_reviews": False}],  # assignments
+            [
+                {
+                    "plannable_type": "assessment_request",
+                    "course_id": 505,
+                    "plannable": {
+                        "id": 77,
+                        "user_id": 11,
+                        "assessor_id": self.SELF_ID,
+                        "title": "Essay",
+                        "workflow_state": "assigned",
+                    },
+                },
+                {
+                    "plannable_type": "assessment_request",
+                    "course_id": 505,
+                    "plannable": {
+                        "id": 78,
+                        "user_id": 12,
+                        # no assessor_id at all
+                        "title": "Essay",
+                        "workflow_state": "assigned",
+                    },
+                },
+            ],  # planner items
+        ]
+        p1, p2, p3, p4 = self._patches(fetch_side_effect)
+        with p1, p2, p3, p4:
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(course_identifier="505")
+
+        assert "Student 11" in result
+        assert "Student 12" in result
+
+    @pytest.mark.asyncio
+    async def test_planner_pagination_and_context_filter_params(self):
+        captured_params: dict = {}
+
+        async def fake_fetch(endpoint, params=None, **kwargs):
+            if endpoint == "/planner/items":
+                captured_params.update(params or {})
+                return []
+            if endpoint.endswith("/assignments"):
+                return []
+            return []
+
+        with (
+            patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results',
+                  new_callable=AsyncMock, side_effect=fake_fetch),
+            patch('canvas_mcp.tools.student_tools.make_canvas_request',
+                  new_callable=AsyncMock, return_value={"id": self.SELF_ID}),
+            patch('canvas_mcp.tools.student_tools.get_course_id',
+                  new=AsyncMock(return_value="505")),
+        ):
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            await tool(course_identifier="505")
+
+        assert captured_params.get("filter") == "incomplete_items"
+        assert captured_params.get("per_page") == 100
+        assert "start_date" not in captured_params
+        assert "order" not in captured_params
+        assert captured_params.get("context_codes[]") == ["course_505"]
 
 
 if __name__ == "__main__":
