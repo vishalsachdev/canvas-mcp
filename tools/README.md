@@ -1870,24 +1870,31 @@ These tools help developers discover, explore, and execute Canvas code execution
 ### Tool Discovery
 
 #### `search_canvas_tools`
-Search and discover available Canvas code execution API operations by keyword.
+Search and discover available Canvas tools by keyword — both the registered
+MCP tools (the ~99 Python tools like `list_peer_reviews`,
+`create_assignment`, called directly) and the TypeScript code execution API
+operations (used from `execute_typescript`). Matches against tool name and
+description.
 
 **Parameters:**
-- `query` (optional): Search term to filter tools. Empty string returns all tools. Examples: "grading", "assignment", "discussion", "bulk"
+- `query` (optional): Search term to filter tools. Empty string returns all tools. Examples: "peer review", "grading", "assignment", "discussion", "bulk"
 - `detail_level` (optional): How much information to return. Default: "signatures"
-  - `"names"`: Just file paths (most efficient for quick lookups)
-  - `"signatures"`: File paths + function signatures + descriptions (recommended)
-  - `"full"`: Complete file contents (use sparingly for detailed inspection)
+  - `"names"`: Just tool names / file paths (most efficient for quick lookups)
+  - `"signatures"`: Names/paths + short descriptions + function signatures (recommended)
+  - `"full"`: Fuller descriptions for MCP tools (capped length) and complete file contents for code API modules
 
 **Example:**
 ```
+"Search for peer review tools"
 "Search for grading tools in the code API"
 "What bulk operations are available?"
 "Show me all code API tools"
 "Find discussion-related operations"
 ```
 
-**Returns:** JSON with query, detail_level, count, and array of matching tools.
+**Returns:** JSON with `query`, `detail_level`, `count`, and two labeled
+sections — `mcp_tools` (registered MCP tools) and `code_execution_api`
+(TypeScript code API modules) — each with its own `count` and `tools` array.
 
 **Usage Tips:**
 - Use empty query (`""`) to list all available tools
@@ -1897,6 +1904,9 @@ Search and discover available Canvas code execution API operations by keyword.
 
 **Example Direct Usage:**
 ```typescript
+// Search for peer-review tools across both MCP tools and the code API
+search_canvas_tools("peer review", "signatures")
+
 // Search for grading-related tools with signatures
 search_canvas_tools("grading", "signatures")
 
