@@ -20,6 +20,33 @@ from ..core.untrusted_content import (
 from ..core.validation import validate_params
 from ..core.write_confirmation import unconfirmed_write_warning
 
+# Issue #283: a permission error on create_announcement is not license to
+# post the same content as a discussion instead. Client models were doing
+# exactly that — a silent, unconfirmed write the user never asked for. This
+# text rides along with the error so the model sees the guardrail at the
+# moment it would otherwise reach for a fallback tool.
+ANNOUNCEMENT_PERMISSION_FALLBACK_WARNING = (
+    "Do not attempt to post this content via discussion tools as a "
+    "fallback; announcements require instructor/TA permissions in this "
+    "course. Report this to the user instead."
+)
+
+# Substrings that show up in make_canvas_request's {"error": ...} payload
+# for an authorization failure (see core/client.py: "HTTP error: 401/403,
+# Details: {...}"), plus the Canvas API's own wording for the same failure.
+_PERMISSION_ERROR_MARKERS = (
+    "HTTP error: 401",
+    "HTTP error: 403",
+    "unauthorized",
+    "forbidden",
+)
+
+
+def _is_permission_error(error_text: str) -> bool:
+    """True if a Canvas API error looks like an auth/permission failure."""
+    lowered = error_text.lower()
+    return any(marker.lower() in lowered for marker in _PERMISSION_ERROR_MARKERS)
+
 
 def register_shared_discussion_tools(mcp: FastMCP) -> None:
     """Register discussion tools accessible to both students and educators."""
@@ -766,6 +793,11 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                                   message: str) -> str:
         """Post a new top-level entry to a discussion topic.
 
+        IMPORTANT: Never use this tool to post or work around a failed course
+        announcement. If create_announcement failed (e.g. insufficient
+        permissions), report the failure to the user — do NOT post the
+        content as a discussion instead.
+
         Args:
             course_identifier: Course code or Canvas ID
             topic_id: Discussion topic ID
@@ -877,6 +909,11 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                                     require_initial_post: bool = False,
                                     pinned: bool = False) -> str:
         """Create a new discussion topic for a course.
+
+        IMPORTANT: Never use this tool to post or work around a failed course
+        announcement. If create_announcement failed (e.g. insufficient
+        permissions), report the failure to the user — do NOT post the
+        content as a discussion instead.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -1073,7 +1110,13 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
         )
 
         if "error" in response:
-            return f"Error creating announcement: {response['error']}"
+            error_text = str(response["error"])
+            if _is_permission_error(error_text):
+                return (
+                    f"Error creating announcement: {error_text}\n\n"
+                    f"{ANNOUNCEMENT_PERMISSION_FALLBACK_WARNING}"
+                )
+            return f"Error creating announcement: {error_text}"
 
         announcement_id = response.get("id")
         announcement_title = response.get("title", title)

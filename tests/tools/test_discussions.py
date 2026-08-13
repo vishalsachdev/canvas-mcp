@@ -455,5 +455,94 @@ class TestCreateAnnouncementConfirmsWrite:
         assert "1001" in result
 
 
+class TestAnnouncementPermissionErrorSteersAwayFromDiscussionFallback:
+    """#283: a client model watched create_announcement fail for a student
+    (insufficient permissions) and silently posted the same content as a
+    discussion topic instead — an unwanted, unconfirmed write. When the
+    Canvas API error looks like a permission failure, the returned message
+    must explicitly tell the caller not to fall back to a discussion tool.
+    """
+
+    @pytest.mark.asyncio
+    async def test_403_error_includes_no_fallback_guidance(self, mock_canvas_api):
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "error": "HTTP error: 403, Details: {'status': 'unauthorized'}"
+        }
+
+        create_announcement = get_tool_function('create_announcement')
+        result = await create_announcement("badm_350_120251", "HI", "Hello class")
+
+        assert "Error creating announcement" in result
+        assert "do not attempt to post this content via discussion" in result.lower()
+        assert "report this to the user" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_401_error_includes_no_fallback_guidance(self, mock_canvas_api):
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "error": "HTTP error: 401, Text: Unauthorized"
+        }
+
+        create_announcement = get_tool_function('create_announcement')
+        result = await create_announcement("badm_350_120251", "HI", "Hello class")
+
+        assert "do not attempt to post this content via discussion" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_non_permission_error_has_no_fallback_guidance(self, mock_canvas_api):
+        """A plain 500/network error isn't a permissions story — don't
+        editorialize about fallback behavior that isn't the cause here."""
+        mock_canvas_api['make_canvas_request'].return_value = {
+            "error": "HTTP error: 500, Details: {'status': 'internal_server_error'}"
+        }
+
+        create_announcement = get_tool_function('create_announcement')
+        result = await create_announcement("badm_350_120251", "HI", "Hello class")
+
+        assert "Error creating announcement" in result
+        assert "do not attempt to post this content via discussion" not in result.lower()
+
+
+class TestDiscussionToolDocstringsWarnAgainstAnnouncementFallback:
+    """#283: the MCP server can't block a client model's tool choice, but it
+    controls the descriptions the model reads. post_discussion_entry and
+    create_discussion_topic must carry an explicit anti-fallback warning.
+    """
+
+    @staticmethod
+    def _registered_descriptions() -> dict[str, str]:
+        import asyncio
+
+        from fastmcp import FastMCP
+
+        from canvas_mcp.tools.discussions import (
+            register_educator_discussion_tools,
+            register_shared_discussion_tools,
+        )
+
+        mcp = FastMCP("test-descriptions")
+        register_shared_discussion_tools(mcp)
+        register_educator_discussion_tools(mcp)
+
+        async def _collect():
+            tools = await mcp.list_tools()
+            return {tool.name: (tool.description or "") for tool in tools}
+
+        return asyncio.run(_collect())
+
+    def test_post_discussion_entry_warns_against_announcement_fallback(self):
+        descriptions = self._registered_descriptions()
+        description = descriptions["post_discussion_entry"].lower()
+
+        assert "create_announcement" in description
+        assert "do not" in description or "never" in description
+
+    def test_create_discussion_topic_warns_against_announcement_fallback(self):
+        descriptions = self._registered_descriptions()
+        description = descriptions["create_discussion_topic"].lower()
+
+        assert "create_announcement" in description
+        assert "do not" in description or "never" in description
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
