@@ -171,7 +171,7 @@ Advanced tools for bulk operations and custom logic.
 
 | Tool | Purpose |
 |------|---------|
-| `search_canvas_tools` | Discover available code API operations |
+| `search_canvas_tools` | Search registered MCP tools AND code API operations by keyword |
 | `list_code_api_modules` | List TypeScript modules |
 | `execute_typescript` | Run TypeScript for bulk operations |
 
@@ -330,10 +330,14 @@ Some Canvas API endpoints have bugs or limitations that prevent certain operatio
 ## Tool Discovery
 
 ### Runtime Discovery
-Use the `search_canvas_tools` MCP tool to find available code API operations:
+Use the `search_canvas_tools` MCP tool to find both registered MCP tools
+(e.g. `list_peer_reviews`, `create_assignment`) and TypeScript code API
+operations (for `execute_typescript`), searched by keyword against name and
+description:
 
 ```
-search_canvas_tools("grading", "signatures")  → Find grading tools
+search_canvas_tools("peer review", "names")   → Find peer-review MCP tools + code API modules
+search_canvas_tools("grading", "signatures")  → Find grading tools (both kinds)
 search_canvas_tools("", "names")              → List all tools
 search_canvas_tools("bulk", "full")           → Full details on bulk ops
 ```

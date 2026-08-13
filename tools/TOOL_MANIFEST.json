@@ -692,14 +692,14 @@
     {
       "name": "search_canvas_tools",
       "category": "developer",
-      "description": "Search available Canvas code API operations by keyword",
+      "description": "Search registered MCP tools AND Canvas code API operations by keyword",
       "parameters": [
         {
           "name": "query",
           "type": "string",
           "required": false,
           "default": "",
-          "description": "Search term (empty returns all tools)"
+          "description": "Search term (empty returns all tools); matched against tool name and description"
         },
         {
           "name": "detail_level",
@@ -709,8 +709,9 @@
           "description": "names | signatures | full"
         }
       ],
-      "returns": "JSON with matching tools based on detail level",
+      "returns": "JSON with mcp_tools and code_execution_api sections, each with matching tools based on detail level",
       "examples": [
+        "Search for peer review tools",
         "Search for grading tools in the code API",
         "What bulk operations are available?"
       ]
