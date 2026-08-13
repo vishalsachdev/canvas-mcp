@@ -326,13 +326,16 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   Copilot-authored PR (#276) whose fix didn't match how the Canvas endpoint actually
   behaves. Reporter (`khagyard`) confirmed: regular assignment, not anonymous, assigned
   before due date — still not found even with the direct lookup, per the daily triage
-  routine's follow-up on the issue. **PR #288 (2026-08-13) implements the Planner-API
-  discovery path** (community-confirmed: student UI uses `/planner/items`, the
-  assignment-scoped peer_reviews endpoints are instructor-focused). Review-hardened
-  (no date window, assessor guard, dedup normalization) but **deliberately UNMERGED**:
-  merge gate is khagyard pasting a real `assessment_request` planner item (exact
-  `curl|jq` posted on #275) because the three `plannable` fields the code reads are
-  undocumented — the #191/#276 fixture-vs-reality rule
+  routine's follow-up on the issue. **PR #288 MERGED 2026-08-13 (night)** — Planner-API
+  discovery path (community-confirmed: student UI uses `/planner/items`, the
+  assignment-scoped peer_reviews endpoints are instructor-focused). The merge gate
+  worked exactly as designed: khagyard posted a **real production payload** ~2h after
+  the ask, which falsified `plannable.user_id`/`assessor_id` (absent in reality —
+  output would have said "Student None") and confirmed completed items still appear
+  under `filter=incomplete_items`. Their 3-item payload is now the acceptance-replay
+  fixture (JWT image URLs stripped). Verified: opencode review + Devin 3/3 PASS + CI +
+  main suite green (1350). Issue stays open for khagyard's retest from main; close on
+  their confirmation. Ships in next release (minor bump already owed)
 - [x] **#283 announcement→discussion silent fallback — fixed (PR #285, merged 2026-08-13).**
   Student's `create_announcement` correctly 403'd, then the AI client posted a discussion
   as fallback. Server can't block client tool choice; mitigation = anti-fallback warnings
@@ -399,7 +402,12 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
   Review caught a real breaking-change gap (flat `tools` key silently dropped) → `schema_version: 2`
   + shape-pinning test. Also `run_middleware=False` and output caps; #287 filed for the
   pre-existing uncapped full-mode dump. Main re-verified green after both merges (1342 passed).
-- **PR #288 open, gated** (#275): Planner-API discovery path. opencode REQUEST CHANGES caught the
+- **PR #288 MERGED later that night** (#275): khagyard delivered the real payload ~2h after the
+  ask — it falsified `plannable.user_id` (absent → would have rendered "Student None"; fixed, real
+  payload became the acceptance-replay fixture) and confirmed the completed-items filter is
+  load-bearing. Devin verified the final diff (3/3 PASS; note: devin non-interactive needs
+  `--respect-workspace-trust=false` and can't run tools without `--permission-mode dangerous` —
+  pipe the diff inline instead). Earlier: opencode REQUEST CHANGES caught the
   28-day window re-creating #275's own blind spot and a missing assessor guard — both fixed.
   Merge gate: real payload from khagyard (asked on #275 with exact curl|jq).
 - **Reporter engagement**: khagyard asked to retest #283 fix + capture the #275 planner payload
