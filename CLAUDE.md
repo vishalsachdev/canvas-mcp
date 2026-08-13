@@ -326,8 +326,26 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   Copilot-authored PR (#276) whose fix didn't match how the Canvas endpoint actually
   behaves. Reporter (`khagyard`) confirmed: regular assignment, not anonymous, assigned
   before due date — still not found even with the direct lookup, per the daily triage
-  routine's follow-up on the issue. Next lead floated (unverified): check the student
-  TODO feed instead of the assignment-scoped peer_reviews endpoint.
+  routine's follow-up on the issue. **PR #288 (2026-08-13) implements the Planner-API
+  discovery path** (community-confirmed: student UI uses `/planner/items`, the
+  assignment-scoped peer_reviews endpoints are instructor-focused). Review-hardened
+  (no date window, assessor guard, dedup normalization) but **deliberately UNMERGED**:
+  merge gate is khagyard pasting a real `assessment_request` planner item (exact
+  `curl|jq` posted on #275) because the three `plannable` fields the code reads are
+  undocumented — the #191/#276 fixture-vs-reality rule
+- [x] **#283 announcement→discussion silent fallback — fixed (PR #285, merged 2026-08-13).**
+  Student's `create_announcement` correctly 403'd, then the AI client posted a discussion
+  as fallback. Server can't block client tool choice; mitigation = anti-fallback warnings
+  in both discussion tools' descriptions + the permission-error text itself. khagyard
+  asked to retest from main; issue stays open for their confirmation
+- [x] **#281 search_canvas_tools never searched MCP tools — fixed (PR #286, merged 2026-08-13).**
+  It searched only code_api TS files (bruchris's outside diagnosis, correct). Now also
+  queries the live registry (`mcp.list_tools(run_middleware=False)`) with labeled sections;
+  **breaking: response shape v2** (`schema_version: 2`, flat `tools` key gone), shape pinned
+  by test. Follow-up #287 filed (pre-existing uncapped `full`-mode TS dumps). zqian to confirm
+- [ ] **#270 isError — scoped, not implemented** (design comment on issue 2026-08-13):
+  central registration-time wrapper, ship together with #271; deferred to a supervised
+  session (touches every tool module)
 
 ## Roadmap
 - [x] Release v1.0.8 — all CI/CD pipelines passing (PyPI, MCP Registry, GitHub Release)
@@ -369,6 +387,28 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 ## Session Log
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
+
+### 2026-08-13 — autonomous issue/PR sweep (/loop): #285 + #286 merged, #288 gated, Dependabot cleared
+
+- **Run mode**: user-authorized autonomous loop; Sonnet subagents in per-PR worktrees did the
+  implementation, opencode did independent review (Codex workspace out of credits — MCP *and*
+  CLI share the billing, both dead until refill).
+- **PR #285 merged** (#283): anti-fallback steering after a student's failed `create_announcement`
+  led the client to post a discussion instead. Review verdict APPROVE.
+- **PR #286 merged** (#281): `search_canvas_tools` now searches the live MCP registry too.
+  Review caught a real breaking-change gap (flat `tools` key silently dropped) → `schema_version: 2`
+  + shape-pinning test. Also `run_middleware=False` and output caps; #287 filed for the
+  pre-existing uncapped full-mode dump. Main re-verified green after both merges (1342 passed).
+- **PR #288 open, gated** (#275): Planner-API discovery path. opencode REQUEST CHANGES caught the
+  28-day window re-creating #275's own blind spot and a missing assessor guard — both fixed.
+  Merge gate: real payload from khagyard (asked on #275 with exact curl|jq).
+- **Reporter engagement**: khagyard asked to retest #283 fix + capture the #275 planner payload
+  (they hold the student credential we lack); zqian asked to confirm #281.
+- **Dependabot**: #266 merged (typescript 7 — dev-only, nothing invokes tsc in CI/runtime);
+  #264 merged (python:3.14 Docker — full suite run locally under 3.14 first: 1325 passed).
+  PR #253 closed (underlying #252 closed by zqian's retest; encoding change had no live bug).
+- **#270 scoped** on-issue (central wrapper + ship with #271), implementation deferred to a
+  supervised session.
 
 ### 2026-08-10 (night) — #275 peer-review false-negative triaged; PR #277 merged; Copilot's PR #276 rejected
 
