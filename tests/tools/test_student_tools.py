@@ -554,6 +554,81 @@ class TestGetMyPeerReviewsTodoDirectAssignment:
         assert "not found" in result
 
 
+# Real /planner/items payload posted by the #275 reporter (khagyard) from a
+# production UIUC Canvas instance (see the issue for the full JSON) —
+# verbatim keys and shape, with context_image (a signed JWT file URL)
+# stripped entirely rather than copied into the repo. Two of the three
+# assessment_request items are workflow_state=="completed" (and Canvas DOES
+# still return those through filter=incomplete_items — confirmed live, not
+# an assumption); the middle item (workflow_state=="assigned") is the one
+# genuinely pending review. Notably: no user_id, no assessor_id anywhere —
+# that falsified this PR's original field assumption (see git history /
+# PR #288 review round 2) and is why the assessor guard stays permissive
+# and the "Reviewing:" line has a no-user_id fallback.
+REAL_PLANNER_PAYLOAD_275 = [
+    {
+        "context_type": "Course",
+        "course_id": 505,
+        "plannable_id": 115,
+        "planner_override": None,
+        "plannable_type": "assessment_request",
+        "new_activity": False,
+        "submissions": False,
+        "plannable_date": "2026-08-08T05:59:59Z",
+        "plannable": {
+            "id": 115,
+            "title": "Online assignment",
+            "todo_date": "2026-08-08T05:59:59Z",
+            "created_at": "2026-08-03T14:26:04Z",
+            "updated_at": "2026-08-03T14:52:17Z",
+            "workflow_state": "completed",
+        },
+        "html_url": "/courses/505/assignments/5066/submissions/2898",
+        "context_name": "UIUC MCP Test Course - Updated",
+    },
+    {
+        "context_type": "Course",
+        "course_id": 505,
+        "plannable_id": 116,
+        "planner_override": None,
+        "plannable_type": "assessment_request",
+        "new_activity": False,
+        "submissions": False,
+        "plannable_date": "2026-08-08T05:59:59Z",
+        "plannable": {
+            "id": 116,
+            "title": "Online assignment",
+            "todo_date": "2026-08-08T05:59:59Z",
+            "created_at": "2026-08-03T14:33:39Z",
+            "updated_at": "2026-08-03T14:33:39Z",
+            "workflow_state": "assigned",
+        },
+        "html_url": "/courses/505/assignments/5066/submissions/2549",
+        "context_name": "UIUC MCP Test Course - Updated",
+    },
+    {
+        "context_type": "Course",
+        "course_id": 505,
+        "plannable_id": 117,
+        "planner_override": None,
+        "plannable_type": "assessment_request",
+        "new_activity": False,
+        "submissions": False,
+        "plannable_date": "2026-08-09T06:00:00Z",
+        "plannable": {
+            "id": 117,
+            "title": "Peer review assignment",
+            "todo_date": "2026-08-09T06:00:00Z",
+            "created_at": "2026-08-06T20:50:49Z",
+            "updated_at": "2026-08-11T16:28:51Z",
+            "workflow_state": "completed",
+        },
+        "html_url": "/courses/505/assignments/5095/submissions/2892",
+        "context_name": "UIUC MCP Test Course - Updated",
+    },
+]
+
+
 class TestGetMyPeerReviewsTodoPlannerDiscovery:
     """#275: the assignment-scoped discovery scan reportedly misses real
     pending peer reviews. Canvas's own student "To Do" UI builds its list
@@ -578,9 +653,41 @@ class TestGetMyPeerReviewsTodoPlannerDiscovery:
         )
 
     @pytest.mark.asyncio
-    async def test_planner_feed_finds_review_the_scan_missed(self):
+    async def test_real_payload_acceptance_replay(self):
+        """Acceptance replay against REAL_PLANNER_PAYLOAD_275 — the actual
+        production payload from #275, not a hand-written fixture. Confirms:
+        the genuinely-pending item (workflow_state=="assigned") is found;
+        both workflow_state=="completed" items are excluded even though
+        Canvas returned them through filter=incomplete_items (measured, not
+        assumed); and the no-user_id reality renders as an honest note
+        rather than "Student None"."""
         # No assignment carries peer_reviews=True, so the assignment scan
-        # finds nothing — only the Planner feed surfaces the pending review.
+        # finds nothing — only the Planner feed surfaces anything here.
+        fetch_side_effect = [
+            [{"id": 1, "name": "Essay", "peer_reviews": False}],  # assignments
+            REAL_PLANNER_PAYLOAD_275,  # planner items — real production payload
+        ]
+        p1, p2, p3, p4 = self._patches(fetch_side_effect)
+        with p1, p2, p3, p4:
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(course_identifier="505")
+
+        # Exactly one bullet: the two completed items must not appear.
+        # ("Planner feed" itself appears twice for that one bullet — once in
+        # the source label, once in the no-user_id fallback note — so this
+        # counts the "Source:" label specifically.)
+        assert result.count("•") == 1
+        assert result.count("Source: Planner feed") == 1
+        assert "Online assignment" in result  # the assigned item's title
+        assert "Peer review assignment" not in result  # the completed one
+        assert "Student None" not in result
+        assert "(reviewee not identified in Planner feed)" in result
+
+    @pytest.mark.asyncio
+    async def test_planner_only_review_without_user_id_renders_without_student_none(self):
+        """Direct pin for the None-user_id rendering fix: a Planner-sourced
+        review with no user_id (the measured real shape) must never print
+        the literal string "Student None"."""
         fetch_side_effect = [
             [{"id": 1, "name": "Essay", "peer_reviews": False}],  # assignments
             [
@@ -588,16 +695,11 @@ class TestGetMyPeerReviewsTodoPlannerDiscovery:
                     "plannable_type": "assessment_request",
                     "course_id": 505,
                     "plannable": {
-                        "id": 77,
-                        "user_id": 11,
-                        "title": "Essay",
+                        "id": 116,
+                        "title": "Online assignment",
                         "workflow_state": "assigned",
+                        # no user_id — matches the real #275 payload
                     },
-                },
-                {
-                    "plannable_type": "assignment",
-                    "course_id": 505,
-                    "plannable": {"id": 2, "title": "Not a peer review"},
                 },
             ],  # planner items
         ]
@@ -606,8 +708,8 @@ class TestGetMyPeerReviewsTodoPlannerDiscovery:
             tool = get_student_tool_function('get_my_peer_reviews_todo')
             result = await tool(course_identifier="505")
 
-        assert "Student 11" in result
-        assert "Planner feed" in result
+        assert "Student None" not in result
+        assert "(reviewee not identified in Planner feed)" in result
 
     @pytest.mark.asyncio
     async def test_planner_error_does_not_break_existing_scan(self):
@@ -694,7 +796,11 @@ class TestGetMyPeerReviewsTodoPlannerDiscovery:
         """The Planner feed is meant to already be the caller's own to-do
         list, but that isn't documented as guaranteed — an item Canvas
         positively attributes to a different assessor must not be reported
-        as the caller's own pending review."""
+        as the caller's own pending review.
+
+        assessor_id/user_id are synthetic here — the real #275 production
+        payload (REAL_PLANNER_PAYLOAD_275 above) carries neither field, but
+        this guard exists for a Canvas serialization/version that does."""
         fetch_side_effect = [
             [{"id": 1, "name": "Essay", "peer_reviews": False}],  # assignments
             [
@@ -722,7 +828,8 @@ class TestGetMyPeerReviewsTodoPlannerDiscovery:
     async def test_planner_item_with_matching_or_missing_assessor_is_kept(self):
         """The guard is permissive: an item naming the caller as assessor is
         kept, and so is one that omits assessor_id entirely (undocumented
-        field, may not always be populated) — only a positively different
+        field, may not always be populated — the real #275 production
+        payload omits it on every item) — only a positively different
         assessor excludes an item."""
         fetch_side_effect = [
             [{"id": 1, "name": "Essay", "peer_reviews": False}],  # assignments

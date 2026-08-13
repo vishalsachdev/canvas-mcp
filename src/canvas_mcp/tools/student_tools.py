@@ -36,20 +36,41 @@ async def _fetch_planner_peer_reviews(
     and still incomplete is exactly the case #275 is about — a start-date
     window would silently drop it (review round 1 caught this).
 
-    Field shapes are NOT live-verified (no student-scoped token available) —
-    they come from the Canvas Planner API docs
-    (https://canvas.instructure.com/doc/api/planner.html) and the
-    ``AssessmentRequest`` serialization in canvas-lms
-    (``lib/api/v1/planner_item.rb``, ``ASSESSMENT_REQUEST_FIELDS``): for
-    ``assessment_request`` items, ``plannable`` is the AssessmentRequest's own
-    attributes (``id``, ``user_id`` — the reviewee, ``assessor_id``,
-    ``workflow_state``) plus a ``title`` copied from the linked assignment.
-    No other student's name is serialized into that object, which is also why
-    this endpoint needs no additional anonymization gate (see
+    Field shapes are now **live-verified**: the #275 reporter (khagyard)
+    posted a real ``/planner/items`` payload from a production UIUC Canvas
+    (three ``assessment_request`` items — see the issue for the full JSON).
+    That measurement **falsified** the original field assumption, which was
+    sourced only from the canvas-lms serializer
+    (``lib/api/v1/planner_item.rb``, ``ASSESSMENT_REQUEST_FIELDS``) and the
+    Canvas Planner API docs, neither of which is a captured real response.
+    The measured ``plannable`` object for ``assessment_request`` items
+    carries exactly six keys: ``id``, ``title``, ``todo_date``,
+    ``created_at``, ``updated_at``, ``workflow_state`` — **no ``user_id``
+    and no ``assessor_id``** on this instance. (Top-level item fields:
+    ``course_id``, ``plannable_id``, ``plannable_type``, ``plannable_date``,
+    ``html_url`` — which does carry the assignment id in its path, e.g.
+    ``/courses/505/assignments/5066/submissions/2898`` — ``context_name``,
+    ``context_image``.) The observed payload also confirms
+    ``workflow_state == "completed"`` items DO still appear in the
+    ``filter=incomplete_items`` feed, so the completed-state filter below is
+    load-bearing, not defensive dead code.
+
+    Two consequences of the missing ``user_id``/``assessor_id``:
+    - ``found["user_id"]`` is frequently ``None`` on real data; the caller
+      must render that case rather than print a bare "Student None".
+    - The assessor guard below stays deliberately permissive (skip only on a
+      *positively different* assessor) rather than requiring a match,
+      because ``assessor_id`` was absent from every item in the real
+      payload — a strict requirement would silently discard every Planner
+      finding on this instance. It remains in place because some other
+      Canvas serialization or version may still include it.
+
+    No other student's name is serialized into this object on any of the
+    documented/measured sources, which is also why this endpoint needs no
+    additional anonymization gate (see
     ``core/client.py::_endpoint_anonymization_mode`` — same self-scoped-feed
     reasoning already applied to ``/planner/items`` by #222's
-    ``get_my_upcoming_assignments``). **This is not yet live-verified — see
-    the PR's "Merge gate" section.**
+    ``get_my_upcoming_assignments``).
 
     Args:
         my_id: The caller's Canvas user id, used for the assessor guard below.
@@ -597,11 +618,20 @@ def register_student_tools(mcp: FastMCP) -> None:
             user_id = review.get("user_id")
             source = review.get("_source", "assignment scan")
             source_label = "Planner feed" if source == "planner" else "Assignment scan"
+            # Measured live (#275, khagyard): the Planner feed's
+            # assessment_request plannable carries no user_id at all, so
+            # this must render an honest "not identified" note rather than
+            # the literal string "Student None".
+            reviewing_line = (
+                f"  Reviewing: Student {user_id}\n"
+                if user_id is not None
+                else "  Reviewing: (reviewee not identified in Planner feed)\n"
+            )
 
             output_lines.append(
                 f"• {fence_untrusted_inline(assignment_name, 'assignment name')}\n"
                 f"  Course: {course_display}\n"
-                f"  Reviewing: Student {user_id}\n"
+                f"{reviewing_line}"
                 f"  Status: Incomplete\n"
                 f"  Source: {source_label}\n"
             )
