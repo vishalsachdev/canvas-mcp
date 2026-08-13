@@ -1,3 +1,30 @@
+### 2026-08-10 (night) — #275 peer-review false-negative triaged; PR #277 merged; Copilot's PR #276 rejected
+
+- **#275 reported**: `get_my_peer_reviews_todo` answers "no pending peer reviews" for a
+  caller (`khagyard`) with a real, incomplete review assigned — on v1.9.0, despite #219
+  already fixing this exact tool's error-swallowing + missing assessor-filter defects.
+- **PR #276 (Copilot bot) closed, not merged.** Its fix added `include[]=all_dates`/
+  `submission` to the assignments listing, but those params don't filter which
+  assignments Canvas returns — the premise didn't match the endpoint's actual behavior,
+  and its regression test only asserted the params were *passed*, not that real API
+  results changed. Same "green test proves the fixture, not reality" class as #191.
+- **PR #277 MERGED** (admin-bypass — checks green, review-approval requirement waived).
+  Adds optional `assignment_identifier` to `get_my_peer_reviews_todo`, letting a caller
+  check one known assignment directly, bypassing the per-course discovery scan's
+  `peer_reviews`-flag gate entirely. Confirmed via live API-doc lookup: `assessor_id`/
+  `user_id` field mapping is correct, and this endpoint isn't touched by the
+  anonymization layer — both ruled out as the cause. **Root cause still not found** — no
+  student-scoped token available to reproduce.
+- Independent Codex diagnosis (`codex:codex-rescue`) never returned a usable result —
+  the wrapper agent is stdout-forwarding-only, no polling/status capability. Proceeded
+  without it per direct instruction.
+- **#275 stays open.** Reporter replied post-merge: regular assignment, not anonymous,
+  assigned before due date — still not found. A separate process (daily triage routine,
+  `trig_011HVR6j4c5hDR2fj7k3ujxC`) caught that #277 merged *after* v1.9.0 shipped, so the
+  reporter's original test was against code that didn't have the new parameter yet, and
+  floated checking the student TODO feed next — that thread continued independently,
+  not yet reconciled with this session.
+
 ### 2026-08-10 (evening) — Release v1.9.0 shipped, all five channels verified
 
 - **v1.9.0 released** (the pending minor bump): #258's four two-step fan-out senders +
