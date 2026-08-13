@@ -5,6 +5,7 @@ to access only the student's own data across their enrolled courses.
 """
 
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -16,7 +17,9 @@ from ..core.untrusted_content import fence_untrusted_inline
 from ..core.validation import validate_params
 
 
-async def _fetch_planner_peer_reviews() -> tuple[list[dict], str | None]:
+async def _fetch_planner_peer_reviews(
+    my_id: int, course_id: int | str | None = None
+) -> tuple[list[dict], str | None]:
     """Discover pending peer reviews via the Planner API (#275).
 
     The per-course discovery scan in ``get_my_peer_reviews_todo`` only checks
@@ -27,6 +30,11 @@ async def _fetch_planner_peer_reviews() -> tuple[list[dict], str | None]:
     up as an item with ``plannable_type: "assessment_request"``. That scan
     reportedly misses reviews the Planner feed would have caught, so this is
     queried as an *additional* source, not a replacement.
+
+    No ``start_date`` is passed: ``filter=incomplete_items`` already scopes
+    Canvas's response to pending items, and a peer review assigned weeks ago
+    and still incomplete is exactly the case #275 is about — a start-date
+    window would silently drop it (review round 1 caught this).
 
     Field shapes are NOT live-verified (no student-scoped token available) —
     they come from the Canvas Planner API docs
@@ -40,22 +48,28 @@ async def _fetch_planner_peer_reviews() -> tuple[list[dict], str | None]:
     this endpoint needs no additional anonymization gate (see
     ``core/client.py::_endpoint_anonymization_mode`` — same self-scoped-feed
     reasoning already applied to ``/planner/items`` by #222's
-    ``get_my_upcoming_assignments``).
+    ``get_my_upcoming_assignments``). **This is not yet live-verified — see
+    the PR's "Merge gate" section.**
+
+    Args:
+        my_id: The caller's Canvas user id, used for the assessor guard below.
+        course_id: When given, passed as Canvas's own ``context_codes[]``
+            filter so the server pre-filters; the caller must still apply a
+            client-side filter as backstop since this is not a documented
+            guarantee.
 
     Returns (found_reviews, error). A non-``None`` error means the Planner
     query failed; callers must still surface whatever the assignment-scoped
     scan found rather than let this failure blank out the whole answer.
     """
-    start_date = datetime.now(timezone.utc) - timedelta(days=28)
-    items = await fetch_all_paginated_results(
-        "/planner/items",
-        params={
-            "start_date": start_date.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "filter": "incomplete_items",
-            "order": "asc",
-            "per_page": 100,
-        },
-    )
+    params: dict[str, Any] = {
+        "filter": "incomplete_items",
+        "per_page": 100,
+    }
+    if course_id is not None:
+        params["context_codes[]"] = [f"course_{course_id}"]
+
+    items = await fetch_all_paginated_results("/planner/items", params=params)
 
     if isinstance(items, dict) and "error" in items:
         return [], str(items["error"])
@@ -68,6 +82,16 @@ async def _fetch_planner_peer_reviews() -> tuple[list[dict], str | None]:
             continue
         plannable = item.get("plannable") or {}
         if plannable.get("workflow_state") == "completed":
+            continue
+        # Permissive assessor guard: the assignment-scan path filters on
+        # assessor_id == my_id explicitly. The Planner feed is meant to be
+        # the caller's own to-do list, so it should already be self-scoped —
+        # but that is not documented, so only skip an item when Canvas
+        # positively names a *different* assessor. A missing/None
+        # assessor_id (undocumented field, may not always be populated) does
+        # not exclude the item.
+        item_assessor_id = plannable.get("assessor_id")
+        if item_assessor_id is not None and item_assessor_id != my_id:
             continue
         found.append({
             "id": plannable.get("id") or item.get("plannable_id"),
@@ -508,20 +532,34 @@ def register_student_tools(mcp: FastMCP) -> None:
         # type), but Canvas returns course_id as a JSON number on planner
         # items — compare both sides as strings or every planner item gets
         # silently filtered out / never dedups against the assignment scan.
-        planner_reviews, planner_error = await _fetch_planner_peer_reviews()
+        # A single course_id is passed through to Canvas's own
+        # context_codes[] filter (server-side pre-filter); the client-side
+        # filter below stays as a backstop since that behavior isn't
+        # documented as guaranteed.
+        planner_course_id = course_ids[0] if course_identifier and len(course_ids) == 1 else None
+        planner_reviews, planner_error = await _fetch_planner_peer_reviews(
+            my_id, course_id=planner_course_id
+        )
         if course_identifier:
             course_id_strs = {str(c) for c in course_ids}
             planner_reviews = [
                 r for r in planner_reviews if str(r.get("_course_id")) in course_id_strs
             ]
 
+        # Review "id" is an AssessmentRequest id on both paths, but its type
+        # isn't guaranteed to match: the assignment-scan path gets it from
+        # the /peer_reviews endpoint (typically an int), while the Planner
+        # docs describe the top-level plannable_id as a string even though
+        # plannable.id (used here) is typically an int. Normalize with
+        # str() on both sides of the key so a type-only mismatch never
+        # produces a duplicate entry.
         dedup_keys = {
-            (str(r.get("_course_id")), r.get("id"))
+            (str(r.get("_course_id")), str(r.get("id")))
             for r in all_peer_reviews
             if r.get("id") is not None
         }
         for review in planner_reviews:
-            key = (str(review.get("_course_id")), review.get("id"))
+            key = (str(review.get("_course_id")), str(review.get("id")))
             if review.get("id") is not None and key in dedup_keys:
                 continue
             all_peer_reviews.append(review)
