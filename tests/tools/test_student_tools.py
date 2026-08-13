@@ -404,6 +404,7 @@ class TestGetMyPeerReviewsTodo:
         fetch_side_effect = [
             [{"id": 1, "name": "Essay", "peer_reviews": True}],   # assignments
             {"error": "unauthorized: insufficient permissions"},   # peer_reviews
+            [],                                                    # planner items
         ]
         p1, p2, p3, p4 = self._patches(fetch_side_effect)
         with p1, p2, p3, p4:
@@ -426,6 +427,7 @@ class TestGetMyPeerReviewsTodo:
                 # someone else's -> hidden
                 {"assessor_id": 9999, "user_id": 13, "workflow_state": "assigned"},
             ],
+            [],  # planner items
         ]
         p1, p2, p3, p4 = self._patches(fetch_side_effect)
         with p1, p2, p3, p4:
@@ -441,6 +443,7 @@ class TestGetMyPeerReviewsTodo:
         fetch_side_effect = [
             [{"id": 1, "name": "Essay", "peer_reviews": True}],
             [{"assessor_id": self.SELF_ID, "user_id": 11, "workflow_state": "completed"}],
+            [],  # planner items
         ]
         p1, p2, p3, p4 = self._patches(fetch_side_effect)
         with p1, p2, p3, p4:
@@ -549,6 +552,136 @@ class TestGetMyPeerReviewsTodoDirectAssignment:
 
         assert "Error fetching assignment" in result
         assert "not found" in result
+
+
+class TestGetMyPeerReviewsTodoPlannerDiscovery:
+    """#275: the assignment-scoped discovery scan reportedly misses real
+    pending peer reviews. Canvas's own student "To Do" UI builds its list
+    from the Planner feed instead (assessment_request items), so that feed
+    is queried as an additional source and merged into the scan's results
+    rather than replacing it — the merge must degrade gracefully if the
+    Planner query fails, and must not double-report a review both paths find.
+    """
+
+    SELF_ID = 2407
+
+    def _patches(self, fetch_side_effect):
+        return (
+            patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results',
+                  new_callable=AsyncMock, side_effect=fetch_side_effect),
+            patch('canvas_mcp.tools.student_tools.make_canvas_request',
+                  new_callable=AsyncMock, return_value={"id": self.SELF_ID}),
+            patch('canvas_mcp.tools.student_tools.get_course_id',
+                  new=AsyncMock(return_value="505")),
+            patch('canvas_mcp.tools.student_tools.get_course_code',
+                  new=AsyncMock(return_value="TEST-505")),
+        )
+
+    @pytest.mark.asyncio
+    async def test_planner_feed_finds_review_the_scan_missed(self):
+        # No assignment carries peer_reviews=True, so the assignment scan
+        # finds nothing — only the Planner feed surfaces the pending review.
+        fetch_side_effect = [
+            [{"id": 1, "name": "Essay", "peer_reviews": False}],  # assignments
+            [
+                {
+                    "plannable_type": "assessment_request",
+                    "course_id": 505,
+                    "plannable": {
+                        "id": 77,
+                        "user_id": 11,
+                        "title": "Essay",
+                        "workflow_state": "assigned",
+                    },
+                },
+                {
+                    "plannable_type": "assignment",
+                    "course_id": 505,
+                    "plannable": {"id": 2, "title": "Not a peer review"},
+                },
+            ],  # planner items
+        ]
+        p1, p2, p3, p4 = self._patches(fetch_side_effect)
+        with p1, p2, p3, p4:
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(course_identifier="505")
+
+        assert "Student 11" in result
+        assert "Planner feed" in result
+
+    @pytest.mark.asyncio
+    async def test_planner_error_does_not_break_existing_scan(self):
+        # Assignment scan succeeds and finds a review; the Planner feed call
+        # itself errors. The tool must still report the scan's finding, with
+        # a warning about the Planner failure, not a blank/broken answer.
+        fetch_side_effect = [
+            [{"id": 1, "name": "Essay", "peer_reviews": True}],   # assignments
+            [{"assessor_id": self.SELF_ID, "user_id": 11, "workflow_state": "assigned"}],  # peer_reviews
+            {"error": "service unavailable"},                     # planner items
+        ]
+        p1, p2, p3, p4 = self._patches(fetch_side_effect)
+        with p1, p2, p3, p4:
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(course_identifier="505")
+
+        assert "Student 11" in result
+        assert "Planner feed" in result  # warning note mentions it
+        assert "service unavailable" in result
+
+    @pytest.mark.asyncio
+    async def test_dedup_when_both_paths_find_same_review(self):
+        # Assignment scan and Planner feed both surface the same
+        # AssessmentRequest (id=77) — it must appear exactly once.
+        fetch_side_effect = [
+            [{"id": 1, "name": "Essay", "peer_reviews": True}],
+            [{"id": 77, "assessor_id": self.SELF_ID, "user_id": 11, "workflow_state": "assigned"}],
+            [
+                {
+                    "plannable_type": "assessment_request",
+                    "course_id": 505,
+                    "plannable": {
+                        "id": 77,
+                        "user_id": 11,
+                        "title": "Essay",
+                        "workflow_state": "assigned",
+                    },
+                },
+            ],
+        ]
+        p1, p2, p3, p4 = self._patches(fetch_side_effect)
+        with p1, p2, p3, p4:
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            result = await tool(course_identifier="505")
+
+        assert result.count("Student 11") == 1
+
+    @pytest.mark.asyncio
+    async def test_planner_pagination_params(self):
+        captured_params = {}
+
+        async def fake_fetch(endpoint, params=None, **kwargs):
+            if endpoint == "/planner/items":
+                captured_params.update(params or {})
+                return []
+            if endpoint.endswith("/assignments"):
+                return []
+            return []
+
+        with (
+            patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results',
+                  new_callable=AsyncMock, side_effect=fake_fetch),
+            patch('canvas_mcp.tools.student_tools.make_canvas_request',
+                  new_callable=AsyncMock, return_value={"id": self.SELF_ID}),
+            patch('canvas_mcp.tools.student_tools.get_course_id',
+                  new=AsyncMock(return_value="505")),
+        ):
+            tool = get_student_tool_function('get_my_peer_reviews_todo')
+            await tool(course_identifier="505")
+
+        assert captured_params.get("filter") == "incomplete_items"
+        assert captured_params.get("per_page") == 100
+        assert captured_params.get("order") == "asc"
+        assert "start_date" in captured_params
 
 
 if __name__ == "__main__":

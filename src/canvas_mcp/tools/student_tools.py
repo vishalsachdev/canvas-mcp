@@ -16,6 +16,69 @@ from ..core.untrusted_content import fence_untrusted_inline
 from ..core.validation import validate_params
 
 
+async def _fetch_planner_peer_reviews() -> tuple[list[dict], str | None]:
+    """Discover pending peer reviews via the Planner API (#275).
+
+    The per-course discovery scan in ``get_my_peer_reviews_todo`` only checks
+    assignments whose listing carries ``peer_reviews: true`` and then reads
+    the assignment-scoped ``/peer_reviews`` endpoint — but per community
+    input on #275 (aesse97, jonespm), Canvas's own student "To Do" UI builds
+    its list from the Planner feed instead, where a pending peer review shows
+    up as an item with ``plannable_type: "assessment_request"``. That scan
+    reportedly misses reviews the Planner feed would have caught, so this is
+    queried as an *additional* source, not a replacement.
+
+    Field shapes are NOT live-verified (no student-scoped token available) —
+    they come from the Canvas Planner API docs
+    (https://canvas.instructure.com/doc/api/planner.html) and the
+    ``AssessmentRequest`` serialization in canvas-lms
+    (``lib/api/v1/planner_item.rb``, ``ASSESSMENT_REQUEST_FIELDS``): for
+    ``assessment_request`` items, ``plannable`` is the AssessmentRequest's own
+    attributes (``id``, ``user_id`` — the reviewee, ``assessor_id``,
+    ``workflow_state``) plus a ``title`` copied from the linked assignment.
+    No other student's name is serialized into that object, which is also why
+    this endpoint needs no additional anonymization gate (see
+    ``core/client.py::_endpoint_anonymization_mode`` — same self-scoped-feed
+    reasoning already applied to ``/planner/items`` by #222's
+    ``get_my_upcoming_assignments``).
+
+    Returns (found_reviews, error). A non-``None`` error means the Planner
+    query failed; callers must still surface whatever the assignment-scoped
+    scan found rather than let this failure blank out the whole answer.
+    """
+    start_date = datetime.now(timezone.utc) - timedelta(days=28)
+    items = await fetch_all_paginated_results(
+        "/planner/items",
+        params={
+            "start_date": start_date.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "filter": "incomplete_items",
+            "order": "asc",
+            "per_page": 100,
+        },
+    )
+
+    if isinstance(items, dict) and "error" in items:
+        return [], str(items["error"])
+    if not isinstance(items, list):
+        return [], None
+
+    found: list[dict] = []
+    for item in items:
+        if not isinstance(item, dict) or item.get("plannable_type") != "assessment_request":
+            continue
+        plannable = item.get("plannable") or {}
+        if plannable.get("workflow_state") == "completed":
+            continue
+        found.append({
+            "id": plannable.get("id") or item.get("plannable_id"),
+            "user_id": plannable.get("user_id"),
+            "_course_id": item.get("course_id"),
+            "_assignment_name": plannable.get("title") or "Unnamed Assignment",
+            "_source": "planner",
+        })
+    return found, None
+
+
 def register_student_tools(mcp: FastMCP) -> None:
     """Register student-specific MCP tools."""
 
@@ -434,18 +497,52 @@ def register_student_tools(mcp: FastMCP) -> None:
                         ):
                             review["_course_id"] = course_id
                             review["_assignment_name"] = assignment.get("name")
+                            review["_source"] = "assignment scan"
                             all_peer_reviews.append(review)
+
+        # Merge in the Planner-based discovery path (#275). Union, not
+        # replacement — the assignment-scoped scan above works on some
+        # instances, and we have no way to live-verify the Planner feed
+        # against a real pending review, so neither path is dropped.
+        # Course IDs are cached/compared as strings (get_course_id's return
+        # type), but Canvas returns course_id as a JSON number on planner
+        # items — compare both sides as strings or every planner item gets
+        # silently filtered out / never dedups against the assignment scan.
+        planner_reviews, planner_error = await _fetch_planner_peer_reviews()
+        if course_identifier:
+            course_id_strs = {str(c) for c in course_ids}
+            planner_reviews = [
+                r for r in planner_reviews if str(r.get("_course_id")) in course_id_strs
+            ]
+
+        dedup_keys = {
+            (str(r.get("_course_id")), r.get("id"))
+            for r in all_peer_reviews
+            if r.get("id") is not None
+        }
+        for review in planner_reviews:
+            key = (str(review.get("_course_id")), review.get("id"))
+            if review.get("id") is not None and key in dedup_keys:
+                continue
+            all_peer_reviews.append(review)
+            if review.get("id") is not None:
+                dedup_keys.add(key)
 
         failure_note = ""
         if unchecked:
-            failure_note = (
+            failure_note += (
                 "\n⚠️  Could not check peer reviews for:\n"
                 + "".join(f"  • {item}\n" for item in unchecked)
                 + "These assignments may still have reviews assigned to you."
             )
+        if planner_error:
+            failure_note += (
+                "\n⚠️  Could not check the Planner feed for additional peer "
+                f"reviews: {planner_error}"
+            )
 
         if not all_peer_reviews:
-            if unchecked:
+            if unchecked or planner_error:
                 return (
                     "Could not confirm your peer-review to-do list — some "
                     "peer-review listings failed." + failure_note
@@ -460,12 +557,15 @@ def register_student_tools(mcp: FastMCP) -> None:
             course_display = await get_course_code(course_id) if course_id else "Unknown Course"
 
             user_id = review.get("user_id")
+            source = review.get("_source", "assignment scan")
+            source_label = "Planner feed" if source == "planner" else "Assignment scan"
 
             output_lines.append(
                 f"• {fence_untrusted_inline(assignment_name, 'assignment name')}\n"
                 f"  Course: {course_display}\n"
                 f"  Reviewing: Student {user_id}\n"
                 f"  Status: Incomplete\n"
+                f"  Source: {source_label}\n"
             )
 
         return "\n".join(output_lines) + failure_note
