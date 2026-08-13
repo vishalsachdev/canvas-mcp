@@ -106,6 +106,41 @@ async def test_no_match_reports_zero_results():
 
 
 @pytest.mark.asyncio
+async def test_response_shape_is_pinned_and_versioned():
+    """Pins the top-level JSON shape so a future refactor that silently
+    drops/renames a key (as the mcp_tools/code_execution_api split did to
+    the old flat "tools" key) fails CI instead of shipping quietly.
+
+    The old (pre-#286) shape was {query, detail_level, count, tools: [...]}.
+    The current shape is a breaking change — no "tools" alias — signaled by
+    schema_version so a script (not just the LLM caller) can detect it.
+    """
+    mcp = _registry()
+    data = await _search(mcp, "peer review", detail_level="names")
+
+    assert data["schema_version"] == 2
+    assert set(data.keys()) == {
+        "schema_version",
+        "query",
+        "detail_level",
+        "count",
+        "mcp_tools",
+        "code_execution_api",
+    }
+    assert "tools" not in data, "old flat top-level 'tools' key must not silently reappear"
+    assert set(data["mcp_tools"].keys()) == {"description", "count", "tools"}
+    assert set(data["code_execution_api"].keys()) >= {"description", "count", "tools"}
+
+
+@pytest.mark.asyncio
+async def test_no_match_response_also_carries_schema_version():
+    mcp = _registry()
+    data = await _search(mcp, "xyzzy_no_such_tool_exists_anywhere", detail_level="names")
+
+    assert data["schema_version"] == 2
+
+
+@pytest.mark.asyncio
 async def test_detail_level_names_returns_bare_strings():
     mcp = _registry()
     data = await _search(mcp, "peer review", detail_level="names")
@@ -138,6 +173,33 @@ async def test_detail_level_full_caps_description_size():
     for entry in data["mcp_tools"]["tools"]:
         assert isinstance(entry, dict)
         assert len(entry["description"]) <= 400
+
+
+@pytest.mark.asyncio
+async def test_signatures_mode_caps_long_first_line():
+    """A tool whose docstring first line is very long (2KB+) must be
+    truncated with a sentinel in "signatures" mode, not propagated whole —
+    mirrors the existing 400-char cap used in "full" mode."""
+    from canvas_mcp.tools.discovery import register_discovery_tools
+
+    mcp = FastMCP(name="test-long-description")
+    register_discovery_tools(mcp)
+
+    long_first_line = "x" * 2000
+
+    async def tool_with_a_very_long_description() -> str:
+        return "ok"
+
+    tool_with_a_very_long_description.__doc__ = long_first_line + "\n\nSecond paragraph, irrelevant."
+    mcp.tool()(tool_with_a_very_long_description)
+
+    data = await _search(mcp, "very_long_description", detail_level="signatures")
+
+    matches = data["mcp_tools"]["tools"]
+    assert len(matches) == 1
+    description = matches[0]["description"]
+    assert len(description) <= 200
+    assert description.endswith("[truncated]")
 
 
 @pytest.mark.asyncio
