@@ -336,17 +336,25 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   fixture (JWT image URLs stripped). Verified: opencode review + Devin 3/3 PASS + CI +
   main suite green (1350). Issue stays open for khagyard's retest from main; close on
   their confirmation. Ships in next release (minor bump already owed)
-- [x] **#283 announcement→discussion silent fallback — fixed (PR #285, merged 2026-08-13).**
-  Student's `create_announcement` correctly 403'd, then the AI client posted a discussion
-  as fallback. Server can't block client tool choice; mitigation = anti-fallback warnings
-  in both discussion tools' descriptions + the permission-error text itself. khagyard
-  asked to retest from main; issue stays open for their confirmation
+- [x] **#283 announcement→discussion silent fallback — two-layer fix complete (PR #285 +
+  PR #291, merged 2026-08-14).** jonespm's retest showed the deeper mechanism: Canvas answers
+  200 to a student's create_announcement, silently drops `is_announcement`, and creates a real
+  discussion topic. PR #291 adds (1) a permission pre-check — `GET /courses/:id?include[]=permissions`,
+  measured live: flags exist ONLY on the single-course endpoint (list ignores the include;
+  `/permissions` omits them); refuses only on explicit `false`, fails open otherwise — and
+  (2) cleanup: the orphaned topic is auto-deleted on downgrade detection. Two opencode rounds
+  (round 1 found a None-body TypeError on the cleanup DELETE; round 2 APPROVE). Issue stays
+  open for khagyard's student-token retest from main (their test course still has orphan topic 674)
 - [x] **#281 search_canvas_tools never searched MCP tools — fixed (PR #286, merged 2026-08-13).**
   It searched only code_api TS files (bruchris's outside diagnosis, correct). Now also
   queries the live registry (`mcp.list_tools(run_middleware=False)`) with labeled sections;
   **breaking: response shape v2** (`schema_version: 2`, flat `tools` key gone), shape pinned
   by test. Follow-up #287 filed (pre-existing uncapped `full`-mode TS dumps). zqian confirmed
   on `main` (multiple queries) — **issue CLOSED 2026-08-14**
+- [x] **#287 uncapped full-mode TS dumps — CLOSED (PR #290, merged 2026-08-14).** Second
+  outside code contribution (@SHIL0018): 2,000-char cap + regression test on the discovery
+  code-API full branch. Fork CI needed manual approve-runs; `claude-review` failed as always
+  on forks (not required). Verified the fixture can't pass vacuously (matched file is 18.8KB)
 - [ ] **#270 isError — scoped, not implemented** (design comment on issue 2026-08-13):
   central registration-time wrapper, ship together with #271; deferred to a supervised
   session (touches every tool module)
