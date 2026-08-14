@@ -176,6 +176,19 @@ async def test_detail_level_full_caps_description_size():
 
 
 @pytest.mark.asyncio
+async def test_detail_level_full_caps_code_api_content():
+    """Full code-API matches must not dump an entire TypeScript module."""
+    mcp = _registry()
+    data = await _search(mcp, "bulkGradeDiscussion", detail_level="full")
+
+    matches = data["code_execution_api"]["tools"]
+    assert len(matches) == 1
+    content = matches[0]["content"]
+    assert len(content) <= 2000
+    assert content.endswith("[truncated]")
+
+
+@pytest.mark.asyncio
 async def test_signatures_mode_caps_long_first_line():
     """A tool whose docstring first line is very long (2KB+) must be
     truncated with a sentinel in "signatures" mode, not propagated whole —

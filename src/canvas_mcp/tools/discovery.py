@@ -34,6 +34,10 @@ _MCP_FULL_DESCRIPTION_CHARS = 400
 # short, but nothing enforces that — cap it so one verbose tool can't
 # dominate the response.
 _MCP_SIGNATURE_DESCRIPTION_CHARS = 200
+
+# Full TypeScript modules can be tens of thousands of characters. Bound each
+# match so discovery cannot consume the model context with source dumps.
+_CODE_API_FULL_CONTENT_CHARS = 2000
 _TRUNCATION_SENTINEL = "... [truncated]"
 
 
@@ -161,7 +165,7 @@ def register_discovery_tools(mcp: FastMCP) -> None:
                             content = ts_file.read_text()
                             code_api_matches.append({
                                 "file": relative_path,
-                                "content": content
+                                "content": _cap(content, _CODE_API_FULL_CONTENT_CHARS)
                             })
                         except Exception as e:
                             code_api_matches.append({
