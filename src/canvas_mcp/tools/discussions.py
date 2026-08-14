@@ -1092,6 +1092,26 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
 
         course_id = await get_course_id(course_identifier)
 
+        # Pre-check (#283): the single-course endpoint reports whether this
+        # token may create announcements here. Measured live 2026-08-14:
+        # only /courses/:id?include[]=permissions carries these two flags —
+        # the list endpoint ignores the include and the dedicated
+        # /permissions endpoint omits them. Refuse only on an explicit
+        # False; any other shape (error, missing key) falls open to the
+        # post-create backstop below.
+        course_info = await make_canvas_request(
+            "get", f"/courses/{course_id}", params={"include[]": "permissions"}
+        )
+        if isinstance(course_info, dict) and "error" not in course_info:
+            permissions = course_info.get("permissions")
+            if isinstance(permissions, dict) and permissions.get("create_announcement") is False:
+                return (
+                    "Error creating announcement: your Canvas token does not have "
+                    "permission to create announcements in this course (checked "
+                    "via the course permissions API before posting anything).\n\n"
+                    f"{ANNOUNCEMENT_PERMISSION_FALLBACK_WARNING}"
+                )
+
         data = {
             "title": title,
             "message": message,
@@ -1128,8 +1148,24 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
         # announcement permission — it silently drops is_announcement and
         # creates a regular discussion topic instead (#220). The response
         # echoes the flag (measured live), so its absence means the write
-        # did not do what was asked.
+        # did not do what was asked. Backstop to the pre-check above: clean
+        # up the unintended topic instead of leaving it visible (#283).
         if not response.get("is_announcement"):
+            if announcement_id is not None:
+                delete_response = await make_canvas_request(
+                    "delete", f"/courses/{course_id}/discussion_topics/{announcement_id}"
+                )
+                if "error" not in delete_response:
+                    return (
+                        "Error creating announcement: Canvas ignored "
+                        "is_announcement and created a regular discussion topic "
+                        "instead — this usually means your token lacks permission "
+                        "to post announcements in this course (e.g. a student "
+                        f"account). The unintended topic (ID: {announcement_id}) "
+                        "was deleted automatically; nothing is visible to the "
+                        "course.\n\n"
+                        f"{ANNOUNCEMENT_PERMISSION_FALLBACK_WARNING}"
+                    )
             return unconfirmed_write_warning(
                 "the announcement was created",
                 {
@@ -1139,8 +1175,9 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                 },
                 "Canvas ignored is_announcement — this usually means your token "
                 "lacks permission to post announcements in this course (e.g. a "
-                "student account). The discussion topic above is visible to the "
-                "course; delete it in Canvas if it was unintended.",
+                "student account). Automatic cleanup of the topic did not "
+                "succeed, so it is visible to the course; delete it in Canvas "
+                "if it was unintended.",
             )
 
         return f"Announcement created successfully in course {course_display}:\n\n" + \
