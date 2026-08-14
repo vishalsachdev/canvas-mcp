@@ -551,6 +551,29 @@ class TestCreateAnnouncementConfirmsWrite:
         assert "delete it in Canvas" in result
 
     @pytest.mark.asyncio
+    async def test_silent_downgrade_delete_returns_none_warns(self, mock_canvas_api):
+        """make_canvas_request returns response.json() verbatim, so a null
+        200 body surfaces as None — must warn, not crash on `in` (found by
+        adversarial review probe)."""
+        mock_canvas_api['make_canvas_request'].side_effect = [
+            _course_with_permissions(can_announce=True),
+            {
+                "id": 999,
+                "title": "HI",
+                "is_announcement": False,
+                "created_at": "2026-08-03T15:00:00Z",
+            },
+            None,  # cleanup DELETE answered 200 with a null body
+        ]
+
+        create_announcement = get_tool_function('create_announcement')
+        result = await create_announcement("badm_350_120251", "HI", "Hello class")
+
+        assert "created successfully" not in result
+        assert "Could not confirm" in result
+        assert "delete it in Canvas" in result
+
+    @pytest.mark.asyncio
     async def test_missing_flag_in_response_is_not_success(self, mock_canvas_api):
         """A response without the is_announcement key is also unconfirmed."""
         mock_canvas_api['make_canvas_request'].side_effect = [

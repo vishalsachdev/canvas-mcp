@@ -1155,7 +1155,10 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                 delete_response = await make_canvas_request(
                     "delete", f"/courses/{course_id}/discussion_topics/{announcement_id}"
                 )
-                if "error" not in delete_response:
+                # A null 200 body would surface here as None — treat any
+                # non-dict as unconfirmed cleanup, never claim the delete
+                # succeeded (and never crash on `in`).
+                if isinstance(delete_response, dict) and "error" not in delete_response:
                     return (
                         "Error creating announcement: Canvas ignored "
                         "is_announcement and created a regular discussion topic "
