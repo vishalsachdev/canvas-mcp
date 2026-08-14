@@ -345,7 +345,8 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   It searched only code_api TS files (bruchris's outside diagnosis, correct). Now also
   queries the live registry (`mcp.list_tools(run_middleware=False)`) with labeled sections;
   **breaking: response shape v2** (`schema_version: 2`, flat `tools` key gone), shape pinned
-  by test. Follow-up #287 filed (pre-existing uncapped `full`-mode TS dumps). zqian to confirm
+  by test. Follow-up #287 filed (pre-existing uncapped `full`-mode TS dumps). zqian confirmed
+  on `main` (multiple queries) — **issue CLOSED 2026-08-14**
 - [ ] **#270 isError — scoped, not implemented** (design comment on issue 2026-08-13):
   central registration-time wrapper, ship together with #271; deferred to a supervised
   session (touches every tool module)
@@ -391,34 +392,15 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
 
-### 2026-08-13 — autonomous issue/PR sweep (/loop): #285 + #286 merged, #288 gated, Dependabot cleared
+### 2026-08-14 — #281 closed on zqian's confirmation
 
-- **Run mode**: user-authorized autonomous loop; Sonnet subagents in per-PR worktrees did the
-  implementation, opencode did independent review (Codex workspace out of credits — MCP *and*
-  CLI share the billing, both dead until refill).
-- **PR #285 merged** (#283): anti-fallback steering after a student's failed `create_announcement`
-  led the client to post a discussion instead. Review verdict APPROVE.
-- **PR #286 merged** (#281): `search_canvas_tools` now searches the live MCP registry too.
-  Review caught a real breaking-change gap (flat `tools` key silently dropped) → `schema_version: 2`
-  + shape-pinning test. Also `run_middleware=False` and output caps; #287 filed for the
-  pre-existing uncapped full-mode dump. Main re-verified green after both merges (1342 passed).
-- **PR #288 MERGED later that night** (#275): khagyard delivered the real payload ~2h after the
-  ask — it falsified `plannable.user_id` (absent → would have rendered "Student None"; fixed, real
-  payload became the acceptance-replay fixture) and confirmed the completed-items filter is
-  load-bearing. Devin verified the final diff (3/3 PASS; note: devin non-interactive needs
-  `--respect-workspace-trust=false` and can't run tools without `--permission-mode dangerous` —
-  pipe the diff inline instead). Earlier: opencode REQUEST CHANGES caught the
-  28-day window re-creating #275's own blind spot and a missing assessor guard — both fixed.
-  Merge gate: real payload from khagyard (asked on #275 with exact curl|jq).
-- **Reporter engagement**: khagyard asked to retest #283 fix + capture the #275 planner payload
-  (they hold the student credential we lack); zqian asked to confirm #281.
-- **Dependabot**: #266 merged (typescript 7 — dev-only, nothing invokes tsc in CI/runtime);
-  #264 merged (python:3.14 Docker — full suite run locally under 3.14 first: 1325 passed).
-  PR #253 closed (underlying #252 closed by zqian's retest; encoding change had no live bug).
-- **#270 scoped** on-issue (central wrapper + ship with #271), implementation deferred to a
-  supervised session.
-- **Next**: (1) close #275/#283 on khagyard's retest, #281 on zqian's confirmation (daily triage
-  watches the threads); (2) next release is a **minor bump** (breaking: #251/#258 carryover +
-  #286 schema_version 2); (3) supervised session for #270+#271 (isError + duplicate payload,
-  one output-plumbing PR); (4) #287 is a good-first-issue; (5) Codex credits out — verification
-  stack is opencode (deep) + devin (quick, pipe diff inline) until refilled.
+- Completed: zqian retested `search_canvas_tools` on `main` across multiple queries (peer review,
+  assignment, pages) and confirmed the fix — **#281 CLOSED** with credit to bruchris (diagnosis)
+  and zqian (retest). Closing comment corrected in place after posting (section key is
+  `code_execution_api`, not `code_api` — verified against discovery.py before letting it stand).
+  PR #289 (2026-08-14 triage brief) merged by the triage routine.
+- Next: (1) close #275/#283 on khagyard's retest (daily triage watches the threads);
+  (2) **release with a minor bump** (breaking: #251/#258 carryover + #286 schema_version 2);
+  (3) supervised session for #270+#271 (isError + duplicate payload, one output-plumbing PR);
+  (4) #287 is a good-first-issue; (5) Codex credits out — verification stack is opencode (deep)
+  + devin (quick, pipe diff inline) until refilled.
