@@ -608,6 +608,8 @@ class TestCreateAnnouncementConfirmsWrite:
 
         assert "created successfully" not in result
         assert "Could not confirm" in result
+        # Must not claim cleanup was attempted when it wasn't (round-2 note).
+        assert "could not be attempted" in result
 
     @pytest.mark.asyncio
     async def test_confirmed_announcement_reports_success(self, mock_canvas_api):

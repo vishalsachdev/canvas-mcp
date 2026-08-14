@@ -1151,7 +1151,17 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
         # did not do what was asked. Backstop to the pre-check above: clean
         # up the unintended topic instead of leaving it visible (#283).
         if not response.get("is_announcement"):
+            cleanup_note = (
+                "Canvas did not return a topic ID, so automatic cleanup could "
+                "not be attempted; check the course and delete the topic in "
+                "Canvas if it was unintended."
+            )
             if announcement_id is not None:
+                cleanup_note = (
+                    "Automatic cleanup of the topic did not succeed, so it is "
+                    "visible to the course; delete it in Canvas if it was "
+                    "unintended."
+                )
                 delete_response = await make_canvas_request(
                     "delete", f"/courses/{course_id}/discussion_topics/{announcement_id}"
                 )
@@ -1178,9 +1188,7 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                 },
                 "Canvas ignored is_announcement — this usually means your token "
                 "lacks permission to post announcements in this course (e.g. a "
-                "student account). Automatic cleanup of the topic did not "
-                "succeed, so it is visible to the course; delete it in Canvas "
-                "if it was unintended.",
+                f"student account). {cleanup_note}",
             )
 
         return f"Announcement created successfully in course {course_display}:\n\n" + \
