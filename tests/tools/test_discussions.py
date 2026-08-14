@@ -402,20 +402,145 @@ class TestDiscussionTools:
             assert result == []
 
 
+# The course payload the permission pre-check (#283) reads. Shapes measured
+# live 2026-08-14 on UIUC Canvas: GET /courses/:id?include[]=permissions
+# returns exactly {"create_discussion_topic": bool, "create_announcement":
+# bool} on the single-course endpoint (the list endpoint ignores the
+# include, and the dedicated /permissions endpoint omits both keys).
+def _course_with_permissions(can_announce):
+    return {
+        "id": 60366,
+        "name": "Test Course",
+        "permissions": {
+            "create_discussion_topic": True,
+            "create_announcement": can_announce,
+        },
+    }
+
+
+class TestCreateAnnouncementPermissionPrecheck:
+    """#283: check course-level create_announcement permission before the
+    POST, so a student token is refused up front instead of Canvas silently
+    creating a regular discussion topic."""
+
+    @pytest.mark.asyncio
+    async def test_permission_false_refuses_without_posting(self, mock_canvas_api):
+        mock_canvas_api['make_canvas_request'].side_effect = [
+            _course_with_permissions(can_announce=False),
+        ]
+
+        create_announcement = get_tool_function('create_announcement')
+        result = await create_announcement("badm_350_120251", "HI", "Hello class")
+
+        assert "Error creating announcement" in result
+        assert "permission" in result.lower()
+        # The anti-fallback steering must ride along (issue #283).
+        assert "Do not attempt to post this content via discussion tools" in result
+        # Exactly one API call — the pre-check GET; no POST ever happened.
+        assert mock_canvas_api['make_canvas_request'].call_count == 1
+        method = mock_canvas_api['make_canvas_request'].call_args_list[0][0][0]
+        assert method == "get"
+
+    @pytest.mark.asyncio
+    async def test_permission_true_proceeds_to_create(self, mock_canvas_api):
+        mock_canvas_api['make_canvas_request'].side_effect = [
+            _course_with_permissions(can_announce=True),
+            {
+                "id": 1001,
+                "title": "Real announcement",
+                "is_announcement": True,
+                "created_at": "2026-08-03T15:00:00Z",
+            },
+        ]
+
+        create_announcement = get_tool_function('create_announcement')
+        result = await create_announcement("badm_350_120251", "Real announcement", "Hello")
+
+        assert "created successfully" in result
+        assert mock_canvas_api['make_canvas_request'].call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_missing_permissions_key_fails_open(self, mock_canvas_api):
+        """Older Canvas / unexpected shapes: no permissions dict means we
+        proceed and rely on the post-create backstop, not refuse."""
+        mock_canvas_api['make_canvas_request'].side_effect = [
+            {"id": 60366, "name": "Test Course"},  # no permissions key
+            {
+                "id": 1002,
+                "title": "HI",
+                "is_announcement": True,
+                "created_at": "2026-08-03T15:00:00Z",
+            },
+        ]
+
+        create_announcement = get_tool_function('create_announcement')
+        result = await create_announcement("badm_350_120251", "HI", "Hello")
+
+        assert "created successfully" in result
+
+    @pytest.mark.asyncio
+    async def test_precheck_error_fails_open(self, mock_canvas_api):
+        """A failed pre-check GET must not block the create attempt."""
+        mock_canvas_api['make_canvas_request'].side_effect = [
+            {"error": "HTTP error: 500"},
+            {
+                "id": 1003,
+                "title": "HI",
+                "is_announcement": True,
+                "created_at": "2026-08-03T15:00:00Z",
+            },
+        ]
+
+        create_announcement = get_tool_function('create_announcement')
+        result = await create_announcement("badm_350_120251", "HI", "Hello")
+
+        assert "created successfully" in result
+
+
 class TestCreateAnnouncementConfirmsWrite:
-    """#220: Canvas silently drops is_announcement for tokens without
+    """#220/#283: Canvas silently drops is_announcement for tokens without
     announcement permission and creates a regular discussion, returning 200.
-    The tool must not report success unless the response confirms the flag.
+    The tool must not report success — and must clean up the unintended
+    topic rather than leave it visible to the course.
     """
 
     @pytest.mark.asyncio
-    async def test_silent_discussion_downgrade_is_not_success(self, mock_canvas_api):
-        mock_canvas_api['make_canvas_request'].return_value = {
-            "id": 999,
-            "title": "HI",
-            "is_announcement": False,
-            "created_at": "2026-08-03T15:00:00Z",
-        }
+    async def test_silent_downgrade_deletes_orphan_and_reports_failure(self, mock_canvas_api):
+        mock_canvas_api['make_canvas_request'].side_effect = [
+            _course_with_permissions(can_announce=True),  # pre-check passes (stale/racy)
+            {
+                "id": 999,
+                "title": "HI",
+                "is_announcement": False,
+                "created_at": "2026-08-03T15:00:00Z",
+            },
+            {"id": 999, "deleted": True},  # cleanup DELETE succeeds
+        ]
+
+        create_announcement = get_tool_function('create_announcement')
+        result = await create_announcement("badm_350_120251", "HI", "Hello class")
+
+        assert "created successfully" not in result
+        assert "Error creating announcement" in result
+        assert "deleted" in result.lower()  # says the orphan was cleaned up
+        assert "Do not attempt to post this content via discussion tools" in result
+        # Third call is the cleanup DELETE aimed at the orphan topic.
+        method, endpoint = mock_canvas_api['make_canvas_request'].call_args_list[2][0][:2]
+        assert method == "delete"
+        assert endpoint.endswith("/discussion_topics/999")
+
+    @pytest.mark.asyncio
+    async def test_silent_downgrade_delete_fails_warns_with_manual_remedy(self, mock_canvas_api):
+        mock_canvas_api['make_canvas_request'].side_effect = [
+            _course_with_permissions(can_announce=True),
+            {
+                "id": 999,
+                "title": "HI",
+                "is_announcement": False,
+                "created_at": "2026-08-03T15:00:00Z",
+            },
+            {"error": "HTTP error: 403"},  # cleanup DELETE refused
+        ]
 
         create_announcement = get_tool_function('create_announcement')
         result = await create_announcement("badm_350_120251", "HI", "Hello class")
@@ -423,30 +548,80 @@ class TestCreateAnnouncementConfirmsWrite:
         assert "created successfully" not in result
         assert "Could not confirm" in result
         assert "999" in result  # points at the stray discussion topic
+        assert "delete it in Canvas" in result
 
     @pytest.mark.asyncio
-    async def test_missing_flag_in_response_is_not_success(self, mock_canvas_api):
-        """A response without the is_announcement key is also unconfirmed."""
-        mock_canvas_api['make_canvas_request'].return_value = {
-            "id": 1000,
-            "title": "HI",
-            "created_at": "2026-08-03T15:00:00Z",
-        }
+    async def test_silent_downgrade_delete_returns_none_warns(self, mock_canvas_api):
+        """make_canvas_request returns response.json() verbatim, so a null
+        200 body surfaces as None — must warn, not crash on `in` (found by
+        adversarial review probe)."""
+        mock_canvas_api['make_canvas_request'].side_effect = [
+            _course_with_permissions(can_announce=True),
+            {
+                "id": 999,
+                "title": "HI",
+                "is_announcement": False,
+                "created_at": "2026-08-03T15:00:00Z",
+            },
+            None,  # cleanup DELETE answered 200 with a null body
+        ]
 
         create_announcement = get_tool_function('create_announcement')
         result = await create_announcement("badm_350_120251", "HI", "Hello class")
 
         assert "created successfully" not in result
         assert "Could not confirm" in result
+        assert "delete it in Canvas" in result
+
+    @pytest.mark.asyncio
+    async def test_missing_flag_in_response_is_not_success(self, mock_canvas_api):
+        """A response without the is_announcement key is also unconfirmed."""
+        mock_canvas_api['make_canvas_request'].side_effect = [
+            _course_with_permissions(can_announce=True),
+            {
+                "id": 1000,
+                "title": "HI",
+                "created_at": "2026-08-03T15:00:00Z",
+            },
+            {"id": 1000, "deleted": True},
+        ]
+
+        create_announcement = get_tool_function('create_announcement')
+        result = await create_announcement("badm_350_120251", "HI", "Hello class")
+
+        assert "created successfully" not in result
+
+    @pytest.mark.asyncio
+    async def test_downgrade_without_topic_id_cannot_clean_up(self, mock_canvas_api):
+        """No id in the response: nothing to delete — warn, don't crash."""
+        mock_canvas_api['make_canvas_request'].side_effect = [
+            _course_with_permissions(can_announce=True),
+            {
+                "title": "HI",
+                "is_announcement": False,
+                "created_at": "2026-08-03T15:00:00Z",
+            },
+        ]
+
+        create_announcement = get_tool_function('create_announcement')
+        result = await create_announcement("badm_350_120251", "HI", "Hello class")
+
+        assert "created successfully" not in result
+        assert "Could not confirm" in result
+        # Must not claim cleanup was attempted when it wasn't (round-2 note).
+        assert "could not be attempted" in result
 
     @pytest.mark.asyncio
     async def test_confirmed_announcement_reports_success(self, mock_canvas_api):
-        mock_canvas_api['make_canvas_request'].return_value = {
-            "id": 1001,
-            "title": "Real announcement",
-            "is_announcement": True,
-            "created_at": "2026-08-03T15:00:00Z",
-        }
+        mock_canvas_api['make_canvas_request'].side_effect = [
+            _course_with_permissions(can_announce=True),
+            {
+                "id": 1001,
+                "title": "Real announcement",
+                "is_announcement": True,
+                "created_at": "2026-08-03T15:00:00Z",
+            },
+        ]
 
         create_announcement = get_tool_function('create_announcement')
         result = await create_announcement("badm_350_120251", "Real announcement", "Hello")
