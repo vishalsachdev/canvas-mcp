@@ -400,15 +400,22 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
 
-### 2026-08-14 — #281 closed on zqian's confirmation
+### 2026-08-14 — PRs #290+#291 merged; Reynolds hosted-test invite staged
 
-- Completed: zqian retested `search_canvas_tools` on `main` across multiple queries (peer review,
-  assignment, pages) and confirmed the fix — **#281 CLOSED** with credit to bruchris (diagnosis)
-  and zqian (retest). Closing comment corrected in place after posting (section key is
-  `code_execution_api`, not `code_api` — verified against discovery.py before letting it stand).
-  PR #289 (2026-08-14 triage brief) merged by the triage routine.
-- Next: (1) close #275/#283 on khagyard's retest (daily triage watches the threads);
-  (2) **release with a minor bump** (breaking: #251/#258 carryover + #286 schema_version 2);
-  (3) supervised session for #270+#271 (isError + duplicate payload, one output-plumbing PR);
-  (4) #287 is a good-first-issue; (5) Codex credits out — verification stack is opencode (deep)
-  + devin (quick, pipe diff inline) until refilled.
+- Completed: (1) **PR #290 merged, #287 CLOSED** — @SHIL0018's outside contribution (2nd ever)
+  capping full-mode TS dumps; fork CI manually approved, fixture verified non-vacuous.
+  (2) **PR #291 merged** — two-layer #283 fix: permission pre-check (`include[]=permissions`,
+  measured live: flags exist only on the single-course endpoint) + auto-delete of the silently
+  downgraded discussion topic; 2 opencode rounds (round 1 caught a None-body TypeError),
+  live acceptance on a real no-permission course; #283 open awaiting khagyard's retest.
+  (3) **Mark Reynolds hosted-test invite**: OID added to `MCP_ENTRA_ALLOWED_OIDS` (11 now),
+  hosted `.mcpb` rebuilt as v1.0.1 (June build was missing `offline_access` → hourly re-auth),
+  Thunderbird draft staged with attachment — **Vishal sends it**; drafts in
+  `internal/email-reynolds-hosted-test.local.{txt,md}` (`.local.` = gitignored, private URL).
+  Key framing correction: the HOSTED instance is the sole object of UIUC review; stdio is not.
+- Next: (1) **release with a minor bump** (breaking: #251/#258 carryover + #286 schema v2; now
+  also carries #290/#291); (2) close #275/#283 on khagyard's retest (triage watches);
+  (3) supervised #270+#271 session — add the two pre-existing nits found in review
+  (bare `"error" in response` in delete_announcement; `ID: None` interpolation);
+  (4) send the Reynolds draft (sits in Thunderbird Drafts); (5) Codex credits still out —
+  opencode (deep) + devin (quick) until refilled.

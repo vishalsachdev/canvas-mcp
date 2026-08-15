@@ -1141,3 +1141,13 @@ as a plaintext `--header` CLI arg → visible in `ps` on the client machine; inh
 - **Next** (as of that session): close #275/#283/#281 on reporter confirmations; minor-bump
   release; supervised #270+#271 session; #287 good-first-issue; Codex credits out — opencode +
   devin until refilled.
+
+### 2026-08-14 — #281 closed on zqian's confirmation (archived from CLAUDE.md)
+
+- Completed: zqian retested `search_canvas_tools` on `main` across multiple queries (peer review,
+  assignment, pages) and confirmed the fix — **#281 CLOSED** with credit to bruchris (diagnosis)
+  and zqian (retest). Closing comment corrected in place after posting (section key is
+  `code_execution_api`, not `code_api` — verified against discovery.py before letting it stand).
+  PR #289 (2026-08-14 triage brief) merged by the triage routine.
+- Next (as of that session): close #275/#283 on khagyard's retest; minor-bump release;
+  supervised #270+#271 session; #287 good-first-issue; Codex credits out — opencode + devin.
