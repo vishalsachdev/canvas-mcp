@@ -413,8 +413,13 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
   Thunderbird draft staged with attachment — **Vishal sends it**; drafts in
   `internal/email-reynolds-hosted-test.local.{txt,md}` (`.local.` = gitignored, private URL).
   Key framing correction: the HOSTED instance is the sole object of UIUC review; stdio is not.
-- Next: (1) **release with a minor bump** (breaking: #251/#258 carryover + #286 schema v2; now
-  also carries #290/#291); (2) close #275/#283 on khagyard's retest (triage watches);
+- **Release v1.10.0 shipped 2026-08-15 (follow-on session)** — all five channels live + verified:
+  GitHub Release (`.mcpb` + SLSA, attestation exit 0), PyPI 200, MCP Registry `isLatest=True`
+  (no propagation race), site wrangler-deployed (custom domain shows v1.10.0), hosted Azure
+  auto-deployed (401 challenge healthy). Community release: #281 schema v2 (breaking), #275
+  Planner-feed, #283 pre-check+cleanup, #287 caps.
+- Next: (1) close #275/#283 on khagyard's retest (triage watches) — retests can now run against
+  the released version, not just main;
   (3) supervised #270+#271 session — add the two pre-existing nits found in review
   (bare `"error" in response` in delete_announcement; `ID: None` interpolation);
   (4) send the Reynolds draft (sits in Thunderbird Drafts); (5) Codex credits still out —
