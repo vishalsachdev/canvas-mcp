@@ -400,29 +400,24 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 > Full history: [internal/session-history.md](./internal/session-history.md)
 
 
-### 2026-08-14 — PRs #290+#291 merged; Reynolds hosted-test invite staged
+### 2026-08-15 — v1.10.0 shipped; #290/#291 merged; Reynolds hosted-test invite sent
 
-- Completed: (1) **PR #290 merged, #287 CLOSED** — @SHIL0018's outside contribution (2nd ever)
+- Completed: **PR #290 merged, #287 CLOSED** — @SHIL0018's outside contribution (2nd ever)
   capping full-mode TS dumps; fork CI manually approved, fixture verified non-vacuous.
-  (2) **PR #291 merged** — two-layer #283 fix: permission pre-check (`include[]=permissions`,
+  **PR #291 merged** — two-layer #283 fix: permission pre-check (`include[]=permissions`,
   measured live: flags exist only on the single-course endpoint) + auto-delete of the silently
-  downgraded discussion topic; 2 opencode rounds (round 1 caught a None-body TypeError),
-  live acceptance on a real no-permission course; #283 open awaiting khagyard's retest.
-  (3) **Mark Reynolds hosted-test invite**: OID added to `MCP_ENTRA_ALLOWED_OIDS` (11 now),
-  hosted `.mcpb` rebuilt as v1.0.1 (June build was missing `offline_access` → hourly re-auth),
-  Thunderbird draft staged with attachment — **Vishal sends it**; drafts in
-  `internal/email-reynolds-hosted-test.local.{txt,md}` (`.local.` = gitignored, private URL).
-  Key framing correction: the HOSTED instance is the sole object of UIUC review; stdio is not.
-- **Release v1.10.0 shipped 2026-08-15 (follow-on session)** — all five channels live + verified:
-  GitHub Release (`.mcpb` + SLSA, attestation exit 0), PyPI 200, MCP Registry `isLatest=True`
-  (no propagation race), site wrangler-deployed (custom domain shows v1.10.0), hosted Azure
-  auto-deployed (401 challenge healthy). Community release: #281 schema v2 (breaking), #275
-  Planner-feed, #283 pre-check+cleanup, #287 caps.
-- Next: (1) close #275/#283 on khagyard's retest (triage watches) — retests can now run against
-  the released version, not just main;
-  (3) supervised #270+#271 session — add the two pre-existing nits found in review
-  (bare `"error" in response` in delete_announcement; `ID: None` interpolation);
-  (4) ~~send the Reynolds draft~~ **SENT by Vishal 2026-08-15 02:29 UTC** (verified in Sent
-  Items, `.mcpb` attached; local drafts cleaned up) — now awaiting Mark's test results;
-  (5) Codex credits still out —
-  opencode (deep) + devin (quick) until refilled.
+  downgraded discussion topic; 2 opencode rounds (round 1 caught a None-body TypeError), live
+  acceptance on a real no-permission course. **Release v1.10.0 shipped** — all five channels
+  live + verified: GitHub Release (`.mcpb` + SLSA, attestation exit 0), PyPI 200, MCP Registry
+  `isLatest=True` (no propagation race), site wrangler-deployed, hosted Azure auto-deployed
+  (401 challenge healthy). Community release: #281 schema v2 (breaking), #275 Planner-feed,
+  #283 pre-check+cleanup, #287 caps. **Mark Reynolds hosted-test invite SENT** (verified in
+  Thunderbird Sent Items, 02:29 UTC, `.mcpb` attached); his OID is on `MCP_ENTRA_ALLOWED_OIDS`
+  (11 now); local draft files cleaned up post-send. Key framing correction that shaped the
+  email: the HOSTED instance is the sole object of UIUC review, stdio is not.
+- Next: (1) close #275/#283 on khagyard's retest — can now run against the released v1.10.0,
+  not just main (daily triage watches both threads); (2) supervised #270+#271 session — add
+  the two pre-existing nits found in review (bare `"error" in response` in
+  `delete_announcement`; `ID: None` interpolation); (3) awaiting Mark Reynolds's hosted-test
+  results / review-side feedback (see `[[umich-adoption-illinois-review]]` memory);
+  (4) Codex credits still out — opencode (deep) + devin (quick) until refilled.
