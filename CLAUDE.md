@@ -422,5 +422,7 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
   the released version, not just main;
   (3) supervised #270+#271 session — add the two pre-existing nits found in review
   (bare `"error" in response` in delete_announcement; `ID: None` interpolation);
-  (4) send the Reynolds draft (sits in Thunderbird Drafts); (5) Codex credits still out —
+  (4) ~~send the Reynolds draft~~ **SENT by Vishal 2026-08-15 02:29 UTC** (verified in Sent
+  Items, `.mcpb` attached; local drafts cleaned up) — now awaiting Mark's test results;
+  (5) Codex credits still out —
   opencode (deep) + devin (quick) until refilled.
