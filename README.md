@@ -125,23 +125,21 @@ Canvas MCP provides **99 tools** for interacting with Canvas LMS. Tools are orga
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data through any MCP-compatible client.
 
-## Latest Release: v1.9.0
+## Latest Release: v1.10.0
 
 **Released:** August 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
 
-A prompt-injection hardening release ([#239](https://github.com/vishalsachdev/canvas-mcp/issues/239)). Canvas is a shared authoring surface — students and course authors write the pages, discussions, and messages your AI assistant reads — so Canvas-authored text now arrives explicitly marked as data, not instructions, and no injected instruction can silently trigger a mass send. One change is **breaking** — see below before upgrading.
+A community bug-fix release driven by live reporter testing — thanks [@khagyard](https://github.com/khagyard), [@zqian](https://github.com/zqian), [@jonespm](https://github.com/jonespm), [@bruchris](https://github.com/bruchris), and [@SHIL0018](https://github.com/SHIL0018) (our second outside code contribution). One change is **breaking** — see below before upgrading.
 
-- **Breaking: multi-recipient message sends are now two-step.** `send_bulk_messages_from_list`, `send_conversation` (with more than one recipient or an expandable `course_*`/`group_*` alias), `send_peer_review_reminders`, and `send_peer_review_followup_campaign` first return a full preview — every recipient and every rendered message — plus a single-use confirmation token, and send nothing. Sending requires calling again with the token; the token is void if anything changed in between. Single-recipient `send_conversation` with a plain numeric ID is unchanged
-- **Canvas-authored free text is provenance-fenced** across every read tool — page and syllabus content, discussions, inbox messages, assignment descriptions, roster and group names, rubric text, uploader-set filenames — wrapped in explicit `<<<UNTRUSTED CANVAS CONTENT ...>>>` markers so the model treats it as data. Content is unaltered otherwise; embedded marker lookalikes are degraded so fenced text cannot forge its own boundary
-- **Write tools refuse fence markers** in every writable field (18+ tools, grading comments and rubric text included), so fenced read output cannot be laundered back into live Canvas content or the student-visible gradebook
-- **Confirmation tokens authenticate before recording**, closing a memory-exhaustion DoS; ambiguous send failures (timeouts, 5xx) keep the token spent so a retry cannot double-send
-- **Supply chain:** the repo now [publishes an OSSF Scorecard](https://api.scorecard.dev/projects/github.com/vishalsachdev/canvas-mcp) (7.1/10); all CI actions are SHA-pinned; and starting with this release the `.mcpb` bundle ships SLSA build provenance — verify with `gh attestation verify canvas-mcp.mcpb --repo vishalsachdev/canvas-mcp`
-- The npm setup wizard is retired and the npm package deprecated ([#249](https://github.com/vishalsachdev/canvas-mcp/issues/249)) — it targeted a hosted endpoint that no longer exists. Install via the Desktop Extension or manual config per this README
-
-Eleven adversarial review rounds ran against the fencing implementation before merge; a ReDoS and a token-store DoS were found and fixed along the way.
+- **Breaking: `search_canvas_tools` response shape v2** ([#281](https://github.com/vishalsachdev/canvas-mcp/issues/281)). The tool now actually searches the ~99 registered MCP tools alongside the TypeScript code-API files (it previously searched only the latter, so "peer review" found nothing despite ~10 peer-review tools existing). Responses carry `schema_version: 2` with labeled `mcp_tools` / `code_execution_api` sections; the old flat `tools` key is gone. Full-detail code-API content is now also capped at 2,000 characters ([#287](https://github.com/vishalsachdev/canvas-mcp/issues/287))
+- **Students can find their peer reviews** ([#275](https://github.com/vishalsachdev/canvas-mcp/issues/275)): `get_my_peer_reviews_todo` gained a direct per-assignment lookup and a Planner-feed discovery path — the same data source Canvas's own student UI uses — validated against a real production payload from the reporter
+- **`create_announcement` fails safely on student tokens** ([#283](https://github.com/vishalsachdev/canvas-mcp/issues/283)): Canvas silently downgrades the create to a regular discussion topic; the tool now pre-checks course permissions and refuses before creating anything, auto-deletes the unintended topic if a downgrade still slips through, and steers AI clients away from posting the content via discussion tools as a fallback
+- **Security:** stricter URL validation (code-scanning fix), Docker base bumped to `python:3.14-slim`, CI actions updated
 
 <details>
 <summary>Previous releases</summary>
+
+**v1.9.0** — Prompt-injection hardening ([#239](https://github.com/vishalsachdev/canvas-mcp/issues/239)): Canvas-authored text arrives provenance-fenced as data-not-instructions; multi-recipient sends became two-step preview→confirm (breaking); write tools refuse fence markers; OSSF Scorecard published, CI actions SHA-pinned, `.mcpb` ships SLSA provenance; npm wizard retired ([#249](https://github.com/vishalsachdev/canvas-mcp/issues/249)). Eleven adversarial review rounds pre-merge
 
 **v1.8.0** — Security-scan remediation: 11 of 12 findings fixed, three breaking (HTTPS-only Canvas URLs, stdio-only file transfer tools, no-overwrite downloads), a measured submissions authorization bypass closed centrally, CSV formula-injection protection, code execution fails closed, dependency floors raised (PR #251, #255)
 
