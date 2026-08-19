@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Raised the FastMCP 3.x dependency floor from 3.4.4 to 3.4.7, picking up
+  upstream fixes for Azure scope fallback, deterministic transformed-tool
+  schemas, trusted OAuth metadata/JWKS proxies, and `private_key_jwt` audience
+  validation
+  ([issue 293](https://github.com/vishalsachdev/canvas-mcp/issues/293)).
 - **Breaking:** `send_peer_review_reminders` is now
   `send_peer_review_inbox_messages` to accurately describe that it sends
   ordinary Canvas Inbox messages rather than invoking Canvas's native reminder
