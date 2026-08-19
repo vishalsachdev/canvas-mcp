@@ -7,6 +7,13 @@ from mcp.types import ToolAnnotations
 
 from canvas_mcp.core.tool_results import install_tool_result_contract
 
+_EXPLICIT_TEXT_SCHEMA = {
+    "type": "object",
+    "properties": {"result": {"type": "string"}},
+    "required": ["result"],
+    "x-fastmcp-wrap-result": True,
+}
+
 
 def _result_server() -> FastMCP:
     mcp = FastMCP("tool-result-contract")
@@ -21,6 +28,13 @@ def _result_server() -> FastMCP:
         if fail:
             return {"error": "boom", "nothing_sent": True}
         return {"success": True, "detail": {"error": "quoted example"}}
+
+    @mcp.tool(
+        output_schema=_EXPLICIT_TEXT_SCHEMA,
+        annotations=ToolAnnotations(readOnlyHint=True),
+    )
+    async def explicit_text(value: str) -> str:
+        return value
 
     return mcp
 
@@ -68,3 +82,66 @@ async def test_success_text_and_nested_error_field_remain_successful():
 
     assert text_result.is_error is False
     assert dict_result.is_error is False
+
+
+@pytest.mark.asyncio
+async def test_string_result_has_one_text_surface_and_no_structured_duplicate():
+    async with Client(_result_server()) as client:
+        tools = {tool.name: tool for tool in await client.list_tools()}
+        result = await client.call_tool(
+            "text_result", {"value": "single copy"}, raise_on_error=False
+        )
+
+    assert tools["text_result"].outputSchema is None
+    assert result.structured_content is None
+    assert len(result.content) == 1
+    assert getattr(result.content[0], "text", None) == "single copy"
+
+
+@pytest.mark.asyncio
+async def test_dictionary_tool_retains_schema_and_structured_content():
+    async with Client(_result_server()) as client:
+        tools = {tool.name: tool for tool in await client.list_tools()}
+        result = await client.call_tool(
+            "dict_result", {"fail": False}, raise_on_error=False
+        )
+
+    assert tools["dict_result"].outputSchema is not None
+    assert result.structured_content == {
+        "success": True,
+        "detail": {"error": "quoted example"},
+    }
+
+
+@pytest.mark.asyncio
+async def test_installing_contract_twice_does_not_double_wrap_registration():
+    from canvas_mcp.core.tool_results import install_tool_result_contract
+
+    mcp = FastMCP("double-install")
+    install_tool_result_contract(mcp)
+    install_tool_result_contract(mcp)
+
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    async def once() -> str:
+        return "one"
+
+    async with Client(mcp) as client:
+        result = await client.call_tool("once", raise_on_error=False)
+
+    assert result.structured_content is None
+    assert [getattr(block, "text", None) for block in result.content] == ["one"]
+
+
+@pytest.mark.asyncio
+async def test_explicit_string_schema_is_respected_and_legacy_wrapper_errors():
+    async with Client(_result_server()) as client:
+        tools = {tool.name: tool for tool in await client.list_tools()}
+        result = await client.call_tool(
+            "explicit_text",
+            {"value": "Error: explicit schema failure"},
+            raise_on_error=False,
+        )
+
+    assert tools["explicit_text"].outputSchema["x-fastmcp-wrap-result"] is True
+    assert result.structured_content == {"result": "Error: explicit schema failure"}
+    assert result.is_error is True
