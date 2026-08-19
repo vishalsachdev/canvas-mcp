@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Tool failures now set MCP `isError: true` while preserving their existing
+  text or structured payload ([issue 270](https://github.com/vishalsachdev/canvas-mcp/issues/270)).
+- String-returning tools no longer duplicate the same value in text content
+  and `structuredContent.result`; dictionary tools retain their structured
+  schemas ([issue 271](https://github.com/vishalsachdev/canvas-mcp/issues/271)).
+
 ## [1.10.0] — 2026-08-15
 
 A community bug-fix release driven by live reporter testing
