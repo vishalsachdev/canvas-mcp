@@ -8,7 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![skills.sh](https://img.shields.io/badge/skills.sh-canvas--mcp-blue)](https://skills.sh)
 
-MCP server for Canvas LMS with **99 tools** and **8 agent skills**. Works with Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh).
+MCP server for Canvas LMS with **up to 99 tools** and **8 agent skills**. Designed for Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh); setup and capabilities vary by client.
 
 ```bash
 npx skills add vishalsachdev/canvas-mcp
@@ -23,7 +23,7 @@ npx skills add vishalsachdev/canvas-mcp
   See CLAUDE.md "Documentation Maintenance" for full guidelines.
 -->
 
-Canvas MCP provides **99 tools** for interacting with Canvas LMS. Tools are organized by user type:
+Canvas MCP provides **up to 99 tools** for interacting with Canvas LMS; the default profile registers fewer, and optional feature-gated tools can raise the total to 99. Tools are organized by user type:
 
 <details>
 <summary><strong>Student Tools</strong> (click to expand)</summary>
@@ -123,7 +123,7 @@ Canvas MCP provides **99 tools** for interacting with Canvas LMS. Tools are orga
 
 ## Overview
 
-The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data through any MCP-compatible client.
+The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing role-specific workflows for students, educators, learning designers, and developers. Built on the Model Context Protocol (MCP), it is designed for MCP-compatible clients; setup and supported capabilities vary by client.
 
 ## Latest Release: v1.10.0
 
@@ -276,7 +276,7 @@ The HTTP/streamable transport itself remains fully supported for **self-hosting 
 
 - **Python 3.10+** - Required for modern features and type hints
 - **Canvas API Access** - API token and institution URL
-- **MCP Client** - Any MCP-compatible client (Claude Desktop, Cursor, Zed, Windsurf, Continue, etc.)
+- **MCP Client** - An MCP-compatible client (Claude Desktop, Cursor, Zed, Windsurf, Continue, etc.); setup and capabilities vary by client
 
 ### Supported MCP Clients
 
@@ -458,7 +458,7 @@ canvas-mcp-server
 
 ## Available Tools
 
-The Canvas MCP Server provides a comprehensive set of tools for interacting with the Canvas LMS API. These tools are organized into logical categories for better discoverability and maintainability.
+The Canvas MCP Server provides a set of tools for interacting with the Canvas LMS API. These tools are organized into logical categories for better discoverability and maintainability.
 
 ### Tool Categories
 
@@ -484,7 +484,7 @@ The Canvas MCP Server provides a comprehensive set of tools for interacting with
 9. **Discovery Tools** - Search registered MCP tools and code execution API operations with `search_canvas_tools`; list code execution modules with `list_code_api_modules`
 10. **Code Execution Tools** - Execute TypeScript code with `execute_typescript` so bulk item processing can stay out of the model's context
 
-📖 [View Full Tool Documentation](tools/README.md) for detailed information about all available tools.
+📖 [View Full Tool Documentation](tools/README.md) for detailed information about the available tools.
 
 ## Code Execution API
 
@@ -542,16 +542,16 @@ Quick start guides: [Student](examples/student_quickstart.md) | [Educator](examp
 
 ## Documentation
 
-- **[Tool Documentation](tools/README.md)** — Complete reference for all 99 tools
+- **[Tool Documentation](tools/README.md)** — Reference for the available tools, including optional feature-gated tools
 - **[Student Guide](https://canvas-mcp.illinihunt.org/student-guide.html)** — Getting started as a student
 - **[Educator Guide](https://canvas-mcp.illinihunt.org/educator-guide.html)** — FERPA considerations and educator workflows
-- **[Bulk Grading Example](examples/bulk_grading_example.md)** — Token-efficient batch grading walkthrough
+- **[Bulk Grading Example](examples/bulk_grading_example.md)** — Batch grading walkthrough
 - **[Development Guide](CLAUDE.md)** — Architecture and contributing
 
 <details>
 <summary>Technical details</summary>
 
-Built on **FastMCP** with async `httpx`, `pydantic` validation, and `python-dotenv` configuration. Modern `src/` layout with `pyproject.toml`. Full type hints, connection pooling, smart pagination, and rate limiting. 900+ tests. `ruff` + `black` for code quality.
+Built on **FastMCP** with async `httpx`, `pydantic` validation, and `python-dotenv` configuration. Modern `src/` layout with `pyproject.toml`, type hints across core paths, connection pooling, pagination, and rate limiting. An automated test suite and `ruff` + `black` support code quality.
 
 </details>
 
