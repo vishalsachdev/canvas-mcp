@@ -101,7 +101,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `bulk_grade_submissions` | Grade multiple submissions efficiently |
 | `send_conversation` | Message students. Exactly one plain numeric user ID sends immediately; **multiple recipients or any `course_*`/`group_*` alias are two calls** — preview + confirmation token first, then confirm with identical arguments |
 | `send_bulk_messages_from_list` | Templated bulk messaging. **Two calls:** the first returns a preview + confirmation token and sends nothing; show the preview to the educator, then call again with the token and identical arguments. The token is single-use and dies if any argument changed |
-| `send_peer_review_reminders` | Automated reminder workflow. **Two calls** (preview + confirm), like all multi-recipient sends; the follow-up campaign tool is gated the same way |
+| `send_peer_review_inbox_messages` | Send direct Canvas Inbox messages about incomplete peer reviews; this is not Canvas's native reminder action. Requires `manage_grades` permission and uses **two calls** (preview + confirm) |
 | `create_announcement` | Post course announcements |
 | `update_discussion_topic` | Edit discussion or announcement title/body and settings |
 

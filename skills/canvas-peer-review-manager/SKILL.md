@@ -98,7 +98,7 @@ Call `get_peer_review_followup_list` to get a prioritized list of students requi
 
 **Always use a dry run or review step before sending messages.**
 
-For targeted reminders, call `send_peer_review_reminders` with:
+For targeted direct Inbox messages, call `send_peer_review_inbox_messages` with:
 
 - `recipient_ids` -- list of Canvas user IDs from the analytics results
 - `custom_message` -- optional custom text (a default template is used if omitted)
@@ -172,7 +172,7 @@ Run step 9 with `output_format="csv"` and `anonymize_data=true` for a FERPA-safe
 | `analyze_peer_review_quality` | Quality metrics (scores, word counts, constructiveness) |
 | `identify_problematic_peer_reviews` | Flag low-quality or empty reviews |
 | `get_peer_review_followup_list` | Prioritized list of students needing follow-up |
-| `send_peer_review_reminders` | Send targeted reminder messages |
+| `send_peer_review_inbox_messages` | Send targeted direct Canvas Inbox messages |
 | `send_peer_review_followup_campaign` | Automated analytics-to-messaging pipeline |
 | `extract_peer_review_dataset` | Export data as CSV or JSON |
 | `generate_peer_review_feedback_report` | Quality-focused instructor report |
@@ -205,7 +205,7 @@ Run step 9 with `output_format="csv"` and `anonymize_data=true` for a FERPA-safe
 
 **User:** "Send reminders to the ones who haven't started"
 
-**Agent:** Confirms the 4 recipients, then calls `send_peer_review_reminders` with their user IDs.
+**Agent:** Confirms the 4 recipients, then calls `send_peer_review_inbox_messages` with their user IDs.
 
 **User:** "Now check if the completed reviews are any good"
 

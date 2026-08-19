@@ -93,7 +93,7 @@ After presenting the report, offer actionable next steps:
 
 > Would you like me to:
 > 1. Draft and send a message to struggling students (uses `send_conversation`)
-> 2. Send reminders about upcoming deadlines (uses `send_peer_review_reminders` or `send_conversation`)
+> 2. Send reminders about upcoming deadlines (uses `send_peer_review_inbox_messages` or `send_conversation`)
 > 3. Get detailed analytics for a specific assignment (uses `get_assignment_analytics`)
 > 4. Check another course
 

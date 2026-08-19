@@ -880,8 +880,11 @@ send.
 
 ---
 
-#### `send_peer_review_reminders`
-Automated peer review reminder workflow.
+#### `send_peer_review_inbox_messages`
+Send direct Canvas Inbox messages about incomplete peer reviews. This tool sends
+ordinary conversation messages; it does **not** invoke Canvas's native
+peer-review reminder action. It verifies the course-level `manage_grades`
+permission before preparing or sending a message.
 
 **Two-step by design.** Call it without a `confirmation_token` to get a preview
 (recipients, composed subject and body) plus a single-use token; call again
@@ -891,7 +894,7 @@ composed message changed (e.g. the assignment was renamed).
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `assignment_id`: Assignment ID
-- `user_ids`: Students to remind (array)
+- `recipient_ids`: Students to message (array)
 - `custom_message` (optional): Custom message template
 - `confirmation_token` (optional): Token from the preview call; omit to preview
 

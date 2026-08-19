@@ -99,7 +99,7 @@ ADDITIVE = {
     "send_bulk_messages_from_list",
     "send_conversation",
     "send_peer_review_followup_campaign",
-    "send_peer_review_reminders",
+    "send_peer_review_inbox_messages",
     "mark_conversations_read",
 }
 
@@ -136,7 +136,7 @@ NOT_IDEMPOTENT = {
     "send_bulk_messages_from_list",
     "send_conversation",
     "send_peer_review_followup_campaign",
-    "send_peer_review_reminders",
+    "send_peer_review_inbox_messages",
     # Default on_duplicate="rename" makes a NEW file on every call.
     "upload_course_file",
 }

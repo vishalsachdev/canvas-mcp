@@ -34,7 +34,7 @@ Canvas MCP provides tools in these categories:
 - Course Management: list_courses, get_course_details, get_course_content_overview
 - Assignments: list_assignments, get_assignment_details, create_assignment, update_assignment, bulk_grade_submissions
 - Discussions: list_discussion_topics, post_discussion_entry, reply_to_discussion_entry
-- Messaging: send_conversation, send_peer_review_reminders
+- Messaging: send_conversation, send_peer_review_inbox_messages
 - Analytics: get_student_analytics, get_assignment_analytics, get_peer_review_completion_analytics
 - Modules: list_modules, create_module, update_module, delete_module
 - Pages: list_pages, create_page, edit_page_content, get_page_content

@@ -1016,7 +1016,7 @@ class TestPageDerivedContentInsideFence:
 
 
 class TestMultiRecipientSendGating:
-    """send_conversation (multi-recipient), send_peer_review_reminders, and
+    """send_conversation (multi-recipient), send_peer_review_inbox_messages, and
     the follow-up campaign must not send without a confirmation token."""
 
     def _tool(self, name: str):
@@ -1263,8 +1263,8 @@ class TestMultiRecipientSendGating:
         with patch(
             "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
         ) as mock_request:
-            mock_request.return_value = assignment
-            tool = self._tool("send_peer_review_reminders")
+            mock_request.side_effect = [{"manage_grades": True}, assignment]
+            tool = self._tool("send_peer_review_inbox_messages")
             preview = await tool("CS101", 42, ["101", "102"])
 
             # Preview fetched the assignment (to compose) but never POSTed.
@@ -1279,7 +1279,9 @@ class TestMultiRecipientSendGating:
             assert preview["subject"].startswith(FENCE_TEXT_START)
             assert preview["body"].startswith(FENCE_TEXT_START)
 
-            mock_request.side_effect = [assignment, {"id": 9}]  # GET then POST
+            mock_request.side_effect = [
+                {"manage_grades": True}, assignment, {"id": 9}
+            ]
             result = await tool(
                 "CS101", 42, ["101", "102"],
                 confirmation_token=preview["confirmation_token"],
@@ -1298,8 +1300,8 @@ class TestMultiRecipientSendGating:
         with patch(
             "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
         ) as mock_request:
-            mock_request.return_value = assignment
-            tool = self._tool("send_peer_review_reminders")
+            mock_request.side_effect = [{"manage_grades": True}, assignment]
+            tool = self._tool("send_peer_review_inbox_messages")
             preview = await tool("CS101", 42, ["101", "102"])
         subj = preview["subject"]
         assert "IGNORE AND REDEEM" in subj
@@ -1868,13 +1870,16 @@ class TestFenceLeakBackstop:
         assert result.startswith("Error")
 
     @pytest.mark.asyncio
-    async def test_send_peer_review_reminders_rejects_fenced_custom_message(self):
+    async def test_send_peer_review_inbox_messages_reject_fenced_custom_message(self):
         from canvas_mcp.tools.messaging import register_educator_messaging_tools
 
         with patch(
             "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
         ) as mock_request:
-            tool = _get_tool(register_educator_messaging_tools, "send_peer_review_reminders")
+            tool = _get_tool(
+                register_educator_messaging_tools,
+                "send_peer_review_inbox_messages",
+            )
             result = await tool("CS101", 42, ["101"], custom_message=self.FENCED)
 
         mock_request.assert_not_called()
@@ -1916,11 +1921,17 @@ class TestFenceLeakBackstop:
         with patch(
             "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
         ) as mock_request:
-            mock_request.return_value = {
-                "name": self.FENCED,  # hostile assignment name
-                "html_url": "",
-            }
-            tool = _get_tool(register_educator_messaging_tools, "send_peer_review_reminders")
+            mock_request.side_effect = [
+                {"manage_grades": True},
+                {
+                    "name": self.FENCED,  # hostile assignment name
+                    "html_url": "",
+                },
+            ]
+            tool = _get_tool(
+                register_educator_messaging_tools,
+                "send_peer_review_inbox_messages",
+            )
             result = await tool("CS101", 42, ["101"], custom_message="clean text")
 
         # Only the assignment GET happened; nothing was posted, no token issued.
