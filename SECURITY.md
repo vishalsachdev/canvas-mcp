@@ -69,9 +69,9 @@ The Canvas MCP server includes code execution capabilities (`execute_typescript`
    - Be cautious of code that modifies grades, enrollments, or course settings
 
 2. **Execution Environment**
-   - Code executes locally in isolated temporary files
-   - Temporary files are automatically deleted after execution
-   - Environment variables are isolated (your Canvas token is still accessible)
+   - The wrapper writes code to a temporary file, then deletes that file after execution
+   - Environment variables are filtered, but the Canvas token remains accessible
+   - Local mode is not a complete filesystem or process isolation boundary; use external isolation for untrusted code
 
 3. **Timeout Protection**
    - Code execution has a 120-second timeout by default
@@ -80,18 +80,18 @@ The Canvas MCP server includes code execution capabilities (`execute_typescript`
 4. **What Code Execution Can Access**
    - Your Canvas API token (via environment variables)
    - Your Canvas instance (via API calls)
-   - Local filesystem (temporary directory only)
-   - Network (can make HTTP requests)
+   - Files and processes allowed by the server's operating-system account in local mode
+   - Network destinations reachable from the server; the built-in allowlist is best-effort and not a strict egress boundary (see [issue #157](https://github.com/vishalsachdev/canvas-mcp/issues/157))
 
-### Data Privacy & FERPA Compliance
+### Data Privacy & FERPA Considerations
 
 Canvas MCP includes built-in privacy features for educational data:
 
 1. **Data Anonymization**
    - Enable via `ENABLE_DATA_ANONYMIZATION=true` in `.env`
-   - Anonymizes student names and emails before AI processing
+   - Masks supported student identity fields before formatted tool output reaches the AI client
    - Preserves student IDs for functional operations
-   - Required for FERPA compliance when using AI tools
+   - Can reduce identity exposure, but does not by itself establish FERPA compliance
 
 2. **What Gets Anonymized**
    - Student names → Generic identifiers (Student A, Student B, etc.)
@@ -165,8 +165,8 @@ Canvas MCP includes several security features:
 
 5. **Privacy Protection**
    - Configurable data anonymization
-   - Student PII protection
-   - FERPA-compliant operation mode
+   - Optional masking of supported student identity fields
+   - Controls that can support FERPA-conscious operating practices
 
 ---
 
@@ -179,7 +179,7 @@ Canvas MCP includes several security features:
 
 2. **Code Execution Risks**
    - `execute_typescript` tool executes arbitrary code
-   - No sandboxing beyond temporary file isolation
+   - Local mode has resource and environment guardrails but no complete filesystem, process, or egress isolation boundary
    - User responsible for reviewing generated code
 
 3. **No Rate Limiting Control**
@@ -188,7 +188,7 @@ Canvas MCP includes several security features:
    - User responsible for bulk operation throttling
 
 4. **Token Scope**
-   - Canvas API tokens have full account access
+   - Canvas API tokens inherit the permissions of the Canvas account that created them
    - No way to limit token permissions via Canvas MCP
    - Use Canvas account permissions for access control
 
@@ -210,13 +210,13 @@ Future security enhancements under consideration:
 
 ## Compliance
 
-### FERPA Compliance
+### FERPA Considerations
 
-Canvas MCP can be configured for FERPA compliance:
+Canvas MCP provides technical controls that can support FERPA-regulated workflows. Compliance depends on the full institutional deployment and operating process:
 
 1. Enable data anonymization: `ENABLE_DATA_ANONYMIZATION=true`
 2. Review privacy settings before using AI tools
-3. Ensure your Canvas instance is FERPA-compliant
+3. Ensure your Canvas deployment and AI provider meet your institution's requirements
 4. Follow your institution's data handling policies
 
 ### Canvas API Terms of Service

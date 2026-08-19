@@ -719,7 +719,7 @@
     {
       "name": "execute_typescript",
       "category": "developer",
-      "description": "Execute TypeScript code for bulk operations with 99.7% token savings",
+      "description": "Execute TypeScript locally so bulk item processing can stay out of model context",
       "parameters": [
         {
           "name": "code",

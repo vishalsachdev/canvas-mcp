@@ -1,11 +1,11 @@
 ---
 name: canvas-accessibility-auditor
-description: Accessibility audit and remediation for Canvas LMS courses. Scans content for WCAG violations, generates prioritized reports, guides fixes, and verifies remediation. Use when asked to "audit accessibility", "check WCAG compliance", "fix accessibility issues", or "run accessibility review".
+description: Accessibility audit and remediation for Canvas LMS courses. Scans content for WCAG-oriented issues, generates prioritized reports, guides fixes, and verifies remediation. Use when asked to "audit accessibility", "check WCAG", "fix accessibility issues", or "run accessibility review".
 ---
 
 # Canvas Accessibility Auditor
 
-Full accessibility audit cycle for Learning Designers: scan course content, generate prioritized report, guide remediation of fixable issues, re-scan to verify fixes, produce compliance summary.
+Full accessibility audit cycle for Learning Designers: scan course content, generate a prioritized report, guide remediation of fixable issues, re-scan to verify fixes, and produce an accessibility review summary.
 
 ## Prerequisites
 
@@ -127,12 +127,12 @@ scan_course_content_accessibility(course_identifier, "pages")
 
 Report: "Fixed 8/12 issues. 4 remaining require manual review."
 
-### 6. Generate Compliance Summary
+### 6. Generate Accessibility Review Summary
 
 Produce a final summary suitable for stakeholder reporting:
 
 ```
-## Accessibility Compliance Summary
+## Accessibility Review Summary
 
 **Course:** [Course Name]
 **Audit Date:** [date]
@@ -143,7 +143,7 @@ Produce a final summary suitable for stakeholder reporting:
 - Automated issues found: 12
 - Issues remediated: 8
 - Issues requiring manual review: 4
-- WCAG Level A compliance: Partial (manual review items remain)
+- Automated WCAG-oriented checks: Partial pass (manual review items remain)
 
 ### Remediation Actions Taken
 - Added alt text to 5 images

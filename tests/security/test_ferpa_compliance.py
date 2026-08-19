@@ -1,8 +1,9 @@
 """
-FERPA Compliance Security Tests
+FERPA-Related Privacy Control Tests
 
-Tests for Family Educational Rights and Privacy Act compliance,
-focusing on student data protection and PII handling.
+Tests for privacy controls relevant to Family Educational Rights and Privacy
+Act workflows, focusing on student data protection and PII handling. Passing
+these tests does not establish institutional compliance.
 
 Test Coverage:
 - TC-1.1: PII Anonymization
@@ -174,7 +175,7 @@ class TestDataRetention:
 
 
 class TestComplianceFeatures:
-    """Test FERPA compliance features."""
+    """Test FERPA-related privacy controls."""
 
     def test_anonymization_config_option(self):
         """Verify anonymization can be enabled via configuration."""

@@ -89,7 +89,7 @@ The closed PRs matter too. Frank (Sallvainian) — bio: *"Vibe coding till I mak
 
 ## The Real Product
 
-Canvas-mcp started as 200 lines of Python to avoid clicking through Canvas. It's now 84 tools, 250+ tests, published on PyPI and the MCP Registry, with security hardening, FERPA compliance, and a CI/CD pipeline.
+Canvas-mcp started as 200 lines of Python to avoid clicking through Canvas. It's now 84 tools, 250+ tests, published on PyPI and the MCP Registry, with security hardening, privacy controls, and a CI/CD pipeline.
 
 But the real product isn't the code. It's the proof that a niche tool for a specific pain point, built honestly and maintained openly, can attract exactly the right people. Not thousands of drive-by stars — but professors who teach with Canvas, students who learn through Canvas, and developers who see what a well-structured MCP server looks like and want to contribute.
 

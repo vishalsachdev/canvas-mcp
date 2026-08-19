@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Canvas MCP - AI-Powered Canvas LMS Integration</title>
-    <meta name="description" content="Bridge AI assistants with Canvas LMS using the Model Context Protocol. 99 MCP tools for students and educators. Works with Claude, ChatGPT, and other AI clients. FERPA-compliant.">
+    <meta name="description" content="Bridge AI assistants with Canvas LMS using the Model Context Protocol. 99 MCP tools for students and educators, with optional privacy controls.">
     <meta name="keywords" content="Canvas LMS, MCP, Model Context Protocol, AI, Education, LMS Integration, Claude, ChatGPT, Cursor, Windsurf">
     <meta property="og:title" content="Canvas MCP - AI-Powered Canvas LMS Integration">
     <meta property="og:description" content="Bridge AI assistants with Canvas LMS using MCP. 99 tools for students and educators.">
@@ -47,7 +47,7 @@
         "downloadUrl": "https://github.com/vishalsachdev/canvas-mcp",
         "softwareVersion": "1.10.0",
         "license": "https://opensource.org/licenses/MIT",
-        "keywords": ["Canvas LMS", "MCP", "Model Context Protocol", "AI Education", "LMS Integration", "Claude", "ChatGPT", "Cursor", "FERPA Compliant"]
+        "keywords": ["Canvas LMS", "MCP", "Model Context Protocol", "AI Education", "LMS Integration", "Claude", "ChatGPT", "Cursor", "Data Anonymization"]
     }
     </script>
 
@@ -1723,12 +1723,12 @@
                         <div class="stat-label">MCP Tools</div>
                     </div>
                     <div class="stat">
-                        <div class="stat-value">99.7%</div>
-                        <div class="stat-label">Token Savings</div>
+                        <div class="stat-value">Local</div>
+                        <div class="stat-label">Bulk Processing</div>
                     </div>
                     <div class="stat">
-                        <div class="stat-value">FERPA</div>
-                        <div class="stat-label">Compliant</div>
+                        <div class="stat-value">Opt-in</div>
+                        <div class="stat-label">Anonymization</div>
                     </div>
                 </div>
             </div>
@@ -1740,24 +1740,24 @@
         <div class="container">
             <div class="section-header">
                 <div class="section-label">// Features</div>
-                <h2 class="section-title">Everything You Need for Canvas</h2>
+                <h2 class="section-title">Tools for Everyday Canvas Workflows</h2>
                 <p class="section-desc">Comprehensive tools designed for real educational workflows, from simple queries to complex bulk operations.</p>
             </div>
             <div class="features-grid">
                 <div class="feature-card animate-on-scroll">
                     <div class="feature-icon cyan">🎯</div>
                     <h3>Natural Language Interface</h3>
-                    <p>Ask questions like "What's due this week?" or "Which students haven't submitted?" and get instant answers from your Canvas data.</p>
+                    <p>Ask questions like "What's due this week?" or "Which students haven't submitted?" and get answers from your Canvas data.</p>
                 </div>
                 <div class="feature-card animate-on-scroll">
                     <div class="feature-icon blue">⚡</div>
                     <h3>Code Execution API</h3>
-                    <p>Execute custom TypeScript for bulk operations with 99.7% token savings. Grade 90 submissions without loading them into context.</p>
+                    <p>Process bulk operations locally without loading every item into the model’s context.</p>
                 </div>
                 <div class="feature-card animate-on-scroll">
                     <div class="feature-icon green">🔒</div>
                     <h3>Privacy-First Design</h3>
-                    <p>FERPA-compliant with automatic data anonymization. Student data is protected before it reaches AI systems.</p>
+                    <p>Optional data anonymization can reduce identity data before tool results reach your AI client. Compliance depends on your deployment and institutional policy.</p>
                 </div>
                 <div class="feature-card animate-on-scroll">
                     <div class="feature-icon orange">📊</div>
@@ -1772,7 +1772,7 @@
                 <div class="feature-card animate-on-scroll">
                     <div class="feature-icon blue">🎛️</div>
                     <h3>Role-Based Filtering</h3>
-                    <p>Set CANVAS_ROLE to student, educator, or admin to see only the tools relevant to you. Reduces noise and speeds up AI responses.</p>
+                    <p>Set CANVAS_ROLE to student, educator, or all to control which tool groups are registered and reduce tool-definition overhead.</p>
                 </div>
             </div>
         </div>
@@ -1784,7 +1784,7 @@
             <div class="section-header">
                 <div class="section-label">// For Everyone</div>
                 <h2 class="section-title">Built for Your Role</h2>
-                <p class="section-desc">Whether you're a student tracking assignments, an educator managing courses, or a learning designer building them, Canvas MCP has you covered.</p>
+                <p class="section-desc">Canvas MCP includes role-specific workflows for students, educators, and learning designers.</p>
             </div>
             <div class="user-grid">
                 <div class="user-card student animate-on-scroll">
@@ -1808,7 +1808,7 @@
                         <li>Assignment and grading management</li>
                         <li>Student analytics and tracking</li>
                         <li>Discussion facilitation</li>
-                        <li>FERPA-compliant data handling</li>
+                        <li>Optional data anonymization controls</li>
                         <li>File management and bulk messaging</li>
                     </ul>
                     <a href="educator-guide.html" class="btn btn-secondary">Educator Guide →</a>
@@ -1816,7 +1816,7 @@
                 <div class="user-card designer animate-on-scroll">
                     <div class="user-card-icon">🎨</div>
                     <h3>For Learning Designers</h3>
-                    <p>AI-powered course design, quality assurance, and accessibility compliance at scale.</p>
+                    <p>AI-powered course design, quality assurance, and WCAG-oriented accessibility review at scale.</p>
                     <ul class="user-features">
                         <li>Scaffold courses from specs or templates</li>
                         <li>Pre-semester quality audits</li>
@@ -1829,10 +1829,10 @@
                 <div class="user-card developer animate-on-scroll">
                     <div class="user-card-icon">💻</div>
                     <h3>For Developers</h3>
-                    <p>Leverage the code execution API for maximum efficiency with custom operations.</p>
+                    <p>Use the code execution API for custom bulk operations.</p>
                     <ul class="user-features">
                         <li>Execute TypeScript locally</li>
-                        <li>99.7% token savings on bulk ops</li>
+                        <li>Keep bulk item processing out of model context</li>
                         <li>Discover APIs with search tools</li>
                         <li>Build custom integrations</li>
                         <li>Concurrent processing with rate limits</li>
@@ -1849,23 +1849,23 @@
             <div class="code-grid">
                 <div class="code-content animate-on-scroll">
                     <div class="section-label">// Code Execution API</div>
-                    <h2>Bulk Operations,<br>Minimal Tokens</h2>
-                    <p>Traditional MCP tool calls load every submission into the model's context. Our code execution API processes data locally, returning only summaries.</p>
+                    <h2>Bulk Operations,<br>Less Context</h2>
+                    <p>Tool-by-tool workflows can return every submission to the model's context. The code execution API can process items locally and return selected output.</p>
 
                     <div class="savings-card">
                         <div class="savings-header">
-                            <span>Grading 90 Submissions</span>
-                            <span class="savings-badge">99.7% Reduction</span>
+                            <span>Bulk Workflow</span>
+                            <span class="savings-badge">Local Processing</span>
                         </div>
                         <div class="savings-comparison">
                             <div class="savings-item old">
-                                <div class="value">1.35M</div>
-                                <div class="label">Traditional</div>
+                                <div class="value">Per-item</div>
+                                <div class="label">Model Context</div>
                             </div>
                             <div class="savings-arrow">→</div>
                             <div class="savings-item new">
-                                <div class="value">3.5K</div>
-                                <div class="label">Code Exec</div>
+                                <div class="value">Summary</div>
+                                <div class="label">Returned</div>
                             </div>
                         </div>
                     </div>
@@ -1910,7 +1910,7 @@
             <div class="section-header">
                 <div class="section-label">// Get Started</div>
                 <h2 class="section-title">Get Started</h2>
-                <p class="section-desc">Install Canvas MCP locally and connect it to your MCP client — your Canvas credentials and student data never leave your machine.</p>
+                <p class="section-desc">Install Canvas MCP locally so the server and credentials stay in your environment. Tool results are still sent to your configured AI client under that client's data policies.</p>
             </div>
 
             <!-- Local Installation -->
@@ -1976,28 +1976,28 @@ canvas-mcp-server --test<br>
             <div class="section-header">
                 <div class="section-label">// Security</div>
                 <h2 class="section-title">Privacy-First Design</h2>
-                <p class="section-desc">Your data stays safe with local processing and FERPA-compliant anonymization.</p>
+                <p class="section-desc">Local deployment and optional anonymization provide privacy controls for FERPA-conscious workflows; your institution remains responsible for its configuration and compliance.</p>
             </div>
             <div class="privacy-grid">
                 <div class="privacy-card animate-on-scroll">
                     <div class="privacy-icon">🏠</div>
-                    <h3>Zero Credential Storage</h3>
-                    <p>Local mode runs on your machine. Hosted mode passes your credentials as HTTP headers per-request — nothing is stored on the server.</p>
+                    <h3>Local Credentials</h3>
+                    <p>Local mode reads your token from local configuration. Authenticated institutional deployments pass user credentials per request and do not persist them in Canvas MCP.</p>
                 </div>
                 <div class="privacy-card animate-on-scroll">
                     <div class="privacy-icon">🔐</div>
-                    <h3>FERPA Compliant</h3>
-                    <p>Automatic student data anonymization for educators. Real names converted to anonymous IDs.</p>
+                    <h3>Optional Anonymization</h3>
+                    <p>Educators can enable identity masking before supported tool results reach the AI client. Review the documented scope before relying on it.</p>
                 </div>
                 <div class="privacy-card animate-on-scroll">
                     <div class="privacy-icon">👤</div>
-                    <h3>Self-Only Access</h3>
-                    <p>Students can only access their own data through Canvas API's "self" endpoints.</p>
+                    <h3>Canvas-Scoped Access</h3>
+                    <p>Student-specific tools use Canvas's "self" endpoints. Shared course content follows the permissions Canvas grants each account.</p>
                 </div>
                 <div class="privacy-card animate-on-scroll">
                     <div class="privacy-icon">🚫</div>
-                    <h3>No Tracking</h3>
-                    <p>Your Canvas usage and AI interactions remain completely private.</p>
+                    <h3>No Built-in Telemetry</h3>
+                    <p>Canvas MCP does not add product analytics. Canvas, your MCP client, and your AI provider may still retain their own logs.</p>
                 </div>
             </div>
             <div class="institution-callout animate-on-scroll">
@@ -2115,7 +2115,7 @@ canvas-mcp-server --test<br>
                 <div class="skill-card designer animate-on-scroll">
                     <div class="feature-icon" style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(103, 232, 249, 0.1)); margin-bottom: 24px;">♿</div>
                     <h3>canvas-accessibility-auditor</h3>
-                    <p>WCAG compliance workflow. Scans content, generates prioritized reports, guides remediation, and verifies fixes.</p>
+                    <p>WCAG-oriented review workflow. Scans content, generates prioritized reports, guides remediation, and verifies fixes.</p>
                     <div class="skill-try">
                         <strong>Try:</strong> "audit accessibility for BADM 350"
                     </div>
@@ -2145,7 +2145,7 @@ canvas-mcp-server --test<br>
             <div class="section-header">
                 <div class="section-label">// Compatibility</div>
                 <h2 class="section-title">Works with Your Favorite Tools</h2>
-                <p class="section-desc">Canvas MCP works with any MCP-compatible client — these are just the ones people ask about most.</p>
+                <p class="section-desc">Canvas MCP is designed for MCP-compatible clients; setup details and supported capabilities vary by client.</p>
             </div>
             <div class="clients-grid">
                 <div class="client-badge animate-on-scroll">

@@ -1,8 +1,9 @@
 """
 Data anonymization utilities for Canvas MCP server.
 
-This module provides functions to anonymize student data before sending
-to AI systems, ensuring FERPA compliance and student privacy protection.
+This module provides functions to mask supported student identity fields
+before tool results reach an AI client. This control can support institutional
+privacy practices but does not by itself establish FERPA compliance.
 """
 
 import hashlib

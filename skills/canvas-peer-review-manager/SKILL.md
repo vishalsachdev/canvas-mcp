@@ -12,7 +12,7 @@ A complete peer review management workflow for educators using Canvas LMS. Monit
 - **Canvas MCP server** must be running and connected to the agent's MCP client (e.g., Claude Code, Cursor, Codex, OpenCode).
 - The authenticated user must have an **educator or instructor role** in the target Canvas course.
 - The assignment must have **peer reviews enabled** in Canvas (either manual or automatic assignment).
-- **FERPA compliance**: Set `ENABLE_DATA_ANONYMIZATION=true` in the Canvas MCP server environment to anonymize student names. When enabled, names render as `Student_xxxxxxxx` hashes while preserving functional user IDs for messaging.
+- **FERPA-conscious handling**: Set `ENABLE_DATA_ANONYMIZATION=true` in the Canvas MCP server environment to anonymize supported student identity fields. When enabled, names render as `Student_xxxxxxxx` hashes while preserving functional user IDs for messaging. This control does not by itself establish compliance.
 
 ## Steps
 
@@ -136,7 +136,7 @@ Call `generate_peer_review_feedback_report` for a formatted, shareable report:
 - `report_type="comprehensive"` -- full analysis with samples of low-quality reviews
 - `report_type="summary"` -- executive overview only
 - `report_type="individual"` -- per-student breakdown
-- `include_student_names=false` -- recommended for FERPA compliance
+- `include_student_names=false` -- recommended for privacy-conscious reporting
 
 For a completion-focused report (rather than quality-focused), use `generate_peer_review_report` with options for executive summary, student details, action items, and timeline analysis. This report can be saved to a file with `save_to_file=true`.
 
@@ -158,7 +158,7 @@ Run steps 1-2 to identify incomplete reviewers, then step 8. Always confirm the 
 Run steps 2, 5, 6, and 10. Combine completion analytics with quality analysis into a comprehensive instructor report.
 
 **"Export everything for my records"**
-Run step 9 with `output_format="csv"` and `anonymize_data=true` for a FERPA-safe dataset.
+Run step 9 with `output_format="csv"` and `anonymize_data=true` for a privacy-conscious dataset.
 
 ## MCP Tools Used
 
@@ -217,7 +217,7 @@ Run step 9 with `output_format="csv"` and `anonymize_data=true` for a FERPA-safe
 - **Use dry runs** -- When testing workflows, start with a single recipient or confirm the output of analytics tools before acting on the data.
 - **Anonymize by default** -- Use `anonymize_students=true` or `anonymize_data=true` when reviewing data in shared contexts.
 - **Respect rate limits** -- The Canvas API allows roughly 700 requests per 10 minutes. For large courses, the messaging tools send messages sequentially with built-in delays.
-- **FERPA compliance** -- Never display student names in logs, shared screens, or exported files unless the instructor has explicitly confirmed the context is appropriate.
+- **FERPA-conscious handling** -- Never display student names in logs, shared screens, or exported files unless the instructor has explicitly confirmed the context is appropriate.
 
 ## Notes
 
