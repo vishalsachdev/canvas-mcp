@@ -104,7 +104,7 @@ Canvas MCP provides **99 tools** for interacting with Canvas LMS. Tools are orga
 
 | Tool | Purpose | When to Use |
 |------|---------|-------------|
-| `search_canvas_tools` | Discover code API operations | Finding available bulk ops |
+| `search_canvas_tools` | Discover MCP tools and code API operations | Finding available tools and bulk ops |
 | `execute_typescript` | Run TypeScript locally | 30+ items, custom logic, 99.7% token savings |
 
 **Decision tree:** Simple query → MCP tools. Batch grading (10+) → `bulk_grade_submissions`. Complex bulk (30+) → `execute_typescript`.
@@ -260,7 +260,7 @@ All student data is anonymized **before** it reaches AI systems. See [Educator G
 ### For Students: Your Data Stays Private
 
 - **Your data only**: Student tools access only your own Canvas data via Canvas API's "self" endpoints
-- **No credential storage**: In hosted mode, your Canvas token is sent as an HTTP header per-request and never stored on the server. In local mode, everything runs on your machine.
+- **No shared-server credential storage**: Local mode reads your Canvas token from your own `.env`. In authenticated institutional HTTP deployments, each request supplies the user's Canvas token and the server does not store it.
 - **No tracking**: Your Canvas usage and AI interactions remain private
 - **No anonymization needed**: Since you're only accessing your own data, there are no privacy concerns
 
@@ -481,7 +481,7 @@ The Canvas MCP Server provides a comprehensive set of tools for interacting with
 8. **Messaging Tools** - Send messages and announcements to students
 
 **Developer Tools**
-9. **Discovery Tools** - Search and explore available code execution API operations with `search_canvas_tools` and `list_code_api_modules`
+9. **Discovery Tools** - Search registered MCP tools and code execution API operations with `search_canvas_tools`; list code execution modules with `list_code_api_modules`
 10. **Code Execution Tools** - Execute TypeScript code with `execute_typescript` for token-efficient bulk operations (99.7% token savings!)
 
 📖 [View Full Tool Documentation](tools/README.md) for detailed information about all available tools.

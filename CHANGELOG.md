@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** `send_peer_review_reminders` is now
+  `send_peer_review_inbox_messages` to accurately describe that it sends
+  ordinary Canvas Inbox messages rather than invoking Canvas's native reminder
+  action. The tool now resolves the course and requires `manage_grades` before
+  previewing or sending, failing closed when permission cannot be verified
+  ([issue 303](https://github.com/vishalsachdev/canvas-mcp/issues/303)).
+
 ### Fixed
 
 - Tool failures now set MCP `isError: true` while preserving their existing
