@@ -102,7 +102,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `send_conversation` | Message students. Exactly one plain numeric user ID sends immediately; **multiple recipients or any `course_*`/`group_*` alias are two calls** — preview + confirmation token first, then confirm with identical arguments |
 | `send_bulk_messages_from_list` | Templated bulk messaging. **Two calls:** the first returns a preview + confirmation token and sends nothing; show the preview to the educator, then call again with the token and identical arguments. The token is single-use and dies if any argument changed |
 | `send_peer_review_inbox_messages` | Send direct Canvas Inbox messages about incomplete peer reviews; this is not Canvas's native reminder action. Requires `manage_grades` permission and uses **two calls** (preview + confirm) |
-| `create_announcement` | Post course announcements |
+| `create_announcement` | Post course announcements. Pre-checks Canvas's announcement permission; if Canvas silently creates a discussion instead, the tool deletes that unintended topic and reports failure (or warns if cleanup cannot be confirmed) |
 | `update_discussion_topic` | Edit discussion or announcement title/body and settings |
 
 ### Untrusted Canvas content is fenced
@@ -341,6 +341,13 @@ search_canvas_tools("grading", "signatures")  → Find grading tools (both kinds
 search_canvas_tools("", "names")              → List all tools
 search_canvas_tools("bulk", "full")           → Full details on bulk ops
 ```
+
+`search_canvas_tools` returns response schema version `2`. Successful searches
+use separate `mcp_tools` and `code_execution_api` sections, each with its own
+`count` and `tools` array. The pre-v1.10 flat top-level `tools` key was removed;
+scripted clients should branch on `schema_version` instead of assuming the old
+shape. A no-match response still carries `schema_version: 2` but reports the
+message and number of MCP tools searched rather than empty result sections.
 
 ### Static Discovery
 See `/tools/TOOL_MANIFEST.json` for machine-readable tool catalog.

@@ -937,7 +937,13 @@ With a valid token: per-recipient success/failure summary of sent messages.
 ---
 
 #### `create_announcement`
-Post course announcements.
+Post course announcements. Before posting, the tool checks the course's
+announcement permission and refuses on an explicit denial. Canvas can
+occasionally accept the request but create a regular discussion instead; the
+tool verifies the returned type, deletes that unintended topic automatically,
+and reports failure. If cleanup cannot be confirmed, the response includes the
+topic ID when Canvas returned one and tells the user to check the course and
+remove the unintended topic. It never falls back to a discussion post.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
@@ -1890,7 +1896,7 @@ description.
 - `detail_level` (optional): How much information to return. Default: "signatures"
   - `"names"`: Just tool names / file paths (most efficient for quick lookups)
   - `"signatures"`: Names/paths + short descriptions + function signatures (recommended)
-  - `"full"`: Fuller descriptions for MCP tools (capped length) and complete file contents for code API modules
+  - `"full"`: Fuller descriptions for MCP tools (capped length) and code API file content capped at 2,000 characters per match
 
 **Example:**
 ```
@@ -1901,9 +1907,13 @@ description.
 "Find discussion-related operations"
 ```
 
-**Returns:** JSON with `query`, `detail_level`, `count`, and two labeled
-sections — `mcp_tools` (registered MCP tools) and `code_execution_api`
-(TypeScript code API modules) — each with its own `count` and `tools` array.
+**Returns:** Response schema version `2`. A successful search returns JSON with
+`schema_version`, `query`, `detail_level`, `count`, and two labeled sections —
+`mcp_tools` (registered MCP tools) and `code_execution_api` (TypeScript code API
+modules) — each with its own `count` and `tools` array. The pre-v1.10 flat
+top-level `tools` key no longer exists; scripted clients should branch on
+`schema_version`. A no-match response still includes `schema_version: 2` and
+reports the message plus `mcp_tools_searched` instead of empty result sections.
 
 **Usage Tips:**
 - Use empty query (`""`) to list all available tools
