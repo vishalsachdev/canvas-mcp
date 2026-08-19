@@ -145,3 +145,39 @@ async def test_explicit_string_schema_is_respected_and_legacy_wrapper_errors():
     assert tools["explicit_text"].outputSchema["x-fastmcp-wrap-result"] is True
     assert result.structured_content == {"result": "Error: explicit schema failure"}
     assert result.is_error is True
+
+
+@pytest.mark.asyncio
+async def test_register_all_tools_marks_existing_validation_failure_as_mcp_error():
+    from canvas_mcp.server import register_all_tools
+
+    mcp = FastMCP("full-contract")
+    register_all_tools(mcp, role="all")
+
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "get_syllabus",
+            {
+                "course_identifier": 60366,
+                "output_format": "text",
+                "max_chars": 0,
+            },
+            raise_on_error=False,
+        )
+
+    assert result.is_error is True
+    assert getattr(result.content[0], "text", "").startswith("Error: max_chars")
+
+
+@pytest.mark.asyncio
+async def test_full_registry_suppresses_only_string_output_schemas():
+    from canvas_mcp.server import register_all_tools
+
+    mcp = FastMCP("full-schema-contract")
+    register_all_tools(mcp, role="all")
+    tools = {tool.name: tool for tool in await mcp.list_tools(run_middleware=False)}
+
+    string_tools = [tool for tool in tools.values() if tool.return_type is str]
+    assert string_tools
+    assert all(tool.output_schema is None for tool in string_tools)
+    assert tools["list_conversations"].output_schema is not None
