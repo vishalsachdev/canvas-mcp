@@ -71,7 +71,7 @@ Have I submitted all assignments for Biology 205?
 - **Be specific**: Mention course names or codes when relevant
 - **Use natural language**: Just ask like you would ask a friend
 - **Check regularly**: Make it part of your weekly routine
-- **Privacy**: Your data stays on your machine - Canvas MCP never sends it elsewhere
+- **Privacy**: The server runs locally, but tool results are sent to your configured AI client; review that provider's data policy
 
 ## Common Workflows
 

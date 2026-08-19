@@ -172,9 +172,9 @@ To see fresh data immediately:
 ENABLE_DATA_ANONYMIZATION=true
 ```
 
-This is for FERPA compliance. Student data is anonymized before reaching Claude.
+This supports FERPA-conscious workflows by reducing identity data before tool output reaches the AI client. It does not by itself establish compliance.
 
-**To disable** (only if you don't need FERPA compliance):
+**To disable** (only after reviewing your institution's privacy requirements):
 ```bash
 ENABLE_DATA_ANONYMIZATION=false
 ```
@@ -214,7 +214,7 @@ Use:
 Use the bulk grading code API to grade all submissions for Assignment 5
 ```
 
-This is **99.7% more efficient** for large datasets!
+This keeps per-item processing out of the model's context; actual token use depends on the workload and selected output.
 
 ### "AI assistant seems to get confused with lots of data"
 

@@ -1,6 +1,6 @@
 # Example: Bulk Grading Jupyter Notebooks
 
-This example demonstrates the **99.7% token savings** achieved by using the code execution API for bulk grading operations.
+This example demonstrates how the code execution API can keep per-submission processing out of the model's context.
 
 ## Scenario
 
@@ -9,7 +9,7 @@ Grade 90 Jupyter notebook submissions for Assignment 123.
 - Award 0 points if notebook has errors
 - Skip submissions without notebooks
 
-## Traditional Approach (1.35M tokens ❌)
+## Traditional Approach (high context use)
 
 ### The Problem
 
@@ -19,7 +19,7 @@ const submissions = await list_submissions({
   courseIdentifier: "60366",
   assignmentId: "123"
 });
-// → 90 submissions × 15K tokens each = 1.35M tokens!
+// Each returned submission consumes model context.
 
 // Process each one (more tokens!)
 for (const sub of submissions) {
@@ -40,12 +40,12 @@ for (const sub of submissions) {
 ### Why This Is Inefficient
 
 - ❌ All 90 submissions loaded into Claude's context
-- ❌ ~1.35M tokens consumed
-- ❌ Slow execution (sequential processing)
+- ❌ Context use grows with the returned submission data
+- ❌ This example processes submissions sequentially
 - ❌ Risk of hitting token limits
-- ❌ Expensive for large classes
+- ❌ Model cost grows with payload size and the selected model
 
-## Code Execution Approach (3.5K tokens ✅)
+## Code Execution Approach (lower context use)
 
 ### The Solution
 
@@ -56,8 +56,8 @@ await bulkGrade({
   courseIdentifier: "60366",
   assignmentId: "123",
   gradingFunction: (submission) => {
-    // ⭐ This function runs LOCALLY in execution environment
-    // ⭐ Submissions never enter Claude's context!
+    // ⭐ Process bulk operations locally without loading every item
+    //    into the model's context; only selected output is returned.
 
     const notebook = submission.attachments?.find(
       f => f.filename.endsWith('.ipynb')
@@ -128,21 +128,20 @@ First 5 results:
 
 ### Why This Is Efficient
 
-- ✅ Only ~3.5K tokens total (99.7% reduction!)
+- ✅ Only selected output needs to return to the model
 - ✅ Data processed locally in execution environment
-- ✅ Faster execution (can process concurrently)
-- ✅ No token limit concerns
-- ✅ Scales to 1000+ submissions easily
+- ✅ Supported operations can process concurrently
+- ✅ Less per-item pressure on the model's context window
+- ✅ Scale remains subject to Canvas rate limits and local resources
 
 ## Token Comparison
 
-| Metric | Traditional | Code Execution | Savings |
-|--------|-------------|----------------|---------|
-| Token Usage | 1.35M | 3.5K | **99.7%** |
-| Data Location | Claude's context | Execution environment | Local |
-| Processing Speed | Slow (sequential) | Fast (concurrent) | 10x+ |
-| Max Submissions | ~100 (token limits) | Unlimited | ∞ |
-| Cost (approximate) | High | Minimal | ~$0.02 vs ~$5 |
+| Metric | Traditional | Code Execution |
+|--------|-------------|----------------|
+| Model Context | May receive each submission and result | Receives code and selected output |
+| Item Processing | Orchestrated through tool calls | Local execution environment |
+| Concurrency | Depends on client orchestration | Available in supported bulk operations |
+| Scale | Bound by client context and tool-call overhead | Bound by Canvas rate limits and local resources |
 
 ## Advanced Example: Custom Analysis
 
@@ -275,15 +274,15 @@ const rubric = await search_canvas_tools("list_assignment_rubrics", "full");
 
 ## Summary
 
-The code execution API transforms bulk grading from a token-intensive operation into an efficient, scalable workflow:
+The code execution API can reduce model-context pressure by keeping per-item work local:
 
-- **Traditional**: Load everything into context → Expensive, slow, limited
-- **Code Execution**: Process locally → Cheap, fast, unlimited
+- **Traditional**: Tool-by-tool processing may return each item to the model
+- **Code Execution**: Process items locally and return only selected output
 
-This pattern works for **any** bulk operation:
+This pattern can support many bulk operations:
 - Grading submissions
 - Sending messages to multiple students
 - Analyzing discussion participation
 - Generating reports
 
-**Result**: 99.7% token savings + faster execution + better scalability 🎉
+**Result**: Lower context use for suitable bulk workflows; actual savings and speed vary by workload and client.
