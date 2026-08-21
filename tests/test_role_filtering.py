@@ -71,6 +71,8 @@ EDUCATOR_ONLY_SAMPLE = {
     "create_assignment",
     "update_assignment",
     "bulk_grade_submissions",
+    "create_content_migration",
+    "get_content_migration_status",
     "create_announcement",
     "create_module",
     "upload_course_file",
