@@ -65,12 +65,12 @@
                 <main class="doc-content">
                     <section id="what-can-it-do">
                         <h2>What Can Canvas MCP Do for You?</h2>
-                        <p>Think of this as having an AI study buddy that knows everything about your Canvas courses:</p>
+                        <p>Think of this as an AI study assistant that can use the Canvas information available to your account:</p>
 
                         <div class="feature-grid">
                             <div class="feature-item">
                                 <h4>🎯 Track Assignments</h4>
-                                <p>"What's due this week?" - Get a complete view of deadlines across all courses.</p>
+                                <p>"What's due this week?" - View upcoming deadlines across your enrolled courses.</p>
                             </div>
                             <div class="feature-item">
                                 <h4>📊 Monitor Grades</h4>
@@ -78,7 +78,7 @@
                             </div>
                             <div class="feature-item">
                                 <h4>👥 Manage Peer Reviews</h4>
-                                <p>"What peer reviews do I need?" - Never miss a review deadline.</p>
+                                <p>"What peer reviews do I need?" - Keep review deadlines visible.</p>
                             </div>
                             <div class="feature-item">
                                 <h4>📖 Access Content</h4>
@@ -91,7 +91,7 @@
                         <h2>Prerequisites</h2>
                         <ul>
                             <li><strong>Python 3.10+</strong> installed on your computer</li>
-                            <li><strong>An MCP client</strong> &mdash; whichever AI assistant you already use. Claude Desktop, Claude Code, ChatGPT, Cursor, VS Code, Zed, Windsurf and Continue all work; see <a href="index.html#clients">supported clients</a>.</li>
+                            <li><strong>An MCP client</strong> &mdash; commonly used options include Claude Desktop, Claude Code, ChatGPT, Cursor, VS Code, Zed, Windsurf, and Continue; setup and capabilities vary, so see <a href="index.html#clients">supported clients</a>.</li>
                             <li><strong>Canvas Account</strong> at your university/institution</li>
                         </ul>
                     </section>
@@ -259,12 +259,12 @@ ENABLE_DATA_ANONYMIZATION=false</code></pre>
                     <section id="privacy">
                         <h2>Privacy & Security</h2>
 
-                        <h3>Your Data Stays Private</h3>
+                        <h3>Data Scope &amp; Privacy</h3>
                         <ul>
-                            <li><strong>Local only:</strong> Everything runs on your computer</li>
-                            <li><strong>Your data only:</strong> Tools access only YOUR Canvas data (not other students')</li>
-                            <li><strong>No external servers:</strong> No data sent anywhere except Canvas (via official API)</li>
-                            <li><strong>Canvas API security:</strong> Uses the same security as Canvas mobile app</li>
+                            <li><strong>Local server:</strong> Canvas MCP can run on your computer, while tool results are still sent to your configured AI client</li>
+                            <li><strong>Canvas-scoped access:</strong> Student-specific tools use your own records; shared course content follows the permissions Canvas grants your account</li>
+                            <li><strong>No built-in telemetry:</strong> Canvas MCP does not add product analytics; Canvas and your AI provider may retain their own logs</li>
+                            <li><strong>Canvas permissions:</strong> Requests use your Canvas API token and cannot exceed that token's Canvas permissions</li>
                         </ul>
 
                         <h3>Best Practices</h3>

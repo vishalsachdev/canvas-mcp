@@ -421,3 +421,8 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
   `delete_announcement`; `ID: None` interpolation); (3) awaiting Mark Reynolds's hosted-test
   results / review-side feedback (see `[[umich-adoption-illinois-review]]` memory);
   (4) Codex credits still out — opencode (deep) + devin (quick) until refilled.
+
+### 2026-08-19 — marketing-claim review, PR #310, and README follow-up
+
+- Completed: Tempered unsupported performance, privacy, compliance, sandbox, and client-compatibility claims across the public documentation and website. PR #310 landed in `main`, and the refreshed Cloudflare Pages production deployment was verified on both the Pages URL and custom domain. Follow-up README clarifications (tool-count scope, client variability, and stale test-count wording) are committed as `b3a3475` on `docs/temper-marketing-claims`.
+- Next: Open and merge a follow-up pull request for `b3a3475` if the README clarifications should land on `main`.

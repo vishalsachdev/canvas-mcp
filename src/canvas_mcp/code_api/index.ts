@@ -5,9 +5,9 @@
  * locally in the execution environment rather than loading all data
  * into Claude's context.
  *
- * Token savings example:
- * - Traditional: 90 submissions × 15K tokens = 1.35M tokens
- * - Code execution: ~3.5K tokens (99.7% savings!)
+ * This can reduce model-context use because per-item processing stays in the
+ * local execution environment. Actual savings depend on the workload and
+ * selected output.
  *
  * @example
  * ```typescript

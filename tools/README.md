@@ -546,9 +546,9 @@ Grade a student submission using a rubric.
 ---
 
 #### `bulk_grade_submissions`
-Grade multiple submissions efficiently with concurrent processing. **Most efficient way for bulk grading!**
+Grade multiple submissions concurrently.
 
-**IMPORTANT:** This tool provides significant token savings by processing submissions in batches without loading all data into context.
+**Context use:** Process bulk operations locally without loading every item into the model's context. Actual savings depend on the workload and selected output.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
@@ -596,7 +596,7 @@ Grade multiple submissions efficiently with concurrent processing. **Most effici
 - Can mix and match grading styles for different students
 - Automatically validates rubric configuration before grading
 - Use `dry_run=true` to preview grades before applying
-- For maximum token efficiency with custom grading logic, consider using the `execute_typescript` tool with `bulkGrade` from the code execution API
+- For custom bulk grading logic that can return selected output, consider `execute_typescript` with `bulkGrade` from the code execution API
 
 ---
 
@@ -1964,7 +1964,7 @@ List all available TypeScript modules in the code execution API.
 #### `execute_typescript`
 Execute TypeScript code in a Node.js environment with access to Canvas API credentials.
 
-**IMPORTANT:** This tool enables **99.7% token savings** for bulk operations by executing code locally rather than loading all data into Claude's context!
+This tool can reduce model-context use by processing bulk items locally and returning only selected output. Actual savings depend on the workload and AI client.
 
 **Parameters:**
 - `code`: TypeScript code to execute. Can import from './canvas/*' modules.
@@ -2011,10 +2011,11 @@ await bulkGrade({
 - Code runs in a temporary file that is deleted after execution
 - Inherits Canvas API credentials from server environment
 - Timeout enforced to prevent runaway processes
+- Local sandbox controls are best-effort, not a complete security boundary; code can access resources allowed to the server process, and strict egress control requires external isolation (see [issue #157](https://github.com/vishalsachdev/canvas-mcp/issues/157))
 
 **Token Efficiency:**
-- **Traditional approach**: Loads all submissions into context (1.35M tokens for 90 submissions)
-- **Code execution approach**: Only summary results return (3.5K tokens = 99.7% savings!)
+- **Traditional approach**: Tool-by-tool processing may return each submission to the model
+- **Code execution approach**: Per-item work runs locally and only selected output returns
 
 **Usage Tips:**
 - First use `search_canvas_tools` or `list_code_api_modules` to discover available operations
@@ -2036,7 +2037,7 @@ await bulkGrade({
 
 ### For Educators
 
-1. **Enable anonymization**: Set `ENABLE_DATA_ANONYMIZATION=true` in `.env` for FERPA compliance
+1. **Enable anonymization**: Set `ENABLE_DATA_ANONYMIZATION=true` in `.env` for FERPA-conscious data handling; this control does not by itself establish compliance
 2. **Use course codes**: Be specific about which course (e.g., "badm_350_120251_246794")
 3. **Leverage automation**: Use messaging and reminder tools for routine communications
 4. **Combine analytics**: Request multiple analytics in one query for comprehensive insights

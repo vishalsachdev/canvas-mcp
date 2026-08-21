@@ -573,4 +573,4 @@ Four reports arriving within ~40 minutes on 2026-08-03 — three from a first-ti
 
 ## [1.0.4]
 
-- Code Execution API (99.7% token savings), Bulk Operations, MCP 2.14 compliance
+- Code Execution API for token-efficient bulk operations, MCP 2.14 compliance

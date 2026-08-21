@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Educator Guide - Canvas MCP</title>
-    <meta name="description" content="Learn how to use Canvas MCP as an educator for FERPA-compliant course management, grading, analytics, and student communication.">
+    <meta name="description" content="Learn how to use Canvas MCP as an educator for privacy-conscious course management, grading, analytics, and student communication.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -41,7 +41,7 @@
                 <div class="doc-header-content">
                     <span class="doc-badge educator">👨‍🏫 Educator Guide</span>
                     <h1>Canvas MCP for Educators</h1>
-                    <p>AI-powered course management with FERPA-compliant data handling. Track submissions, grade efficiently, and communicate with students.</p>
+                    <p>AI-powered course management with optional privacy controls. Track submissions, grade efficiently, and communicate with students.</p>
                 </div>
             </div>
         </header>
@@ -53,7 +53,7 @@
                         <li><a href="#what-can-it-do">What Can It Do?</a></li>
                         <li><a href="#prerequisites">Prerequisites</a></li>
                         <li><a href="#installation">Installation</a></li>
-                        <li><a href="#ferpa">FERPA Compliance</a></li>
+                        <li><a href="#ferpa">FERPA &amp; Privacy</a></li>
                         <li><a href="#how-to-use">How to Use</a></li>
                         <li><a href="#available-tools">Available Tools</a></li>
                         <li><a href="#workflows">Example Workflows</a></li>
@@ -99,7 +99,7 @@
                         <h2>Prerequisites</h2>
                         <ul>
                             <li><strong>Python 3.10+</strong> installed on your computer</li>
-                            <li><strong>An MCP client</strong> &mdash; whichever AI assistant you already use. Claude Desktop, Claude Code, ChatGPT, Cursor, VS Code, Zed, Windsurf and Continue all work; see <a href="index.html#clients">supported clients</a>.</li>
+                            <li><strong>An MCP client</strong> &mdash; commonly used options include Claude Desktop, Claude Code, ChatGPT, Cursor, VS Code, Zed, Windsurf, and Continue; setup and capabilities vary, so see <a href="index.html#clients">supported clients</a>.</li>
                             <li><strong>Canvas Account</strong> with instructor/TA permissions</li>
                         </ul>
                     </section>
@@ -141,13 +141,13 @@ pip install -e .</code></pre>
 CANVAS_API_TOKEN=your_token_here
 CANVAS_API_URL=https://canvas.youruniversity.edu
 
-<span class="code-comment"># Privacy Settings (IMPORTANT for FERPA compliance)</span>
+<span class="code-comment"># Privacy Settings (IMPORTANT for FERPA-conscious workflows)</span>
 ENABLE_DATA_ANONYMIZATION=true
 ANONYMIZATION_DEBUG=false</code></pre>
 
                         <div class="info-box important">
                             <div class="info-box-title">⚠️ Important</div>
-                            <p>Set <code>ENABLE_DATA_ANONYMIZATION=true</code> for FERPA-compliant student data handling. This anonymizes student names before AI processing.</p>
+                            <p>Set <code>ENABLE_DATA_ANONYMIZATION=true</code> to reduce identity data in supported tool results before they reach the AI client. This can support FERPA-conscious workflows, but it does not by itself establish compliance.</p>
                         </div>
 
                         <h3>4. Connect Your MCP Client</h3>
@@ -169,7 +169,9 @@ canvas-mcp-server --config</code></pre>
                     </section>
 
                     <section id="ferpa">
-                        <h2>FERPA Compliance & Privacy</h2>
+                        <h2>FERPA & Privacy Considerations</h2>
+
+                        <p>Canvas MCP provides technical privacy controls. Your institution remains responsible for approving the deployment, configuration, AI provider, access controls, retention, and operating practices required for compliance.</p>
 
                         <h3>How Data Anonymization Works</h3>
                         <p>When <code>ENABLE_DATA_ANONYMIZATION=true</code> is set, Canvas MCP automatically:</p>
@@ -177,7 +179,7 @@ canvas-mcp-server --config</code></pre>
                         <ol>
                             <li><strong>Converts student names</strong> to anonymous IDs (e.g., "John Smith" → "Student_abc123")</li>
                             <li><strong>Masks email addresses</strong> (e.g., "john@university.edu" → "student_abc123@masked")</li>
-                            <li><strong>Filters PII</strong> from discussion posts and submissions</li>
+                            <li><strong>Masks supported PII patterns</strong> in discussion posts and submissions</li>
                             <li><strong>Maintains consistency</strong> - same student always gets the same anonymous ID</li>
                             <li><strong>Preserves relationships</strong> - you can still identify patterns and trends</li>
                         </ol>
@@ -193,8 +195,8 @@ canvas-mcp-server --config</code></pre>
                             <li><strong>Enable anonymization</strong> - Always set <code>ENABLE_DATA_ANONYMIZATION=true</code></li>
                             <li><strong>Secure your token</strong> - Never share or commit your Canvas API token</li>
                             <li><strong>Protect mapping files</strong> - Keep <code>local_maps/</code> folder secure</li>
-                            <li><strong>Local processing only</strong> - All data stays on your machine</li>
-                            <li><strong>Review before sharing</strong> - Ensure student data is anonymous in shared conversations</li>
+                            <li><strong>Local server deployment</strong> - The server and credentials stay in your environment; tool results still pass to your configured AI client</li>
+                            <li><strong>Review before sharing</strong> - Check that expected identity fields are masked in shared conversations</li>
                         </ul>
                     </section>
 
@@ -367,7 +369,7 @@ This will:
 4. Generate a report</code></pre>
 
                         <h3>Bulk Grading (Code Execution API)</h3>
-                        <p>For large-scale grading operations with custom logic, use the <a href="bulk-grading.html">Code Execution API</a> for 99.7% token savings:</p>
+                        <p>For large-scale grading operations with custom logic, use the <a href="bulk-grading.html">Code Execution API</a> to keep per-submission processing out of the model's context:</p>
                         <pre><code><span class="code-keyword">await</span> bulkGrade({
   courseIdentifier: <span class="code-string">"60366"</span>,
   assignmentId: <span class="code-string">"123"</span>,
