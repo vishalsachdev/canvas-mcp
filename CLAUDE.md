@@ -466,3 +466,23 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
   selective import + a sandbox payload to convert the doc-derived assumptions into measured ones;
   (5) #313 needs the reply (CANVAS_ROLE already ships, but educator=88 leaves only 40 of his 128
   budget, so it may not actually solve his cap); (6) #283 self-closes 2026-08-27.
+
+## ⚠️ Adoption numbers: what is safe to publish (2026-08-21)
+
+Before quoting any adoption figure for this project in a paper, report, or institutional
+document:
+
+- **Never print a PyPI download count.** It swings by more than an order of magnitude month to
+  month — 521 (March), 7,426 (2026-08-10), 2,208 (2026-08-17). Whatever you quote will be wrong
+  within weeks and looks cherry-picked either way.
+- **Stars / forks / contributors are stable** and are the defensible numbers. Dated snapshot:
+  **194 stars / 65 forks / 19 contributors (2026-08-17)**; 198 / 67 on 2026-08-20. **Re-pull from
+  the GitHub API on the day the document is finalised** and state the date alongside.
+- **Two claims in circulation are NOT verified** and are flagged internally as author-promotion
+  statements: *"over 18,000 clones"* and *"the University of Michigan selected it as the sole
+  Canvas MCP candidate for campus deployment."* Do not repeat either without a primary source.
+
+**Institutional posture — be precise.** A private, Entra-gated hosted instance serves Gies course
+staff; the **public hosted server was retired**. The only Illinois review artifact is Adam King's
+LRA — Mark Reynolds declined to initiate a campus review on 2026-08-17. **Do not imply a campus
+security review or blessing that does not exist.**
