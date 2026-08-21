@@ -32,6 +32,11 @@ _SAFE_ENV_KEYS = frozenset({
     "CONTAINER_HOST",
 })
 
+# Numeric uid:gid the sandbox container runs as instead of image-default root
+# (the distroless "nonroot" convention). Numeric, not a named user, because
+# the operator-configured image is not guaranteed to define one.
+_SANDBOX_UID_GID = "65532:65532"
+
 
 def _resolve_canvas_credentials(config: Any) -> tuple[str, str]:
     """Resolve (canvas_api_url, canvas_api_token) for the current context.
@@ -538,6 +543,11 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     "run",
                     "--rm",
                     "-i",
+                    # Run as a fixed non-root uid:gid, not the image default
+                    # (root for node:*-alpine and most images), so a container
+                    # escape does not hand back root.
+                    "--user",
+                    _SANDBOX_UID_GID,
                     # Drop all Linux capabilities and block privilege escalation;
                     # the tsx runtime needs none of them.
                     "--cap-drop=ALL",
@@ -564,8 +574,15 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     f"{repo_root}:/workspace:ro",
                     "--tmpfs",
                     "/tmp:rw,noexec,nosuid,size=64m",
+                    # $HOME needs to be writable and exec-allowed for npx's
+                    # tsx install step; unlike /tmp above, this one is not
+                    # noexec so a native postinstall binary (esbuild) can run.
+                    "--tmpfs",
+                    "/home/sandbox:rw,exec,nosuid,size=64m",
                     "-w",
                     "/workspace",
+                    "-e",
+                    "HOME=/home/sandbox",
                     "-e",
                     f"CANVAS_API_URL={canvas_api_url}",
                     # Pass the Canvas token by name only so its value is taken from
