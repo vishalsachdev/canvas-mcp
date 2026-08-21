@@ -39,6 +39,7 @@ from .tools import (
     register_accessibility_tools,
     register_admin_tools,
     register_code_execution_tools,
+    register_content_migration_tools,
     register_course_tools,
     register_discovery_tools,
     register_educator_assignment_tools,
@@ -453,6 +454,7 @@ def register_all_tools(mcp: FastMCP, role: str = "all") -> None:
     # Educator-specific tools
     if role in ("educator", "all"):
         register_educator_assignment_tools(mcp)
+        register_content_migration_tools(mcp)
         register_educator_discussion_tools(mcp)
         register_educator_module_tools(mcp)
         register_educator_file_tools(mcp)

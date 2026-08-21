@@ -76,6 +76,7 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "get_assignment_details": _fenced("fence_untrusted"),
     "get_conversation_details": _fenced("_fence_conversation_fields"),
     "get_course_content_overview": _fenced("fence_untrusted"),
+    "get_content_migration_status": _fenced("fence_untrusted"),
     "get_course_details": _deferred(
         "Returns course name/code plus platform metadata; course identity is the documented low-risk exception."
     ),
