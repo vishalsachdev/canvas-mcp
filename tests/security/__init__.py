@@ -2,7 +2,7 @@
 Security test suite for Canvas MCP Server.
 
 This package contains automated security tests covering:
-- FERPA compliance
+- FERPA-related privacy controls
 - Authentication and authorization
 - Code execution security
 - Data privacy

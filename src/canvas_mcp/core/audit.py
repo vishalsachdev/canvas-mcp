@@ -1,6 +1,7 @@
 """Structured audit logging for Canvas MCP Server.
 
-Provides FERPA-compliant audit trail for data access and code execution events.
+Provides a structured audit trail that can support institutional privacy and
+compliance processes for data access and code execution events.
 Events are emitted as JSON lines to both stderr and a rotating log file.
 
 Controlled by:

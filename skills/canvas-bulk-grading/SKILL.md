@@ -61,7 +61,7 @@ How many submissions need grading?
 |
 +-- 30+ submissions OR custom grading logic needed
     Use execute_typescript with bulkGrade function
-    99.7% token savings -- grading logic runs locally
+    Grading logic runs locally; only selected output returns to the model
     ALWAYS run with dry_run: true first
 ```
 
@@ -153,9 +153,9 @@ The three strategies have very different token costs:
 |----------|------|------------|-----|
 | `grade_with_rubric` | 1-9 submissions | Low | Few round-trips, small payloads |
 | `bulk_grade_submissions` | 10-29 submissions | Medium | One call with batch data |
-| `execute_typescript` | 30+ submissions | Minimal | Grading logic runs locally; only the code string is sent. **99.7% savings** vs loading all submissions into context |
+| `execute_typescript` | 30+ submissions | Workload-dependent | Grading logic runs locally; only the code and selected output need to enter model context |
 
-The key insight: as submission count grows, sending grading logic to the server (code execution) is far cheaper than bringing all submission data into the conversation.
+The key insight: as submission count grows, sending grading logic to the server can use less model context than bringing all submission data into the conversation.
 
 ## Safety Rules
 

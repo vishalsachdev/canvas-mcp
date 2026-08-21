@@ -546,9 +546,9 @@ Grade a student submission using a rubric.
 ---
 
 #### `bulk_grade_submissions`
-Grade multiple submissions efficiently with concurrent processing. **Most efficient way for bulk grading!**
+Grade multiple submissions concurrently.
 
-**IMPORTANT:** This tool provides significant token savings by processing submissions in batches without loading all data into context.
+**Context use:** Process bulk operations locally without loading every item into the model's context. Actual savings depend on the workload and selected output.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
@@ -596,7 +596,7 @@ Grade multiple submissions efficiently with concurrent processing. **Most effici
 - Can mix and match grading styles for different students
 - Automatically validates rubric configuration before grading
 - Use `dry_run=true` to preview grades before applying
-- For maximum token efficiency with custom grading logic, consider using the `execute_typescript` tool with `bulkGrade` from the code execution API
+- For custom bulk grading logic that can return selected output, consider `execute_typescript` with `bulkGrade` from the code execution API
 
 ---
 
@@ -880,8 +880,11 @@ send.
 
 ---
 
-#### `send_peer_review_reminders`
-Automated peer review reminder workflow.
+#### `send_peer_review_inbox_messages`
+Send direct Canvas Inbox messages about incomplete peer reviews. This tool sends
+ordinary conversation messages; it does **not** invoke Canvas's native
+peer-review reminder action. It verifies the course-level `manage_grades`
+permission before preparing or sending a message.
 
 **Two-step by design.** Call it without a `confirmation_token` to get a preview
 (recipients, composed subject and body) plus a single-use token; call again
@@ -891,7 +894,7 @@ composed message changed (e.g. the assignment was renamed).
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `assignment_id`: Assignment ID
-- `user_ids`: Students to remind (array)
+- `recipient_ids`: Students to message (array)
 - `custom_message` (optional): Custom message template
 - `confirmation_token` (optional): Token from the preview call; omit to preview
 
@@ -934,7 +937,13 @@ With a valid token: per-recipient success/failure summary of sent messages.
 ---
 
 #### `create_announcement`
-Post course announcements.
+Post course announcements. Before posting, the tool checks the course's
+announcement permission and refuses on an explicit denial. Canvas can
+occasionally accept the request but create a regular discussion instead; the
+tool verifies the returned type, deletes that unintended topic automatically,
+and reports failure. If cleanup cannot be confirmed, the response includes the
+topic ID when Canvas returned one and tells the user to check the course and
+remove the unintended topic. It never falls back to a discussion post.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
@@ -1887,7 +1896,7 @@ description.
 - `detail_level` (optional): How much information to return. Default: "signatures"
   - `"names"`: Just tool names / file paths (most efficient for quick lookups)
   - `"signatures"`: Names/paths + short descriptions + function signatures (recommended)
-  - `"full"`: Fuller descriptions for MCP tools (capped length) and complete file contents for code API modules
+  - `"full"`: Fuller descriptions for MCP tools (capped length) and code API file content capped at 2,000 characters per match
 
 **Example:**
 ```
@@ -1898,9 +1907,13 @@ description.
 "Find discussion-related operations"
 ```
 
-**Returns:** JSON with `query`, `detail_level`, `count`, and two labeled
-sections — `mcp_tools` (registered MCP tools) and `code_execution_api`
-(TypeScript code API modules) — each with its own `count` and `tools` array.
+**Returns:** Response schema version `2`. A successful search returns JSON with
+`schema_version`, `query`, `detail_level`, `count`, and two labeled sections —
+`mcp_tools` (registered MCP tools) and `code_execution_api` (TypeScript code API
+modules) — each with its own `count` and `tools` array. The pre-v1.10 flat
+top-level `tools` key no longer exists; scripted clients should branch on
+`schema_version`. A no-match response still includes `schema_version: 2` and
+reports the message plus `mcp_tools_searched` instead of empty result sections.
 
 **Usage Tips:**
 - Use empty query (`""`) to list all available tools
@@ -1951,7 +1964,7 @@ List all available TypeScript modules in the code execution API.
 #### `execute_typescript`
 Execute TypeScript code in a Node.js environment with access to Canvas API credentials.
 
-**IMPORTANT:** This tool enables **99.7% token savings** for bulk operations by executing code locally rather than loading all data into Claude's context!
+This tool can reduce model-context use by processing bulk items locally and returning only selected output. Actual savings depend on the workload and AI client.
 
 **Parameters:**
 - `code`: TypeScript code to execute. Can import from './canvas/*' modules.
@@ -1998,10 +2011,11 @@ await bulkGrade({
 - Code runs in a temporary file that is deleted after execution
 - Inherits Canvas API credentials from server environment
 - Timeout enforced to prevent runaway processes
+- Local sandbox controls are best-effort, not a complete security boundary; code can access resources allowed to the server process, and strict egress control requires external isolation (see [issue #157](https://github.com/vishalsachdev/canvas-mcp/issues/157))
 
 **Token Efficiency:**
-- **Traditional approach**: Loads all submissions into context (1.35M tokens for 90 submissions)
-- **Code execution approach**: Only summary results return (3.5K tokens = 99.7% savings!)
+- **Traditional approach**: Tool-by-tool processing may return each submission to the model
+- **Code execution approach**: Per-item work runs locally and only selected output returns
 
 **Usage Tips:**
 - First use `search_canvas_tools` or `list_code_api_modules` to discover available operations
@@ -2023,7 +2037,7 @@ await bulkGrade({
 
 ### For Educators
 
-1. **Enable anonymization**: Set `ENABLE_DATA_ANONYMIZATION=true` in `.env` for FERPA compliance
+1. **Enable anonymization**: Set `ENABLE_DATA_ANONYMIZATION=true` in `.env` for FERPA-conscious data handling; this control does not by itself establish compliance
 2. **Use course codes**: Be specific about which course (e.g., "badm_350_120251_246794")
 3. **Leverage automation**: Use messaging and reminder tools for routine communications
 4. **Combine analytics**: Request multiple analytics in one query for comprehensive insights

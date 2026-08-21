@@ -6,7 +6,7 @@ This guide shows the most common tasks educators use Canvas MCP for.
 
 1. Install Canvas MCP following the [README](../README.md#installation)
 2. Configure your `.env` file with Canvas API token
-3. **For FERPA compliance**, add:
+3. **For FERPA-conscious data handling**, add:
    ```
    ENABLE_DATA_ANONYMIZATION=true
    ```
@@ -60,7 +60,7 @@ For large classes, use the code execution API:
 Grade all 90 Jupyter notebook submissions for Assignment 2 by checking if they run without errors
 ```
 
-This uses the bulk grading feature that's **99.7% more efficient** than traditional methods.
+This uses local bulk processing so every submission does not have to be loaded into the model's context.
 
 ### Check Assignment Statistics
 
@@ -108,12 +108,12 @@ Give me an overview of MATH 221:
 - Who might need extra support?
 ```
 
-## FERPA Compliance Tips
+## FERPA & Privacy Tips
 
-With `ENABLE_DATA_ANONYMIZATION=true`:
+With `ENABLE_DATA_ANONYMIZATION=true` (a privacy control, not a complete compliance determination):
 - Student names appear as "Student_xxxxxxxx"
 - You can still identify patterns and get insights
-- Real identities stay private from AI processing
+- Supported identity fields are masked before tool results reach the AI client
 - You keep a local mapping to correlate IDs with real students
 
 Example anonymized output:

@@ -23,6 +23,124 @@ and nothing else, are the only legitimate call sites.
 """
 
 import re
+from dataclasses import dataclass
+from typing import Literal
+
+
+@dataclass(frozen=True)
+class ReadToolContentPolicy:
+    """Reviewed trust-boundary classification for one read-only MCP tool."""
+
+    category: Literal["fenced", "safe", "deferred"]
+    guards: tuple[str, ...] = ()
+    rationale: str = ""
+
+
+def _fenced(*guards: str) -> ReadToolContentPolicy:
+    return ReadToolContentPolicy("fenced", guards=guards)
+
+
+def _safe(rationale: str) -> ReadToolContentPolicy:
+    return ReadToolContentPolicy("safe", rationale=rationale)
+
+
+def _deferred(rationale: str) -> ReadToolContentPolicy:
+    return ReadToolContentPolicy("deferred", rationale=rationale)
+
+
+# Exhaustive registry contract for issue 262. CI compares these keys with the
+# live read-only tool registry under every feature flag. A new read tool must
+# therefore make an explicit trust-boundary decision before it can merge.
+#
+# ``guards`` names a call or documented handoff visible in the registered tool
+# function. Runtime behavior tests in tests/security/test_untrusted_content.py
+# still exercise the returned values; this registry prevents coverage from
+# silently shrinking when a tool is added or its fencing path is removed.
+READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
+    "analyze_peer_review_quality": _fenced("fence_untrusted_fields"),
+    "check_enrollment": _safe(
+        "Returns only yes, no, or indeterminate enrollment state; no Canvas-authored text."
+    ),
+    "download_course_file": _fenced("fence_untrusted_inline"),
+    "extract_peer_review_dataset": _fenced("fence_untrusted_fields"),
+    "fetch_ufixit_report": _fenced("fence_untrusted"),
+    "format_accessibility_summary": _fenced(
+        "already fenced by parse_ufixit_violations"
+    ),
+    "generate_peer_review_feedback_report": _fenced("_generate_markdown_report"),
+    "generate_peer_review_report": _fenced("_fence_peer_review_names"),
+    "get_anonymization_status": _safe(
+        "Returns local anonymization configuration and counts, not Canvas content."
+    ),
+    "get_assignment_analytics": _fenced("fence_untrusted_inline"),
+    "get_assignment_details": _fenced("fence_untrusted"),
+    "get_conversation_details": _fenced("_fence_conversation_fields"),
+    "get_course_content_overview": _fenced("fence_untrusted"),
+    "get_course_details": _deferred(
+        "Returns course name/code plus platform metadata; course identity is the documented low-risk exception."
+    ),
+    "get_course_structure": _fenced("fence_untrusted_inline"),
+    "get_discussion_entry_details": _fenced("fence_untrusted"),
+    "get_discussion_topic_details": _fenced("fence_untrusted"),
+    "get_discussion_with_replies": _fenced("fence_untrusted"),
+    "get_front_page": _fenced("fence_untrusted"),
+    "get_my_course_grades": _deferred(
+        "Returns the caller's numeric grades with course name/code, the documented course-identity exception."
+    ),
+    "get_my_enrollments": _deferred(
+        "Returns the caller's own roles with course name/code, the documented course-identity exception."
+    ),
+    "get_my_peer_reviews_todo": _fenced("fence_untrusted_inline"),
+    "get_my_profile": _deferred(
+        "Returns only the caller's own minimized profile, the documented self-identity exception."
+    ),
+    "get_my_submission": _fenced("fence_untrusted"),
+    "get_my_submission_status": _fenced("fence_untrusted_inline"),
+    "get_my_todo_items": _fenced("fence_untrusted_inline"),
+    "get_my_upcoming_assignments": _fenced("fence_untrusted_inline"),
+    "get_page_content": _fenced("fence_untrusted"),
+    "get_page_details": _fenced("fence_untrusted"),
+    "get_peer_review_assignments": _fenced("_fence_peer_review_names"),
+    "get_peer_review_comments": _fenced("fence_untrusted_fields"),
+    "get_peer_review_completion_analytics": _fenced("_fence_peer_review_names"),
+    "get_peer_review_followup_list": _fenced("_fence_peer_review_names"),
+    "get_rubric": _fenced("fence_untrusted_inline"),
+    "get_rubric_assessment": _fenced("fence_untrusted_inline"),
+    "get_student_analytics": _fenced("fence_untrusted_inline"),
+    "get_syllabus": _fenced("fence_untrusted"),
+    "get_unread_count": _safe(
+        "Returns only a numeric unread-conversation count."
+    ),
+    "identify_problematic_peer_reviews": _fenced("fence_untrusted_fields"),
+    "list_announcements": _fenced("fence_untrusted"),
+    "list_assignments": _fenced("fence_untrusted_inline"),
+    "list_code_api_modules": _safe(
+        "Returns metadata from bundled local TypeScript modules, not Canvas content."
+    ),
+    "list_conversations": _fenced("_fence_conversation_fields"),
+    "list_course_files": _fenced("fence_untrusted_inline"),
+    "list_courses": _deferred(
+        "Returns course name/code and the caller's role; course identity is the documented low-risk exception."
+    ),
+    "list_discussion_entries": _fenced("fence_untrusted"),
+    "list_discussion_topics": _fenced("fence_untrusted"),
+    "list_groups": _fenced("fence_untrusted_inline"),
+    "list_module_items": _fenced("fence_untrusted_inline"),
+    "list_modules": _fenced("fence_untrusted_inline"),
+    "list_pages": _fenced("fence_untrusted"),
+    "list_peer_reviews": _fenced("fence_untrusted_inline"),
+    "list_rubrics": _fenced("fence_untrusted_inline"),
+    "list_submissions": _deferred(
+        "Returns IDs, timestamps, scores/grade labels, and course code; no unrestricted author free text."
+    ),
+    "list_users": _fenced("fence_untrusted_inline"),
+    "parse_ufixit_violations": _fenced("fence_untrusted_fields"),
+    "read_course_file": _fenced("fence_untrusted_inline"),
+    "scan_course_content_accessibility": _fenced("fence_untrusted_fields"),
+    "search_canvas_tools": _safe(
+        "Returns registered tool and bundled source metadata, not Canvas content."
+    ),
+}
 
 # The markers deliberately carry their own instruction so every fence is
 # self-describing — a model reading a single fenced block mid-context does not
