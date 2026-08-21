@@ -323,23 +323,20 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   module, not CWD). Cost if adopted: a 4th version-stamp location in the release checklist
 - [ ] Backlog triage (module templates, bulk creation, page versioning — feature ideas only, no owner)
 - [x] Issue #106: mypy 229 → 0 errors + mypy in CI lint job (PR #213, 2026-08-01)
-- [ ] **#275 `get_my_peer_reviews_todo` false negative — PR #277 merged, issue stays OPEN.**
-  `assignment_identifier` param added (direct per-assignment lookup, bypasses the
-  discovery scan's `peer_reviews`-flag gate) but root cause of the discovery-scan miss
-  is still unconfirmed — no student-scoped token available to reproduce. Rejected a
-  Copilot-authored PR (#276) whose fix didn't match how the Canvas endpoint actually
-  behaves. Reporter (`khagyard`) confirmed: regular assignment, not anonymous, assigned
-  before due date — still not found even with the direct lookup, per the daily triage
-  routine's follow-up on the issue. **PR #288 MERGED 2026-08-13 (night)** — Planner-API
-  discovery path (community-confirmed: student UI uses `/planner/items`, the
-  assignment-scoped peer_reviews endpoints are instructor-focused). The merge gate
-  worked exactly as designed: khagyard posted a **real production payload** ~2h after
-  the ask, which falsified `plannable.user_id`/`assessor_id` (absent in reality —
-  output would have said "Student None") and confirmed completed items still appear
-  under `filter=incomplete_items`. Their 3-item payload is now the acceptance-replay
-  fixture (JWT image URLs stripped). Verified: opencode review + Devin 3/3 PASS + CI +
-  main suite green (1350). Issue stays open for khagyard's retest from main; close on
-  their confirmation. Ships in next release (minor bump already owed)
+- [x] **#275 `get_my_peer_reviews_todo` — CLOSED 2026-08-20** on khagyard's confirmation
+  ("The fix worked thank you!"). PR #288's Planner-feed discovery path is what fixed it; the
+  assignment-scoped `peer_reviews` endpoints are instructor-focused, which @aesse97 called
+  correctly in the thread. Two corrections to the old note here: the earlier claim that khagyard
+  "confirmed still not found even with the direct lookup" is **unsupported** — their report
+  predates any build containing PR #277's `assignment_identifier`, and they never answered which
+  version they were on. And the **root cause of the original discovery-scan miss was never
+  diagnosed, only routed around**. Their production payload is now the acceptance-replay fixture
+- [x] **#309 content migration — PR #316 MERGED 2026-08-20** (`ea50c711`). Two educator-only tools:
+  preview→confirm course copy + one-poll-per-call status with migration-issue review. **#309 stays
+  OPEN** for zqian's answer on `selective_import` (deliberately out of v1: a second async workflow
+  that cannot be measured without a sandbox) and for a real sandbox payload — the bracket-form
+  encoding, Progress state vocabulary, and migration-issue field names are doc-derived, not measured
+
 - [x] **#283 announcement→discussion silent fallback — two-layer fix complete (PR #285 +
   PR #291, merged 2026-08-14).** jonespm's retest showed the deeper mechanism: Canvas answers
   200 to a student's create_announcement, silently drops `is_announcement`, and creates a real
@@ -425,30 +422,47 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 > institutional affiliation, evaluation status, deployment timeline, or which competing
 > products they are weighing. Name the person and the technical issue, nothing else.
 
+### 2026-08-20 — v1.11.0 shipped; internal/ leak closed; content migration merged; Reynolds declined
 
-### 2026-08-15 — v1.10.0 shipped; #290/#291 merged; Reynolds hosted-test invite sent
-
-- Completed: **PR #290 merged, #287 CLOSED** — @SHIL0018's outside contribution (2nd ever)
-  capping full-mode TS dumps; fork CI manually approved, fixture verified non-vacuous.
-  **PR #291 merged** — two-layer #283 fix: permission pre-check (`include[]=permissions`,
-  measured live: flags exist only on the single-course endpoint) + auto-delete of the silently
-  downgraded discussion topic; 2 opencode rounds (round 1 caught a None-body TypeError), live
-  acceptance on a real no-permission course. **Release v1.10.0 shipped** — all five channels
-  live + verified: GitHub Release (`.mcpb` + SLSA, attestation exit 0), PyPI 200, MCP Registry
-  `isLatest=True` (no propagation race), site wrangler-deployed, hosted Azure auto-deployed
-  (401 challenge healthy). Community release: #281 schema v2 (breaking), #275 Planner-feed,
-  #283 pre-check+cleanup, #287 caps. **Mark Reynolds hosted-test invite SENT** (verified in
-  Thunderbird Sent Items, 02:29 UTC, `.mcpb` attached); his OID is on `MCP_ENTRA_ALLOWED_OIDS`
-  (11 now); local draft files cleaned up post-send. Key framing correction that shaped the
-  email: the HOSTED instance is the sole object of UIUC review, stdio is not.
-- Next: (1) close #275/#283 on khagyard's retest — can now run against the released v1.10.0,
-  not just main (daily triage watches both threads); (2) supervised #270+#271 session — add
-  the two pre-existing nits found in review (bare `"error" in response` in
-  `delete_announcement`; `ID: None` interpolation); (3) awaiting Mark Reynolds's hosted-test
-  results / review-side feedback (see `[[umich-adoption-illinois-review]]` memory);
-  (4) Codex credits still out — opencode (deep) + devin (quick) until refilled.
-
-### 2026-08-19 — marketing-claim review, PR #310, and README follow-up
-
-- Completed: Tempered unsupported performance, privacy, compliance, sandbox, and client-compatibility claims across the public documentation and website. PR #310 landed in `main`, and the refreshed Cloudflare Pages production deployment was verified on both the Pages URL and custom domain. Follow-up README clarifications (tool-count scope, client variability, and stale test-count wording) are committed as `b3a3475` on `docs/temper-marketing-claims`.
-- Next: Open and merge a follow-up pull request for `b3a3475` if the README clarifications should land on `main`.
+- **Confidentiality fix (highest impact).** `internal/` defaulted to PUBLIC with six targeted
+  exclusions, so `internal/session-history.md` had been world-readable for 22 days carrying a
+  paraphrase of a collaborator's private email (their deployment timeline, the competing product
+  they were weighing, their stated decision criterion) AND the private hosted endpoint URL this
+  repo is supposed to exclude. `.gitignore` is now **deny-by-default** for `internal/` with an
+  explicit un-ignore list; session-history untracked (local-only); ten triage briefs scrubbed of
+  affiliation and evaluation-status framing. History deliberately NOT rewritten — 198 stars /
+  67 forks. Verified live: raw URL now 404s, control file still 200. Decision: **do not tell zqian**.
+- **Release v1.11.0** — all five channels verified. Protocol-correctness: #303 rename (breaking),
+  #270 `isError`, #271 double-payload, fastmcp 3.4.7 floor. Website tempered from a bare "99 tools"
+  to "up to 99" (default is 94) then to 101 after the migration tools. **New CI failure mode found
+  and fixed** (`4639847`): the Registry job's *unauthenticated* `api.github.com` lookup rate-limited
+  to `null`, surfacing three steps later as `gzip: stdin: not in gzip format`. NOT the PyPI race —
+  PyPI was already 200. Both modes now in the release checklist with the test that separates them.
+- **PR #316 merged** (`ea50c711`) — content migration for #309: `create_content_migration`
+  (mandatory preview→confirm, token-bound, reports target occupancy, never claims content was
+  copied) + `get_content_migration_status` (one poll per call, fences untrusted text, treats an
+  unreadable issues list as an error not an empty list). Codex architected, I critiqued (dropped
+  `openWorldHint` — zero tools use it; added target-occupancy preview; caught two missed doc files),
+  Codex implemented, I re-verified independently. 24 new tests, 1398 passing. **#309 stays OPEN** —
+  `selective_import` deliberately deferred and zqian asked directly whether all-content suffices.
+- **Mark Reynolds DECLINED** to test or review (2026-08-17): "no need to involve our groups with it
+  as there is no deployment necessary... it won't initiate a review." His reasoning is LTI-shaped —
+  canvas-mcp is an API client, not an installed integration. **The Reynolds route to a campus
+  blessing is closed**; Adam King's LRA remains the only Illinois review artifact. Do not re-invite.
+- **Community:** #275 CLOSED (khagyard confirmed the fix). #293 CLOSED, with #315 filed first so the
+  Python 3.10 EOL (2026-10-31) didn't vanish with the report. #302 answered after three triage
+  cycles of silence; #283 pinged — redirected to **jonespm**, who is the real confirmer (khagyard has
+  never commented there), auto-close 2026-08-27. Rebecca Simon (`rpsimon-ai`, first-time contributor)
+  emailed confused that her requests "failed" — root cause: **there is no Skill Request template** and
+  the three that exist are developer-gated (Tool Addition *requires* a Canvas API endpoint). She used
+  the blank-issue fallback correctly. Reply sent.
+- **Corrected 5 stale Current Focus lines** verified against live state: #170/#179/#239 were closed
+  but recorded open; #270/#271 shipped 2026-08-19 but recorded "not implemented"; PR #191 was
+  described as an issue. Six merged worktrees removed.
+- **Next:** (1) **add a Skill Request issue template** — promised to Rebecca on #302 and in email;
+  (2) PR #308 + dependabot #295–#298 are all behind `main` after #316 — update branches before
+  merging; (3) **PR #191/#172 decision** — oldest live thread, blocked 3 weeks on a New-Quizzes
+  sandbox: source one from zqian or close the PR honestly as unverifiable; (4) #309 awaits zqian on
+  selective import + a sandbox payload to convert the doc-derived assumptions into measured ones;
+  (5) #313 needs the reply (CANVAS_ROLE already ships, but educator=88 leaves only 40 of his 128
+  budget, so it may not actually solve his cap); (6) #283 self-closes 2026-08-27.
