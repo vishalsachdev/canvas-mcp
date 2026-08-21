@@ -342,7 +342,8 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
     ) -> str:
         """Execute TypeScript code in a Node.js environment with access to Canvas API.
 
-        IMPORTANT: This achieves 99.7% token savings for bulk operations!
+        Process bulk operations locally without loading every item into the
+        model's context. Actual token use depends on the code and output.
         Code runs in a sandboxed Node.js environment with Canvas API credentials,
         all TypeScript modules in src/canvas_mcp/code_api/, and standard Node.js modules.
 

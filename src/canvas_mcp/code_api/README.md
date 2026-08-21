@@ -4,14 +4,14 @@ This directory contains the TypeScript code execution API for token-efficient bu
 
 ## Overview
 
-The Code Execution API allows Claude to process large datasets locally in the execution environment rather than loading all data into the context window. This results in **99.7% token savings** for bulk operations.
+The Code Execution API allows an AI client to process large datasets locally in the execution environment rather than loading every item into the model's context. Actual token savings depend on the workload and selected output.
 
-### Token Savings Example
+### Context Efficiency
 
-| Approach | Token Usage | Efficiency |
-|----------|-------------|-----------|
-| **Traditional** (call MCP tools) | 1.35M tokens | Loads all 90 submissions into context |
-| **Code Execution** (run locally) | 3.5K tokens | **99.7% reduction!** |
+| Approach | Model Context | Item Processing |
+|----------|---------------|-----------------|
+| **Traditional** (call MCP tools) | May receive each submission and result | Orchestrated through tool calls |
+| **Code Execution** (run locally) | Receives code and selected output | Runs in the local execution environment |
 
 ## Architecture
 
@@ -24,7 +24,7 @@ code_api/
     │   └── listSubmissions.ts
     ├── grading/          # Grading operations (HIGHEST VALUE)
     │   ├── gradeWithRubric.ts
-    │   └── bulkGrade.ts  # ⭐ 99.7% token savings!
+    │   └── bulkGrade.ts  # Local per-submission processing
     ├── courses/          # Course operations
     ├── discussions/      # Discussion operations
     └── communications/   # Messaging operations
@@ -108,7 +108,7 @@ await gradeWithRubric({
 ```typescript
 import { bulkGrade } from './canvas/grading';
 
-// Grade 90 submissions with 99.7% token savings!
+// Grade 90 submissions without returning every item to the model.
 await bulkGrade({
   courseIdentifier: "60366",
   assignmentId: "123",
@@ -333,7 +333,7 @@ See `/examples/bulk_grading_example.md` for a comprehensive walkthrough.
 - ✅ Processing 10+ submissions/items
 - ✅ Performing bulk operations
 - ✅ Need to analyze data locally
-- ✅ Want maximum token efficiency
+- ✅ Want custom bulk logic that returns selected output
 
 ### Use MCP Tools When:
 - ✅ Single queries ("Show me course details")
@@ -343,19 +343,19 @@ See `/examples/bulk_grading_example.md` for a comprehensive walkthrough.
 
 ## Performance
 
-### Token Usage
+### Context Use
 
-| Operation | Traditional | Code Execution | Savings |
-|-----------|-------------|----------------|---------|
-| 10 submissions | 150K tokens | 1K tokens | **99.3%** |
-| 90 submissions | 1.35M tokens | 3.5K tokens | **99.7%** |
-| 1000 submissions | 15M tokens | 30K tokens | **99.8%** |
+| Approach | Model Context | Operational Limits |
+|----------|---------------|--------------------|
+| Traditional tool calls | May receive each item and result | Client context and tool-call overhead |
+| Code execution | Receives code and selected output | Canvas rate limits and local resources |
 
 ### Processing Time
 
-With concurrent processing (`maxConcurrent: 5`):
-- **90 submissions**: ~3-5 minutes (vs 10-15 minutes sequential)
-- **Concurrent batches**: 5x faster than sequential
+Supported operations can use concurrent processing (`maxConcurrent: 5`). Runtime varies with Canvas response time, rate limits, local resources, and the grading logic.
+
+Additional control:
+
 - **Rate limiting**: Prevents Canvas API throttling
 
 ## Contributing

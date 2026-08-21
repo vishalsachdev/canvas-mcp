@@ -622,7 +622,7 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
 
     @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
     @validate_params
-    async def send_peer_review_reminders(
+    async def send_peer_review_inbox_messages(
         course_identifier: str | int,
         assignment_id: str | int,
         recipient_ids: list[str],
@@ -632,7 +632,10 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
         confirmation_token: str | None = None
     ) -> dict[str, Any]:
         """
-        Send peer review completion reminders to specific students.
+        Send direct Canvas Inbox messages about incomplete peer reviews.
+
+        This sends ordinary Canvas conversation messages. It does not invoke
+        Canvas's native peer-review reminder action.
 
         Two-step by design. Call it without a confirmation_token to get a
         preview (recipients, composed subject and body) plus a token; show
@@ -657,8 +660,43 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
             return {"error": FENCE_LEAK_ERROR}
 
         try:
+            from ..core.cache import get_course_id
+
+            course_id = await get_course_id(course_identifier)
+            permissions = await make_canvas_request(
+                "get",
+                f"/courses/{course_id}/permissions",
+                params={"permissions[]": "manage_grades"},
+            )
+            if (
+                isinstance(permissions, dict)
+                and "error" not in permissions
+                and permissions.get("manage_grades") is False
+            ):
+                return {
+                    "error": (
+                        "This Canvas token does not have the manage grades "
+                        "permission required to message students about peer "
+                        "review completion. Nothing was sent."
+                    ),
+                    "nothing_sent": True,
+                }
+            if (
+                not isinstance(permissions, dict)
+                or "error" in permissions
+                or permissions.get("manage_grades") is not True
+            ):
+                return {
+                    "error": (
+                        "Could not verify the manage grades permission required "
+                        "to message students about peer review completion. "
+                        "Nothing was sent."
+                    ),
+                    "nothing_sent": True,
+                }
+
             composed = await _compose_reminder(
-                course_identifier, assignment_id, custom_message,
+                course_id, assignment_id, custom_message,
                 include_assignment_link, subject_prefix,
             )
             if isinstance(composed, dict):
@@ -680,7 +718,7 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
             # rename (which changes the subject/body) between preview and
             # confirm voids the token rather than sending unshown text.
             fingerprint = _REMINDER_GUARD.fingerprint(
-                str(course_identifier),
+                str(course_id),
                 str(assignment_id),
                 json.dumps(recipient_ids),
                 subject,
@@ -694,13 +732,15 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                 return {
                     "preview": True,
                     "nothing_sent": True,
+                    "delivery": "Direct Canvas Inbox messages",
                     "recipient_ids": recipient_ids,
                     "subject": fence_untrusted(subject, "reminder subject"),
                     "body": fence_untrusted(body, "reminder body"),
                     "confirmation_token": _REMINDER_GUARD.issue(fingerprint),
                     "instructions": (
-                        "Show this preview to the educator. To send, call "
-                        "send_peer_review_reminders again with this "
+                        "Show this direct Canvas Inbox message preview to the "
+                        "educator. To send, call "
+                        "send_peer_review_inbox_messages again with this "
                         "confirmation_token and identical arguments. The token "
                         "is single-use and expires shortly."
                     ),
@@ -719,13 +759,13 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                 }
 
             result = await _post_conversation(
-                course_identifier,
+                course_id,
                 recipient_ids,
                 subject,
                 body,
                 group_conversation=True,
                 bulk_message=True,
-                context_code=f"course_{course_identifier}",
+                context_code=f"course_{course_id}",
                 mode="sync",
                 force_new=False,
                 attachment_ids=None,
@@ -739,8 +779,11 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
             return result
 
         except Exception as e:
-            print(f"Error sending peer review reminders: {str(e)}", file=sys.stderr)
-            return {"error": f"Failed to send peer review reminders: {str(e)}"}
+            print(f"Error sending peer review Inbox messages: {str(e)}", file=sys.stderr)
+            return {
+                "error": f"Failed to send Canvas Inbox messages: {str(e)}",
+                "nothing_sent": True,
+            }
 
     @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
     @validate_params

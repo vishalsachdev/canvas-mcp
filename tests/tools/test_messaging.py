@@ -30,6 +30,32 @@ def get_tool_function(tool_name: str):
     return captured_functions.get(tool_name)
 
 
+def get_educator_tool_function(tool_name: str):
+    """Get an educator messaging tool function by name."""
+    from fastmcp import FastMCP
+
+    from canvas_mcp.tools.messaging import register_educator_messaging_tools
+
+    mcp = FastMCP("test")
+    captured_functions = {}
+
+    original_tool = mcp.tool
+
+    def capturing_tool(*args, **kwargs):
+        decorator = original_tool(*args, **kwargs)
+
+        def wrapper(fn):
+            captured_functions[fn.__name__] = fn
+            return decorator(fn)
+
+        return wrapper
+
+    mcp.tool = capturing_tool
+    register_educator_messaging_tools(mcp)
+
+    return captured_functions.get(tool_name)
+
+
 class TestMarkConversationsRead:
     """Tests for the mark_conversations_read tool."""
 
@@ -71,6 +97,126 @@ class TestMessagingTools:
     """Test messaging tool functions."""
 
     @pytest.mark.asyncio
+    async def test_peer_review_message_tool_names_canvas_inbox_delivery(self):
+        """A direct Inbox message must not masquerade as Canvas's native reminder."""
+        from fastmcp import FastMCP
+
+        from canvas_mcp.tools.messaging import register_educator_messaging_tools
+
+        mcp = FastMCP("test")
+        register_educator_messaging_tools(mcp)
+        tools = {tool.name: tool for tool in await mcp.list_tools()}
+
+        assert "send_peer_review_inbox_messages" in tools
+        assert "send_peer_review_reminders" not in tools
+        assert "Canvas Inbox" in (
+            tools["send_peer_review_inbox_messages"].description or ""
+        )
+
+    @pytest.mark.asyncio
+    async def test_peer_review_inbox_messages_refuse_without_grade_permission(self):
+        """A student token must be refused before any message can be prepared."""
+        requests = []
+
+        async def fake_canvas_request(method, endpoint, **kwargs):
+            requests.append((method, endpoint, kwargs))
+            if endpoint == "/courses/60366/permissions":
+                return {"manage_grades": False}
+            return {"name": "Essay 1", "html_url": "https://canvas/e1"}
+
+        with patch(
+            "canvas_mcp.core.cache.get_course_id",
+            new=AsyncMock(return_value="60366"),
+        ), patch(
+            "canvas_mcp.tools.messaging.make_canvas_request",
+            new=fake_canvas_request,
+        ):
+            tool = get_educator_tool_function("send_peer_review_inbox_messages")
+            result = await tool("badm_350_120251", 42, ["101"])
+
+        assert result["nothing_sent"] is True
+        assert "manage grades" in result["error"].lower()
+        assert requests == [
+            (
+                "get",
+                "/courses/60366/permissions",
+                {"params": {"permissions[]": "manage_grades"}},
+            )
+        ]
+
+    @pytest.mark.asyncio
+    async def test_peer_review_inbox_messages_preview_then_send_with_resolved_course(self):
+        """A permitted educator sees an Inbox preview before the resolved send."""
+        requests = []
+
+        async def fake_canvas_request(method, endpoint, **kwargs):
+            requests.append((method, endpoint, kwargs))
+            if endpoint == "/courses/60366/permissions":
+                return {"manage_grades": True}
+            if endpoint == "/courses/60366/assignments/42":
+                return {"name": "Essay 1", "html_url": "https://canvas/e1"}
+            if method == "post" and endpoint == "/conversations":
+                return {"id": 9}
+            return {"error": f"Unexpected request: {method} {endpoint}"}
+
+        with patch(
+            "canvas_mcp.core.cache.get_course_id",
+            new=AsyncMock(return_value="60366"),
+        ), patch(
+            "canvas_mcp.tools.messaging.make_canvas_request",
+            new=fake_canvas_request,
+        ):
+            tool = get_educator_tool_function("send_peer_review_inbox_messages")
+            preview = await tool("badm_350_120251", 42, ["101", "102"])
+            result = await tool(
+                "badm_350_120251",
+                42,
+                ["101", "102"],
+                confirmation_token=preview["confirmation_token"],
+            )
+
+        assert preview["preview"] is True
+        assert preview["nothing_sent"] is True
+        assert preview["delivery"] == "Direct Canvas Inbox messages"
+        assert result["success"] is True
+        post = next(request for request in requests if request[0] == "post")
+        assert post[1] == "/conversations"
+        assert post[2]["data"]["context_code"] == "course_60366"
+
+    @pytest.mark.asyncio
+    async def test_peer_review_inbox_messages_fail_closed_when_permission_is_unknown(self):
+        """A failed permission check must not be misreported as a student role."""
+
+        async def fake_canvas_request(method, endpoint, **kwargs):
+            return {"error": "HTTP error: 503, Details: unavailable"}
+
+        with patch(
+            "canvas_mcp.core.cache.get_course_id",
+            new=AsyncMock(return_value="60366"),
+        ), patch(
+            "canvas_mcp.tools.messaging.make_canvas_request",
+            new=fake_canvas_request,
+        ):
+            tool = get_educator_tool_function("send_peer_review_inbox_messages")
+            result = await tool("badm_350_120251", 42, ["101"])
+
+        assert result["nothing_sent"] is True
+        assert "could not verify" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_peer_review_inbox_messages_report_preflight_failure_as_unsent(self):
+        """Unexpected preflight failures must still make the no-send result explicit."""
+        with patch(
+            "canvas_mcp.core.cache.get_course_id",
+            new=AsyncMock(side_effect=RuntimeError("cache unavailable")),
+        ):
+            tool = get_educator_tool_function("send_peer_review_inbox_messages")
+            result = await tool("badm_350_120251", 42, ["101"])
+
+        assert result["nothing_sent"] is True
+        assert "Canvas Inbox" in result["error"]
+
+    @pytest.mark.asyncio
     async def test_send_conversation(self):
         """Test sending a conversation/message."""
         message_data = {
@@ -87,14 +233,6 @@ class TestMessagingTools:
             result = await make_canvas_request("post", "/conversations", data=message_data)
 
             assert result["subject"] == "Test Message"
-
-    @pytest.mark.asyncio
-    async def test_send_peer_review_reminders(self):
-        """Test sending peer review reminders."""
-        # Test that reminder logic works
-        students_missing_reviews = ["1001", "1002", "1003"]
-
-        assert len(students_missing_reviews) == 3
 
     @pytest.mark.asyncio
     async def test_message_validation(self):
