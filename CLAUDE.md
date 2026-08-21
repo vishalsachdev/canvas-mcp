@@ -181,17 +181,17 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] **#170 Tier 1 student write tools — MERGED to main 2026-07-30 (PR #185)**, deploying with
   v1.6.0. 10 codex rounds to clean; policy carrier is the course syllabus (page carrier deliberately
   removed). Hosted instance verified write-free (CANVAS_ROLE=educator + STUDENT_WRITE_TOOLS unset;
-  policy recorded in internal/ops-hosted.local.md). Issue #170 stays OPEN for UMich's two answers
-  (default posture; syllabus visibility) + their test results. Design record:
-  `internal/issue-170-followup-draft.md`
+  policy recorded in internal/ops-hosted.local.md). **#170 CLOSED 2026-08-19** as completed for the
+  delivered Tier 1 work; UMich's two pilot questions (default posture; syllabus visibility) were never
+  answered and are no longer gating. Design record: `internal/issue-170-followup-draft.md`
 - [x] **#171 identity tools — MERGED (PR #183)**; #171 closed. check_enrollment now returns
   INDETERMINATE instead of a confident false NO on permission-stripped rosters
 - [x] **#180 rubric visibility — MERGED (PR #182)**; #180 closed. Course-bookmark association +
   never report success on an orphaned rubric
 - [x] **#179 gap-closure half — MERGED (PR #184)**: anonymization tiers (full/identity/free_text);
   /conversations + /pages gated (live replay: 97 inbox records, 0 surviving emails); missed email
-  keys covered; anonymization-map tool fixed. **#179 stays OPEN** for the tool-layer call
-  consolidation (status comment on issue)
+  keys covered; anonymization-map tool fixed. **#179 CLOSED 2026-08-01** — the tool-layer call
+  consolidation shipped in PR #211 (plus a ruff TID251 ban to keep it consolidated)
 - [x] Release **v1.6.0** (2026-07-30) — **all five channels live + verified**: GitHub Release (+`.mcpb`),
   PyPI, MCP Registry (`isLatest=True`), site (wrangler-deployed, 1.6.0 / **96 tools**), hosted Azure.
   Behavior change in the notes: `execute_typescript` is now opt-in (#178)
@@ -290,10 +290,14 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] **#252 diagnosed (not merged as reported)**: PR #253's form-data fix measured unnecessary —
   wire encodings equivalent; likely the pre-#220-guard permission failure on v1.6.0. Awaiting
   zqian's retest on v1.7.0+; #253 open pending that
-- [ ] **#191 quizzes BLOCKED on correctness**: New Quizzes detection is `is_quiz_assignment AND
-  external_tool`, but measured live that flag marks *Classic* quizzes — the `AND` may match nothing and
-  silently report zero New Quizzes. Its test fixture hard-codes the assumption. Unblocking needs zqian's
-  **scoping question 4** (a New-Quizzes-enabled sandbox)
+- [ ] **PR #191 (Copilot) quizzes BLOCKED on correctness** — note this is a *PR* against issue
+  **#172**, not an issue itself. New Quizzes detection is `is_quiz_assignment AND external_tool`, but
+  measured live that flag marks *Classic* quizzes — the `AND` may match nothing and silently report zero
+  New Quizzes. Its test fixture hard-codes the assumption. Unblocking needs zqian's **scoping question 4**
+  (a New-Quizzes-enabled sandbox). Two more blockers: a 262-line non-mechanical conflict in
+  `assignments.py`, and a live `Fixes` line in the PR body that would auto-close #172 on merge (#172 has
+  already died this way twice). Decide this week: source a sandbox, or close the PR honestly as
+  unverifiable and reopen when one exists
 - [x] Daily triage routine live (`trig_011HVR6j4c5hDR2fj7k3ujxC`, 7am local) — #202 merged. **Prompt
   patched 2026-07-31**: merging a brief closed #172, because it described another PR as `fixes #172`
   and GitHub parses closing keywords anywhere in a merged PR body. Routine now forbids them *and*
@@ -355,9 +359,20 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   outside code contribution (@SHIL0018): 2,000-char cap + regression test on the discovery
   code-API full branch. Fork CI needed manual approve-runs; `claude-review` failed as always
   on forks (not required). Verified the fixture can't pass vacuously (matched file is 18.8KB)
-- [ ] **#270 isError — scoped, not implemented** (design comment on issue 2026-08-13):
-  central registration-time wrapper, ship together with #271; deferred to a supervised
-  session (touches every tool module)
+- [x] **#270 isError + #271 double-payload — IMPLEMENTED AND MERGED 2026-08-19** (commits `2f87e13`,
+  `85b1f16`, `feae3a8`; new `src/canvas_mcp/core/tool_results.py`). Both issues CLOSED. Tool failures now
+  set MCP `isError: true`; string-returning tools no longer duplicate their value into
+  `structuredContent.result`. **Two breaking wire-shape changes sitting UNRELEASED on `main`** — see the
+  release note below
+- [x] **#262 CI fencing guard — DONE 2026-08-19** (`b9c93a5`, registry-wide read-tool fencing coverage);
+  #262 CLOSED. This was the durability follow-up named on #239, which is also CLOSED (2026-08-19) — its
+  two low-risk deferrals (course names, own profile) are documented policy choices now, re-file narrowly
+  if ever wanted
+- [ ] **RELEASE OWED: v1.11.0.** `main` carries four merged-but-unshipped changes since v1.10.0 —
+  #270 `isError`, #271 double-payload, the #303 `send_peer_review_reminders` →
+  `send_peer_review_inbox_messages` rename, and the fastmcp 3.4.7 floor. Two are breaking, and three
+  outside reporters (khagyard, jonespm, zqian) are retesting against *released* versions, so "is this
+  fixed?" is currently unanswerable for them. CHANGELOG `[Unreleased]` is already written
 
 ## Roadmap
 - [x] Release v1.0.8 — all CI/CD pipelines passing (PyPI, MCP Registry, GitHub Release)
@@ -397,7 +412,15 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
   is operator-only.
 
 ## Session Log
-> Full history: [internal/session-history.md](./internal/session-history.md)
+> Full history: `internal/session-history.md` — **local-only, untracked since 2026-08-21**
+> (it carried a paraphrase of a collaborator's private email and the private hosted endpoint
+> URL while being world-readable). Do not re-add it to git.
+
+> **`internal/` is deny-by-default in `.gitignore`.** Add an un-ignore only for a file
+> deliberately meant to be public. Daily triage briefs stay tracked because the routine reads
+> the newest one to compute its cutoff, so they **must not** record an external collaborator's
+> institutional affiliation, evaluation status, deployment timeline, or which competing
+> products they are weighing. Name the person and the technical issue, nothing else.
 
 
 ### 2026-08-15 — v1.10.0 shipped; #290/#291 merged; Reynolds hosted-test invite sent

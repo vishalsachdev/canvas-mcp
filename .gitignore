@@ -95,22 +95,34 @@ Thumbs.db
 *.swo
 *~
 
-# Private hosted-deployment ops (Gies-internal, not public).
-# Live in internal/ (outside the docs/ publish dir). The docs/ patterns are a
-# defensive backstop in case a local-only file is ever dropped there again.
-internal/*.local.*
+# ---------------------------------------------------------------------------
+# internal/ is DENY-BY-DEFAULT. Do not add new exclusion patterns here; add an
+# un-ignore below only for a file deliberately meant to be public.
+#
+# Why inverted (2026-08-21): internal/ previously defaulted to PUBLIC with six
+# targeted exclusions, so every new file landed in a public repo despite the
+# directory name implying otherwise. internal/session-history.md was tracked
+# and world-readable for 22 days carrying a paraphrase of a collaborator's
+# private email and the private hosted endpoint URL. A directory whose name
+# implies privacy but whose default is publication will keep failing this way.
+internal/*
+!internal/README.md
+!internal/architecture.md
+!internal/architecture-review.md
+!internal/best-practices.md
+!internal/release-checklist.md
+!internal/issue-170-followup-draft.md
+!internal/research-appservice-mcp-entra.md
+# Daily triage briefs stay tracked: the routine reads the newest prior brief to
+# compute its cutoff, so untracking them breaks continuity. They must not name
+# external collaborators' institutional affiliations or evaluation status.
+!internal/issue-triage/
+# ---------------------------------------------------------------------------
+
+# docs/ is the Cloudflare Pages publish root — defensive backstop in case a
+# local-only file is ever dropped there again.
 docs/*.local.*
-
-# Internal compliance email drafts (not public)
-internal/compliance/
 docs/compliance/
-
-# Internal security/FERPA evaluation — shared privately with IT, not published
-# (publishes our own gap list + open questions; no secrets, but operator-only)
-internal/SECURITY-COMPLIANCE.md
-
-# Hosted Desktop Extension sources (contains the private hosted endpoint URL)
-internal/mcpb-hosted/
 
 # Claude Desktop Extension build artifact
 *.mcpb
