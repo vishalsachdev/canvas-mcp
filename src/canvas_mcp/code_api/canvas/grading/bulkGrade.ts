@@ -95,9 +95,9 @@ async function processBatch(
  * processing submissions in parallel batches without loading all data into Claude's context.
  * Only the summary results flow back to Claude.
  *
- * Token savings example:
- * - Traditional approach: 90 submissions × 15K tokens each = 1.35M tokens
- * - Bulk grade approach: ~3.5K tokens total (99.7% reduction!)
+ * This can reduce model-context use because per-submission processing stays
+ * local and only selected output returns to the caller. Actual savings depend
+ * on the workload and output.
  *
  * The grading function receives each submission and should return:
  * - GradeResult object if the submission should be graded

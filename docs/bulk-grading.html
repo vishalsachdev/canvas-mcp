@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Code Execution API - Canvas MCP</title>
-    <meta name="description" content="Learn how to use the Canvas MCP Code Execution API for bulk grading with 99.7% token savings.">
+    <meta name="description" content="Learn how to use the Canvas MCP Code Execution API to process bulk grading operations locally and return concise results.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -41,7 +41,7 @@
                 <div class="doc-header-content">
                     <span class="doc-badge developer">💻 Developer Guide</span>
                     <h1>Code Execution API</h1>
-                    <p>Achieve 99.7% token savings on bulk operations by executing TypeScript locally instead of loading data into the model's context.</p>
+                    <p>Process bulk operations locally without loading every item into the model’s context.</p>
                 </div>
             </div>
         </header>
@@ -51,7 +51,7 @@
                 <aside class="doc-sidebar">
                     <ul class="doc-nav">
                         <li><a href="#overview">Overview</a></li>
-                        <li><a href="#token-savings">Token Savings</a></li>
+                        <li><a href="#token-savings">Context Efficiency</a></li>
                         <li><a href="#traditional-approach">Traditional Approach</a></li>
                         <li><a href="#code-execution">Code Execution</a></li>
                         <li><a href="#bulk-grading">Bulk Grading Example</a></li>
@@ -66,7 +66,7 @@
                 <main class="doc-content">
                     <section id="overview">
                         <h2>Overview</h2>
-                        <p>The Canvas MCP Code Execution API enables you to perform bulk operations on Canvas data with minimal token usage. Instead of loading all submissions into the model's context, the code executes locally and returns only summaries.</p>
+                        <p>The Canvas MCP Code Execution API can reduce model-context use for bulk operations. Instead of returning every submission to the model, code executes locally and returns selected output.</p>
 
                         <div class="info-box tip">
                             <div class="info-box-title">💡 When to Use</div>
@@ -77,9 +77,9 @@
                     </section>
 
                     <section id="token-savings">
-                        <h2>Token Savings Comparison</h2>
+                        <h2>Context Efficiency Comparison</h2>
 
-                        <p>Scenario: Grading 90 Jupyter notebook submissions</p>
+                        <p>Scenario: Grading a large set of Jupyter notebook submissions</p>
 
                         <table>
                             <thead>
@@ -87,39 +87,33 @@
                                     <th>Metric</th>
                                     <th>Traditional</th>
                                     <th>Code Execution</th>
-                                    <th>Savings</th>
+                                    <th>Practical Difference</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>Token Usage</td>
-                                    <td>1.35M</td>
-                                    <td>3.5K</td>
-                                    <td><strong style="color: var(--color-success);">99.7%</strong></td>
+                                    <td>Model Context</td>
+                                    <td>May receive each item and result</td>
+                                    <td>Receives the code and selected output</td>
+                                    <td><strong style="color: var(--color-success);">Less per-item context</strong></td>
                                 </tr>
                                 <tr>
-                                    <td>Data Location</td>
-                                    <td>the model's context</td>
-                                    <td>Local execution</td>
-                                    <td>-</td>
+                                    <td>Item Processing</td>
+                                    <td>Orchestrated through tool calls</td>
+                                    <td>Local execution environment</td>
+                                    <td>Bulk data can stay out of the prompt</td>
                                 </tr>
                                 <tr>
-                                    <td>Processing Speed</td>
-                                    <td>Slow (sequential)</td>
-                                    <td>Fast (concurrent)</td>
-                                    <td>10x+</td>
+                                    <td>Concurrency</td>
+                                    <td>Depends on client orchestration</td>
+                                    <td>Available in supported bulk operations</td>
+                                    <td>Configurable</td>
                                 </tr>
                                 <tr>
-                                    <td>Max Submissions</td>
-                                    <td>~100 (token limits)</td>
-                                    <td>Unlimited</td>
-                                    <td>∞</td>
-                                </tr>
-                                <tr>
-                                    <td>Cost (approx)</td>
-                                    <td>~$5</td>
-                                    <td>~$0.02</td>
-                                    <td>250x</td>
+                                    <td>Scale</td>
+                                    <td>Bound by client context and tool-call overhead</td>
+                                    <td>Bound by Canvas rate limits and local resources</td>
+                                    <td>Workload-dependent</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -128,14 +122,14 @@
                     <section id="traditional-approach">
                         <h2>Traditional Approach (Inefficient)</h2>
 
-                        <p>The traditional approach loads all submissions into the model's context:</p>
+                        <p>This traditional example loads all submissions into the model's context:</p>
 
                         <pre><code><span class="code-comment">// Load ALL submissions into context</span>
 <span class="code-keyword">const</span> submissions = <span class="code-keyword">await</span> <span class="code-function">list_submissions</span>({
   courseIdentifier: <span class="code-string">"60366"</span>,
   assignmentId: <span class="code-string">"123"</span>
 });
-<span class="code-comment">// → 90 submissions × 15K tokens each = 1.35M tokens!</span>
+<span class="code-comment">// Each returned submission consumes model context.</span>
 
 <span class="code-comment">// Process each one (more tokens!)</span>
 <span class="code-keyword">for</span> (<span class="code-keyword">const</span> sub <span class="code-keyword">of</span> submissions) {
@@ -150,10 +144,10 @@
                         <h3>Why This Is Inefficient</h3>
                         <ul>
                             <li style="color: var(--color-error);">✗ All 90 submissions loaded into the model's context</li>
-                            <li style="color: var(--color-error);">✗ ~1.35M tokens consumed</li>
-                            <li style="color: var(--color-error);">✗ Slow execution (sequential processing)</li>
+                            <li style="color: var(--color-error);">✗ Context use grows with returned submission data</li>
+                            <li style="color: var(--color-error);">✗ This example processes submissions sequentially</li>
                             <li style="color: var(--color-error);">✗ Risk of hitting token limits</li>
-                            <li style="color: var(--color-error);">✗ Expensive for large classes</li>
+                            <li style="color: var(--color-error);">✗ Model cost depends on the client, model, and payload size</li>
                         </ul>
                     </section>
 
@@ -169,7 +163,7 @@
   assignmentId: <span class="code-string">"123"</span>,
   gradingFunction: (submission) => {
     <span class="code-comment">// ⭐ This function runs LOCALLY</span>
-    <span class="code-comment">// ⭐ Submissions never enter the model's context!</span>
+    <span class="code-comment">// Per-submission processing stays local; return only selected output.</span>
 
     <span class="code-keyword">const</span> notebook = submission.attachments?.find(
       f => f.filename.endsWith(<span class="code-string">'.ipynb'</span>)
@@ -208,11 +202,11 @@
 
                         <h3>Why This Is Efficient</h3>
                         <ul>
-                            <li style="color: var(--color-success);">✓ Only ~3.5K tokens total (99.7% reduction!)</li>
+                            <li style="color: var(--color-success);">✓ Only selected output needs to return to the model</li>
                             <li style="color: var(--color-success);">✓ Data processed locally in execution environment</li>
-                            <li style="color: var(--color-success);">✓ Faster execution (can process concurrently)</li>
-                            <li style="color: var(--color-success);">✓ No token limit concerns</li>
-                            <li style="color: var(--color-success);">✓ Scales to 1000+ submissions easily</li>
+                            <li style="color: var(--color-success);">✓ Supported operations can process concurrently</li>
+                            <li style="color: var(--color-success);">✓ Context use depends on the code, selected output, and AI client</li>
+                            <li style="color: var(--color-success);">✓ Scale remains subject to Canvas rate limits and local resources</li>
                         </ul>
                     </section>
 
@@ -423,18 +417,18 @@ Bulk grading complete:
 
                     <div style="margin-top: 48px; padding: 32px; background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(59, 130, 246, 0.1)); border: 1px solid var(--color-border); border-radius: var(--radius-lg);">
                         <h3 style="margin-bottom: 16px;">Summary</h3>
-                        <p style="color: var(--color-text-secondary); margin-bottom: 16px;">The code execution API transforms bulk operations from token-intensive processes into efficient, scalable workflows:</p>
+                        <p style="color: var(--color-text-secondary); margin-bottom: 16px;">The code execution API can reduce model-context pressure by keeping per-item processing local:</p>
                         <table style="margin-bottom: 16px;">
                             <tr>
                                 <td><strong>Traditional:</strong></td>
-                                <td style="color: var(--color-text-secondary);">Load everything into context → Expensive, slow, limited</td>
+                                <td style="color: var(--color-text-secondary);">Tool-by-tool processing may return each item to the model</td>
                             </tr>
                             <tr>
                                 <td><strong>Code Execution:</strong></td>
-                                <td style="color: var(--color-success);">Process locally → Cheap, fast, unlimited</td>
+                                <td style="color: var(--color-success);">Process items locally and return only selected output</td>
                             </tr>
                         </table>
-                        <p style="margin-bottom: 0;"><strong>Result:</strong> 99.7% token savings + faster execution + better scalability</p>
+                        <p style="margin-bottom: 0;"><strong>Result:</strong> Lower context use for suitable bulk workflows; actual savings and speed vary by workload and client.</p>
                     </div>
                 </main>
             </div>

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Raised the FastMCP 3.x dependency floor from 3.4.4 to 3.4.7, picking up
+  upstream fixes for Azure scope fallback, deterministic transformed-tool
+  schemas, trusted OAuth metadata/JWKS proxies, and `private_key_jwt` audience
+  validation
+  ([issue 293](https://github.com/vishalsachdev/canvas-mcp/issues/293)).
+- **Breaking:** `send_peer_review_reminders` is now
+  `send_peer_review_inbox_messages` to accurately describe that it sends
+  ordinary Canvas Inbox messages rather than invoking Canvas's native reminder
+  action. The tool now resolves the course and requires `manage_grades` before
+  previewing or sending, failing closed when permission cannot be verified
+  ([issue 303](https://github.com/vishalsachdev/canvas-mcp/issues/303)).
+
+### Fixed
+
+- Tool failures now set MCP `isError: true` while preserving their existing
+  text or structured payload ([issue 270](https://github.com/vishalsachdev/canvas-mcp/issues/270)).
+- String-returning tools no longer duplicate the same value in text content
+  and `structuredContent.result`; dictionary tools retain their structured
+  schemas ([issue 271](https://github.com/vishalsachdev/canvas-mcp/issues/271)).
+
 ## [1.10.0] — 2026-08-15
 
 A community bug-fix release driven by live reporter testing
@@ -551,4 +573,4 @@ Four reports arriving within ~40 minutes on 2026-08-03 — three from a first-ti
 
 ## [1.0.4]
 
-- Code Execution API (99.7% token savings), Bulk Operations, MCP 2.14 compliance
+- Code Execution API for token-efficient bulk operations, MCP 2.14 compliance

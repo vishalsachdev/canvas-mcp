@@ -26,7 +26,7 @@ def register_admin_tools(mcp: FastMCP) -> None:
         result = "🔒 Data Anonymization Status:\n\n"
 
         if config.enable_data_anonymization:
-            result += "✅ **ANONYMIZATION ENABLED** - Student data is protected\n\n"
+            result += "✅ **ANONYMIZATION ENABLED** - Supported identity fields are masked\n\n"
             result += "📊 Session Statistics:\n"
             result += f"  • Total unique students anonymized: {stats['total_anonymized_ids']}\n"
             result += f"  • Privacy protection: {stats['privacy_status']}\n"
@@ -40,13 +40,13 @@ def register_admin_tools(mcp: FastMCP) -> None:
                         break
                 result += "\n"
 
-            result += "🛡️ **FERPA Compliance**: Data anonymized before AI processing\n"
-            result += "📍 **Data Location**: All processing happens locally on your machine\n"
+            result += "🛡️ **Privacy Control**: Supported identity fields are anonymized before tool output\n"
+            result += "📍 **Data Path**: Tool results still pass to your configured AI client\n"
 
         else:
-            result += "⚠️ **ANONYMIZATION DISABLED** - Student data is NOT protected\n\n"
-            result += "🚨 **PRIVACY RISK**: Real student names and data sent to AI\n"
-            result += "⚖️ **COMPLIANCE**: May violate FERPA requirements\n\n"
+            result += "⚠️ **ANONYMIZATION DISABLED** - Tool output may include student identifiers\n\n"
+            result += "🚨 **PRIVACY RISK**: Real student names and data may be sent to the AI client\n"
+            result += "⚖️ **COMPLIANCE**: Review your institution's FERPA and data-handling requirements\n\n"
             result += "💡 **Recommendation**: Enable anonymization in your .env file:\n"
             result += "   ENABLE_DATA_ANONYMIZATION=true\n"
 

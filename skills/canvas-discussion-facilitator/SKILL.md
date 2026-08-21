@@ -11,7 +11,7 @@ Facilitate discussion forum activity in Canvas LMS -- browse topics, read posts,
 
 - **Canvas MCP server** must be running and connected to the agent's MCP client.
 - The authenticated user can have **any Canvas role** (student, TA, or instructor). Tool access is governed by Canvas API permissions.
-- **FERPA compliance** (educators): Set `ENABLE_DATA_ANONYMIZATION=true` in the Canvas MCP server environment to anonymize student names in output.
+- **FERPA-conscious handling** (educators): Set `ENABLE_DATA_ANONYMIZATION=true` in the Canvas MCP server environment to anonymize supported student identity fields in output. This control does not by itself establish compliance.
 
 ## Steps
 
