@@ -368,11 +368,14 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   #262 CLOSED. This was the durability follow-up named on #239, which is also CLOSED (2026-08-19) — its
   two low-risk deferrals (course names, own profile) are documented policy choices now, re-file narrowly
   if ever wanted
-- [ ] **RELEASE OWED: v1.11.0.** `main` carries four merged-but-unshipped changes since v1.10.0 —
-  #270 `isError`, #271 double-payload, the #303 `send_peer_review_reminders` →
-  `send_peer_review_inbox_messages` rename, and the fastmcp 3.4.7 floor. Two are breaking, and three
-  outside reporters (khagyard, jonespm, zqian) are retesting against *released* versions, so "is this
-  fixed?" is currently unanswerable for them. CHANGELOG `[Unreleased]` is already written
+- [x] Release **v1.11.0** (2026-08-20) — all five channels live + verified: GitHub Release
+  (`.mcpb` + SLSA, `gh attestation verify` exit 0), PyPI 200, MCP Registry `isLatest=True`,
+  site wrangler-deployed to the custom domain, hosted Azure auto-deployed (401 challenge healthy).
+  Protocol-correctness release: #303 rename (breaking), #270 `isError`, #271 double-payload,
+  fastmcp 3.4.7 floor. **Registry job failed once on a NEW failure mode** — an unauthenticated
+  `api.github.com` lookup rate-limited to `null`, surfacing as `not in gzip format`; a rerun
+  fixed it and the step is now authenticated with a null guard (`4639847`). Not the PyPI race:
+  PyPI already returned 200. Both modes and the test that distinguishes them are in the checklist
 
 ## Roadmap
 - [x] Release v1.0.8 — all CI/CD pipelines passing (PyPI, MCP Registry, GitHub Release)
