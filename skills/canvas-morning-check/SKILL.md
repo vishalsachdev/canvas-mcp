@@ -11,7 +11,7 @@ A comprehensive course health check for educators using Canvas LMS. Run it at th
 
 - **Canvas MCP server** must be running and connected to the agent's MCP client.
 - The authenticated user must have an **educator or instructor role** in the target Canvas course(s).
-- **FERPA compliance**: Set `ENABLE_DATA_ANONYMIZATION=true` in the Canvas MCP server environment to anonymize student names in all output. When enabled, names render as `Student_xxxxxxxx` hashes.
+- **FERPA-conscious handling**: Set `ENABLE_DATA_ANONYMIZATION=true` in the Canvas MCP server environment to anonymize supported student identity fields in output. When enabled, names render as `Student_xxxxxxxx` hashes. This control does not by itself establish compliance.
 
 ## Steps
 
@@ -93,7 +93,7 @@ After presenting the report, offer actionable next steps:
 
 > Would you like me to:
 > 1. Draft and send a message to struggling students (uses `send_conversation`)
-> 2. Send reminders about upcoming deadlines (uses `send_peer_review_reminders` or `send_conversation`)
+> 2. Send reminders about upcoming deadlines (uses `send_peer_review_inbox_messages` or `send_conversation`)
 > 3. Get detailed analytics for a specific assignment (uses `get_assignment_analytics`)
 > 4. Check another course
 

@@ -6,7 +6,7 @@ This guide helps AI agents (Claude, Cursor, Zed, Windsurf, and other MCP clients
 
 Canvas MCP is a Model Context Protocol server that bridges AI assistants with Canvas Learning Management System. It provides tools for students to track their academic work and for educators to manage courses, grade assignments, and communicate with students.
 
-**Key capability:** The server supports both traditional MCP tool calls AND a code execution API for bulk operations with 99.7% token savings.
+**Key capability:** The server supports both traditional MCP tool calls and a code execution API. Process bulk operations locally without loading every item into the model’s context.
 
 ## Authentication
 
@@ -38,7 +38,7 @@ Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence o
 ## Tool Categories
 
 ### Student Tools
-Personal academic tracking using Canvas "self" endpoints. Students only see their own data.
+Personal academic tracking uses Canvas "self" endpoints. Shared course-content tools still follow the permissions Canvas grants the student's account.
 
 | Tool | Purpose |
 |------|---------|
@@ -101,8 +101,8 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `bulk_grade_submissions` | Grade multiple submissions efficiently |
 | `send_conversation` | Message students. Exactly one plain numeric user ID sends immediately; **multiple recipients or any `course_*`/`group_*` alias are two calls** — preview + confirmation token first, then confirm with identical arguments |
 | `send_bulk_messages_from_list` | Templated bulk messaging. **Two calls:** the first returns a preview + confirmation token and sends nothing; show the preview to the educator, then call again with the token and identical arguments. The token is single-use and dies if any argument changed |
-| `send_peer_review_reminders` | Automated reminder workflow. **Two calls** (preview + confirm), like all multi-recipient sends; the follow-up campaign tool is gated the same way |
-| `create_announcement` | Post course announcements |
+| `send_peer_review_inbox_messages` | Send direct Canvas Inbox messages about incomplete peer reviews; this is not Canvas's native reminder action. Requires `manage_grades` permission and uses **two calls** (preview + confirm) |
+| `create_announcement` | Post course announcements. Pre-checks Canvas's announcement permission; if Canvas silently creates a discussion instead, the tool deletes that unintended topic and reports failure (or warns if cleanup cannot be confirmed) |
 | `update_discussion_topic` | Edit discussion or announcement title/body and settings |
 
 ### Untrusted Canvas content is fenced
@@ -156,7 +156,7 @@ Content access tools available to all authenticated users.
 | `reply_to_discussion_entry` | Reply to a post |
 
 ### Learning Designer Tools
-Course design, quality assurance, and accessibility compliance.
+Course design, quality assurance, and WCAG-oriented accessibility review.
 
 | Tool | Purpose |
 |------|---------|
@@ -193,8 +193,8 @@ Advanced tools for bulk operations and custom logic.
 | List request ("Show assignments") | Traditional MCP tools | Low token cost |
 | Grade 1-9 submissions | `grade_with_rubric` | Straightforward |
 | Grade 10+ submissions | `bulk_grade_submissions` | Concurrent processing |
-| Grade 30+ with custom logic | `execute_typescript` | 99.7% token savings |
-| Complex data processing | `execute_typescript` | Data stays local |
+| Grade 30+ with custom logic | `execute_typescript` | Keeps per-item processing out of the model's context |
+| Complex data processing | `execute_typescript` | Per-item processing stays in the local execution environment |
 
 ### Token Efficiency Decision Tree
 
@@ -268,7 +268,7 @@ Is it a simple query?
 - Use existing rubrics for grading (edit rubrics via Canvas UI if needed)
 - Analyze peer review completion
 - Execute TypeScript for bulk operations
-- Access student data (with FERPA-compliant anonymization option)
+- Access student data (with optional identity anonymization controls)
 
 ### Cannot Do
 - Create or delete courses
@@ -292,7 +292,7 @@ Some Canvas API endpoints have bugs or limitations that prevent certain operatio
 ### Data Access Rules
 | User Type | Can Access |
 |-----------|-----------|
-| Student | Own submissions, grades, enrollments only |
+| Student | Own submissions, grades, and enrollments; shared course content allowed by Canvas |
 | TA | Students in assigned sections |
 | Instructor | All students in their courses |
 
@@ -342,6 +342,13 @@ search_canvas_tools("", "names")              → List all tools
 search_canvas_tools("bulk", "full")           → Full details on bulk ops
 ```
 
+`search_canvas_tools` returns response schema version `2`. Successful searches
+use separate `mcp_tools` and `code_execution_api` sections, each with its own
+`count` and `tools` array. The pre-v1.10 flat top-level `tools` key was removed;
+scripted clients should branch on `schema_version` instead of assuming the old
+shape. A no-match response still carries `schema_version: 2` but reports the
+message and number of MCP tools searched rather than empty result sections.
+
 ### Static Discovery
 See `/tools/TOOL_MANIFEST.json` for machine-readable tool catalog.
 See `/tools/README.md` for comprehensive human-readable documentation.
@@ -361,7 +368,7 @@ The server automatically resolves identifiers to Canvas IDs.
 ## Privacy and Anonymization
 
 ### For Educators
-Enable FERPA-compliant anonymization:
+Enable identity anonymization for FERPA-conscious workflows:
 ```
 ENABLE_DATA_ANONYMIZATION=true
 ```

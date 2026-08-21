@@ -33,6 +33,7 @@ from .core.credentials import (
     set_request_credentials,
 )
 from .core.logging import log_error, log_info, log_warning
+from .core.tool_results import install_tool_result_contract
 from .resources import register_resources_and_prompts
 from .tools import (
     register_accessibility_tools,
@@ -428,6 +429,7 @@ def register_all_tools(mcp: FastMCP, role: str = "all") -> None:
         role: One of "student", "educator", or "all" (default)
     """
     log_info(f"Registering Canvas MCP tools (role: {role})...")
+    install_tool_result_contract(mcp)
 
     # Shared tools — always registered for all roles
     register_course_tools(mcp)

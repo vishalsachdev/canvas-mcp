@@ -719,7 +719,7 @@
     {
       "name": "execute_typescript",
       "category": "developer",
-      "description": "Execute TypeScript code for bulk operations with 99.7% token savings",
+      "description": "Execute TypeScript locally so bulk item processing can stay out of model context",
       "parameters": [
         {
           "name": "code",
@@ -2444,9 +2444,9 @@
       ]
     },
     {
-      "name": "send_peer_review_reminders",
+      "name": "send_peer_review_inbox_messages",
       "category": "educator",
-      "description": "Send peer review completion reminders to specific students. Two-step: preview returns the composed message plus a confirmation_token; confirm with the token and identical arguments to send.",
+      "description": "Send direct Canvas Inbox messages about incomplete peer reviews. This does not invoke Canvas's native reminder action. Requires manage_grades permission. Two-step: preview returns the composed message plus a confirmation_token; confirm with the token and identical arguments to send.",
       "parameters": [
         {
           "name": "course_identifier",
@@ -2493,7 +2493,7 @@
           "description": "Single-use token from the preview call; omit to preview without sending"
         }
       ],
-      "returns": "Without a token: a preview (recipients, composed subject and body) plus a confirmation_token (nothing sent). With a valid token: per-student send results",
+      "returns": "Without a token: a direct Canvas Inbox message preview (recipients, composed subject and body) plus a confirmation_token (nothing sent). With a valid token: the Canvas conversation send result",
       "examples": [
         "Send peer review reminders to these five students"
       ]

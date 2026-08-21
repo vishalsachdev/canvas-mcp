@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Learning Designer Guide - Canvas MCP</title>
-    <meta name="description" content="Learn how to use Canvas MCP as a learning designer for course design, quality assurance, accessibility compliance, and bulk course scaffolding.">
+    <meta name="description" content="Learn how to use Canvas MCP as a learning designer for course design, quality assurance, WCAG-oriented accessibility review, and bulk course scaffolding.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -41,7 +41,7 @@
                 <div class="doc-header-content">
                     <span class="doc-badge designer">🎨 Learning Designer Guide</span>
                     <h1>Canvas MCP for Learning Designers</h1>
-                    <p>AI-powered course design, quality assurance, and accessibility compliance at scale. Scaffold courses, audit content, and remediate WCAG violations.</p>
+                    <p>AI-powered course design, quality assurance, and WCAG-oriented accessibility review at scale. Scaffold courses, audit content, and remediate detected issues.</p>
                 </div>
             </div>
         </header>
@@ -75,7 +75,7 @@
                                 <p>Pre-semester audits that check module structure, content completeness, publishing state, date consistency, and naming conventions.</p>
                             </div>
                             <div class="feature-item">
-                                <h4>♿ Accessibility Compliance</h4>
+                                <h4>♿ Accessibility Review</h4>
                                 <p>Scan course content for WCAG violations, generate prioritized reports, guide remediation, and verify fixes.</p>
                             </div>
                             <div class="feature-item">
@@ -97,7 +97,7 @@
                         <h2>Prerequisites</h2>
                         <ul>
                             <li><strong>Python 3.10+</strong> installed on your computer</li>
-                            <li><strong>An MCP client</strong> &mdash; whichever AI assistant you already use. Claude Desktop, Claude Code, ChatGPT, Cursor, VS Code, Zed, Windsurf and Continue all work; see <a href="index.html#clients">supported clients</a>.</li>
+                            <li><strong>An MCP client</strong> &mdash; commonly used options include Claude Desktop, Claude Code, ChatGPT, Cursor, VS Code, Zed, Windsurf, and Continue; setup and capabilities vary, so see <a href="index.html#clients">supported clients</a>.</li>
                             <li><strong>Canvas Account</strong> with designer or admin permissions</li>
                         </ul>
                     </section>
@@ -199,7 +199,7 @@ CANVAS_API_URL=https://canvas.youruniversity.edu</code></pre>
 
                         <div class="workflow-box">
                             <h4>♿ canvas-accessibility-auditor</h4>
-                            <p style="margin-bottom: 12px; color: var(--color-text-secondary);">WCAG compliance workflow. Scans content, generates prioritized reports, guides remediation.</p>
+                            <p style="margin-bottom: 12px; color: var(--color-text-secondary);">WCAG-oriented review workflow. Scans content, generates prioritized reports, and guides remediation.</p>
                             <p><strong>Try:</strong> <em>"Audit accessibility for BADM 350"</em></p>
                             <div class="workflow-step">
                                 <span class="step-num">1</span>
