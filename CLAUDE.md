@@ -412,7 +412,7 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
   is operator-only.
 
 ## Session Log
-> Full history: `internal/session-history.md` — **local-only, untracked since 2026-08-21**
+> Full history: `internal/session-history.md` — **local-only, untracked since 2026-08-20**
 > (it carried a paraphrase of a collaborator's private email and the private hosted endpoint
 > URL while being world-readable). Do not re-add it to git.
 

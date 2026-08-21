@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0] — 2026-08-20
+
 ### Changed
 
 - Raised the FastMCP 3.x dependency floor from 3.4.4 to 3.4.7, picking up

@@ -99,7 +99,7 @@ Thumbs.db
 # internal/ is DENY-BY-DEFAULT. Do not add new exclusion patterns here; add an
 # un-ignore below only for a file deliberately meant to be public.
 #
-# Why inverted (2026-08-21): internal/ previously defaulted to PUBLIC with six
+# Why inverted (2026-08-20): internal/ previously defaulted to PUBLIC with six
 # targeted exclusions, so every new file landed in a public repo despite the
 # directory name implying otherwise. internal/session-history.md was tracked
 # and world-readable for 22 days carrying a paraphrase of a collaborator's
