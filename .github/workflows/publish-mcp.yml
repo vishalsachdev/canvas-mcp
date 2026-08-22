@@ -99,14 +99,31 @@ jobs:
           exit 1
 
       - name: Install MCP Publisher
+        env:
+          # Unauthenticated api.github.com calls are rate-limited per runner IP,
+          # which are shared. On v1.11.0 the limit was hit, jq returned the string
+          # "null", and the download URL 404'd into `tar: not in gzip format` —
+          # a confusing failure three steps away from the real cause.
+          GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           # Get latest mcp-publisher release version dynamically
-          VERSION=$(curl -s https://api.github.com/repos/modelcontextprotocol/registry/releases/latest | jq -r '.tag_name')
+          VERSION=$(curl -sSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/modelcontextprotocol/registry/releases/latest \
+            | jq -r '.tag_name')
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "ERROR: could not resolve the latest mcp-publisher release tag."
+            echo "Got: '$VERSION'. Likely an api.github.com rate limit or outage."
+            exit 1
+          fi
           echo "Installing mcp-publisher version: $VERSION"
           OS=$(uname -s | tr '[:upper:]' '[:lower:]')
           ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
           # Naming format: mcp-publisher_OS_ARCH.tar.gz (no version in filename)
-          curl -L "https://github.com/modelcontextprotocol/registry/releases/download/${VERSION}/mcp-publisher_${OS}_${ARCH}.tar.gz" | tar xz
+          # --fail so an HTML error page never reaches tar as if it were an archive.
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/${VERSION}/mcp-publisher_${OS}_${ARCH}.tar.gz" | tar xz
           sudo mv mcp-publisher /usr/local/bin/
           mcp-publisher --version
 

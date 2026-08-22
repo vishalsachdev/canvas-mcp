@@ -7,6 +7,7 @@ from .assignments import (
     register_shared_assignment_tools,
 )
 from .code_execution import register_code_execution_tools
+from .content_migrations import register_content_migration_tools
 from .courses import register_course_tools, register_shared_content_tools
 from .discovery import register_discovery_tools
 from .discussions import (
@@ -32,6 +33,7 @@ __all__ = [
     'register_accessibility_tools',
     'register_admin_tools',
     'register_code_execution_tools',
+    'register_content_migration_tools',
     'register_course_tools',
     'register_discovery_tools',
     'register_enrollment_tools',
