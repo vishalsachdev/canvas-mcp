@@ -407,6 +407,112 @@ Update an existing assignment in a course.
 
 ---
 
+### Content Migration
+
+#### `create_content_migration`
+Preview and confirm a request to copy the full contents of one course into another.
+
+**Signature:**
+```python
+create_content_migration(
+    target_course_identifier: str | int,
+    source_course_identifier: str | int,
+    old_start_date: str | None = None,
+    old_end_date: str | None = None,
+    new_start_date: str | None = None,
+    new_end_date: str | None = None,
+    confirmation_token: str | None = None,
+) -> dict[str, Any]
+```
+
+The first call never starts a migration. It resolves both courses, rejects a
+source and target that resolve to the same Canvas course, validates the optional
+date shift, and returns a preview with counts of the target's current
+assignments, pages, modules, discussions, and files where those lists are
+readable. These counts describe occupancy only; they are not a content-level
+diff of likely collisions. A non-empty target receives an explicit duplicate-risk
+warning.
+
+Date shifting accepts either none or all four date fields. Both the old and new
+start dates must be earlier than their matching end dates. This tool does not
+expose `dry_run` or selective imports.
+
+**Preview and confirmation example:**
+```python
+preview = create_content_migration(
+    target_course_identifier="BADM_350_FALL_2026",
+    source_course_identifier="BADM_350_FALL_2025",
+    old_start_date="2025-08-25",
+    old_end_date="2025-12-19",
+    new_start_date="2026-08-24",
+    new_end_date="2026-12-18",
+)
+
+# Show the complete preview to the educator and obtain explicit confirmation.
+started = create_content_migration(
+    target_course_identifier="BADM_350_FALL_2026",
+    source_course_identifier="BADM_350_FALL_2025",
+    old_start_date="2025-08-25",
+    old_end_date="2025-12-19",
+    new_start_date="2026-08-24",
+    new_end_date="2026-12-18",
+    confirmation_token=preview["confirmation_token"],
+)
+```
+
+The token is short-lived, single-use, and bound to the canonical source and
+target plus the exact normalized date options. Changed arguments invalidate and
+burn it. A returned migration ID confirms only that Canvas created the migration
+record; it does not mean the migration completed or that content was copied.
+If the POST fails ambiguously or the response has no migration ID, the result
+sets `migration_start_unconfirmed=true`. Check the target course's migration
+history before retrying, because a timeout can occur after the request reached
+Canvas.
+
+---
+
+#### `get_content_migration_status`
+Read one migration and one progress snapshot.
+
+**Signature:**
+```python
+get_content_migration_status(
+    course_identifier: str | int,
+    migration_id: str | int,
+) -> dict[str, Any]
+```
+
+Each invocation performs exactly one progress read. It does not sleep, loop, or
+run a background job. For `queued` or `running`, the result sets
+`terminal=false`, `poll_again=true`, and provides concrete arguments for the
+next call. Repeat only when the caller is ready to poll again:
+
+```python
+status = get_content_migration_status(
+    course_identifier=started["next_action"]["arguments"]["course_identifier"],
+    migration_id=started["migration_id"],
+)
+
+if status.get("poll_again"):
+    status = get_content_migration_status(**status["next_action"]["arguments"])
+```
+
+When progress is terminal, the tool reads all paginated migration issues:
+
+- `completed` with no issues is a clean completion.
+- `completed_with_issues` includes every returned issue, sets
+  `requires_review=true`, and uses a warning rather than an error.
+- `failed` is terminal and returns a top-level error plus any readable issues.
+- If issues cannot be read, `issues_checked=false` is returned with the progress
+  snapshot; the tool never substitutes an empty issue list.
+- A missing or unknown progress state is an error and is never treated as
+  completion.
+
+Canvas-authored progress messages and issue descriptions or administrator error
+details are provenance-fenced as untrusted data in the tool output.
+
+---
+
 ### Grading & Rubrics
 
 #### `create_rubric`

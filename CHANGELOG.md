@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added educator-only content migration tools for previewing and confirming a
+  full course-copy request, then polling its progress and reviewing all
+  terminal migration issues ([issue 309](https://github.com/vishalsachdev/canvas-mcp/issues/309)).
+
+## [1.11.0] — 2026-08-20
+
 ### Changed
 
 - Raised the FastMCP 3.x dependency floor from 3.4.4 to 3.4.7, picking up
