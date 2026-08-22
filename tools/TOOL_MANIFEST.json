@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "name": "canvas-mcp",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "description": "MCP server for Canvas Learning Management System API",
   "categories": [
     {
@@ -330,6 +330,86 @@
         "Create an assignment called 'Week 1 Discussion' worth 10 points, due Jan 26",
         "Add a new essay assignment with online_text_entry submission"
       ]
+    },
+    {
+      "name": "create_content_migration",
+      "category": "educator",
+      "description": "Preview target-course occupancy, then request a full course-copy migration after explicit confirmation.",
+      "parameters": [
+        {
+          "name": "target_course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Target course code or Canvas ID"
+        },
+        {
+          "name": "source_course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Source course code or Canvas ID"
+        },
+        {
+          "name": "old_start_date",
+          "type": "string",
+          "required": false,
+          "description": "Original course start date; provide all four date fields or none"
+        },
+        {
+          "name": "old_end_date",
+          "type": "string",
+          "required": false,
+          "description": "Original course end date; provide all four date fields or none"
+        },
+        {
+          "name": "new_start_date",
+          "type": "string",
+          "required": false,
+          "description": "New course start date; provide all four date fields or none"
+        },
+        {
+          "name": "new_end_date",
+          "type": "string",
+          "required": false,
+          "description": "New course end date; provide all four date fields or none"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Single-use token returned by the preview call; repeat with identical arguments"
+        }
+      ],
+      "returns": "Preview with target occupancy and confirmation token, or a created migration record ID plus the next status action",
+      "examples": [
+        "Preview copying BADM 350 Fall 2025 into Fall 2026",
+        "Confirm the previewed course copy with this confirmation token"
+      ],
+      "notes": "The first call never starts a migration. A migration ID confirms record creation only, not completion. No dry_run or selective_import parameter is exposed."
+    },
+    {
+      "name": "get_content_migration_status",
+      "category": "educator",
+      "description": "Poll one content migration once and review terminal migration issues.",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Target course code or Canvas ID"
+        },
+        {
+          "name": "migration_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Numeric content migration ID"
+        }
+      ],
+      "returns": "One progress snapshot with terminal and poll_again flags; terminal results include all readable migration issues",
+      "examples": [
+        "Check migration 300 in course 200",
+        "Poll this course copy again and show any migration issues"
+      ],
+      "notes": "Performs exactly one progress read per invocation. Completed migrations with issues require review; unreadable issues are never replaced by an empty list."
     },
     {
       "name": "get_student_analytics",

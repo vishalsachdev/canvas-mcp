@@ -29,8 +29,8 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 ```
 # In .env:
 CANVAS_ROLE=student    # ~37 tools (student + shared)
-CANVAS_ROLE=educator   # ~88 tools (educator + shared)
-CANVAS_ROLE=all        # Default profile; 94 tools by default, 99 with all feature-gated tools enabled
+CANVAS_ROLE=educator   # 90 tools (educator + shared)
+CANVAS_ROLE=all        # Default profile; 96 tools by default, 101 with all feature-gated tools enabled
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
@@ -89,6 +89,8 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `get_assignment_analytics` | Performance statistics |
 | `create_assignment` | Create new assignment with due date, submission types, peer reviews |
 | `update_assignment` | Update existing assignment (name, due date, points, published, etc.) |
+| `create_content_migration` | Preview target occupancy, then request a full course-copy migration after explicit confirmation |
+| `get_content_migration_status` | Poll one migration once and review terminal migration issues |
 | `get_student_analytics` | Individual student performance |
 | `check_enrollment` | Is a given campus login ID (NetID / uniqname / email-style login — not a display name) enrolled in a course? Returns yes/no only, never the roster. `role` defaults to `student`; pass `role="any"` to ask "in this course at all?". Needs roster-admin rights; without them the answer is INDETERMINATE, never "no". For your OWN enrollment use `get_my_enrollments` |
 | `list_rubrics` | List rubrics in a course |
@@ -256,6 +258,22 @@ Is it a simple query?
 
 3. "Post a reminder"
    → create_announcement(course_id, title, message)
+```
+
+### Educator: Copy Course Content
+```
+1. Preview the source, target, optional date shift, and target occupancy
+   → create_content_migration(target_course_identifier, source_course_identifier, ...)
+
+2. Show the preview to the educator, then repeat the call with the returned
+   confirmation_token and identical arguments
+   → create_content_migration(..., confirmation_token=token)
+
+3. Poll once per call while poll_again=true
+   → get_content_migration_status(course_identifier, migration_id)
+
+4. When terminal, review every returned migration issue. A completed migration
+   with issues is reported as completed_with_issues, not as a clean completion.
 ```
 
 ## Capability Boundaries

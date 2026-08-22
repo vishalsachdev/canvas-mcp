@@ -14,10 +14,19 @@ When bumping the version in `pyproject.toml`, also update:
 
 ## Pending for the next release
 
-- Nothing flagged. (The #258 breaking changes shipped in v1.9.0, 2026-08-10.)
+- Nothing flagged. (v1.11.0 shipped 2026-08-20 with the #303 rename plus the #270/#271 wire-shape changes.)
 
 ## Gotchas
 
 - A blanket `s/1.3.0/1.4.0/` also hits dep constraints (e.g. `pytest-asyncio>=1.3.0`) — verify `git diff` shows ONLY the package version before committing.
 - `docs/index.html` has both a `softwareVersion` field and a `vX.Y.Z`-style banner; a `\b`-anchored regex misses the `v`-prefixed banner — bump `v`-prefixed refs separately.
+- **`Installing mcp-publisher version: null` (new, v1.11.0):** NOT the publish race. The
+  registry job resolved the mcp-publisher tag via an *unauthenticated* `api.github.com` call,
+  hit the per-runner-IP rate limit, and `jq` returned the string `null`. The download URL then
+  404'd into a 9-byte body and the step died on `gzip: stdin: not in gzip format` — three steps
+  from the real cause. A plain `gh run rerun --failed` succeeded. Hardened afterwards: the call
+  is authenticated with `github.token`, the tag is checked for null/empty, and `curl --fail`
+  stops an error page reaching `tar`. **Tell the two apart by checking PyPI first:** if
+  `curl -s -o /dev/null -w '%{http_code}' https://pypi.org/pypi/canvas-mcp/<ver>/json` already
+  returns 200, it is not the propagation race.
 - **Publish race:** the MCP Registry job validates the version on PyPI and 404s before PyPI's CDN propagates. Wait until `curl -s -o /dev/null -w '%{http_code}' https://pypi.org/pypi/canvas-mcp/<ver>/json` returns 200, THEN `gh run rerun <id> --failed`.
