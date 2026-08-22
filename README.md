@@ -8,7 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![skills.sh](https://img.shields.io/badge/skills.sh-canvas--mcp-blue)](https://skills.sh)
 
-MCP server for Canvas LMS with **up to 99 tools** and **8 agent skills**. Designed for Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh); setup and capabilities vary by client.
+MCP server for Canvas LMS with **up to 101 tools** and **8 agent skills**. Designed for Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh); setup and capabilities vary by client.
 
 ```bash
 npx skills add vishalsachdev/canvas-mcp
@@ -23,7 +23,7 @@ npx skills add vishalsachdev/canvas-mcp
   See CLAUDE.md "Documentation Maintenance" for full guidelines.
 -->
 
-Canvas MCP provides **up to 99 tools** for interacting with Canvas LMS; the default profile registers fewer, and optional feature-gated tools can raise the total to 99. Tools are organized by user type:
+Canvas MCP provides **up to 101 tools** for interacting with Canvas LMS; the default profile registers fewer, and optional feature-gated tools can raise the total to 101. Tools are organized by user type:
 
 <details>
 <summary><strong>Student Tools</strong> (click to expand)</summary>
@@ -125,19 +125,26 @@ Canvas MCP provides **up to 99 tools** for interacting with Canvas LMS; the defa
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing role-specific workflows for students, educators, learning designers, and developers. Built on the Model Context Protocol (MCP), it is designed for MCP-compatible clients; setup and supported capabilities vary by client.
 
-## Latest Release: v1.10.0
+## Latest Release: v1.11.0
 
 **Released:** August 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
 
-A community bug-fix release driven by live reporter testing — thanks [@khagyard](https://github.com/khagyard), [@zqian](https://github.com/zqian), [@jonespm](https://github.com/jonespm), [@bruchris](https://github.com/bruchris), and [@SHIL0018](https://github.com/SHIL0018) (our second outside code contribution). One change is **breaking** — see below before upgrading.
+A protocol-correctness release. Every change here is about a client being able to tell what actually happened when it calls a tool. **One change is breaking and one alters response shape** — read both before upgrading.
+
+- **Breaking: `send_peer_review_reminders` is now `send_peer_review_inbox_messages`** ([#303](https://github.com/vishalsachdev/canvas-mcp/issues/303)). The old name implied it invoked Canvas's native reminder action; it does not, it sends ordinary Canvas Inbox messages, and the name now says so. The tool also resolves the course and requires `manage_grades` before previewing or sending, failing closed when the permission cannot be verified. Thanks [@jonespm](https://github.com/jonespm) for catching the mismatch
+- **Tool failures now set MCP `isError: true`** ([#270](https://github.com/vishalsachdev/canvas-mcp/issues/270)). Previously a Canvas error and an empty-but-successful result were indistinguishable to a client: both came back as an ordinary result. Errors keep their existing text or structured payload, they are simply flagged correctly now
+- **Response-shape change: string-returning tools no longer duplicate their payload** ([#271](https://github.com/vishalsachdev/canvas-mcp/issues/271)). 91 of the registered tools were emitting the same value twice, once as text content and again under an information-free `structuredContent.result`. Dictionary-returning tools keep their structured schemas. **If a client reads `structuredContent.result` for a string-returning tool, switch it to the text content**
+- **FastMCP dependency floor raised to 3.4.7** ([#293](https://github.com/vishalsachdev/canvas-mcp/issues/293)), picking up upstream fixes for Azure scope fallback, deterministic transformed-tool schemas, trusted OAuth metadata/JWKS proxies, and `private_key_jwt` audience validation
+
+<details>
+<summary>Previous releases</summary>
+
+**v1.10.0** — A community bug-fix release driven by live reporter testing — thanks [@khagyard](https://github.com/khagyard), [@zqian](https://github.com/zqian), [@jonespm](https://github.com/jonespm), [@bruchris](https://github.com/bruchris), and [@SHIL0018](https://github.com/SHIL0018) (our second outside code contribution). Included a breaking `search_canvas_tools` response-shape change.
 
 - **Breaking: `search_canvas_tools` response shape v2** ([#281](https://github.com/vishalsachdev/canvas-mcp/issues/281)). The tool now actually searches the ~99 registered MCP tools alongside the TypeScript code-API files (it previously searched only the latter, so "peer review" found nothing despite ~10 peer-review tools existing). Responses carry `schema_version: 2` with labeled `mcp_tools` / `code_execution_api` sections; the old flat `tools` key is gone. Full-detail code-API content is now also capped at 2,000 characters ([#287](https://github.com/vishalsachdev/canvas-mcp/issues/287))
 - **Students can find their peer reviews** ([#275](https://github.com/vishalsachdev/canvas-mcp/issues/275)): `get_my_peer_reviews_todo` gained a direct per-assignment lookup and a Planner-feed discovery path — the same data source Canvas's own student UI uses — validated against a real production payload from the reporter
 - **`create_announcement` fails safely on student tokens** ([#283](https://github.com/vishalsachdev/canvas-mcp/issues/283)): Canvas silently downgrades the create to a regular discussion topic; the tool now pre-checks course permissions and refuses before creating anything, auto-deletes the unintended topic if a downgrade still slips through, and steers AI clients away from posting the content via discussion tools as a fallback
 - **Security:** stricter URL validation (code-scanning fix), Docker base bumped to `python:3.14-slim`, CI actions updated
-
-<details>
-<summary>Previous releases</summary>
 
 **v1.9.0** — Prompt-injection hardening ([#239](https://github.com/vishalsachdev/canvas-mcp/issues/239)): Canvas-authored text arrives provenance-fenced as data-not-instructions; multi-recipient sends became two-step preview→confirm (breaking); write tools refuse fence markers; OSSF Scorecard published, CI actions SHA-pinned, `.mcpb` ships SLSA provenance; npm wizard retired ([#249](https://github.com/vishalsachdev/canvas-mcp/issues/249)). Eleven adversarial review rounds pre-merge
 
