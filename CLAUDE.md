@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 canvas-mcp/
 ├── src/canvas_mcp/        # Main application code
 │   ├── core/             # Core utilities (client, config, validation)
-│   ├── tools/            # MCP tool implementations (99 tools across 19 files)
+│   ├── tools/            # MCP tool implementations (up to 101 tools across 20 files)
 │   ├── resources/        # MCP resources and prompts
 │   └── server.py         # FastMCP server entry point
 ├── skills/               # Agent skills for skills.sh (8 skills)
@@ -181,17 +181,17 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] **#170 Tier 1 student write tools — MERGED to main 2026-07-30 (PR #185)**, deploying with
   v1.6.0. 10 codex rounds to clean; policy carrier is the course syllabus (page carrier deliberately
   removed). Hosted instance verified write-free (CANVAS_ROLE=educator + STUDENT_WRITE_TOOLS unset;
-  policy recorded in internal/ops-hosted.local.md). Issue #170 stays OPEN for UMich's two answers
-  (default posture; syllabus visibility) + their test results. Design record:
-  `internal/issue-170-followup-draft.md`
+  policy recorded in internal/ops-hosted.local.md). **#170 CLOSED 2026-08-19** as completed for the
+  delivered Tier 1 work; UMich's two pilot questions (default posture; syllabus visibility) were never
+  answered and are no longer gating. Design record: `internal/issue-170-followup-draft.md`
 - [x] **#171 identity tools — MERGED (PR #183)**; #171 closed. check_enrollment now returns
   INDETERMINATE instead of a confident false NO on permission-stripped rosters
 - [x] **#180 rubric visibility — MERGED (PR #182)**; #180 closed. Course-bookmark association +
   never report success on an orphaned rubric
 - [x] **#179 gap-closure half — MERGED (PR #184)**: anonymization tiers (full/identity/free_text);
   /conversations + /pages gated (live replay: 97 inbox records, 0 surviving emails); missed email
-  keys covered; anonymization-map tool fixed. **#179 stays OPEN** for the tool-layer call
-  consolidation (status comment on issue)
+  keys covered; anonymization-map tool fixed. **#179 CLOSED 2026-08-01** — the tool-layer call
+  consolidation shipped in PR #211 (plus a ruff TID251 ban to keep it consolidated)
 - [x] Release **v1.6.0** (2026-07-30) — **all five channels live + verified**: GitHub Release (+`.mcpb`),
   PyPI, MCP Registry (`isLatest=True`), site (wrangler-deployed, 1.6.0 / **96 tools**), hosted Azure.
   Behavior change in the notes: `execute_typescript` is now opt-in (#178)
@@ -290,10 +290,14 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
 - [x] **#252 diagnosed (not merged as reported)**: PR #253's form-data fix measured unnecessary —
   wire encodings equivalent; likely the pre-#220-guard permission failure on v1.6.0. Awaiting
   zqian's retest on v1.7.0+; #253 open pending that
-- [ ] **#191 quizzes BLOCKED on correctness**: New Quizzes detection is `is_quiz_assignment AND
-  external_tool`, but measured live that flag marks *Classic* quizzes — the `AND` may match nothing and
-  silently report zero New Quizzes. Its test fixture hard-codes the assumption. Unblocking needs zqian's
-  **scoping question 4** (a New-Quizzes-enabled sandbox)
+- [ ] **PR #191 (Copilot) quizzes BLOCKED on correctness** — note this is a *PR* against issue
+  **#172**, not an issue itself. New Quizzes detection is `is_quiz_assignment AND external_tool`, but
+  measured live that flag marks *Classic* quizzes — the `AND` may match nothing and silently report zero
+  New Quizzes. Its test fixture hard-codes the assumption. Unblocking needs zqian's **scoping question 4**
+  (a New-Quizzes-enabled sandbox). Two more blockers: a 262-line non-mechanical conflict in
+  `assignments.py`, and a live `Fixes` line in the PR body that would auto-close #172 on merge (#172 has
+  already died this way twice). Decide this week: source a sandbox, or close the PR honestly as
+  unverifiable and reopen when one exists
 - [x] Daily triage routine live (`trig_011HVR6j4c5hDR2fj7k3ujxC`, 7am local) — #202 merged. **Prompt
   patched 2026-07-31**: merging a brief closed #172, because it described another PR as `fixes #172`
   and GitHub parses closing keywords anywhere in a merged PR body. Routine now forbids them *and*
@@ -319,23 +323,20 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   module, not CWD). Cost if adopted: a 4th version-stamp location in the release checklist
 - [ ] Backlog triage (module templates, bulk creation, page versioning — feature ideas only, no owner)
 - [x] Issue #106: mypy 229 → 0 errors + mypy in CI lint job (PR #213, 2026-08-01)
-- [ ] **#275 `get_my_peer_reviews_todo` false negative — PR #277 merged, issue stays OPEN.**
-  `assignment_identifier` param added (direct per-assignment lookup, bypasses the
-  discovery scan's `peer_reviews`-flag gate) but root cause of the discovery-scan miss
-  is still unconfirmed — no student-scoped token available to reproduce. Rejected a
-  Copilot-authored PR (#276) whose fix didn't match how the Canvas endpoint actually
-  behaves. Reporter (`khagyard`) confirmed: regular assignment, not anonymous, assigned
-  before due date — still not found even with the direct lookup, per the daily triage
-  routine's follow-up on the issue. **PR #288 MERGED 2026-08-13 (night)** — Planner-API
-  discovery path (community-confirmed: student UI uses `/planner/items`, the
-  assignment-scoped peer_reviews endpoints are instructor-focused). The merge gate
-  worked exactly as designed: khagyard posted a **real production payload** ~2h after
-  the ask, which falsified `plannable.user_id`/`assessor_id` (absent in reality —
-  output would have said "Student None") and confirmed completed items still appear
-  under `filter=incomplete_items`. Their 3-item payload is now the acceptance-replay
-  fixture (JWT image URLs stripped). Verified: opencode review + Devin 3/3 PASS + CI +
-  main suite green (1350). Issue stays open for khagyard's retest from main; close on
-  their confirmation. Ships in next release (minor bump already owed)
+- [x] **#275 `get_my_peer_reviews_todo` — CLOSED 2026-08-20** on khagyard's confirmation
+  ("The fix worked thank you!"). PR #288's Planner-feed discovery path is what fixed it; the
+  assignment-scoped `peer_reviews` endpoints are instructor-focused, which @aesse97 called
+  correctly in the thread. Two corrections to the old note here: the earlier claim that khagyard
+  "confirmed still not found even with the direct lookup" is **unsupported** — their report
+  predates any build containing PR #277's `assignment_identifier`, and they never answered which
+  version they were on. And the **root cause of the original discovery-scan miss was never
+  diagnosed, only routed around**. Their production payload is now the acceptance-replay fixture
+- [x] **#309 content migration — PR #316 MERGED 2026-08-20** (`ea50c711`). Two educator-only tools:
+  preview→confirm course copy + one-poll-per-call status with migration-issue review. **#309 stays
+  OPEN** for zqian's answer on `selective_import` (deliberately out of v1: a second async workflow
+  that cannot be measured without a sandbox) and for a real sandbox payload — the bracket-form
+  encoding, Progress state vocabulary, and migration-issue field names are doc-derived, not measured
+
 - [x] **#283 announcement→discussion silent fallback — two-layer fix complete (PR #285 +
   PR #291, merged 2026-08-14).** jonespm's retest showed the deeper mechanism: Canvas answers
   200 to a student's create_announcement, silently drops `is_announcement`, and creates a real
@@ -355,9 +356,23 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   outside code contribution (@SHIL0018): 2,000-char cap + regression test on the discovery
   code-API full branch. Fork CI needed manual approve-runs; `claude-review` failed as always
   on forks (not required). Verified the fixture can't pass vacuously (matched file is 18.8KB)
-- [ ] **#270 isError — scoped, not implemented** (design comment on issue 2026-08-13):
-  central registration-time wrapper, ship together with #271; deferred to a supervised
-  session (touches every tool module)
+- [x] **#270 isError + #271 double-payload — IMPLEMENTED AND MERGED 2026-08-19** (commits `2f87e13`,
+  `85b1f16`, `feae3a8`; new `src/canvas_mcp/core/tool_results.py`). Both issues CLOSED. Tool failures now
+  set MCP `isError: true`; string-returning tools no longer duplicate their value into
+  `structuredContent.result`. **Two breaking wire-shape changes sitting UNRELEASED on `main`** — see the
+  release note below
+- [x] **#262 CI fencing guard — DONE 2026-08-19** (`b9c93a5`, registry-wide read-tool fencing coverage);
+  #262 CLOSED. This was the durability follow-up named on #239, which is also CLOSED (2026-08-19) — its
+  two low-risk deferrals (course names, own profile) are documented policy choices now, re-file narrowly
+  if ever wanted
+- [x] Release **v1.11.0** (2026-08-20) — all five channels live + verified: GitHub Release
+  (`.mcpb` + SLSA, `gh attestation verify` exit 0), PyPI 200, MCP Registry `isLatest=True`,
+  site wrangler-deployed to the custom domain, hosted Azure auto-deployed (401 challenge healthy).
+  Protocol-correctness release: #303 rename (breaking), #270 `isError`, #271 double-payload,
+  fastmcp 3.4.7 floor. **Registry job failed once on a NEW failure mode** — an unauthenticated
+  `api.github.com` lookup rate-limited to `null`, surfacing as `not in gzip format`; a rerun
+  fixed it and the step is now authenticated with a null guard (`4639847`). Not the PyPI race:
+  PyPI already returned 200. Both modes and the test that distinguishes them are in the checklist
 
 ## Roadmap
 - [x] Release v1.0.8 — all CI/CD pipelines passing (PyPI, MCP Registry, GitHub Release)
@@ -397,32 +412,57 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
   is operator-only.
 
 ## Session Log
-> Full history: [internal/session-history.md](./internal/session-history.md)
+> Full history: `internal/session-history.md` — **local-only, untracked since 2026-08-20**
+> (it carried a paraphrase of a collaborator's private email and the private hosted endpoint
+> URL while being world-readable). Do not re-add it to git.
 
+> **`internal/` is deny-by-default in `.gitignore`.** Add an un-ignore only for a file
+> deliberately meant to be public. Daily triage briefs stay tracked because the routine reads
+> the newest one to compute its cutoff, so they **must not** record an external collaborator's
+> institutional affiliation, evaluation status, deployment timeline, or which competing
+> products they are weighing. Name the person and the technical issue, nothing else.
 
-### 2026-08-15 — v1.10.0 shipped; #290/#291 merged; Reynolds hosted-test invite sent
+### 2026-08-20 — v1.11.0 shipped; internal/ leak closed; content migration merged; Reynolds declined
 
-- Completed: **PR #290 merged, #287 CLOSED** — @SHIL0018's outside contribution (2nd ever)
-  capping full-mode TS dumps; fork CI manually approved, fixture verified non-vacuous.
-  **PR #291 merged** — two-layer #283 fix: permission pre-check (`include[]=permissions`,
-  measured live: flags exist only on the single-course endpoint) + auto-delete of the silently
-  downgraded discussion topic; 2 opencode rounds (round 1 caught a None-body TypeError), live
-  acceptance on a real no-permission course. **Release v1.10.0 shipped** — all five channels
-  live + verified: GitHub Release (`.mcpb` + SLSA, attestation exit 0), PyPI 200, MCP Registry
-  `isLatest=True` (no propagation race), site wrangler-deployed, hosted Azure auto-deployed
-  (401 challenge healthy). Community release: #281 schema v2 (breaking), #275 Planner-feed,
-  #283 pre-check+cleanup, #287 caps. **Mark Reynolds hosted-test invite SENT** (verified in
-  Thunderbird Sent Items, 02:29 UTC, `.mcpb` attached); his OID is on `MCP_ENTRA_ALLOWED_OIDS`
-  (11 now); local draft files cleaned up post-send. Key framing correction that shaped the
-  email: the HOSTED instance is the sole object of UIUC review, stdio is not.
-- Next: (1) close #275/#283 on khagyard's retest — can now run against the released v1.10.0,
-  not just main (daily triage watches both threads); (2) supervised #270+#271 session — add
-  the two pre-existing nits found in review (bare `"error" in response` in
-  `delete_announcement`; `ID: None` interpolation); (3) awaiting Mark Reynolds's hosted-test
-  results / review-side feedback (see `[[umich-adoption-illinois-review]]` memory);
-  (4) Codex credits still out — opencode (deep) + devin (quick) until refilled.
-
-### 2026-08-19 — marketing-claim review, PR #310, and README follow-up
-
-- Completed: Tempered unsupported performance, privacy, compliance, sandbox, and client-compatibility claims across the public documentation and website. PR #310 landed in `main`, and the refreshed Cloudflare Pages production deployment was verified on both the Pages URL and custom domain. Follow-up README clarifications (tool-count scope, client variability, and stale test-count wording) are committed as `b3a3475` on `docs/temper-marketing-claims`.
-- Next: Open and merge a follow-up pull request for `b3a3475` if the README clarifications should land on `main`.
+- **Confidentiality fix (highest impact).** `internal/` defaulted to PUBLIC with six targeted
+  exclusions, so `internal/session-history.md` had been world-readable for 22 days carrying a
+  paraphrase of a collaborator's private email (their deployment timeline, the competing product
+  they were weighing, their stated decision criterion) AND the private hosted endpoint URL this
+  repo is supposed to exclude. `.gitignore` is now **deny-by-default** for `internal/` with an
+  explicit un-ignore list; session-history untracked (local-only); ten triage briefs scrubbed of
+  affiliation and evaluation-status framing. History deliberately NOT rewritten — 198 stars /
+  67 forks. Verified live: raw URL now 404s, control file still 200. Decision: **do not tell zqian**.
+- **Release v1.11.0** — all five channels verified. Protocol-correctness: #303 rename (breaking),
+  #270 `isError`, #271 double-payload, fastmcp 3.4.7 floor. Website tempered from a bare "99 tools"
+  to "up to 99" (default is 94) then to 101 after the migration tools. **New CI failure mode found
+  and fixed** (`4639847`): the Registry job's *unauthenticated* `api.github.com` lookup rate-limited
+  to `null`, surfacing three steps later as `gzip: stdin: not in gzip format`. NOT the PyPI race —
+  PyPI was already 200. Both modes now in the release checklist with the test that separates them.
+- **PR #316 merged** (`ea50c711`) — content migration for #309: `create_content_migration`
+  (mandatory preview→confirm, token-bound, reports target occupancy, never claims content was
+  copied) + `get_content_migration_status` (one poll per call, fences untrusted text, treats an
+  unreadable issues list as an error not an empty list). Codex architected, I critiqued (dropped
+  `openWorldHint` — zero tools use it; added target-occupancy preview; caught two missed doc files),
+  Codex implemented, I re-verified independently. 24 new tests, 1398 passing. **#309 stays OPEN** —
+  `selective_import` deliberately deferred and zqian asked directly whether all-content suffices.
+- **Mark Reynolds DECLINED** to test or review (2026-08-17): "no need to involve our groups with it
+  as there is no deployment necessary... it won't initiate a review." His reasoning is LTI-shaped —
+  canvas-mcp is an API client, not an installed integration. **The Reynolds route to a campus
+  blessing is closed**; Adam King's LRA remains the only Illinois review artifact. Do not re-invite.
+- **Community:** #275 CLOSED (khagyard confirmed the fix). #293 CLOSED, with #315 filed first so the
+  Python 3.10 EOL (2026-10-31) didn't vanish with the report. #302 answered after three triage
+  cycles of silence; #283 pinged — redirected to **jonespm**, who is the real confirmer (khagyard has
+  never commented there), auto-close 2026-08-27. Rebecca Simon (`rpsimon-ai`, first-time contributor)
+  emailed confused that her requests "failed" — root cause: **there is no Skill Request template** and
+  the three that exist are developer-gated (Tool Addition *requires* a Canvas API endpoint). She used
+  the blank-issue fallback correctly. Reply sent.
+- **Corrected 5 stale Current Focus lines** verified against live state: #170/#179/#239 were closed
+  but recorded open; #270/#271 shipped 2026-08-19 but recorded "not implemented"; PR #191 was
+  described as an issue. Six merged worktrees removed.
+- **Next:** (1) **add a Skill Request issue template** — promised to Rebecca on #302 and in email;
+  (2) PR #308 + dependabot #295–#298 are all behind `main` after #316 — update branches before
+  merging; (3) **PR #191/#172 decision** — oldest live thread, blocked 3 weeks on a New-Quizzes
+  sandbox: source one from zqian or close the PR honestly as unverifiable; (4) #309 awaits zqian on
+  selective import + a sandbox payload to convert the doc-derived assumptions into measured ones;
+  (5) #313 needs the reply (CANVAS_ROLE already ships, but educator=88 leaves only 40 of his 128
+  budget, so it may not actually solve his cap); (6) #283 self-closes 2026-08-27.

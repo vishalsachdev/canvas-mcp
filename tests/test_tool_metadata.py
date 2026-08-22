@@ -75,6 +75,7 @@ DESTRUCTIVE = {
     "create_page",
     "create_rubric",
     "associate_rubric",
+    "create_content_migration",
     # Removals.
     "delete_page",
     "delete_module",
@@ -126,6 +127,7 @@ NOT_IDEMPOTENT = {
     "associate_rubric",
     "create_announcement",
     "create_assignment",
+    "create_content_migration",
     "create_discussion_topic",
     "create_module",
     "create_page",
