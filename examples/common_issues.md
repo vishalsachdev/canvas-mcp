@@ -44,9 +44,12 @@ uv pip install -e .
 1. Go to Canvas → Account → Settings
 2. Scroll to "Approved Integrations"
 3. Delete the old token if present
-4. Create a new access token
+4. Create a new access token (see below if your institution gates this)
 5. Update your `.env` file with the new token
 6. Restart your MCP client
+
+Note that many institutions now issue short-lived tokens — Instructure pushed a 30-day
+default in 2026 — so "it worked last month" does not mean the token is still valid.
 
 ### "Canvas API URL is invalid"
 
@@ -68,12 +71,25 @@ Test with:
 canvas-mcp-server --test
 ```
 
-### "Cannot create access token" (Students)
+### "Cannot create access token"
 
-**Problem**: Your institution restricts student API access.
+**Problem**: Your institution restricts self-service API token creation. The "New Access
+Token" button is missing or errors out. At some schools this applies to students only; at
+others it applies to everyone, instructors included.
 
 **Solution**:
-Contact your Canvas administrator or IT help desk:
+First check whether your institution has a token request form — search its IT knowledge
+base for "Canvas API token". If it does, that form is the only path; the Canvas UI will
+keep refusing.
+
+**University of Illinois Urbana-Champaign**: use the
+[Canvas API Token Request form](https://help.uillinois.edu/TDClient/42/UIUC/Requests/TicketRequests/NewForm?ID=4AZBjiZfXWs_&RequestorType=Service).
+After approval, activate the token under **Account → Settings → Approved Integrations**,
+then retrieve its value from the U of I Box link Technology Services sends you. Illinois
+tokens expire after 30 days as of August 2026
+([KB 150325](https://answers.uillinois.edu/illinois/internal/150325)).
+
+Otherwise, contact your Canvas administrator or IT help desk:
 ```
 Hi, I'm trying to use the Canvas API to track my assignments
 and grades. Could you help me create an API access token or
