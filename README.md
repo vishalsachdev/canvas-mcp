@@ -297,7 +297,7 @@ If you use **Claude Desktop**, you can install Canvas MCP with one click — no 
 
 1. Download `canvas-mcp.mcpb` from the [latest release](https://github.com/vishalsachdev/canvas-mcp/releases/latest).
 2. Double-click the file (or drag it into Claude Desktop → Settings → Extensions).
-3. When prompted, enter your **Canvas API URL** — this must include the `/api/v1` path (e.g. `https://canvas.youruniversity.edu/api/v1`) — and your **Canvas API token** (Canvas → Account → Settings → New Access Token). The token is stored in your OS keychain.
+3. When prompted, enter your **Canvas API URL** — this must include the `/api/v1` path (e.g. `https://canvas.youruniversity.edu/api/v1`) — and your **Canvas API token** (Canvas → Account → Settings → New Access Token — some institutions issue these by request form instead, see [below](#2-configure-environment)). The token is stored in your OS keychain.
 
 The extension runs the server locally and calls Canvas with **your own** token, so requests use that token's Canvas permissions. Canvas and your AI client may retain their own activity records. Requires Python 3.10+ (the bundled runtime manages dependencies automatically). For other clients, or to run from source, use the manual setup below.
 
@@ -326,7 +326,28 @@ cp env.template .env
 
 Get your Canvas API token from: **Canvas → Account → Settings → New Access Token**
 
-> **Note for Students**: Some educational institutions restrict API token creation for students. If you see an error like "There is a limit to the number of access tokens you can create" or cannot find the token creation option, contact your institution's Canvas administrator or IT support department to request API access or assistance in creating a token.
+> **Some institutions gate token creation.** Where self-service is disabled, the
+> "New Access Token" button is missing or errors out, and tokens are issued through an
+> IT request form instead. Check your institution's IT knowledge base before concluding
+> that API access is unavailable to you.
+>
+> **University of Illinois Urbana-Champaign** works this way for *everyone* — students
+> and instructors alike. Request a token with the
+> [Canvas API Token Request form](https://help.uillinois.edu/TDClient/42/UIUC/Requests/TicketRequests/NewForm?ID=4AZBjiZfXWs_&RequestorType=Service)
+> (NetID login required). Once it is approved:
+>
+> 1. Go to **Canvas → Account → Settings → Approved Integrations**, find the new token,
+>    click **Activate**, and refresh the page.
+> 2. Retrieve the token value from the U of I Box link Technology Services sends you.
+>
+> As of August 2026, all new Illinois tokens carry a **30-day expiration** (an upstream
+> Instructure requirement). Expiry is not monitored or announced, and expired tokens are
+> removed without notice — request the replacement before the current one lapses.
+> Full details: [Answers KB 150325](https://answers.uillinois.edu/illinois/internal/150325).
+>
+> **Students elsewhere**: if you see "There is a limit to the number of access tokens you
+> can create" or cannot find the token creation option, contact your institution's Canvas
+> administrator or IT support department to request API access.
 
 ### 3. MCP Client Configuration
 
