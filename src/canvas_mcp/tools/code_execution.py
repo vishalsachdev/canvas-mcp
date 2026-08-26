@@ -468,6 +468,10 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     log_warning(message)
 
                 guard_path = _write_network_guard(allowlist_hosts, code_api_dir)
+                if sandbox_mode == "container":
+                    # 0600 only protects other host-local users, not the
+                    # container's own non-root uid on a read-only bind mount.
+                    os.chmod(guard_path, 0o644)
                 if guard_path.is_relative_to(repo_root):
                     relative_guard = guard_path.relative_to(repo_root)
                     guard_container_path = f"/workspace/{relative_guard.as_posix()}"
@@ -511,6 +515,10 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
             # Write the user's code
             temp_file.write(code)
             temp_file_path = temp_file.name
+
+        if sandbox_mode == "container":
+            # Same reasoning as the guard file above.
+            os.chmod(temp_file_path, 0o644)
 
         try:
             # Compute code hash for audit logging (never log raw code)
