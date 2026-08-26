@@ -296,8 +296,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   New Quizzes. Its test fixture hard-codes the assumption. Unblocking needs zqian's **scoping question 4**
   (a New-Quizzes-enabled sandbox). Two more blockers: a 262-line non-mechanical conflict in
   `assignments.py`, and a live `Fixes` line in the PR body that would auto-close #172 on merge (#172 has
-  already died this way twice). Decide this week: source a sandbox, or close the PR honestly as
-  unverifiable and reopen when one exists
+  already died this way twice). **PR #191 CLOSED 2026-08-26** as unverifiable; #172 stays open; reopen when a sandbox exists
 - [x] Daily triage routine live (`trig_011HVR6j4c5hDR2fj7k3ujxC`, 7am local) — #202 merged. **Prompt
   patched 2026-07-31**: merging a brief closed #172, because it described another PR as `fixes #172`
   and GitHub parses closing keywords anywhere in a merged PR body. Routine now forbids them *and*
@@ -345,7 +344,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   `/permissions` omits them); refuses only on explicit `false`, fails open otherwise — and
   (2) cleanup: the orphaned topic is auto-deleted on downgrade detection. Two opencode rounds
   (round 1 found a None-body TypeError on the cleanup DELETE; round 2 APPROVE). Issue stays
-  open for khagyard's student-token retest from main (their test course still has orphan topic 674)
+  open for khagyard's student-token retest from main (their test course still has orphan topic 674). **#283 CLOSED 2026-08-26** on khagyard's confirmation
 - [x] **#281 search_canvas_tools never searched MCP tools — fixed (PR #286, merged 2026-08-13).**
   It searched only code_api TS files (bruchris's outside diagnosis, correct). Now also
   queries the live registry (`mcp.list_tools(run_middleware=False)`) with labeled sections;
@@ -422,50 +421,35 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 > institutional affiliation, evaluation status, deployment timeline, or which competing
 > products they are weighing. Name the person and the technical issue, nothing else.
 
-### 2026-08-20 — v1.11.0 shipped; internal/ leak closed; content migration merged; Reynolds declined
+### 2026-08-26 — PR/issue triage executed; four dep PRs merged; #283 + #191 closed; #317 reviewed
 
-- **Confidentiality fix (highest impact).** `internal/` defaulted to PUBLIC with six targeted
-  exclusions, so `internal/session-history.md` had been world-readable for 22 days carrying a
-  paraphrase of a collaborator's private email (their deployment timeline, the competing product
-  they were weighing, their stated decision criterion) AND the private hosted endpoint URL this
-  repo is supposed to exclude. `.gitignore` is now **deny-by-default** for `internal/` with an
-  explicit un-ignore list; session-history untracked (local-only); ten triage briefs scrubbed of
-  affiliation and evaluation-status framing. History deliberately NOT rewritten — 198 stars /
-  67 forks. Verified live: raw URL now 404s, control file still 200. Decision: **do not tell zqian**.
-- **Release v1.11.0** — all five channels verified. Protocol-correctness: #303 rename (breaking),
-  #270 `isError`, #271 double-payload, fastmcp 3.4.7 floor. Website tempered from a bare "99 tools"
-  to "up to 99" (default is 94) then to 101 after the migration tools. **New CI failure mode found
-  and fixed** (`4639847`): the Registry job's *unauthenticated* `api.github.com` lookup rate-limited
-  to `null`, surfacing three steps later as `gzip: stdin: not in gzip format`. NOT the PyPI race —
-  PyPI was already 200. Both modes now in the release checklist with the test that separates them.
-- **PR #316 merged** (`ea50c711`) — content migration for #309: `create_content_migration`
-  (mandatory preview→confirm, token-bound, reports target occupancy, never claims content was
-  copied) + `get_content_migration_status` (one poll per call, fences untrusted text, treats an
-  unreadable issues list as an error not an empty list). Codex architected, I critiqued (dropped
-  `openWorldHint` — zero tools use it; added target-occupancy preview; caught two missed doc files),
-  Codex implemented, I re-verified independently. 24 new tests, 1398 passing. **#309 stays OPEN** —
-  `selective_import` deliberately deferred and zqian asked directly whether all-content suffices.
-- **Mark Reynolds DECLINED** to test or review (2026-08-17): "no need to involve our groups with it
-  as there is no deployment necessary... it won't initiate a review." His reasoning is LTI-shaped —
-  canvas-mcp is an API client, not an installed integration. **The Reynolds route to a campus
-  blessing is closed**; Adam King's LRA remains the only Illinois review artifact. Do not re-invite.
-- **Community:** #275 CLOSED (khagyard confirmed the fix). #293 CLOSED, with #315 filed first so the
-  Python 3.10 EOL (2026-10-31) didn't vanish with the report. #302 answered after three triage
-  cycles of silence; #283 pinged — redirected to **jonespm**, who is the real confirmer (khagyard has
-  never commented there), auto-close 2026-08-27. Rebecca Simon (`rpsimon-ai`, first-time contributor)
-  emailed confused that her requests "failed" — root cause: **there is no Skill Request template** and
-  the three that exist are developer-gated (Tool Addition *requires* a Canvas API endpoint). She used
-  the blank-issue fallback correctly. Reply sent.
-- **Corrected 5 stale Current Focus lines** verified against live state: #170/#179/#239 were closed
-  but recorded open; #270/#271 shipped 2026-08-19 but recorded "not implemented"; PR #191 was
-  described as an issue. Six merged worktrees removed.
-- **Next:** (1) **add a Skill Request issue template** — promised to Rebecca on #302 and in email;
-  (2) PR #308 + dependabot #295–#298 are all behind `main` after #316 — update branches before
-  merging; (3) **PR #191/#172 decision** — oldest live thread, blocked 3 weeks on a New-Quizzes
-  sandbox: source one from zqian or close the PR honestly as unverifiable; (4) #309 awaits zqian on
-  selective import + a sandbox payload to convert the doc-derived assumptions into measured ones;
-  (5) #313 needs the reply (CANVAS_ROLE already ships, but educator=88 leaves only 40 of his 128
-  budget, so it may not actually solve his cap); (6) #283 self-closes 2026-08-27.
+- **Merged (squash, self-approved as non-author):** #322 Actions SHA bumps (`5e28a69`), #297 `@types/node`
+  (`15e745b`), #296 `tsx` (`88370b8`), #295 Dockerfile digest (`08db544`). Auto-merge is **disabled** on
+  this repo and main is strict "up to date with base", so after each merge the next PR needs
+  `gh pr update-branch` → poll `mergeStateStatus` until `CLEAN` → merge (~2 min each). `gh pr checks
+  --watch --required` returns on the *first* required check, not all — don't gate a merge on it.
+- **Impact stats:** local 08-24 collector output committed directly to main (`6f7fe7e`, docs-only) and
+  wrangler-deployed; live JSON on both URLs shows `2026-08-24` / 201 stars. PR #308 (08-17 snapshot)
+  closed unmerged; its worktree + branch removed.
+- **#283 CLOSED** — khagyard confirmed with a student token on 08-21 (nothing posted); pre-check +
+  cleanup verified present on main, 11 announcement tests pass.
+- **PR #191 CLOSED** as unverifiable (Classic-quiz false positive in the detection, 1-hunk conflict,
+  `Fixes #172` in the body); **#172 stays OPEN** (verified after the close). Reopen when a New-Quizzes
+  sandbox exists.
+- **#318 (zqian)** — acknowledged after 5 silent days; promised as its own PR in the next minor cycle.
+- **PR #317 (AmirF194, non-root sandbox) — changes requested, NOT merged.** Argv fix is correct and its
+  test is real (fails on main, passes on branch). Two findings posted: (1) the `.ts` script
+  (`NamedTemporaryFile` → 0600) and the `--require`d `.cjs` guard (`chmod 0o600`) inside the `:ro`
+  bind mount are unreadable to uid 65532 on a Linux host → every container run would `EACCES`
+  (Docker Desktop for Mac masks this); (2) CI fails on collection — the test imports
+  `from tests.security.test_sandbox_fail_closed`, which only resolves with the repo root on
+  `sys.path`. Waiting on the contributor. Approved the fork's Actions runs.
+- Full suite on main after everything: **1398 passed, 21 skipped**.
+- **Next:** (1) #317 — when AmirF194 pushes, re-run + verify on a Linux Docker host (offered to run
+  it); (2) **#318 delete-confirmation pass** — scheduled, promised publicly; (3) **Skill Request issue
+  template** still owed to rpsimon-ai (#302); (4) #315 drop 3.10 with the next minor bump (main
+  carries unreleased breaking changes from #270/#271/#303 — already released in v1.11.0; check
+  CHANGELOG before assuming); (5) #309 awaits zqian; #299/#301/#302 awaits reporters.
 
 ## ⚠️ Adoption numbers: what is safe to publish (2026-08-21)
 
