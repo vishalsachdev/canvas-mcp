@@ -1,74 +1,74 @@
 {
-  "collected_at": "2026-08-10T03:30:24Z",
+  "collected_at": "2026-08-24T03:30:14Z",
   "github": {
-    "stars": 181,
-    "forks": 61,
-    "contributors": 17,
-    "open_issues": 12,
-    "views_14d": 1486,
-    "views_14d_unique": 557,
-    "clones_14d": 2863,
-    "clones_14d_unique": 713,
+    "stars": 201,
+    "forks": 69,
+    "contributors": 19,
+    "open_issues": 18,
+    "views_14d": 2143,
+    "views_14d_unique": 791,
+    "clones_14d": 5033,
+    "clones_14d_unique": 917,
     "referrers": [
       {
         "referrer": "Google",
-        "count": 470,
-        "uniques": 260
+        "count": 614,
+        "uniques": 380
       },
       {
         "referrer": "github.com",
-        "count": 188,
-        "uniques": 49
+        "count": 354,
+        "uniques": 106
       },
       {
         "referrer": "canvas-mcp.illinihunt.org",
-        "count": 25,
-        "uniques": 11
-      },
-      {
-        "referrer": "reddit.com",
-        "count": 21,
-        "uniques": 15
+        "count": 76,
+        "uniques": 21
       },
       {
         "referrer": "Bing",
-        "count": 20,
-        "uniques": 16
-      },
-      {
-        "referrer": "teams.public.onecdn.static.microsoft",
-        "count": 18,
-        "uniques": 7
-      },
-      {
-        "referrer": "search.brave.com",
-        "count": 11,
-        "uniques": 9
-      },
-      {
-        "referrer": "DuckDuckGo",
-        "count": 10,
-        "uniques": 7
+        "count": 45,
+        "uniques": 30
       },
       {
         "referrer": "chatgpt.com",
-        "count": 9,
-        "uniques": 6
+        "count": 29,
+        "uniques": 15
       },
       {
-        "referrer": "community.instructure.com",
-        "count": 3,
-        "uniques": 2
+        "referrer": "reddit.com",
+        "count": 17,
+        "uniques": 16
+      },
+      {
+        "referrer": "search.brave.com",
+        "count": 15,
+        "uniques": 8
+      },
+      {
+        "referrer": "teams.public.onecdn.static.microsoft",
+        "count": 13,
+        "uniques": 4
+      },
+      {
+        "referrer": "creati.ai",
+        "count": 10,
+        "uniques": 1
+      },
+      {
+        "referrer": "linkedin.com",
+        "count": 6,
+        "uniques": 4
       }
     ]
   },
   "pypi": {
-    "last_day": 59,
-    "last_week": 553,
-    "last_month": 7426
+    "last_day": 52,
+    "last_week": 632,
+    "last_month": 2353
   },
   "npm": {
-    "last_month": 76
+    "last_month": 114
   },
   "history": [
     {
@@ -286,6 +286,15 @@
       "npm_month": 76,
       "views_unique": 557,
       "clones_unique": 713
+    },
+    {
+      "date": "2026-08-23",
+      "stars": 201,
+      "forks": 69,
+      "pypi_month": 2353,
+      "npm_month": 114,
+      "views_unique": 791,
+      "clones_unique": 917
     }
   ]
 }
