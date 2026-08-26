@@ -447,9 +447,8 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 - Full suite on main after everything: **1398 passed, 21 skipped**.
 - **Next:** (1) #317 — when AmirF194 pushes, re-run + verify on a Linux Docker host (offered to run
   it); (2) **#318 delete-confirmation pass** — scheduled, promised publicly; (3) **Skill Request issue
-  template** still owed to rpsimon-ai (#302); (4) #315 drop 3.10 with the next minor bump (main
-  carries unreleased breaking changes from #270/#271/#303 — already released in v1.11.0; check
-  CHANGELOG before assuming); (5) #309 awaits zqian; #299/#301/#302 awaits reporters.
+  template** still owed to rpsimon-ai (#302); (4) #315 drop 3.10 with the next minor bump (nothing
+  breaking is sitting unreleased on main — v1.11.0 shipped #270/#271/#303); (5) #309 awaits zqian; #299/#301/#302 awaits reporters.
 
 ## ⚠️ Adoption numbers: what is safe to publish (2026-08-21)
 
