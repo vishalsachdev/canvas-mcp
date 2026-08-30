@@ -250,6 +250,7 @@ class Config:
         self.ts_sandbox_memory_limit_mb = _int_env("TS_SANDBOX_MEMORY_LIMIT_MB", 512)
         self.ts_sandbox_timeout_sec = _int_env("TS_SANDBOX_TIMEOUT_SEC", 120)
         self.ts_sandbox_container_image = os.getenv("TS_SANDBOX_CONTAINER_IMAGE", "node:20-alpine")
+        self.ts_sandbox_uid_gid = os.getenv("TS_SANDBOX_UID_GID", "65532:65532")
 
         # Code execution is opt-in — set EXECUTE_TYPESCRIPT_ENABLED=true to
         # enable the execute_typescript tool (independent of CANVAS_ROLE).
@@ -443,6 +444,14 @@ def validate_config() -> bool:
             "TS_SANDBOX_MODE should be one of auto, local, container; "
             f"defaulting to 'auto' (got '{config.ts_sandbox_mode}')"
         )
+
+    uid_gid_pattern = re.compile(r"^\d+:\d+$")
+    if not uid_gid_pattern.match(config.ts_sandbox_uid_gid):
+        log_warning(
+            "TS_SANDBOX_UID_GID should be in <uid>:<gid> numeric form; "
+            f"defaulting to '65532:65532' (got '{config.ts_sandbox_uid_gid}')"
+        )
+        config.ts_sandbox_uid_gid = "65532:65532"
 
     valid_roles = ("student", "educator", "all")
     if config.canvas_role not in valid_roles:

@@ -28,7 +28,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastmcp import FastMCP
 
-from canvas_mcp.core.config import get_config, reset_config
+from canvas_mcp.core.config import get_config, reset_config, validate_config
 from canvas_mcp.tools.code_execution import register_code_execution_tools
 
 
@@ -317,5 +317,102 @@ class TestContainerRunsAsNonRoot:
         process_mock.communicate.assert_awaited_once()
         assert process_mock.communicate.await_args.kwargs.get("input") == (
             b"import { x } from './canvas/x.js';"
+        )
+
+
+class TestSandboxUidGidConfigurable:
+    """TS_SANDBOX_UID_GID makes the hardcoded uid:gid from PR #317 overridable.
+
+    Two environments break the default (65532:65532):
+    - umask 077 checkouts where the host user's uid differs from the default
+    - custom container images with a mismatched non-root user
+    """
+
+    @pytest.mark.asyncio
+    async def test_default_uid_gid_when_unset(self):
+        """Without TS_SANDBOX_UID_GID set, the container runs as 65532:65532."""
+        tool = get_execute_typescript(TS_SANDBOX_MODE="container")
+        if tool is None:
+            pytest.skip("execute_typescript not registered in this configuration")
+
+        with patch(
+            "canvas_mcp.tools.code_execution._detect_container_runtime",
+            return_value="docker",
+        ), patch(
+            "canvas_mcp.tools.code_execution._runtime_available",
+            new=AsyncMock(return_value=True),
+        ), patch(
+            "canvas_mcp.tools.code_execution.asyncio.create_subprocess_exec",
+            new_callable=AsyncMock,
+            return_value=_mock_process(),
+        ) as spawn:
+            await tool(code="console.log(1)")
+
+        cmd = list(spawn.call_args.args)
+        assert "--user" in cmd
+        uid_gid = cmd[cmd.index("--user") + 1]
+        assert uid_gid == "65532:65532", f"expected default 65532:65532, got {uid_gid}"
+
+    @pytest.mark.asyncio
+    async def test_configured_uid_gid_is_used(self):
+        """Setting TS_SANDBOX_UID_GID overrides the default uid:gid."""
+        tool = get_execute_typescript(
+            TS_SANDBOX_MODE="container", TS_SANDBOX_UID_GID="1000:1000"
+        )
+        if tool is None:
+            pytest.skip("execute_typescript not registered in this configuration")
+
+        with patch(
+            "canvas_mcp.tools.code_execution._detect_container_runtime",
+            return_value="docker",
+        ), patch(
+            "canvas_mcp.tools.code_execution._runtime_available",
+            new=AsyncMock(return_value=True),
+        ), patch(
+            "canvas_mcp.tools.code_execution.asyncio.create_subprocess_exec",
+            new_callable=AsyncMock,
+            return_value=_mock_process(),
+        ) as spawn:
+            await tool(code="console.log(1)")
+
+        cmd = list(spawn.call_args.args)
+        assert "--user" in cmd
+        uid_gid = cmd[cmd.index("--user") + 1]
+        assert uid_gid == "1000:1000", f"expected configured 1000:1000, got {uid_gid}"
+
+    @pytest.mark.asyncio
+    async def test_malformed_uid_gid_rejected_with_default(self):
+        """A malformed TS_SANDBOX_UID_GID falls back to the default.
+
+        validate_config() warns and resets to 65532:65532 when the value
+        does not match the <uid>:<gid> numeric pattern.
+        """
+        tool = get_execute_typescript(
+            TS_SANDBOX_MODE="container", TS_SANDBOX_UID_GID="not-a-number"
+        )
+        if tool is None:
+            pytest.skip("execute_typescript not registered in this configuration")
+
+        # Trigger the startup validation that resets malformed values
+        validate_config()
+
+        with patch(
+            "canvas_mcp.tools.code_execution._detect_container_runtime",
+            return_value="docker",
+        ), patch(
+            "canvas_mcp.tools.code_execution._runtime_available",
+            new=AsyncMock(return_value=True),
+        ), patch(
+            "canvas_mcp.tools.code_execution.asyncio.create_subprocess_exec",
+            new_callable=AsyncMock,
+            return_value=_mock_process(),
+        ) as spawn:
+            await tool(code="console.log(1)")
+
+        cmd = list(spawn.call_args.args)
+        assert "--user" in cmd
+        uid_gid = cmd[cmd.index("--user") + 1]
+        assert uid_gid == "65532:65532", (
+            f"malformed value should fall back to default 65532:65532, got {uid_gid}"
         )
 
