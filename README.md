@@ -10,9 +10,22 @@
 
 MCP server for Canvas LMS with **up to 101 tools** and **8 agent skills**. Designed for Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh); setup and capabilities vary by client.
 
+## Quick Start
+
+**1. Install the MCP server** (everything else, including the skills, needs it running):
+
+- **Claude Desktop:** download `canvas-mcp.mcpb` from the [latest release](https://github.com/vishalsachdev/canvas-mcp/releases/latest) and double-click it. It prompts for your Canvas URL and token; no terminal needed. [Details](#install-as-a-claude-desktop-extension-easiest).
+- **Cursor, Zed, Windsurf, Continue, Claude Code and other clients:** `pip install` into a virtualenv, add your token to `.env`, and point your client at the `canvas-mcp-server` binary. [Local Installation](#local-installation) has the per-client config blocks.
+
+**2. Verify:** `canvas-mcp-server --test` should report a successful Canvas connection. Then restart your client.
+
+**3. Optional: add the workflow skills.** These teach your agent the multi-step recipes (weekly plan, morning check, bulk grading, peer review, course QC) on top of the tools:
+
 ```bash
 npx skills add vishalsachdev/canvas-mcp
 ```
+
+See [Agent Skills](#-agent-skills) for the list. If your agent is Claude Code, the same recipes are also available as slash commands.
 
 ## For AI Agents
 
@@ -214,6 +227,8 @@ AI-powered course design and quality assurance:
 Pre-built workflow recipes that teach AI agents how to use Canvas MCP tools effectively. Available for **40+ coding agents** via [skills.sh](https://skills.sh), or as Claude Code-specific slash commands.
 
 ### Install via skills.sh (Any Agent)
+
+Skills call the MCP tools, so [install the server](#quick-start) first; a skill without the server has nothing to run.
 
 ```bash
 npx skills add vishalsachdev/canvas-mcp

@@ -1916,6 +1916,13 @@
             <!-- Local Installation -->
             <div class="install-steps">
                 <div class="install-step animate-on-scroll">
+                    <div class="step-number">0</div>
+                    <div class="step-content">
+                        <h3>Claude Desktop? Skip the terminal</h3>
+                        <p>Download <code>canvas-mcp.mcpb</code> from the <a href="https://github.com/vishalsachdev/canvas-mcp/releases/latest">latest release</a> and double-click it. It prompts for your Canvas URL and token and runs the server locally. Every other client follows steps 1 to 4 below. Either way, install the server before adding the <a href="#skills">agent skills</a>: the skills call these tools and do nothing on their own.</p>
+                    </div>
+                </div>
+                <div class="install-step animate-on-scroll">
                     <div class="step-number">1</div>
                     <div class="step-content">
                         <h3>Clone & Install Dependencies</h3>
@@ -2045,7 +2052,7 @@ canvas-mcp-server --test<br>
             <div class="section-header">
                 <div class="section-label">// Agent Skills</div>
                 <h2 class="section-title">Workflow Recipes for 40+ Agents</h2>
-                <p class="section-desc">Pre-built skills that teach AI agents how to use Canvas MCP effectively. Install via skills.sh or use as Claude Code slash commands.</p>
+                <p class="section-desc">Pre-built skills that teach AI agents how to use Canvas MCP effectively. They call the MCP tools, so <a href="#install">install the server</a> first. Then install via skills.sh or use as Claude Code slash commands.</p>
             </div>
             <div class="skills-install animate-on-scroll">
                 <div class="skills-install-text">
