@@ -43,14 +43,15 @@ def _container_run_script(container_code_api_dir: str) -> str:
 
     The script is written only to the exec-allowed $HOME tmpfs, never to the
     host. But the tool's documented contract is that user code imports
-    `./canvas/*` *relative to the script*, which only resolves when the
-    script sits inside code_api/. So the run directory gets a symlink to the
-    read-only workspace's `canvas/` (and to `node_modules/` when the operator
-    installed it) before the script is written beside them.
+    `./canvas/*`, `./client` and `./index` *relative to the script*, which
+    only resolves when the script sits inside code_api/. So the run directory
+    mirrors the read-only workspace's code_api/ root with symlinks (every
+    entry, so the module root is preserved, plus `node_modules/` when the
+    operator installed it) before the script is written beside them.
     """
     return (
         'mkdir -p "$HOME/run" && '
-        f'ln -s {container_code_api_dir}/canvas "$HOME/run/canvas" && '
+        f'ln -s {container_code_api_dir}/* "$HOME/run/" && '
         'if [ -d /workspace/node_modules ]; then '
         'ln -s /workspace/node_modules "$HOME/run/node_modules"; fi && '
         'cat > "$HOME/run/code.ts" && npx tsx "$HOME/run/code.ts"'

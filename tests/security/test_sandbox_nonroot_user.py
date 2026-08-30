@@ -269,7 +269,9 @@ class TestContainerRunsAsNonRoot:
         cmd = list(spawn.call_args.args)
         script = cmd[-1]
         link, run = script.split("cat >", 1)
-        assert 'ln -s /workspace/src/canvas_mcp/code_api/canvas "$HOME/run/canvas"' in link
+        # The whole code_api/ root is mirrored, not just canvas/: the README
+        # also documents `import ... from './client'` and `./index`.
+        assert 'ln -s /workspace/src/canvas_mcp/code_api/* "$HOME/run/"' in link
         assert 'ln -s /workspace/node_modules "$HOME/run/node_modules"' in link
         assert 'npx tsx "$HOME/run/code.ts"' in run
         # The code file is delivered on stdin, not on argv.
