@@ -423,6 +423,17 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 > institutional affiliation, evaluation status, deployment timeline, or which competing
 > products they are weighing. Name the person and the technical issue, nothing else.
 
+### 2026-08-30 — v1.12.0 RELEASED; #317 merged (with a regression caught first); #336 shipped; README leads with the server install
+
+- **Release (Sun, CDT):** tag `v1.12.0` on `332fd05`, both tag workflows green first run. Verified: GitHub Release + `.mcpb` + SLSA (`gh attestation verify` exit 0), PyPI 200 / latest 1.12.0, MCP Registry `isLatest=True`, site wrangler-deployed (custom domain flipped 1.11.0 → 1.12.0), hosted Azure already at the bump commit. **Fourth clean publish run** (no PyPI race, no null-tag failure). CHANGELOG date 08-30 matched the tag day.
+- **PR #317 (AmirF194) MERGED as `b4f21b4`; #157 verified OPEN after** (squash message used `Refs`). Contributor pushed the stdin change (`c60453e`) overnight; **it broke the tool's own import contract**: the script moved from `code_api/` to `$HOME`, so the documented `./canvas/*` (and `./client`, `./index`) imports failed with `Cannot find module`. Their e2e script had no imports. Measured locally with tsx, no container needed (control inside `code_api/` → `function`; HOME-like dir → `Cannot find module`; symlinked → `function`). Fix pushed to their branch (`877a3a1` links `canvas/`; Codex r1 P2 widened it to the whole `code_api/` root, `69bb044`); Codex r2 clean; suite 1456. CodeQL 145 dismissed (guard `.cjs`, allowlist only; 146 was already dismissed). Codex's other P2 (fixed uid vs `umask 077` checkouts) → **#338** filed, not folded in.
+- **#336 `--read-only`: PR #339 MERGED as `5bed8d5`, #336 closed.** One flag + `test_root_filesystem_is_read_only`; suite 1457. Codex r1 + r2 clean; worktree removed. **Not measured on a Linux Docker host** (none here); every write path enumerated in the PR body, failure mode is a loud EROFS.
+- **README/site (`b154243`):** hero opened with `npx skills add`, which installs recipes that need the server; the server install sat at line 298. Added a Quick Start (`.mcpb` → local install → verify → optional skills) and a "server first" line in both skills sections; site got a step 0 for the `.mcpb`. Redeployed.
+- **#142:** posted the #335 finding (fastmcp 4.0 beta is on MCP SDK v2; stable 3.4.7 still pins `mcp<2`; scope grows to the MCPServer rename, `mcp-types` split, ServerRunner rewrite, WebSocket removal). #335 otherwise informational.
+- **Gotcha recorded:** `codex review --base X` refuses a prompt argument (exit 2); run it bare.
+- **Unidentified flake:** one post-merge run on `5bed8d5` reported `1 failed, 1456 passed`; the run had no `-rf`, so the test name was not captured, and four further runs (with `-rf`) were 1457/21 clean. Next time a run fails: `pytest -rf` is already on the rule list, this is why.
+- **Next:** (1) Hosted Azure auto-deployed `b4f21b4`; `5bed8d5` deploy should follow (both sandbox-only; `execute_typescript` is disabled on hosted anyway). (2) #325 / #318 close on reporter confirmation. (3) #338 when someone hits it. (4) Ask AmirF194 for one container-mode run with a `./canvas/` import on their Linux host (offered on the PR, not blocking).
+
 ### 2026-08-29 — Autonomous issue/PR sweep; v1.12.0 staged on main (stamps + notes), NOT tagged
 
 - **Trail:** `docs/triage/2026-08-29.md` (kept off the Pages upload via `docs/.assetsignore`).
