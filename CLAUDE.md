@@ -277,6 +277,8 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   along the way; live-verified. **4 breaking changes → next release is a minor bump.** #239 stays
   OPEN for 2 low-risk deferrals (course names, own profile); durability follow-up = **#262** (CI
   guard). Full record: [[project-239-untrusted-content-boundary]]
+- [x] **#318 delete confirmation — SHIPPED (PR #330, 2026-08-29)**; **#325 `ACCESSIBILITY_CHECKERS` — SHIPPED (PR #329)**; **#315 drop 3.10 — SHIPPED (PR #331), closed**. All in **v1.12.0, staged on main, unreleased** (breaking; see CHANGELOG Breaking block)
+- [ ] **PR #317** non-root sandbox — awaiting AmirF194's stdin-delivery change (option b); then **#336** `--read-only`
 - [ ] **#236** OAuth2 developer-key flow (from discussion #229) — additive path only, blocked on
   admin access to pilot a scoped key
 - [x] Release **v1.8.0** (2026-08-09) — all five channels live + verified. Security release:
@@ -421,43 +423,15 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 > institutional affiliation, evaluation status, deployment timeline, or which competing
 > products they are weighing. Name the person and the technical issue, nothing else.
 
-### 2026-08-26 — PR/issue triage executed; four dep PRs merged; #283 + #191 closed; #317 reviewed
+### 2026-08-29 — Autonomous issue/PR sweep; v1.12.0 staged on main (stamps + notes), NOT tagged
 
-- **Merged (squash, self-approved as non-author):** #322 Actions SHA bumps (`5e28a69`), #297 `@types/node`
-  (`15e745b`), #296 `tsx` (`88370b8`), #295 Dockerfile digest (`08db544`). Auto-merge is **disabled** on
-  this repo and main is strict "up to date with base", so after each merge the next PR needs
-  `gh pr update-branch` → poll `mergeStateStatus` until `CLEAN` → merge (~2 min each). `gh pr checks
-  --watch --required` returns on the *first* required check, not all — don't gate a merge on it.
-- **Impact stats:** local 08-24 collector output committed directly to main (`6f7fe7e`, docs-only) and
-  wrangler-deployed; live JSON on both URLs shows `2026-08-24` / 201 stars. PR #308 (08-17 snapshot)
-  closed unmerged; its worktree + branch removed.
-- **#283 CLOSED** — khagyard confirmed with a student token on 08-21 (nothing posted); pre-check +
-  cleanup verified present on main, 11 announcement tests pass.
-- **PR #191 CLOSED** as unverifiable (Classic-quiz false positive in the detection, 1-hunk conflict,
-  `Fixes #172` in the body); **#172 stays OPEN** (verified after the close). Reopen when a New-Quizzes
-  sandbox exists.
-- **#318 (zqian)** — acknowledged after 5 silent days; promised as its own PR in the next minor cycle.
-- **PR #317 (AmirF194, non-root sandbox) — changes requested, NOT merged.** Argv fix is correct and its
-  test is real (fails on main, passes on branch). Two findings posted: (1) the `.ts` script
-  (`NamedTemporaryFile` → 0600) and the `--require`d `.cjs` guard (`chmod 0o600`) inside the `:ro`
-  bind mount are unreadable to uid 65532 on a Linux host → every container run would `EACCES`
-  (Docker Desktop for Mac masks this); (2) CI fails on collection — the test imports
-  `from tests.security.test_sandbox_fail_closed`, which only resolves with the repo root on
-  `sys.path`. Waiting on the contributor. Approved the fork's Actions runs.
-- Full suite on main after everything: **1398 passed, 21 skipped**.
-- **Next:** (1) #317 — when AmirF194 pushes, re-run + verify on a Linux Docker host (offered to run
-  it); (2) **#318 delete-confirmation pass** — scheduled, promised publicly; (3) **Skill Request issue
-  template** still owed to rpsimon-ai (#302); (4) #315 drop 3.10 with the next minor bump (nothing
-  breaking is sitting unreleased on main — v1.11.0 shipped #270/#271/#303); (5) #309 awaits zqian; #299/#301/#302 awaits reporters.
-
-### 2026-08-29 — Autonomous issue/PR sweep (Sat evening); v1.12.0 staged on main, unpublished
-
-- **Trail:** `docs/triage/2026-08-29.md` (triage table + final results, excluded from the Pages upload via `docs/.assetsignore`).
-- **Merged (squash, admin bypass on the review requirement; every body keyword-scanned; target issues verified open after merge):** #328 Skill Request template (#302), #329 `ACCESSIBILITY_CHECKERS` (#325), #330 two-step delete tools + `delete_announcement` removed + `delete_assignment_with_confirmation` (#318), #331 drop Python 3.10 (#315, **closed**), #332 bump to **v1.12.0**. Every code PR went through Codex rounds until one returned nothing (#325: 3, #318: 3, #315: 2). Suite on main: **1451 passed, 21 skipped**.
-- **Finding worth remembering (#318):** `delete_announcement_with_confirmation` never used a confirmation token; its name was aspirational. The token pattern lived only in messaging + content-migration. Now all seven delete tools bind tool, course, ids as requested, every displayed field, and the behavioural args into the fingerprint (Codex found four unbound fields across two rounds — the class is "the preview shows it, so the token must bind it").
-- **PR #317 NOT merged.** CI green, both earlier findings addressed, but CodeQL (alerts 145/146) and a Codex P2 both flag the `chmod 0644` on the code file for multi-user hosts. Codex's P1 on the exec HOME tmpfs was checked and rejected (no `--read-only`; rootfs was writable+exec as root before). Comment posted with three options; **Vishal decides**, then update-branch + strip the `Fixes #157` trailer from the squash message.
-- **08-28 "missing brief" resolved:** the routine fired (`cse_01876GnXnvE6QQKZ8xxvRayA`, 58 s) and took the quiet-day exit; the 08-29 executor guessed wrong.
-- **Next for Vishal:** (1) #317 decision; (2) tag `v1.12.0` → PyPI, Registry, `.mcpb`, wrangler deploy (**site banner already says v1.12.0; do not deploy docs/ before tagging**; adjust the CHANGELOG date if the tag lands after 08-30); (3) #325/#318 close on reporter confirmation; (4) `deploy/azure/README.md` says 3.12-slim, Dockerfile is 3.14 (nit).
+- **Trail:** `docs/triage/2026-08-29.md` (kept off the Pages upload via `docs/.assetsignore`).
+- **Merged (squash, admin bypass on the review rule; bodies keyword-scanned; target issues verified open after):** #328 Skill Request template (#302), #329 `ACCESSIBILITY_CHECKERS` (#325), #330 two-step delete tools + `delete_announcement` removed + `delete_assignment_with_confirmation` (#318), #331 drop Python 3.10 (#315 **closed**), #332 bump to **v1.12.0**, #337 release notes (CHANGELOG/README lead with a Breaking block + migrations; `deploy/azure/README.md` image line → `python:3.14-slim`). Codex rounds until clean (#325: 3, #318: 3, #315: 2). Suite on main **1451 passed, 21 skipped**.
+- **Finding (#318):** `delete_announcement_with_confirmation` never used a token; the pattern lived only in messaging + content-migration. All seven delete tools now bind tool, course, ids-as-requested, every displayed field and the behavioural args into the fingerprint. The class Codex kept finding: *the preview shows it, so the token must bind it.*
+- **PR #317 (AmirF194):** Vishal chose **option (b), stdin delivery** (`sh -c 'cat > "$HOME/code.ts" && npx tsx "$HOME/code.ts"'` + `stdin=PIPE`; no host-side script, CodeQL 145 resolves by construction, rootless podman stays working). Asked on the PR; contributor to push + paste a Linux Docker end-to-end result. CodeQL **146 dismissed** (guard file = allowlist only). Codex's P1 on the exec `$HOME` tmpfs was checked and rejected (no `--read-only`; rootfs was writable+exec as root before) → follow-up **#336** (`--read-only` after #317). On merge: strip the `Fixes #157` trailer from the squash message.
+- **Routines:** the 08-28 "missing brief" was a quiet-day exit, not a missed fire (`cse_01876GnXnvE6QQKZ8xxvRayA`). Added a "never assert a missed fire; only `list_runs` can tell" line to **both** routine prompts: brief `trig_011HVR6j4c5hDR2fj7k3ujxC` (Step 2) and executor `trig_014kutd4SprRUiwRcLFR2Scz` (step 3c). Prompts live in the RemoteTrigger routines, not the repo.
+- Also: #172 status comment posted; #142 still blocked (`fastmcp-slim` 3.4.7 pins `mcp<2.0`); #334 (maintenance-workflow test issue) closed; #335 is the real weekly report. Q from Vishal: no `npx` setup command exists any more (retired in #249); only `npx skills add …`.
+- **Next:** (1) **tag `v1.12.0`** — exact sequence in PR #337's description; wrangler-deploy `docs/` only after the tag (banner already says v1.12.0); fix the CHANGELOG date if the tag lands after 08-30. (2) #317: wait for AmirF194's stdin push, verify, update-branch, merge with the trailer stripped, then #336. (3) #325 / #318 close on reporter confirmation. (4) #335 weekly report unread.
 
 ## ⚠️ Adoption numbers: what is safe to publish (2026-08-21)
 
