@@ -278,7 +278,7 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   OPEN for 2 low-risk deferrals (course names, own profile); durability follow-up = **#262** (CI
   guard). Full record: [[project-239-untrusted-content-boundary]]
 - [x] **#318 delete confirmation — SHIPPED (PR #330, 2026-08-29)**; **#325 `ACCESSIBILITY_CHECKERS` — SHIPPED (PR #329)**; **#315 drop 3.10 — SHIPPED (PR #331), closed**. All in **v1.12.0, staged on main, unreleased** (breaking; see CHANGELOG Breaking block)
-- [ ] **PR #317** non-root sandbox — awaiting AmirF194's stdin-delivery change (option b); then **#336** `--read-only`
+- [x] **PR #317** non-root sandbox — **MERGED `b4f21b4` 2026-08-30** (stdin delivery + import-regression fix pushed to the fork; CodeQL 145/146 dismissed; #157 stays open); **#336 `--read-only` shipped same day (PR #339, `5bed8d5`)**; follow-up **#338** (configurable sandbox uid)
 - [ ] **#236** OAuth2 developer-key flow (from discussion #229) — additive path only, blocked on
   admin access to pilot a scoped key
 - [x] Release **v1.8.0** (2026-08-09) — all five channels live + verified. Security release:
@@ -433,16 +433,6 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 - **Gotcha recorded:** `codex review --base X` refuses a prompt argument (exit 2); run it bare.
 - **Unidentified flake:** one post-merge run on `5bed8d5` reported `1 failed, 1456 passed`; the run had no `-rf`, so the test name was not captured, and four further runs (with `-rf`) were 1457/21 clean. Next time a run fails: `pytest -rf` is already on the rule list, this is why.
 - **Next:** (1) Hosted Azure auto-deployed `b4f21b4`; `5bed8d5` deploy should follow (both sandbox-only; `execute_typescript` is disabled on hosted anyway). (2) #325 / #318 close on reporter confirmation. (3) #338 when someone hits it. (4) Ask AmirF194 for one container-mode run with a `./canvas/` import on their Linux host (offered on the PR, not blocking).
-
-### 2026-08-29 — Autonomous issue/PR sweep; v1.12.0 staged on main (stamps + notes), NOT tagged
-
-- **Trail:** `docs/triage/2026-08-29.md` (kept off the Pages upload via `docs/.assetsignore`).
-- **Merged (squash, admin bypass on the review rule; bodies keyword-scanned; target issues verified open after):** #328 Skill Request template (#302), #329 `ACCESSIBILITY_CHECKERS` (#325), #330 two-step delete tools + `delete_announcement` removed + `delete_assignment_with_confirmation` (#318), #331 drop Python 3.10 (#315 **closed**), #332 bump to **v1.12.0**, #337 release notes (CHANGELOG/README lead with a Breaking block + migrations; `deploy/azure/README.md` image line → `python:3.14-slim`). Codex rounds until clean (#325: 3, #318: 3, #315: 2). Suite on main **1451 passed, 21 skipped**.
-- **Finding (#318):** `delete_announcement_with_confirmation` never used a token; the pattern lived only in messaging + content-migration. All seven delete tools now bind tool, course, ids-as-requested, every displayed field and the behavioural args into the fingerprint. The class Codex kept finding: *the preview shows it, so the token must bind it.*
-- **PR #317 (AmirF194):** Vishal chose **option (b), stdin delivery** (`sh -c 'cat > "$HOME/code.ts" && npx tsx "$HOME/code.ts"'` + `stdin=PIPE`; no host-side script, CodeQL 145 resolves by construction, rootless podman stays working). Asked on the PR; contributor to push + paste a Linux Docker end-to-end result. CodeQL **146 dismissed** (guard file = allowlist only). Codex's P1 on the exec `$HOME` tmpfs was checked and rejected (no `--read-only`; rootfs was writable+exec as root before) → follow-up **#336** (`--read-only` after #317). On merge: strip the `Fixes #157` trailer from the squash message.
-- **Routines:** the 08-28 "missing brief" was a quiet-day exit, not a missed fire (`cse_01876GnXnvE6QQKZ8xxvRayA`). Added a "never assert a missed fire; only `list_runs` can tell" line to **both** routine prompts: brief `trig_011HVR6j4c5hDR2fj7k3ujxC` (Step 2) and executor `trig_014kutd4SprRUiwRcLFR2Scz` (step 3c). Prompts live in the RemoteTrigger routines, not the repo.
-- Also: #172 status comment posted; #142 still blocked (`fastmcp-slim` 3.4.7 pins `mcp<2.0`); #334 (maintenance-workflow test issue) closed; #335 is the real weekly report. Q from Vishal: no `npx` setup command exists any more (retired in #249); only `npx skills add …`.
-- **Next:** (1) **tag `v1.12.0`** — exact sequence in PR #337's description; wrangler-deploy `docs/` only after the tag (banner already says v1.12.0); fix the CHANGELOG date if the tag lands after 08-30. (2) #317: wait for AmirF194's stdin push, verify, update-branch, merge with the trailer stripped, then #336. (3) #325 / #318 close on reporter confirmation. (4) #335 weekly report unread.
 
 ## ⚠️ Adoption numbers: what is safe to publish (2026-08-21)
 
