@@ -365,3 +365,34 @@ async def test_criteria_no_matches_issues_no_token(discussions):
     result = await tool("60366", {"title_contains": "zzz"})
     assert "No announcements matched" in result
     assert TOKEN_RE.search(result) is None
+
+
+# ---------------------------------------------------------------------------
+# Codex round 1: the token binds behavioural args and every displayed detail
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_bulk_token_bound_to_stop_on_error_and_limit(discussions):
+    discussions["req"].side_effect = _by_method(_announcements({1: "A", 2: "B"}))
+    tool = discussions["tools"]["bulk_delete_announcements"]
+    token = token_from(await tool("60366", [1, 2], stop_on_error=True))
+    result = await tool("60366", [1, 2], stop_on_error=False, confirmation_token=token)
+    assert "does not match" in result
+    token = token_from(await tool("60366", [1, 2], limit=10))
+    result = await tool("60366", [1, 2], limit=25, confirmation_token=token)
+    assert "does not match" in result
+    assert _calls(discussions["req"], "delete") == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field,changed", [("due_at", "2026-12-01T05:59:00Z"), ("points_possible", 100)])
+async def test_assignment_token_bound_to_displayed_details(assignments, field, changed):
+    base = {"id": 777, "name": "Homework 1", "due_at": "2026-09-01T05:59:00Z", "points_possible": 10,
+            "has_submitted_submissions": True, "needs_grading_count": 4}
+    assignments["req"].side_effect = _by_method(base)
+    tool = assignments["tools"]["delete_assignment_with_confirmation"]
+    token = token_from(await tool("60366", 777))
+    assignments["req"].side_effect = _by_method({**base, field: changed})
+    result = await tool("60366", 777, confirmation_token=token)
+    assert "does not match" in result
+    assert _calls(assignments["req"], "delete") == []

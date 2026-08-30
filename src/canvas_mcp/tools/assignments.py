@@ -972,9 +972,12 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
         has_submissions = bool(assignment.get("has_submitted_submissions"))
         needs_grading = assignment.get("needs_grading_count")
         course_display = await get_course_code(course_id) or course_identifier
+        # Everything the preview shows to identify the target is bound, so a
+        # due-date or points edit between preview and confirm stops matching.
         fingerprint = _DELETE_ASSIGNMENT_GUARD.fingerprint(
             "delete_assignment_with_confirmation", str(course_id), str(assignment_id),
-            name, str(has_submissions), str(needs_grading),
+            name, str(assignment.get("due_at")), str(assignment.get("points_possible")),
+            str(has_submissions), str(needs_grading),
         )
         if not confirmation_token:
             preview = (

@@ -1330,8 +1330,11 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
             })
 
         course_display = await get_course_code(course_id) or course_identifier
+        # Binds the behavioural arguments too: a confirm that flips
+        # stop_on_error or limit is a different request than the preview.
         fingerprint = _BULK_DELETE_GUARD.fingerprint(
             "bulk_delete_announcements", str(course_id),
+            str(stop_on_error), str(limit),
             json.dumps([[item["id"], item["title"]] for item in found]),
         )
 
