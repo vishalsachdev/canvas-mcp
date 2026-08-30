@@ -198,7 +198,7 @@ Placeholders: `<app-name>`, `<resource-group>`, `<registry-name>`, `<app-service
 
 ### 4.2 Container image
 
-The repo ships a `Dockerfile` (Python 3.12-slim, non-root `mcp` user). It sets network-facing
+The repo ships a `Dockerfile` (`python:3.14-slim`, pinned by digest, non-root `mcp` user). It sets network-facing
 defaults inside the image:
 
 ```
