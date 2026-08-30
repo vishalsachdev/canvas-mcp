@@ -80,8 +80,8 @@ DESTRUCTIVE = {
     "delete_page",
     "delete_module",
     "delete_module_item",
-    "delete_announcement",
     "delete_announcement_with_confirmation",
+    "delete_assignment_with_confirmation",
     "delete_announcements_by_criteria",
     "bulk_delete_announcements",
 }
@@ -118,10 +118,6 @@ NOT_IDEMPOTENT = {
     "grade_with_rubric",
     "update_page_settings",
     "bulk_update_pages",
-    # A delete that is NOT idempotent: it re-queries by criteria and slices
-    # matched[:limit], so an identical retry deletes the NEXT batch. Contrast
-    # bulk_delete_announcements, which takes explicit ids and is idempotent.
-    "delete_announcements_by_criteria",
     "add_module_item",
     "assign_peer_review",
     "associate_rubric",
@@ -229,8 +225,13 @@ async def test_repeatable_tools_declare_idempotency_honestly():
     # Converge on the same end state AND have no repeat-triggered side effect:
     # edit_page_content notably does not expose notify_of_update, unlike its
     # two siblings above.
+    # delete_announcements_by_criteria used to be the non-idempotent delete
+    # (an identical retry deleted the NEXT batch); since #318 its token is
+    # bound to the exact match set and single-use, so a repeat previews or
+    # refuses, never deletes more.
     for name in ("update_assignment", "update_module", "update_discussion_topic",
-                 "edit_page_content", "delete_page", "bulk_delete_announcements"):
+                 "edit_page_content", "delete_page", "bulk_delete_announcements",
+                 "delete_announcements_by_criteria", "delete_assignment_with_confirmation"):
         assert tools[name].annotations.idempotentHint is True, (
             f"{name} converges on the same end state when repeated"
         )
