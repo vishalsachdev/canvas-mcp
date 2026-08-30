@@ -247,6 +247,11 @@ def redeem_confirmation(guard: ConfirmationGuard, token: str, fingerprint: str) 
     once the token's nonce is claimed. A mismatching genuine token is burned
     so a swapped-then-reverted argument set cannot replay it within its TTL —
     the same rule the messaging tools apply.
+
+    Deliberately NO ``release()`` path for the delete tools: the messaging
+    tools hand a claim back on a provable rejection so a send can be retried,
+    but a failed DELETE is cheap to re-preview and a fresh preview re-checks
+    the target. Spending the token on any confirm attempt is the safe side.
     """
     error = guard.check(token, fingerprint)
     if error:

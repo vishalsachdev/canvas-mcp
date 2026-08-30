@@ -1159,7 +1159,7 @@ Delete multiple announcements by ID.
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `announcement_ids`: List of announcement IDs to delete
-- `stop_on_error` (optional): Stop at the first failed deletion; if false, continue with the rest (default: false)
+- `stop_on_error` (optional): Stop at the first failed deletion; if false, continue with the rest (default: false). Delete phase only; the preview resolves every ID regardless
 - `limit` (optional): Max announcements per call (default: 25); pass a higher value to override
 - `confirmation_token` (optional): Token from the preview call; omit to preview
 

@@ -396,3 +396,29 @@ async def test_assignment_token_bound_to_displayed_details(assignments, field, c
     result = await tool("60366", 777, confirmation_token=token)
     assert "does not match" in result
     assert _calls(assignments["req"], "delete") == []
+
+
+# ---------------------------------------------------------------------------
+# Codex round 2: requested ids and displayed dates are bound too
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_bulk_token_bound_to_requested_ids_not_just_resolved(discussions):
+    discussions["req"].side_effect = _by_method(_announcements({1: "A"}))  # 2 and 3 unreachable
+    tool = discussions["tools"]["bulk_delete_announcements"]
+    token = token_from(await tool("60366", [1, 2]))
+    result = await tool("60366", [1, 3], confirmation_token=token)
+    assert "does not match" in result
+    assert _calls(discussions["req"], "delete") == []
+
+
+@pytest.mark.asyncio
+async def test_criteria_token_bound_to_displayed_posted_at(discussions):
+    discussions["fetch"].return_value = LISTING
+    tool = discussions["tools"]["delete_announcements_by_criteria"]
+    token = token_from(await tool("60366", {"title_contains": "recap"}))
+    shifted = [dict(a, posted_at="2026-01-06T12:00:00Z") if a["id"] == 10 else a for a in LISTING]
+    discussions["fetch"].return_value = shifted
+    result = await tool("60366", {"title_contains": "recap"}, confirmation_token=token)
+    assert "does not match" in result
+    assert _calls(discussions["req"], "delete") == []

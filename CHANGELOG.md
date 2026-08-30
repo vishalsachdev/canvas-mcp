@@ -7,7 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** every `delete_*` tool is now two-step. The first call (no
+  `confirmation_token`) returns a preview of exactly what would be deleted plus
+  a single-use token bound to the tool, course, target ids, every displayed
+  detail and the behavioural arguments; only a second call carrying that token
+  deletes. `dry_run` is gone from `delete_announcement_with_confirmation`,
+  `bulk_delete_announcements` and `delete_announcements_by_criteria` (the
+  preview is the dry run); `delete_module`, `delete_module_item` and
+  `delete_page` gain `confirmation_token`. `delete_announcements_by_criteria`
+  is idempotent now that its token is bound to the exact match set
+  ([issue 318](https://github.com/vishalsachdev/canvas-mcp/issues/318)).
+- **Breaking:** Python 3.10 is no longer supported (`requires-python >= 3.11`)
+  ahead of its 2026-10-31 end of life
+  ([issue 315](https://github.com/vishalsachdev/canvas-mcp/issues/315)).
+
+### Removed
+
+- **Breaking:** `delete_announcement` (the un-tokened single delete) is gone;
+  use `delete_announcement_with_confirmation`
+  ([issue 318](https://github.com/vishalsachdev/canvas-mcp/issues/318)).
+
 ### Added
+
+- `delete_assignment_with_confirmation`: two-step assignment deletion whose
+  preview shows due date, points and whether submissions exist
+  ([issue 318](https://github.com/vishalsachdev/canvas-mcp/issues/318)).
+- `ACCESSIBILITY_CHECKERS` setting (default `ufixit`, alias `udoit`; `none`
+  leaves the three UFIXIT report tools unregistered for institutions without
+  the add-on). The built-in scanner is always available. Exposed in
+  `env.template`, the Desktop Extension settings and `server.json`
+  ([issue 325](https://github.com/vishalsachdev/canvas-mcp/issues/325)).
 
 - Added educator-only content migration tools for previewing and confirming a
   full course-copy request, then polling its progress and reviewing all

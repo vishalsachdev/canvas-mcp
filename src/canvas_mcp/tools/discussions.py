@@ -1301,7 +1301,7 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
         Args:
             course_identifier: Course code or Canvas ID
             announcement_ids: List of announcement IDs to delete
-            stop_on_error: Stop at the first failed deletion; if False, continue with the rest (default: False)
+            stop_on_error: Stop at the first failed deletion; if False, continue with the rest (default: False). Applies to the delete phase only; the preview resolves every id regardless
             limit: Max number of announcements per call (default: 25); pass a higher value to override
             confirmation_token: Token from the preview call; omit to preview
         """
@@ -1332,9 +1332,12 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
         course_display = await get_course_code(course_id) or course_identifier
         # Binds the behavioural arguments too: a confirm that flips
         # stop_on_error or limit is a different request than the preview.
+        # ...and the ids as requested, not just the resolved ones: swapping one
+        # unreachable id for another must not redeem the old token.
         fingerprint = _BULK_DELETE_GUARD.fingerprint(
             "bulk_delete_announcements", str(course_id),
             str(stop_on_error), str(limit),
+            json.dumps([str(i) for i in announcement_ids]),
             json.dumps([[item["id"], item["title"]] for item in found]),
         )
 
@@ -1512,7 +1515,7 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
         fingerprint = _CRITERIA_DELETE_GUARD.fingerprint(
             "delete_announcements_by_criteria", str(course_id),
             json.dumps(criteria, sort_keys=True, default=str), str(limit),
-            json.dumps([[str(a.get("id")), a.get("title", "")] for a in matched]),
+            json.dumps([[str(a.get("id")), a.get("title", ""), str(a.get("posted_at"))] for a in matched]),
         )
         if not confirmation_token:
             return preview_with_token(
