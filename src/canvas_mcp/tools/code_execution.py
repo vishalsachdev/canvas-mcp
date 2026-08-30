@@ -353,8 +353,10 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
         all TypeScript modules in src/canvas_mcp/code_api/, and standard Node.js modules.
 
         IMPORTANT: Security is best-effort unless container sandboxing is available.
-        Code runs in a temp file (deleted after), with optional network allowlist,
-        timeout, memory, and CPU limits.
+        In local mode code runs from a temp file (deleted after); in container
+        mode it is streamed to the sandboxed process and never written to
+        host disk. Optional network allowlist, timeout, memory, and CPU
+        limits apply.
 
         Args:
             code: TypeScript code to execute; can import from './canvas/*' modules.
@@ -504,21 +506,28 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
             else:
                 node_options_container = node_options_local
 
-        # Create a temporary file for the code
+        # Container mode streams the code to the sandboxed process over stdin
+        # instead of writing it to code_api_dir first: a host-side copy of the
+        # script sits inside a traversable directory for as long as the run
+        # takes, and bulk-grading code can carry student IDs or grades in
+        # literals, so widening it to 0644 for the container uid (the
+        # previous fix) is readable by any local account on a multi-user
+        # host. Piping it in means no host-side copy ever exists.
         temp_file_path: str | None = None
-        with tempfile.NamedTemporaryFile(
-            mode='w',
-            suffix='.ts',
-            dir=code_api_dir,
-            delete=False
-        ) as temp_file:
-            # Write the user's code
-            temp_file.write(code)
-            temp_file_path = temp_file.name
-
+        stdin_payload: bytes | None = None
         if sandbox_mode == "container":
-            # Same reasoning as the guard file above.
-            os.chmod(temp_file_path, 0o644)
+            stdin_payload = code.encode()
+        else:
+            # Create a temporary file for the code
+            with tempfile.NamedTemporaryFile(
+                mode='w',
+                suffix='.ts',
+                dir=code_api_dir,
+                delete=False
+            ) as temp_file:
+                # Write the user's code
+                temp_file.write(code)
+                temp_file_path = temp_file.name
 
         try:
             # Compute code hash for audit logging (never log raw code)
@@ -542,10 +551,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
 
             # Execute using tsx (faster than ts-node) or ts-node as fallback
             # tsx is a fast TypeScript execution engine that doesn't require compilation
-            if sandbox_mode == "container" and container_runtime and temp_file_path:
-                relative_path = Path(temp_file_path).relative_to(repo_root)
-                container_code_path = f"/workspace/{relative_path.as_posix()}"
-
+            if sandbox_mode == "container" and container_runtime:
                 cmd = [
                     container_runtime,
                     "run",
@@ -604,11 +610,20 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
 
                 cmd.extend([
                     config.ts_sandbox_container_image,
-                    "npx",
-                    "tsx",
-                    container_code_path
+                    "sh",
+                    "-c",
+                    # The script never touches the host filesystem: it is
+                    # piped over stdin, written to the exec-allowed $HOME
+                    # tmpfs inside the container, and run from there.
+                    'cat > "$HOME/code.ts" && npx tsx "$HOME/code.ts"',
                 ])
             else:
+                # Reached only when sandbox_mode != "container" (or the
+                # container runtime check above failed, which can't happen:
+                # sandbox_mode is only ever set to "container" once the
+                # runtime has already been confirmed available). Either way
+                # temp_file_path was written in the non-container branch above.
+                assert temp_file_path is not None
                 cmd = _build_local_tsx_command(temp_file_path)
 
             # Run the TypeScript code
@@ -632,6 +647,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     log_warning(message)
             process = await asyncio.create_subprocess_exec(
                 *cmd,
+                stdin=asyncio.subprocess.PIPE if stdin_payload is not None else None,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=env,
@@ -641,7 +657,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
 
             try:
                 stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                    process.communicate(),
+                    process.communicate(input=stdin_payload),
                     timeout=effective_timeout
                 )
 

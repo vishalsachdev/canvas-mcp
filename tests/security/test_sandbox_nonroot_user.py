@@ -12,9 +12,17 @@ scratch tmpfs at /tmp is intentionally noexec (defense-in-depth for executed
 code) and npx's postinstall of tsx's esbuild dependency spawns a native
 binary from wherever $HOME's npm cache lands. Reusing /tmp for $HOME breaks
 tsx outright; this file also pins that the two stay separate.
+
+Container mode also delivers the script to the sandboxed process over stdin
+instead of a host-side temp file (CodeQL alert 145): the code never sits on
+disk where a traversable code_api_dir would make it readable by another
+local account on a multi-user host. The network guard file is unaffected
+and stays a real, world-readable file on disk.
 """
 
+import asyncio
 import os
+import tempfile
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -136,11 +144,13 @@ class TestContainerRunsAsNonRoot:
         )
 
     @pytest.mark.asyncio
-    async def test_code_and_guard_files_are_world_readable_for_the_nonroot_user(self):
-        """A 0600 code/guard file is unreadable to --user 65532:65532 on a plain
+    async def test_guard_file_is_world_readable_for_the_nonroot_user(self):
+        """A 0600 guard file is unreadable to --user 65532:65532 on a plain
         Linux bind mount: neither the container process nor the host share the
         same uid, and the workspace is mounted read-only, so nothing can widen
-        the permissions from inside the container.
+        the permissions from inside the container. The code itself no longer
+        goes through a host-side file in container mode (see the stdin-delivery
+        test below), so only the guard file is chmod'd here.
         """
         tool = get_execute_typescript(
             TS_SANDBOX_MODE="container", TS_SANDBOX_BLOCK_OUTBOUND_NETWORK="true"
@@ -173,5 +183,51 @@ class TestContainerRunsAsNonRoot:
         # _write_network_guard sets 0600 first; the last mode per path is what
         # actually reaches disk, so take that rather than every call.
         final_mode_by_path = dict(chmod_calls)
-        assert len(final_mode_by_path) == 2, chmod_calls
+        assert len(final_mode_by_path) == 1, chmod_calls
         assert all(mode == 0o644 for mode in final_mode_by_path.values()), chmod_calls
+
+    @pytest.mark.asyncio
+    async def test_code_streamed_over_stdin_never_written_to_host(self):
+        """The script must not be written to a host-side file in container
+        mode: it is piped over stdin and written only inside the exec-allowed
+        $HOME tmpfs by the container's own `sh -c` invocation. This is
+        CodeQL alert 145; the previous fix widened a host-side temp file's
+        permissions to 0644 instead of removing the host-side copy.
+        """
+        tool = get_execute_typescript(TS_SANDBOX_MODE="container")
+        if tool is None:
+            pytest.skip("execute_typescript not registered in this configuration")
+
+        process_mock = _mock_process()
+
+        with patch(
+            "canvas_mcp.tools.code_execution._detect_container_runtime",
+            return_value="docker",
+        ), patch(
+            "canvas_mcp.tools.code_execution._runtime_available",
+            new=AsyncMock(return_value=True),
+        ), patch(
+            "canvas_mcp.tools.code_execution.asyncio.create_subprocess_exec",
+            new_callable=AsyncMock,
+            return_value=process_mock,
+        ) as spawn, patch(
+            "canvas_mcp.tools.code_execution.tempfile.NamedTemporaryFile",
+            wraps=tempfile.NamedTemporaryFile,
+        ) as named_temp_file:
+            await tool(code="console.log(1)")
+
+        # The network guard (.cjs) still goes through NamedTemporaryFile; only
+        # the .ts code file is asserted absent here.
+        ts_suffix_calls = [
+            call for call in named_temp_file.call_args_list
+            if call.kwargs.get("suffix") == ".ts"
+        ]
+        assert not ts_suffix_calls, "container mode must not create a host-side .ts file"
+
+        cmd = list(spawn.call_args.args)
+        assert cmd[-3:] == [
+            "sh", "-c", 'cat > "$HOME/code.ts" && npx tsx "$HOME/code.ts"',
+        ]
+
+        assert spawn.call_args.kwargs["stdin"] == asyncio.subprocess.PIPE
+        process_mock.communicate.assert_called_once_with(input=b"console.log(1)")
