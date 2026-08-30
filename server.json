@@ -60,6 +60,11 @@
         "description": "Enable anonymization debugging output",
         "required": false,
         "default": "false"
+      },
+      "ACCESSIBILITY_CHECKERS": {
+        "description": "Accessibility checkers installed on your Canvas instance. \"ufixit\" (alias \"udoit\") registers the UFIXIT report tools; \"none\" leaves them out if your institution lacks the add-on. The built-in scanner is always available.",
+        "required": false,
+        "default": "ufixit"
       }
     }
   }

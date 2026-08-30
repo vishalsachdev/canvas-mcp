@@ -4,7 +4,7 @@ These tools provide student-focused functionality using Canvas API "/self" endpo
 to access only the student's own data across their enrolled courses.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastmcp import FastMCP
@@ -143,7 +143,7 @@ def register_student_tools(mcp: FastMCP) -> None:
         # (#222), so the Planner API is used instead: it honors an explicit
         # start/end range and already carries per-item submission status,
         # which also removes a per-assignment submissions/self round trip.
-        start_date = datetime.now(timezone.utc)
+        start_date = datetime.now(UTC)
         end_date = start_date + timedelta(days=days)
 
         items = await fetch_all_paginated_results(
@@ -195,7 +195,7 @@ def register_student_tools(mcp: FastMCP) -> None:
 
         # Sort by due date (use timezone-aware max for fallback)
         assignments.sort(
-            key=lambda x: parse_date(x["due_at"]) or datetime.max.replace(tzinfo=timezone.utc)
+            key=lambda x: parse_date(x["due_at"]) or datetime.max.replace(tzinfo=UTC)
         )
 
         # Format output
@@ -285,7 +285,7 @@ def register_student_tools(mcp: FastMCP) -> None:
                 due_at = assignment.get("due_at")
                 if due_at:
                     due_date = parse_date(due_at)
-                    if due_date and due_date < datetime.now(timezone.utc):
+                    if due_date and due_date < datetime.now(UTC):
                         missing.append((assignment, "OVERDUE"))
                     else:
                         missing.append((assignment, "NOT SUBMITTED"))

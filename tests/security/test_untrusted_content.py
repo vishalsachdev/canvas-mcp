@@ -14,6 +14,7 @@ Two mechanisms are covered:
 """
 
 import time
+from datetime import UTC
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -1752,11 +1753,11 @@ class TestCompletenessPassSurfaces:
 
     @pytest.mark.asyncio
     async def test_get_my_upcoming_assignments_fences_title(self):
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         from canvas_mcp.tools.student_tools import register_student_tools
 
-        soon = (datetime.now(timezone.utc) + timedelta(days=2)).strftime(
+        soon = (datetime.now(UTC) + timedelta(days=2)).strftime(
             "%Y-%m-%dT%H:%M:%SZ"
         )
         with patch(

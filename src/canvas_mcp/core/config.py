@@ -100,6 +100,40 @@ def _is_loopback(hostname: str | None) -> bool:
         return False
 
 
+# Canonical checker names accepted in ACCESSIBILITY_CHECKERS, with aliases.
+ACCESSIBILITY_CHECKER_ALIASES: dict[str, str] = {
+    "ufixit": "ufixit",
+    "udoit": "ufixit",
+}
+
+
+def _parse_accessibility_checkers(raw: str) -> frozenset[str]:
+    """Normalise ACCESSIBILITY_CHECKERS to canonical checker names.
+
+    "none" (or an empty value) yields an empty set. Unknown names are dropped
+    with a warning at parse time — validate_config() only runs on the stdio
+    startup path, so deferring the warning there would lose it in HTTP mode.
+    """
+    names = [n.strip().lower() for n in raw.replace(",", " ").split() if n.strip()]
+    known: set[str] = set()
+    unknown: set[str] = set()
+    for name in names:
+        if name == "none":
+            continue
+        canonical = ACCESSIBILITY_CHECKER_ALIASES.get(name)
+        if canonical is None:
+            unknown.add(name)
+        else:
+            known.add(canonical)
+    if unknown:
+        log_warning(
+            "ACCESSIBILITY_CHECKERS names unknown checkers; they will be ignored "
+            f"(known: {', '.join(sorted(ACCESSIBILITY_CHECKER_ALIASES))}, none): "
+            f"{', '.join(sorted(unknown))}"
+        )
+    return frozenset(known)
+
+
 def _bool_env(name: str, default: bool) -> bool:
     value = os.getenv(name)
     if value is None:
@@ -222,6 +256,17 @@ class Config:
         # Off by default: arbitrary code execution should be a deliberate
         # operator choice, not something a default install exposes (#157).
         self.execute_typescript_enabled = _bool_env("EXECUTE_TYPESCRIPT_ENABLED", False)
+
+        # Accessibility checkers available on this Canvas instance (#325).
+        # The UFIXIT/UDOIT report pipeline (fetch_ufixit_report ->
+        # parse_ufixit_violations -> format_accessibility_summary) only works
+        # where that add-on is installed; institutions without it get three
+        # tools that can never return anything. Comma- or space-separated
+        # names; "ufixit" and "udoit" are aliases. Empty or "none" registers
+        # only the add-on-free built-in scanner. Default keeps today's set.
+        self.accessibility_checkers = _parse_accessibility_checkers(
+            os.getenv("ACCESSIBILITY_CHECKERS", "ufixit")
+        )
 
         # HTTP access-key gate (v1, multi-user). Comma- or whitespace-separated
         # list of accepted keys; an HTTP caller must present a matching

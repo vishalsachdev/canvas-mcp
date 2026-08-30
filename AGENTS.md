@@ -169,6 +169,8 @@ Course design, quality assurance, and WCAG-oriented accessibility review.
 | `parse_ufixit_violations` | Extract structured violations from report |
 | `format_accessibility_summary` | Format violations into readable report |
 
+> `fetch_ufixit_report` / `parse_ufixit_violations` / `format_accessibility_summary` need the UDOIT/UFIXIT add-on and are absent when the operator sets `ACCESSIBILITY_CHECKERS=none`. The built-in scanner is always registered.
+
 ### Developer Tools
 Advanced tools for bulk operations and custom logic.
 

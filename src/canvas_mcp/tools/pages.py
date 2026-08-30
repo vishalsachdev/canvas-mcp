@@ -61,7 +61,7 @@ def _notify_of_update_warning(response: dict[str, Any]) -> str:
     created_at = parse_date(response.get("created_at"))
     if created_at is not None:
         # datetime.UTC is 3.11+; this project supports 3.10.
-        now = datetime.datetime.now(created_at.tzinfo or datetime.timezone.utc)
+        now = datetime.datetime.now(created_at.tzinfo or datetime.UTC)
         if now - created_at < _NOTIFY_MIN_PAGE_AGE:
             return unconfirmed_write_warning(
                 "the update notification",
