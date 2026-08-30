@@ -18,6 +18,22 @@ import pytest
 # Helpers
 # ---------------------------------------------------------------------------
 
+@pytest.fixture(autouse=True)
+def _ufixit_pipeline_enabled(monkeypatch):
+    """Pin the operator setting so these tests do not depend on the contributor's .env.
+
+    The UFIXIT tests below exercise the tools' behaviour and must see them
+    registered even when the developer runs with ACCESSIBILITY_CHECKERS=none.
+    The gate tests at the bottom override this through their own fixture.
+    """
+    from canvas_mcp.core import config as config_module
+
+    monkeypatch.setenv("ACCESSIBILITY_CHECKERS", "ufixit")
+    monkeypatch.setattr(config_module, "_config", None, raising=False)
+    yield
+    monkeypatch.setattr(config_module, "_config", None, raising=False)
+
+
 @pytest.fixture
 def mock_canvas_api():
     """Fixture to mock Canvas API calls for accessibility tools."""
