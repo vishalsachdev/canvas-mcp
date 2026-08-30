@@ -588,6 +588,13 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     "--security-opt=no-new-privileges",
                     # Cap process count to contain fork bombs.
                     "--pids-limit=256",
+                    # Nothing needs a writable root filesystem: the workspace
+                    # is a :ro bind mount, the script arrives over stdin into
+                    # the $HOME tmpfs, npm's cache lives under $HOME and /tmp
+                    # is its own tmpfs. So the image's own filesystem is
+                    # read-only, leaving the two tmpfs mounts as the only
+                    # writable paths (and $HOME the only writable+exec one).
+                    "--read-only",
                 ]
                 # Egress: the in-process JS guard only patches net/tls/http/https
                 # and fetch, so executed code can reach the network through
