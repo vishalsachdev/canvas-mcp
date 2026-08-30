@@ -38,6 +38,25 @@ _SAFE_ENV_KEYS = frozenset({
 _SANDBOX_UID_GID = "65532:65532"
 
 
+def _container_run_script(container_code_api_dir: str) -> str:
+    """Return the `sh -c` body that runs stdin-delivered code inside the container.
+
+    The script is written only to the exec-allowed $HOME tmpfs, never to the
+    host. But the tool's documented contract is that user code imports
+    `./canvas/*` *relative to the script*, which only resolves when the
+    script sits inside code_api/. So the run directory gets a symlink to the
+    read-only workspace's `canvas/` (and to `node_modules/` when the operator
+    installed it) before the script is written beside them.
+    """
+    return (
+        'mkdir -p "$HOME/run" && '
+        f'ln -s {container_code_api_dir}/canvas "$HOME/run/canvas" && '
+        'if [ -d /workspace/node_modules ]; then '
+        'ln -s /workspace/node_modules "$HOME/run/node_modules"; fi && '
+        'cat > "$HOME/run/code.ts" && npx tsx "$HOME/run/code.ts"'
+    )
+
+
 def _resolve_canvas_credentials(config: Any) -> tuple[str, str]:
     """Resolve (canvas_api_url, canvas_api_token) for the current context.
 
@@ -608,14 +627,19 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                 if node_options_container:
                     cmd.extend(["-e", f"NODE_OPTIONS={node_options_container}"])
 
+                # The script never touches the host filesystem: it is piped
+                # over stdin, written to the exec-allowed $HOME tmpfs inside
+                # the container, and run from there (see _container_run_script
+                # for why `canvas/` is linked beside it).
+                container_code_api_dir = (
+                    "/workspace/"
+                    + code_api_dir.relative_to(repo_root).as_posix()
+                )
                 cmd.extend([
                     config.ts_sandbox_container_image,
                     "sh",
                     "-c",
-                    # The script never touches the host filesystem: it is
-                    # piped over stdin, written to the exec-allowed $HOME
-                    # tmpfs inside the container, and run from there.
-                    'cat > "$HOME/code.ts" && npx tsx "$HOME/code.ts"',
+                    _container_run_script(container_code_api_dir),
                 ])
             else:
                 # Reached only when sandbox_mode != "container" (or the

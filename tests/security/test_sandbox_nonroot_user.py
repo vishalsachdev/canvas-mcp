@@ -225,9 +225,57 @@ class TestContainerRunsAsNonRoot:
         assert not ts_suffix_calls, "container mode must not create a host-side .ts file"
 
         cmd = list(spawn.call_args.args)
-        assert cmd[-3:] == [
-            "sh", "-c", 'cat > "$HOME/code.ts" && npx tsx "$HOME/code.ts"',
-        ]
+        assert cmd[-3:-1] == ["sh", "-c"]
+        script = cmd[-1]
+        assert 'cat > "$HOME/run/code.ts"' in script
+        assert 'npx tsx "$HOME/run/code.ts"' in script
+        assert "/workspace/" not in script.split("cat >")[1], (
+            "the script itself must live on the tmpfs, not the host mount"
+        )
 
         assert spawn.call_args.kwargs["stdin"] == asyncio.subprocess.PIPE
         process_mock.communicate.assert_called_once_with(input=b"console.log(1)")
+
+    @pytest.mark.asyncio
+    async def test_stdin_script_can_still_import_canvas_modules(self):
+        """Moving the script off the read-only workspace must not break the
+        tool's documented `./canvas/*` import contract, which resolves
+        relative to the script file. A bare `cat > $HOME/code.ts` fails with
+        `Cannot find module './canvas/...'` for every real bulk-grading
+        script (measured locally with tsx: same script resolves inside
+        code_api/, fails from a HOME-like dir, resolves again beside a
+        symlinked canvas/). The run dir must link the workspace's canvas/
+        before the script is executed.
+        """
+        tool = get_execute_typescript(TS_SANDBOX_MODE="container")
+        if tool is None:
+            pytest.skip("execute_typescript not registered in this configuration")
+
+        process_mock = _mock_process()
+
+        with patch(
+            "canvas_mcp.tools.code_execution._detect_container_runtime",
+            return_value="docker",
+        ), patch(
+            "canvas_mcp.tools.code_execution._runtime_available",
+            new=AsyncMock(return_value=True),
+        ), patch(
+            "canvas_mcp.tools.code_execution.asyncio.create_subprocess_exec",
+            new_callable=AsyncMock,
+            return_value=process_mock,
+        ) as spawn:
+            await tool(code="import { x } from './canvas/x.js';")
+
+        cmd = list(spawn.call_args.args)
+        script = cmd[-1]
+        link, run = script.split("cat >", 1)
+        assert 'ln -s /workspace/src/canvas_mcp/code_api/canvas "$HOME/run/canvas"' in link
+        assert 'ln -s /workspace/node_modules "$HOME/run/node_modules"' in link
+        assert 'npx tsx "$HOME/run/code.ts"' in run
+        # The code file is delivered on stdin, not on argv.
+        assert spawn.call_args.kwargs.get("stdin") is asyncio.subprocess.PIPE
+        process_mock.communicate.assert_awaited_once()
+        assert process_mock.communicate.await_args.kwargs.get("input") == (
+            b"import { x } from './canvas/x.js';"
+        )
+
