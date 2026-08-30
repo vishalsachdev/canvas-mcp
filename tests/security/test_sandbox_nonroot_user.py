@@ -99,6 +99,44 @@ class TestContainerRunsAsNonRoot:
         assert uid_gid != "0:0" and not uid_gid.startswith("root")
 
     @pytest.mark.asyncio
+    async def test_root_filesystem_is_read_only(self):
+        """The image's own filesystem must be mounted read-only (issue 336).
+
+        With the workspace on a :ro bind mount, the script delivered over
+        stdin into $HOME, and /tmp on its own tmpfs, no path outside the two
+        tmpfs mounts needs to be writable. Without --read-only the image
+        rootfs is writable and executable by the sandbox uid, which is a
+        free persistence and staging surface for executed code.
+        """
+        tool = get_execute_typescript(TS_SANDBOX_MODE="container")
+        if tool is None:
+            pytest.skip("execute_typescript not registered in this configuration")
+
+        with patch(
+            "canvas_mcp.tools.code_execution._detect_container_runtime",
+            return_value="docker",
+        ), patch(
+            "canvas_mcp.tools.code_execution._runtime_available",
+            new=AsyncMock(return_value=True),
+        ), patch(
+            "canvas_mcp.tools.code_execution.asyncio.create_subprocess_exec",
+            new_callable=AsyncMock,
+            return_value=_mock_process(),
+        ) as spawn:
+            await tool(code="console.log(1)")
+
+        cmd = list(spawn.call_args.args)
+        assert "--read-only" in cmd, "container rootfs is not mounted read-only"
+        # The flag must sit on the `run` line, before the image name, or the
+        # runtime passes it to the container command instead.
+        image_index = cmd.index(cmd[-4])
+        assert cmd.index("--read-only") < image_index
+        # And the two tmpfs mounts still exist, otherwise npx has nowhere to write.
+        tmpfs_targets = [cmd[i + 1] for i, a in enumerate(cmd) if a == "--tmpfs"]
+        assert any(t.startswith("/tmp:") for t in tmpfs_targets)
+        assert any(t.startswith("/home/sandbox:") for t in tmpfs_targets)
+
+    @pytest.mark.asyncio
     async def test_home_is_writable_and_exec_allowed_not_the_noexec_scratch_tmpfs(self):
         """$HOME must land on its own exec-allowed mount, never on /tmp.
 
