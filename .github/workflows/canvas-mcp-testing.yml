@@ -51,15 +51,15 @@ jobs:
       run: mypy src/
 
   # Runs the WHOLE suite on every supported interpreter. pyproject declares
-  # requires-python = ">=3.10", so 3.10 is a supported target and must be
-  # tested: a 3.10-only break (datetime.UTC is 3.11+, for one) is invisible on
-  # a 3.11-only runner.
+  # requires-python = ">=3.11" (3.10 dropped ahead of its 2026-10-31 EOL, #315),
+  # so every version in the matrix is a supported target and a version-specific
+  # break on the oldest one is invisible on a newer-only runner.
   test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13']
+        python-version: ['3.11', '3.12', '3.13']
 
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -91,7 +91,7 @@ jobs:
 
   # Aggregator. Branch protection requires a check literally named
   # "test-enhancements", and a matrix job publishes per-version names
-  # ("test (3.10)"), which would leave the required check permanently pending
+  # ("test (3.11)"), which would leave the required check permanently pending
   # and block every PR. This gate keeps the required name while making it mean
   # "the full suite passed on every supported Python".
   test-enhancements:
@@ -109,4 +109,4 @@ jobs:
         fi
         echo "## Canvas MCP test results" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "Full suite passed on 3.10, 3.11, 3.12 and 3.13." >> $GITHUB_STEP_SUMMARY
+        echo "Full suite passed on 3.11, 3.12 and 3.13." >> $GITHUB_STEP_SUMMARY

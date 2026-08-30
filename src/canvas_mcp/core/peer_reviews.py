@@ -166,7 +166,7 @@ class PeerReviewAnalyzer:
                         assigned_date = parse_date(assignment["assigned_date"])
                         if assigned_date:
                             days_since_assigned = (
-                                datetime.datetime.now(datetime.timezone.utc) - assigned_date
+                                datetime.datetime.now(datetime.UTC) - assigned_date
                             ).days
 
                     reviewer_stats[reviewer_id]["pending_reviews"].append({

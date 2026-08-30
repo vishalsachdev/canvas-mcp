@@ -31,7 +31,7 @@ def _output_tz() -> datetime.tzinfo:
         return _tz_cache[name]
 
     if name.upper() == "UTC":
-        tz: datetime.tzinfo = datetime.timezone.utc
+        tz: datetime.tzinfo = datetime.UTC
     else:
         try:
             tz = ZoneInfo(name)
@@ -43,7 +43,7 @@ def _output_tz() -> datetime.tzinfo:
                     file=sys.stderr,
                 )
                 _tz_warned.add(name)
-            tz = datetime.timezone.utc
+            tz = datetime.UTC
 
     _tz_cache[name] = tz
     return tz
@@ -88,7 +88,7 @@ def parse_date(date_str: str | None) -> datetime.datetime | None:
 
             # If no timezone info, assume UTC
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=datetime.timezone.utc)
+                dt = dt.replace(tzinfo=datetime.UTC)
 
             return dt
         except ValueError:

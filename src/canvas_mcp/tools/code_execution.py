@@ -319,7 +319,7 @@ async def _runtime_available(runtime: str) -> bool:
 
     try:
         await asyncio.wait_for(process.communicate(), timeout=2)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         process.kill()
         await process.wait()
         return False
@@ -668,7 +668,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
 
                 return "\n".join(result_lines) if result_lines else "No output"
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 process.kill()
                 await process.wait()
 

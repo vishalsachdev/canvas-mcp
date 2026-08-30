@@ -3,6 +3,7 @@
 Following TDD - these tests are written before the implementation.
 """
 
+from datetime import UTC
 from unittest.mock import patch
 
 import pytest
@@ -438,11 +439,11 @@ class TestNotifyOfUpdateConfirmation:
         self, mock_canvas_request, mock_course_id, mock_course_code
     ):
         """Canvas suppresses notifications for pages under a minute old."""
-        from datetime import datetime, timezone
+        from datetime import datetime
         mock_canvas_request.return_value = {
             "url": "fresh", "title": "Fresh", "published": True,
             "front_page": False, "editing_roles": "teachers",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
 
         update_page_settings = get_tool_function("update_page_settings")

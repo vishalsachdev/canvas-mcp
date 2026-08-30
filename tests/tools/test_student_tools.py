@@ -2,7 +2,7 @@
 Tests for student self-service MCP tools.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -143,7 +143,7 @@ class TestStudentToolsDatetimeComparison:
     @pytest.mark.asyncio
     async def test_get_my_upcoming_assignments_with_timezone_aware_dates(self):
         """Test that upcoming assignments handles timezone-aware dates correctly."""
-        future_date = (datetime.now(timezone.utc) + timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        future_date = (datetime.now(UTC) + timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch, \
              patch('canvas_mcp.tools.student_tools.get_course_code', new_callable=AsyncMock) as mock_course:
@@ -161,9 +161,9 @@ class TestStudentToolsDatetimeComparison:
     @pytest.mark.asyncio
     async def test_get_my_upcoming_assignments_sorting_with_mixed_dates(self):
         """Test that sorting assignments works with various date formats."""
-        date1 = (datetime.now(timezone.utc) + timedelta(days=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        date2 = (datetime.now(timezone.utc) + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        date3 = (datetime.now(timezone.utc) + timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        date1 = (datetime.now(UTC) + timedelta(days=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        date2 = (datetime.now(UTC) + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        date3 = (datetime.now(UTC) + timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         mock_items = [
             self._planner_item("Assignment 1", date1),
@@ -187,7 +187,7 @@ class TestStudentToolsDatetimeComparison:
     async def test_get_my_submission_status_overdue_comparison(self):
         """Test that overdue detection works with timezone-aware dates."""
         # Create a past date to test overdue detection
-        past_date = (datetime.now(timezone.utc) - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        past_date = (datetime.now(UTC) - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         mock_assignments = [
             {
@@ -232,7 +232,7 @@ class TestStudentToolsDatetimeComparison:
     @pytest.mark.asyncio
     async def test_get_my_upcoming_assignments_with_various_day_values(self):
         """Positive day values work; non-positive values get an explicit error."""
-        future_date = (datetime.now(timezone.utc) + timedelta(days=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        future_date = (datetime.now(UTC) + timedelta(days=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         for days_value in [1, 7, 14, 30]:
             with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch, \
@@ -277,7 +277,7 @@ class TestUpcomingAssignmentsHonorRange:
     @pytest.mark.asyncio
     async def test_assignment_beyond_7_days_is_returned(self):
         """The defining case from the bug report: due in ~3 weeks, days=30."""
-        far_date = (datetime.now(timezone.utc) + timedelta(days=21)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        far_date = (datetime.now(UTC) + timedelta(days=21)).strftime("%Y-%m-%dT%H:%M:%SZ")
         item = {
             "plannable_type": "assignment",
             "course_id": 101,
@@ -299,7 +299,7 @@ class TestUpcomingAssignmentsHonorRange:
 
     @pytest.mark.asyncio
     async def test_non_assignment_planner_items_are_filtered(self):
-        soon = (datetime.now(timezone.utc) + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        soon = (datetime.now(UTC) + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
         items = [
             {"plannable_type": "announcement", "course_id": 101,
              "plannable": {"id": 1, "title": "Read me"}, "plannable_date": soon},
@@ -317,7 +317,7 @@ class TestUpcomingAssignmentsHonorRange:
 
     @pytest.mark.asyncio
     async def test_submitted_status_comes_from_planner_payload(self):
-        soon = (datetime.now(timezone.utc) + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        soon = (datetime.now(UTC) + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
         item = {
             "plannable_type": "assignment",
             "course_id": 101,
@@ -340,7 +340,7 @@ class TestUpcomingAssignmentsHonorRange:
     async def test_graded_discussion_is_included_ungraded_is_not(self):
         """Graded discussions carry due_at in the planner payload; ungraded
         to-do discussions only have todo_date and must stay excluded."""
-        soon = (datetime.now(timezone.utc) + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        soon = (datetime.now(UTC) + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
         items = [
             {"plannable_type": "discussion_topic", "course_id": 101,
              "plannable": {"id": 1, "title": "Graded Debate", "due_at": soon},
@@ -766,7 +766,7 @@ class TestGetMyPeerReviewsTodoPlannerDiscovery:
         No start_date is sent to Canvas, so filter=incomplete_items alone
         must be trusted — an old item must still surface."""
         old_date = (
-            datetime.now(timezone.utc) - timedelta(days=60)
+            datetime.now(UTC) - timedelta(days=60)
         ).strftime("%Y-%m-%dT%H:%M:%SZ")
         fetch_side_effect = [
             [{"id": 1, "name": "Essay", "peer_reviews": False}],  # assignments
