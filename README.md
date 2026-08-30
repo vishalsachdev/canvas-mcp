@@ -129,13 +129,14 @@ The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning 
 
 **Released:** August 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
 
-A safety release: every delete tool now asks first. **Three changes are breaking** — read them before upgrading.
+A safety release: every delete tool now asks first. **Four changes are breaking.** Each one's migration is a line long:
 
-- **Breaking: every `delete_*` tool is two-step** ([#318](https://github.com/vishalsachdev/canvas-mcp/issues/318)). Call it without `confirmation_token` and you get a preview of exactly what would be deleted plus a single-use token; call again with the token and identical arguments to delete. Tokens expire in 5 minutes and stop matching if the target changed in between. `dry_run` is gone from the three announcement deletes (the preview is the dry run); `delete_module`, `delete_module_item` and `delete_page` gain `confirmation_token`. Thanks [@zqian](https://github.com/zqian) for the request
-- **Breaking: `delete_announcement` removed** — use `delete_announcement_with_confirmation`. **New: `delete_assignment_with_confirmation`**, whose preview shows due date, points and whether submissions exist
-- **Breaking: Python 3.10 dropped** ([#315](https://github.com/vishalsachdev/canvas-mcp/issues/315)) ahead of its 2026-10-31 end of life; `requires-python >= 3.11`
-- **`ACCESSIBILITY_CHECKERS` setting** ([#325](https://github.com/vishalsachdev/canvas-mcp/issues/325)): institutions without the UDOIT/UFIXIT add-on can set it to `none` and the three UFIXIT report tools are not registered. The built-in scanner stays on. Thanks [@jonespm](https://github.com/jonespm)
-- **Skill Request issue template** for asking for new agent workflows in plain language ([#302](https://github.com/vishalsachdev/canvas-mcp/issues/302))
+- **`delete_announcement` removed** → call `delete_announcement_with_confirmation` with the same arguments; it previews first, then deletes on the second call with the token ([#318](https://github.com/vishalsachdev/canvas-mcp/issues/318))
+- **`dry_run` removed** from the three announcement delete tools → drop the argument; a call without `confirmation_token` is the dry run and deletes nothing. `bulk_delete_announcements` used to delete on the first call; it previews now ([#318](https://github.com/vishalsachdev/canvas-mcp/issues/318))
+- **`confirmation_token` required on all seven delete tools** (`delete_announcement_with_confirmation`, `bulk_delete_announcements`, `delete_announcements_by_criteria`, `delete_page`, `delete_module`, `delete_module_item`, `delete_assignment_with_confirmation`) → call once with your normal arguments, show the preview, then call again with identical arguments plus the token from the `Confirmation token:` line. Tokens are single-use, expire in 5 minutes, and stop matching if the target or the arguments changed ([#318](https://github.com/vishalsachdev/canvas-mcp/issues/318)). Thanks [@zqian](https://github.com/zqian) for the request
+- **Python 3.10 dropped** → `requires-python >= 3.11`; upgrade the interpreter, or pin `canvas-mcp<1.12` until you can ([#315](https://github.com/vishalsachdev/canvas-mcp/issues/315))
+
+Also new: **`delete_assignment_with_confirmation`** (preview shows due date, points and whether submissions exist); **`ACCESSIBILITY_CHECKERS`** so institutions without UDOIT/UFIXIT can set `none` and drop the three UFIXIT tools while keeping the built-in scanner ([#325](https://github.com/vishalsachdev/canvas-mcp/issues/325), thanks [@jonespm](https://github.com/jonespm)); the **content migration** tools ([#309](https://github.com/vishalsachdev/canvas-mcp/issues/309)); and a **Skill Request** issue template ([#302](https://github.com/vishalsachdev/canvas-mcp/issues/302))
 
 <details>
 <summary>Previous releases</summary>
