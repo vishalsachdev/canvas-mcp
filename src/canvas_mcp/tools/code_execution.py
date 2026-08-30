@@ -32,6 +32,31 @@ _SAFE_ENV_KEYS = frozenset({
     "CONTAINER_HOST",
 })
 
+# Numeric uid:gid the sandbox container runs as instead of image-default root
+# (the distroless "nonroot" convention). Numeric, not a named user, because
+# the operator-configured image is not guaranteed to define one.
+_SANDBOX_UID_GID = "65532:65532"
+
+
+def _container_run_script(container_code_api_dir: str) -> str:
+    """Return the `sh -c` body that runs stdin-delivered code inside the container.
+
+    The script is written only to the exec-allowed $HOME tmpfs, never to the
+    host. But the tool's documented contract is that user code imports
+    `./canvas/*`, `./client` and `./index` *relative to the script*, which
+    only resolves when the script sits inside code_api/. So the run directory
+    mirrors the read-only workspace's code_api/ root with symlinks (every
+    entry, so the module root is preserved, plus `node_modules/` when the
+    operator installed it) before the script is written beside them.
+    """
+    return (
+        'mkdir -p "$HOME/run" && '
+        f'ln -s {container_code_api_dir}/* "$HOME/run/" && '
+        'if [ -d /workspace/node_modules ]; then '
+        'ln -s /workspace/node_modules "$HOME/run/node_modules"; fi && '
+        'cat > "$HOME/run/code.ts" && npx tsx "$HOME/run/code.ts"'
+    )
+
 
 def _resolve_canvas_credentials(config: Any) -> tuple[str, str]:
     """Resolve (canvas_api_url, canvas_api_token) for the current context.
@@ -348,8 +373,10 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
         all TypeScript modules in src/canvas_mcp/code_api/, and standard Node.js modules.
 
         IMPORTANT: Security is best-effort unless container sandboxing is available.
-        Code runs in a temp file (deleted after), with optional network allowlist,
-        timeout, memory, and CPU limits.
+        In local mode code runs from a temp file (deleted after); in container
+        mode it is streamed to the sandboxed process and never written to
+        host disk. Optional network allowlist, timeout, memory, and CPU
+        limits apply.
 
         Args:
             code: TypeScript code to execute; can import from './canvas/*' modules.
@@ -463,6 +490,10 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     log_warning(message)
 
                 guard_path = _write_network_guard(allowlist_hosts, code_api_dir)
+                if sandbox_mode == "container":
+                    # 0600 only protects other host-local users, not the
+                    # container's own non-root uid on a read-only bind mount.
+                    os.chmod(guard_path, 0o644)
                 if guard_path.is_relative_to(repo_root):
                     relative_guard = guard_path.relative_to(repo_root)
                     guard_container_path = f"/workspace/{relative_guard.as_posix()}"
@@ -495,17 +526,28 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
             else:
                 node_options_container = node_options_local
 
-        # Create a temporary file for the code
+        # Container mode streams the code to the sandboxed process over stdin
+        # instead of writing it to code_api_dir first: a host-side copy of the
+        # script sits inside a traversable directory for as long as the run
+        # takes, and bulk-grading code can carry student IDs or grades in
+        # literals, so widening it to 0644 for the container uid (the
+        # previous fix) is readable by any local account on a multi-user
+        # host. Piping it in means no host-side copy ever exists.
         temp_file_path: str | None = None
-        with tempfile.NamedTemporaryFile(
-            mode='w',
-            suffix='.ts',
-            dir=code_api_dir,
-            delete=False
-        ) as temp_file:
-            # Write the user's code
-            temp_file.write(code)
-            temp_file_path = temp_file.name
+        stdin_payload: bytes | None = None
+        if sandbox_mode == "container":
+            stdin_payload = code.encode()
+        else:
+            # Create a temporary file for the code
+            with tempfile.NamedTemporaryFile(
+                mode='w',
+                suffix='.ts',
+                dir=code_api_dir,
+                delete=False
+            ) as temp_file:
+                # Write the user's code
+                temp_file.write(code)
+                temp_file_path = temp_file.name
 
         try:
             # Compute code hash for audit logging (never log raw code)
@@ -529,15 +571,17 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
 
             # Execute using tsx (faster than ts-node) or ts-node as fallback
             # tsx is a fast TypeScript execution engine that doesn't require compilation
-            if sandbox_mode == "container" and container_runtime and temp_file_path:
-                relative_path = Path(temp_file_path).relative_to(repo_root)
-                container_code_path = f"/workspace/{relative_path.as_posix()}"
-
+            if sandbox_mode == "container" and container_runtime:
                 cmd = [
                     container_runtime,
                     "run",
                     "--rm",
                     "-i",
+                    # Run as a fixed non-root uid:gid, not the image default
+                    # (root for node:*-alpine and most images), so a container
+                    # escape does not hand back root.
+                    "--user",
+                    _SANDBOX_UID_GID,
                     # Drop all Linux capabilities and block privilege escalation;
                     # the tsx runtime needs none of them.
                     "--cap-drop=ALL",
@@ -564,8 +608,15 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     f"{repo_root}:/workspace:ro",
                     "--tmpfs",
                     "/tmp:rw,noexec,nosuid,size=64m",
+                    # $HOME needs to be writable and exec-allowed for npx's
+                    # tsx install step; unlike /tmp above, this one is not
+                    # noexec so a native postinstall binary (esbuild) can run.
+                    "--tmpfs",
+                    "/home/sandbox:rw,exec,nosuid,size=64m",
                     "-w",
                     "/workspace",
+                    "-e",
+                    "HOME=/home/sandbox",
                     "-e",
                     f"CANVAS_API_URL={canvas_api_url}",
                     # Pass the Canvas token by name only so its value is taken from
@@ -577,13 +628,27 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                 if node_options_container:
                     cmd.extend(["-e", f"NODE_OPTIONS={node_options_container}"])
 
+                # The script never touches the host filesystem: it is piped
+                # over stdin, written to the exec-allowed $HOME tmpfs inside
+                # the container, and run from there (see _container_run_script
+                # for why `canvas/` is linked beside it).
+                container_code_api_dir = (
+                    "/workspace/"
+                    + code_api_dir.relative_to(repo_root).as_posix()
+                )
                 cmd.extend([
                     config.ts_sandbox_container_image,
-                    "npx",
-                    "tsx",
-                    container_code_path
+                    "sh",
+                    "-c",
+                    _container_run_script(container_code_api_dir),
                 ])
             else:
+                # Reached only when sandbox_mode != "container" (or the
+                # container runtime check above failed, which can't happen:
+                # sandbox_mode is only ever set to "container" once the
+                # runtime has already been confirmed available). Either way
+                # temp_file_path was written in the non-container branch above.
+                assert temp_file_path is not None
                 cmd = _build_local_tsx_command(temp_file_path)
 
             # Run the TypeScript code
@@ -607,6 +672,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     log_warning(message)
             process = await asyncio.create_subprocess_exec(
                 *cmd,
+                stdin=asyncio.subprocess.PIPE if stdin_payload is not None else None,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=env,
@@ -616,7 +682,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
 
             try:
                 stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                    process.communicate(),
+                    process.communicate(input=stdin_payload),
                     timeout=effective_timeout
                 )
 
