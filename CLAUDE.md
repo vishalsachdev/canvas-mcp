@@ -450,6 +450,15 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
   template** still owed to rpsimon-ai (#302); (4) #315 drop 3.10 with the next minor bump (nothing
   breaking is sitting unreleased on main — v1.11.0 shipped #270/#271/#303); (5) #309 awaits zqian; #299/#301/#302 awaits reporters.
 
+### 2026-08-29 — Autonomous issue/PR sweep (Sat evening); v1.12.0 staged on main, unpublished
+
+- **Trail:** `docs/triage/2026-08-29.md` (triage table + final results, excluded from the Pages upload via `docs/.assetsignore`).
+- **Merged (squash, admin bypass on the review requirement; every body keyword-scanned; target issues verified open after merge):** #328 Skill Request template (#302), #329 `ACCESSIBILITY_CHECKERS` (#325), #330 two-step delete tools + `delete_announcement` removed + `delete_assignment_with_confirmation` (#318), #331 drop Python 3.10 (#315, **closed**), #332 bump to **v1.12.0**. Every code PR went through Codex rounds until one returned nothing (#325: 3, #318: 3, #315: 2). Suite on main: **1451 passed, 21 skipped**.
+- **Finding worth remembering (#318):** `delete_announcement_with_confirmation` never used a confirmation token; its name was aspirational. The token pattern lived only in messaging + content-migration. Now all seven delete tools bind tool, course, ids as requested, every displayed field, and the behavioural args into the fingerprint (Codex found four unbound fields across two rounds — the class is "the preview shows it, so the token must bind it").
+- **PR #317 NOT merged.** CI green, both earlier findings addressed, but CodeQL (alerts 145/146) and a Codex P2 both flag the `chmod 0644` on the code file for multi-user hosts. Codex's P1 on the exec HOME tmpfs was checked and rejected (no `--read-only`; rootfs was writable+exec as root before). Comment posted with three options; **Vishal decides**, then update-branch + strip the `Fixes #157` trailer from the squash message.
+- **08-28 "missing brief" resolved:** the routine fired (`cse_01876GnXnvE6QQKZ8xxvRayA`, 58 s) and took the quiet-day exit; the 08-29 executor guessed wrong.
+- **Next for Vishal:** (1) #317 decision; (2) tag `v1.12.0` → PyPI, Registry, `.mcpb`, wrangler deploy (**site banner already says v1.12.0; do not deploy docs/ before tagging**; adjust the CHANGELOG date if the tag lands after 08-30); (3) #325/#318 close on reporter confirmation; (4) `deploy/azure/README.md` says 3.12-slim, Dockerfile is 3.14 (nit).
+
 ## ⚠️ Adoption numbers: what is safe to publish (2026-08-21)
 
 Before quoting any adoption figure for this project in a paper, report, or institutional

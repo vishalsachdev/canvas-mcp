@@ -125,19 +125,22 @@ Canvas MCP provides **up to 101 tools** for interacting with Canvas LMS; the def
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing role-specific workflows for students, educators, learning designers, and developers. Built on the Model Context Protocol (MCP), it is designed for MCP-compatible clients; setup and supported capabilities vary by client.
 
-## Latest Release: v1.11.0
+## Latest Release: v1.12.0
 
 **Released:** August 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
 
-A protocol-correctness release. Every change here is about a client being able to tell what actually happened when it calls a tool. **One change is breaking and one alters response shape** — read both before upgrading.
+A safety release: every delete tool now asks first. **Three changes are breaking** — read them before upgrading.
 
-- **Breaking: `send_peer_review_reminders` is now `send_peer_review_inbox_messages`** ([#303](https://github.com/vishalsachdev/canvas-mcp/issues/303)). The old name implied it invoked Canvas's native reminder action; it does not, it sends ordinary Canvas Inbox messages, and the name now says so. The tool also resolves the course and requires `manage_grades` before previewing or sending, failing closed when the permission cannot be verified. Thanks [@jonespm](https://github.com/jonespm) for catching the mismatch
-- **Tool failures now set MCP `isError: true`** ([#270](https://github.com/vishalsachdev/canvas-mcp/issues/270)). Previously a Canvas error and an empty-but-successful result were indistinguishable to a client: both came back as an ordinary result. Errors keep their existing text or structured payload, they are simply flagged correctly now
-- **Response-shape change: string-returning tools no longer duplicate their payload** ([#271](https://github.com/vishalsachdev/canvas-mcp/issues/271)). 91 of the registered tools were emitting the same value twice, once as text content and again under an information-free `structuredContent.result`. Dictionary-returning tools keep their structured schemas. **If a client reads `structuredContent.result` for a string-returning tool, switch it to the text content**
-- **FastMCP dependency floor raised to 3.4.7** ([#293](https://github.com/vishalsachdev/canvas-mcp/issues/293)), picking up upstream fixes for Azure scope fallback, deterministic transformed-tool schemas, trusted OAuth metadata/JWKS proxies, and `private_key_jwt` audience validation
+- **Breaking: every `delete_*` tool is two-step** ([#318](https://github.com/vishalsachdev/canvas-mcp/issues/318)). Call it without `confirmation_token` and you get a preview of exactly what would be deleted plus a single-use token; call again with the token and identical arguments to delete. Tokens expire in 5 minutes and stop matching if the target changed in between. `dry_run` is gone from the three announcement deletes (the preview is the dry run); `delete_module`, `delete_module_item` and `delete_page` gain `confirmation_token`. Thanks [@zqian](https://github.com/zqian) for the request
+- **Breaking: `delete_announcement` removed** — use `delete_announcement_with_confirmation`. **New: `delete_assignment_with_confirmation`**, whose preview shows due date, points and whether submissions exist
+- **Breaking: Python 3.10 dropped** ([#315](https://github.com/vishalsachdev/canvas-mcp/issues/315)) ahead of its 2026-10-31 end of life; `requires-python >= 3.11`
+- **`ACCESSIBILITY_CHECKERS` setting** ([#325](https://github.com/vishalsachdev/canvas-mcp/issues/325)): institutions without the UDOIT/UFIXIT add-on can set it to `none` and the three UFIXIT report tools are not registered. The built-in scanner stays on. Thanks [@jonespm](https://github.com/jonespm)
+- **Skill Request issue template** for asking for new agent workflows in plain language ([#302](https://github.com/vishalsachdev/canvas-mcp/issues/302))
 
 <details>
 <summary>Previous releases</summary>
+
+**v1.11.0** — A protocol-correctness release. Breaking: `send_peer_review_reminders` is now `send_peer_review_inbox_messages` ([#303](https://github.com/vishalsachdev/canvas-mcp/issues/303)); tool failures set MCP `isError: true` ([#270](https://github.com/vishalsachdev/canvas-mcp/issues/270)); string-returning tools no longer duplicate their payload into `structuredContent.result` ([#271](https://github.com/vishalsachdev/canvas-mcp/issues/271)); FastMCP floor 3.4.7 ([#293](https://github.com/vishalsachdev/canvas-mcp/issues/293)). Thanks [@jonespm](https://github.com/jonespm)
 
 **v1.10.0** — A community bug-fix release driven by live reporter testing — thanks [@khagyard](https://github.com/khagyard), [@zqian](https://github.com/zqian), [@jonespm](https://github.com/jonespm), [@bruchris](https://github.com/bruchris), and [@SHIL0018](https://github.com/SHIL0018) (our second outside code contribution). Included a breaking `search_canvas_tools` response-shape change.
 
