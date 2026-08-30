@@ -8,3 +8,6 @@
 
 # Internal compliance email drafts
 compliance/
+
+# Session triage logs (working notes, not site content)
+triage/
