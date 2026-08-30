@@ -1222,7 +1222,7 @@
     {
       "name": "bulk_delete_announcements",
       "category": "educator",
-      "description": "Delete multiple announcements from a Canvas course.",
+      "description": "Delete multiple announcements from a Canvas course. Two-step: preview first, then confirm with the token.",
       "parameters": [
         {
           "name": "course_identifier",
@@ -1241,24 +1241,23 @@
           "type": "boolean",
           "required": false,
           "default": false,
-          "description": "Stop on first error; if False, continue with remaining (default: False)"
+          "description": "Stop at the first failed deletion; if false, continue with the rest (default: false)"
         },
         {
           "name": "limit",
           "type": "integer",
           "required": false,
           "default": 25,
-          "description": "Max number of announcements to delete in one call (default: 25). Ignored when dry_run=True, so large batches can be previewed safely."
+          "description": "Max number of announcements per call (default: 25); pass a higher value to override"
         },
         {
-          "name": "dry_run",
-          "type": "boolean",
+          "name": "confirmation_token",
+          "type": "string",
           "required": false,
-          "default": false,
-          "description": "Fetch titles and report what would be deleted without deleting (default: False)"
+          "description": "Token from the preview call; omit to preview. Single-use, expires in 5 minutes, stops matching if the target changes."
         }
       ],
-      "returns": "Per-announcement success/failure summary of the deletions",
+      "returns": "First call (no token): a preview of exactly what would be deleted plus a confirmation token, nothing deleted. Second call with the token: the deletion result.",
       "examples": [
         "Delete announcements 101, 102, and 103 from BADM 350"
       ],
@@ -1566,33 +1565,9 @@
       ]
     },
     {
-      "name": "delete_announcement",
-      "category": "educator",
-      "description": "Delete an announcement from a Canvas course.",
-      "parameters": [
-        {
-          "name": "course_identifier",
-          "type": "string | integer",
-          "required": true,
-          "description": "Course code or Canvas ID"
-        },
-        {
-          "name": "announcement_id",
-          "type": "string | integer",
-          "required": true,
-          "description": "Announcement ID to delete"
-        }
-      ],
-      "returns": "Confirmation of the deletion with the announcement title",
-      "examples": [
-        "Delete announcement 456 from the course"
-      ],
-      "notes": "Permanent — Canvas may retain a recycle-bin copy depending on admin settings."
-    },
-    {
       "name": "delete_announcement_with_confirmation",
       "category": "educator",
-      "description": "Delete an announcement with optional safety checks.",
+      "description": "Delete an announcement with optional safety checks. Two-step: preview first, then confirm with the token.",
       "parameters": [
         {
           "name": "course_identifier",
@@ -1613,14 +1588,13 @@
           "description": "Only delete if title matches this string exactly"
         },
         {
-          "name": "dry_run",
-          "type": "boolean",
+          "name": "confirmation_token",
+          "type": "string",
           "required": false,
-          "default": false,
-          "description": "Verify but don't actually delete (default: False)"
+          "description": "Token from the preview call; omit to preview. Single-use, expires in 5 minutes, stops matching if the target changes."
         }
       ],
-      "returns": "A preview requiring confirmation, then deletion confirmation",
+      "returns": "First call (no token): a preview of exactly what would be deleted plus a confirmation token, nothing deleted. Second call with the token: the deletion result.",
       "examples": [
         "Delete the 'Old Exam Info' announcement, but show me it first"
       ],
@@ -1629,7 +1603,7 @@
     {
       "name": "delete_announcements_by_criteria",
       "category": "educator",
-      "description": "Delete announcements matching specific criteria.",
+      "description": "Delete announcements matching specific criteria. Two-step: preview first, then confirm with the token.",
       "parameters": [
         {
           "name": "course_identifier",
@@ -1650,14 +1624,13 @@
           "description": "Max number of announcements to delete (safety limit)"
         },
         {
-          "name": "dry_run",
-          "type": "boolean",
+          "name": "confirmation_token",
+          "type": "string",
           "required": false,
-          "default": true,
-          "description": "Show what would be deleted without deleting (default: True)"
+          "description": "Token from the preview call; omit to preview. Single-use, expires in 5 minutes, stops matching if the target changes."
         }
       ],
-      "returns": "List of matched announcements (dry run) or per-announcement deletion results",
+      "returns": "First call (no token): a preview of exactly what would be deleted plus a confirmation token, nothing deleted. Second call with the token: the deletion result.",
       "examples": [
         "Delete all announcements older than 90 days (preview first)"
       ],
@@ -1666,7 +1639,7 @@
     {
       "name": "delete_module",
       "category": "educator",
-      "description": "Delete a module from a course.",
+      "description": "Delete a module from a course. Two-step: preview first, then confirm with the token.",
       "parameters": [
         {
           "name": "course_identifier",
@@ -1679,9 +1652,15 @@
           "type": "string | integer",
           "required": true,
           "description": "Module ID to delete"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Token from the preview call; omit to preview. Single-use, expires in 5 minutes, stops matching if the target changes."
         }
       ],
-      "returns": "Confirmation that the module was deleted (content items are not deleted)",
+      "returns": "First call (no token): a preview of exactly what would be deleted plus a confirmation token, nothing deleted. Second call with the token: the deletion result.",
       "examples": [
         "Delete the empty 'Week 0' module"
       ],
@@ -1690,7 +1669,7 @@
     {
       "name": "delete_module_item",
       "category": "educator",
-      "description": "Remove an item from a module.",
+      "description": "Remove an item from a module. Two-step: preview first, then confirm with the token.",
       "parameters": [
         {
           "name": "course_identifier",
@@ -1709,9 +1688,15 @@
           "type": "string | integer",
           "required": true,
           "description": "Item ID to remove"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Token from the preview call; omit to preview. Single-use, expires in 5 minutes, stops matching if the target changes."
         }
       ],
-      "returns": "Confirmation that the item was removed from the module (content is not deleted)",
+      "returns": "First call (no token): a preview of exactly what would be deleted plus a confirmation token, nothing deleted. Second call with the token: the deletion result.",
       "examples": [
         "Remove item 33 from module 12"
       ],
@@ -1720,7 +1705,7 @@
     {
       "name": "delete_page",
       "category": "educator",
-      "description": "Delete a page from a Canvas course.",
+      "description": "Delete a page from a Canvas course. Two-step: preview first, then confirm with the token.",
       "parameters": [
         {
           "name": "course_identifier",
@@ -1739,9 +1724,15 @@
           "type": "string",
           "required": false,
           "description": "Safety check — only delete if page title matches exactly"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Token from the preview call; omit to preview. Single-use, expires in 5 minutes, stops matching if the target changes."
         }
       ],
-      "returns": "Confirmation of the deletion with the page title",
+      "returns": "First call (no token): a preview of exactly what would be deleted plus a confirmation token, nothing deleted. Second call with the token: the deletion result.",
       "examples": [
         "Delete the outdated 'Fall 2024 Schedule' page"
       ],
@@ -2679,6 +2670,42 @@
         "Move the essay deadline to Friday 11:59pm",
         "Change the assignment to 25 points"
       ]
+    },
+    {
+      "name": "delete_assignment_with_confirmation",
+      "category": "educator",
+      "description": "Delete an assignment. Two-step: preview first, then confirm with the token.",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "assignment_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Assignment ID to delete"
+        },
+        {
+          "name": "require_name_match",
+          "type": "string",
+          "required": false,
+          "description": "Only delete if the assignment name matches this string exactly"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Token from the preview call; omit to preview. Single-use, expires in 5 minutes, stops matching if the target changes."
+        }
+      ],
+      "returns": "First call (no token): a preview of exactly what would be deleted plus a confirmation token, nothing deleted. Second call with the token: the deletion result.",
+      "examples": [
+        "Delete the duplicate 'Homework 1' assignment, but show me first"
+      ],
+      "notes": "Permanent: deletes the assignment together with every submission and grade attached to it. Canvas may retain a recycle-bin copy depending on admin settings."
     },
     {
       "name": "update_module",

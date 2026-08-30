@@ -18,7 +18,18 @@ from ..core.untrusted_content import (
     fence_untrusted_inline,
 )
 from ..core.validation import validate_params
-from ..core.write_confirmation import unconfirmed_write_warning
+from ..core.write_confirmation import (
+    ConfirmationGuard,
+    preview_with_token,
+    redeem_confirmation,
+    unconfirmed_write_warning,
+)
+
+# One guard per delete tool (#318); tokens are bound to the tool name, the
+# course, the exact target ids and the titles the preview displayed.
+_DELETE_ANNOUNCEMENT_GUARD = ConfirmationGuard(nothing_done="Nothing was deleted.")
+_BULK_DELETE_GUARD = ConfirmationGuard(nothing_done="Nothing was deleted.")
+_CRITERIA_DELETE_GUARD = ConfirmationGuard(nothing_done="Nothing was deleted.")
 
 # Issue #283: a permission error on create_announcement is not license to
 # post the same content as a discussion instead. Client models were doing
@@ -1197,49 +1208,82 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                f"Created: {created_at}"
 
     # ===== ANNOUNCEMENT DELETION TOOLS =====
+    #
+    # Every delete is two-step (#318): the first call previews the exact
+    # target(s) and returns a single-use confirmation token bound to what it
+    # showed; only a second call carrying that token deletes. If the target
+    # changed in between (retitled, a different match set), the token stops
+    # matching and nothing is deleted. The un-tokened delete_announcement was
+    # retired in the same pass.
 
     @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
     @validate_params
-    async def delete_announcement(
+    async def delete_announcement_with_confirmation(
         course_identifier: str | int,
-        announcement_id: str | int
+        announcement_id: str | int,
+        require_title_match: str | None = None,
+        confirmation_token: str | None = None
     ) -> str:
-        """Delete an announcement from a Canvas course.
+        """Delete an announcement. Two-step: preview first, then confirm with the token.
 
         Permanent — Canvas may retain a recycle-bin copy depending on admin settings.
 
         Args:
             course_identifier: Course code or Canvas ID
             announcement_id: Announcement ID to delete
+            require_title_match: Only delete if title matches this string exactly
+            confirmation_token: Token from the preview call; omit to preview
         """
         course_id = await get_course_id(course_identifier)
 
-        # First, get the announcement details to return meaningful information
         announcement = await make_canvas_request(
             "get", f"/courses/{course_id}/discussion_topics/{announcement_id}"
         )
-
         if "error" in announcement:
             return f"Error fetching announcement details: {announcement['error']}"
 
-        announcement_title = fence_untrusted(
-            announcement.get("title", "Unknown Title"), "announcement title"
-        )
+        # actual_title stays raw for the comparison and the fingerprint;
+        # fenced only at the display boundary (issue 239).
+        actual_title = announcement.get("title", "Unknown Title")
+        shown_title = fence_untrusted(actual_title, "announcement title")
+        if require_title_match is not None and actual_title != require_title_match:
+            return (
+                f"Title mismatch - Expected: '{require_title_match}', Actual:\n"
+                f"{shown_title}\nDeletion aborted for safety."
+            )
 
-        # Proceed with deletion
+        course_display = await get_course_code(course_id) or course_identifier
+        fingerprint = _DELETE_ANNOUNCEMENT_GUARD.fingerprint(
+            "delete_announcement_with_confirmation",
+            str(course_id), str(announcement_id), actual_title,
+        )
+        if not confirmation_token:
+            preview = (
+                f"Would delete announcement from course {course_display}:\n\n"
+                f"ID: {announcement_id}\n"
+                f"Title:\n{shown_title}"
+            )
+            return preview_with_token(
+                _DELETE_ANNOUNCEMENT_GUARD, fingerprint,
+                "delete_announcement_with_confirmation", preview,
+            )
+        error = redeem_confirmation(_DELETE_ANNOUNCEMENT_GUARD, confirmation_token, fingerprint)
+        if error:
+            return error
+
         response = await make_canvas_request(
             "delete", f"/courses/{course_id}/discussion_topics/{announcement_id}"
         )
-
         if "error" in response:
-            return f"Error deleting announcement '{announcement_title}': {response['error']}"
+            return f"Error deleting announcement {shown_title}: {response['error']}"
 
-        course_display = await get_course_code(course_id) or course_identifier
-        return f"Announcement deleted successfully from course {course_display}:\n\n" + \
-               f"ID: {announcement_id}\n" + \
-               f"Title: {announcement_title}\n" + \
-               "Status: deleted\n" + \
-               "Message: Announcement deleted successfully"
+        result = f"Announcement deleted successfully from course {course_display}:\n\n"
+        result += f"ID: {announcement_id}\n"
+        result += f"Title:\n{shown_title}\n"
+        result += "Status: deleted\n"
+        if require_title_match is not None:
+            result += "Title matched: True\n"
+        return result
 
     @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
     @validate_params
@@ -1248,215 +1292,128 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
         announcement_ids: list[str | int],
         stop_on_error: bool = False,
         limit: int = 25,
-        dry_run: bool = False
+        confirmation_token: str | None = None
     ) -> str:
-        """Delete multiple announcements from a Canvas course.
+        """Delete multiple announcements by ID. Two-step: preview first, then confirm with the token.
 
         Permanent — Canvas may retain a recycle-bin copy depending on admin settings.
 
         Args:
             course_identifier: Course code or Canvas ID
             announcement_ids: List of announcement IDs to delete
-            stop_on_error: Stop on first error; if False, continue with remaining (default: False)
-            limit: Max number of announcements to delete in one call (default: 25). Ignored when dry_run=True, so large batches can be previewed safely.
-            dry_run: Fetch titles and report what would be deleted without deleting (default: False)
+            stop_on_error: Stop at the first failed deletion; if False, continue with the rest (default: False)
+            limit: Max number of announcements per call (default: 25); pass a higher value to override
+            confirmation_token: Token from the preview call; omit to preview
         """
         course_id = await get_course_id(course_identifier)
 
-        if not dry_run and len(announcement_ids) > limit:
+        if len(announcement_ids) > limit:
             return (
                 f"❌ Refusing to delete {len(announcement_ids)} announcements: exceeds limit of {limit}.\n"
-                f"  Pass limit={len(announcement_ids)} (or higher) to override, "
-                f"or use dry_run=True to preview without deleting."
+                f"  Pass limit={len(announcement_ids)} (or higher) to override."
             )
 
-        successful = []
-        failed = []
-        previewed = []
-
+        # Resolve every id up front: the preview must show exactly what the
+        # token will authorize, titles included.
+        found: list[dict[str, str]] = []
+        unreachable: list[dict[str, str]] = []
         for announcement_id in announcement_ids:
+            announcement = await make_canvas_request(
+                "get", f"/courses/{course_id}/discussion_topics/{announcement_id}"
+            )
+            if "error" in announcement:
+                unreachable.append({"id": str(announcement_id), "error": announcement["error"]})
+                continue
+            found.append({
+                "id": str(announcement_id),
+                "title": announcement.get("title", "Unknown Title"),
+            })
+
+        course_display = await get_course_code(course_id) or course_identifier
+        fingerprint = _BULK_DELETE_GUARD.fingerprint(
+            "bulk_delete_announcements", str(course_id),
+            json.dumps([[item["id"], item["title"]] for item in found]),
+        )
+
+        if not confirmation_token:
+            preview = f"Bulk deletion preview for course {course_display}:\n\n"
+            preview += (
+                f"Summary: {len(found)} would be deleted, {len(unreachable)} unreachable "
+                f"out of {len(announcement_ids)} total\n\n"
+            )
+            if found:
+                preview += "Would delete:\n"
+                for item in found:
+                    preview += (
+                        f"  - ID: {item['id']}, Title: "
+                        f"{fence_untrusted(item['title'], 'announcement title')}\n"
+                    )
+                preview += "\n"
+            if unreachable:
+                preview += "Unreachable (fetch failed, will be skipped):\n"
+                for item in unreachable:
+                    preview += f"  - ID: {item['id']}, Error: {item['error']}\n"
+            if not found:
+                return preview + "\nNothing to delete."
+            return preview_with_token(
+                _BULK_DELETE_GUARD, fingerprint, "bulk_delete_announcements", preview
+            )
+
+        error = redeem_confirmation(_BULK_DELETE_GUARD, confirmation_token, fingerprint)
+        if error:
+            return error
+
+        successful: list[dict[str, str]] = []
+        failed: list[dict[str, str]] = list(unreachable)
+        for item in found:
+            shown = fence_untrusted(item["title"], "announcement title")
             try:
-                # Get announcement details first
-                announcement = await make_canvas_request(
-                    "get", f"/courses/{course_id}/discussion_topics/{announcement_id}"
-                )
-
-                if "error" in announcement:
-                    failed.append({
-                        "id": str(announcement_id),
-                        "error": announcement["error"],
-                        "message": "Failed to fetch announcement details"
-                    })
-                    if stop_on_error:
-                        break
-                    continue
-
-                if dry_run:
-                    previewed.append({
-                        "id": str(announcement_id),
-                        "title": fence_untrusted(announcement.get("title", "Unknown Title"), "announcement title")
-                    })
-                    continue
-
-                # Proceed with deletion
                 response = await make_canvas_request(
-                    "delete", f"/courses/{course_id}/discussion_topics/{announcement_id}"
+                    "delete", f"/courses/{course_id}/discussion_topics/{item['id']}"
                 )
-
-                if "error" in response:
-                    failed.append({
-                        "id": str(announcement_id),
-                        "title": fence_untrusted(announcement.get("title", "Unknown Title"), "announcement title"),
-                        "error": response["error"],
-                        "message": "Failed to delete announcement"
-                    })
-                    if stop_on_error:
-                        break
-                else:
-                    successful.append({
-                        "id": str(announcement_id),
-                        "title": fence_untrusted(announcement.get("title", "Unknown Title"), "announcement title")
-                    })
-
-            except Exception as e:
-                failed.append({
-                    "id": str(announcement_id),
-                    "error": str(e),
-                    "message": "Unexpected error during deletion"
-                })
+            except Exception as e:  # noqa: BLE001 - per-item isolation
+                failed.append({"id": item["id"], "title": shown, "error": str(e)})
                 if stop_on_error:
                     break
-
-        # Format results
-        course_display = await get_course_code(course_id) or course_identifier
-
-        if dry_run:
-            result = f"DRY RUN — bulk deletion preview for course {course_display}:\n\n"
-            result += f"Summary: {len(previewed)} would be deleted, {len(failed)} unreachable out of {len(announcement_ids)} total\n\n"
-            if previewed:
-                result += "Would delete:\n"
-                for item in previewed:
-                    result += f"  - ID: {item['id']}, Title: {item['title']}\n"
-                result += "\n"
-            if failed:
-                result += "Could not preview (fetch failed):\n"
-                for item in failed:
-                    result += f"  - ID: {item['id']}, Error: {item['error']}\n"
-                result += "\n"
-            result += "Set dry_run=False to perform actual deletions."
-            return result
-
-        summary = {
-            "total": len(announcement_ids),
-            "successful": len(successful),
-            "failed": len(failed)
-        }
+                continue
+            if "error" in response:
+                failed.append({"id": item["id"], "title": shown, "error": response["error"]})
+                if stop_on_error:
+                    break
+            else:
+                successful.append({"id": item["id"], "title": shown})
 
         result = f"Bulk deletion results for course {course_display}:\n\n"
-        result += f"Summary: {summary['successful']} successful, {summary['failed']} failed out of {summary['total']} total\n\n"
-
+        result += (
+            f"Summary: {len(successful)} successful, {len(failed)} failed "
+            f"out of {len(announcement_ids)} total\n\n"
+        )
         if successful:
             result += "Successfully deleted:\n"
             for item in successful:
                 result += f"  - ID: {item['id']}, Title: {item['title']}\n"
             result += "\n"
-
         if failed:
             result += "Failed to delete:\n"
             for item in failed:
                 result += f"  - ID: {item['id']}"
-                if 'title' in item:
+                if "title" in item:
                     result += f", Title: {item['title']}"
                 result += f", Error: {item['error']}\n"
-
         return result
 
+    # Idempotent since #318: the token is bound to the exact matched id set and
+    # is single-use, so an identical retry either previews (no token) or is
+    # refused (spent token) — it can no longer delete the NEXT batch.
     @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
-    @validate_params
-    async def delete_announcement_with_confirmation(
-        course_identifier: str | int,
-        announcement_id: str | int,
-        require_title_match: str | None = None,
-        dry_run: bool = False
-    ) -> str:
-        """Delete an announcement with optional safety checks.
-
-        Permanent — Canvas may retain a recycle-bin copy depending on admin settings.
-
-        Args:
-            course_identifier: Course code or Canvas ID
-            announcement_id: Announcement ID to delete
-            require_title_match: Only delete if title matches this string exactly
-            dry_run: Verify but don't actually delete (default: False)
-        """
-        course_id = await get_course_id(course_identifier)
-
-        # First fetch the announcement details
-        announcement = await make_canvas_request(
-            "get", f"/courses/{course_id}/discussion_topics/{announcement_id}"
-        )
-
-        if "error" in announcement:
-            return f"Error fetching announcement details: {announcement['error']}"
-
-        actual_title = announcement.get("title", "Unknown Title")
-        title_matched = True
-
-        # Check title match if required
-        if require_title_match is not None:
-            title_matched = actual_title == require_title_match
-            if not title_matched:
-                return f"Title mismatch - Expected: '{require_title_match}', Actual: '{actual_title}'. Deletion aborted for safety."
-
-        # Handle dry run
-        if dry_run:
-            course_display = await get_course_code(course_id) or course_identifier
-            result = f"DRY RUN - Would delete announcement from course {course_display}:\n\n"
-            result += f"ID: {announcement_id}\n"
-            # actual_title stays raw for the require_title_match comparison
-            # above; fenced only here at the display boundary (issue 239).
-            result += f"Title:\n{fence_untrusted(actual_title, 'announcement title')}\n"
-            result += "Status: dry_run\n"
-            result += "Message: Announcement would be deleted (dry run mode)\n"
-            if require_title_match:
-                result += f"Title matched: {title_matched}\n"
-            return result
-
-        # Proceed with actual deletion
-        response = await make_canvas_request(
-            "delete", f"/courses/{course_id}/discussion_topics/{announcement_id}"
-        )
-
-        if "error" in response:
-            return (
-                "Error deleting announcement "
-                f"{fence_untrusted(actual_title, 'announcement title')}: {response['error']}"
-            )
-
-        course_display = await get_course_code(course_id) or course_identifier
-        result = f"Announcement deleted successfully from course {course_display}:\n\n"
-        result += f"ID: {announcement_id}\n"
-        result += f"Title:\n{fence_untrusted(actual_title, 'announcement title')}\n"
-        result += "Status: deleted\n"
-        result += "Message: Announcement deleted successfully\n"
-        if require_title_match:
-            result += f"Title matched: {title_matched}\n"
-
-        return result
-
-    # NOT idempotent despite being a delete: this one re-queries by
-    # criteria and slices matched[:limit], so an identical retry deletes
-    # the NEXT batch. Its sibling bulk_delete_announcements takes explicit
-    # ids (limit is only a refusal threshold) and stays idempotent.
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
     @validate_params
     async def delete_announcements_by_criteria(
         course_identifier: str | int,
         criteria: dict,
         limit: int | None = None,
-        dry_run: bool = True
+        confirmation_token: str | None = None
     ) -> str:
-        """Delete announcements matching specific criteria.
+        """Delete announcements matching criteria. Two-step: preview first, then confirm with the token.
 
         Permanent — Canvas may retain a recycle-bin copy depending on admin settings.
 
@@ -1464,11 +1421,10 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
             course_identifier: Course code or Canvas ID
             criteria: Dict with keys: title_contains, older_than (ISO), newer_than (ISO), title_regex
             limit: Max number of announcements to delete (safety limit)
-            dry_run: Show what would be deleted without deleting (default: True)
+            confirmation_token: Token from the preview call; omit to preview
         """
         course_id = await get_course_id(course_identifier)
 
-        # First list all announcements
         params = {
             # only_announcements is the filter Canvas honours. include[]=announcement
             # is NOT a supported include value and is silently ignored (issue #238);
@@ -1476,29 +1432,22 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
             "only_announcements": True,
             "per_page": 100
         }
-
         announcements = await fetch_all_paginated_results(f"/courses/{course_id}/discussion_topics", params)
-
         if isinstance(announcements, dict) and "error" in announcements:
             return f"Error fetching announcements: {announcements['error']}"
-
         if not announcements:
             return f"No announcements found for course {course_identifier}."
 
-        # Filter based on criteria
         matched = []
-
         for announcement in announcements:
             match = True
             announcement_title = announcement.get("title", "")
             posted_at_str = announcement.get("posted_at")
 
-            # Check title_contains
             if "title_contains" in criteria:
                 if criteria["title_contains"].lower() not in announcement_title.lower():
                     match = False
 
-            # Check title_regex
             if "title_regex" in criteria and match:
                 try:
                     if not re.search(criteria["title_regex"], announcement_title, re.IGNORECASE):
@@ -1506,7 +1455,6 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                 except re.error:
                     return f"Invalid regex pattern: {criteria['title_regex']}"
 
-            # Check date criteria
             if posted_at_str and match:
                 posted_at = parse_date(posted_at_str)
                 if not posted_at:
@@ -1531,76 +1479,72 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
             if match:
                 matched.append(announcement)
 
-        # Apply limit if specified
         limit_reached = False
         if limit and len(matched) > limit:
             matched = matched[:limit]
             limit_reached = True
 
         course_display = await get_course_code(course_id) or course_identifier
-        result = f"Criteria-based deletion results for course {course_display}:\n\n"
-        result += f"Search criteria: {json.dumps(criteria, indent=2)}\n\n"
-        result += f"Matched {len(matched)} announcements"
+        header = f"Criteria-based deletion for course {course_display}:\n\n"
+        header += f"Search criteria: {json.dumps(criteria, indent=2)}\n\n"
+        header += f"Matched {len(matched)} announcements"
         if limit_reached:
-            result += f" (limited to {limit})"
-        result += "\n\n"
+            header += f" (limited to {limit})"
+        header += "\n\n"
 
         if not matched:
-            result += "No announcements matched the specified criteria."
-            return result
+            return header + "No announcements matched the specified criteria."
 
-        # Show what was matched
-        result += "Matched announcements:\n"
+        listing = "Matched announcements:\n"
         for announcement in matched:
-            result += f"  - ID: {announcement.get('id')}, Title: {announcement.get('title', 'Untitled')}, Posted: {format_date(announcement.get('posted_at'))}\n"
-        result += "\n"
+            listing += (
+                f"  - ID: {announcement.get('id')}, Title: "
+                f"{fence_untrusted(announcement.get('title', 'Untitled'), 'announcement title')}, "
+                f"Posted: {format_date(announcement.get('posted_at'))}\n"
+            )
 
-        if dry_run:
-            result += "DRY RUN: No announcements were actually deleted.\n"
-            result += "Set dry_run=False to perform actual deletions."
-            return result
+        # Bound to the criteria AND the exact match set (ids + titles), so a
+        # listing that drifted since the preview refuses instead of deleting
+        # something the user never saw.
+        fingerprint = _CRITERIA_DELETE_GUARD.fingerprint(
+            "delete_announcements_by_criteria", str(course_id),
+            json.dumps(criteria, sort_keys=True, default=str), str(limit),
+            json.dumps([[str(a.get("id")), a.get("title", "")] for a in matched]),
+        )
+        if not confirmation_token:
+            return preview_with_token(
+                _CRITERIA_DELETE_GUARD, fingerprint,
+                "delete_announcements_by_criteria", header + listing,
+            )
+        error = redeem_confirmation(_CRITERIA_DELETE_GUARD, confirmation_token, fingerprint)
+        if error:
+            return error
 
-        # Perform actual deletions
         deleted = []
         failed = []
-
         for announcement in matched:
             announcement_id = announcement.get("id")
+            shown = fence_untrusted(announcement.get("title", "Unknown Title"), "announcement title")
             try:
                 response = await make_canvas_request(
                     "delete", f"/courses/{course_id}/discussion_topics/{announcement_id}"
                 )
-
                 if "error" in response:
-                    failed.append({
-                        "id": str(announcement_id),
-                        "title": fence_untrusted(announcement.get("title", "Unknown Title"), "announcement title"),
-                        "error": response["error"]
-                    })
+                    failed.append({"id": str(announcement_id), "title": shown, "error": response["error"]})
                 else:
-                    deleted.append({
-                        "id": str(announcement_id),
-                        "title": fence_untrusted(announcement.get("title", "Unknown Title"), "announcement title")
-                    })
+                    deleted.append({"id": str(announcement_id), "title": shown})
+            except Exception as e:  # noqa: BLE001 - per-item isolation
+                failed.append({"id": str(announcement_id), "title": shown, "error": str(e)})
 
-            except Exception as e:
-                failed.append({
-                    "id": str(announcement_id),
-                    "title": fence_untrusted(announcement.get("title", "Unknown Title"), "announcement title"),
-                    "error": str(e)
-                })
-
+        result = header + listing + "\n"
         result += f"Deletion completed: {len(deleted)} successful, {len(failed)} failed\n\n"
-
         if deleted:
             result += "Successfully deleted:\n"
             for item in deleted:
                 result += f"  - ID: {item['id']}, Title: {item['title']}\n"
             result += "\n"
-
         if failed:
             result += "Failed to delete:\n"
             for item in failed:
                 result += f"  - ID: {item['id']}, Title: {item['title']}, Error: {item['error']}\n"
-
         return result

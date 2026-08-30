@@ -407,6 +407,24 @@ Update an existing assignment in a course.
 
 ---
 
+#### `delete_assignment_with_confirmation`
+Delete an assignment. **Permanent, and it takes every submission and grade with it.** Two-step: preview first, then confirm with the token.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `assignment_id`: Assignment ID to delete
+- `require_name_match` (optional): Only delete if the assignment name matches this string exactly
+- `confirmation_token` (optional): Token from the preview call; omit to preview
+
+**Example:**
+```
+"Delete the duplicate 'Homework 1' assignment, but show me first"
+```
+
+**Returns:** Preview with name, due date, points and whether submissions exist (no token), then the deletion result.
+
+---
+
 ### Content Migration
 
 #### `create_content_migration`
@@ -1115,30 +1133,18 @@ Respond to student discussion posts.
 
 ### Announcement Management
 
-Deletion is **permanent** — Canvas may retain a recycle-bin copy depending on admin settings, but do not count on it. The bulk tools default to previews where noted.
+Deletion is **permanent** — Canvas may retain a recycle-bin copy depending on admin settings, but do not count on it.
 
-#### `delete_announcement`
-Delete a single announcement from a course.
-
-**Parameters:**
-- `course_identifier`: Course code or ID
-- `announcement_id`: Announcement ID to delete
-
-**Example:**
-```
-"Delete announcement 456 from the course"
-```
-
----
+**Every delete tool is two-step.** Call it without `confirmation_token` and it returns a preview of exactly what would be deleted plus a single-use token; nothing is deleted. Call it again with the token and identical arguments to delete. The token expires in 5 minutes and stops matching if the target changed in between (retitled, different match set), so the preview the user saw is the deletion they get.
 
 #### `delete_announcement_with_confirmation`
-Delete an announcement with optional safety checks.
+Delete a single announcement.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `announcement_id`: Announcement ID to delete
 - `require_title_match` (optional): Only delete if the title matches this string exactly
-- `dry_run` (optional): Verify but don't actually delete (default: false)
+- `confirmation_token` (optional): Token from the preview call; omit to preview
 
 **Example:**
 ```
@@ -1153,16 +1159,16 @@ Delete multiple announcements by ID.
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `announcement_ids`: List of announcement IDs to delete
-- `stop_on_error` (optional): Stop on first error; if false, continue with remaining (default: false)
-- `limit` (optional): Max announcements to delete in one call (default: 25). Ignored when `dry_run=true`, so large batches can be previewed safely.
-- `dry_run` (optional): Fetch titles and report what would be deleted without deleting (default: false)
+- `stop_on_error` (optional): Stop at the first failed deletion; if false, continue with the rest (default: false)
+- `limit` (optional): Max announcements per call (default: 25); pass a higher value to override
+- `confirmation_token` (optional): Token from the preview call; omit to preview
 
 **Example:**
 ```
 "Delete announcements 101, 102, and 103 from BADM 350"
 ```
 
-**Returns:** Per-announcement success/failure summary.
+**Returns:** Preview with titles and any unreachable IDs (no token), then a per-announcement success/failure summary.
 
 ---
 
@@ -1173,14 +1179,14 @@ Delete announcements matching criteria such as age or title patterns.
 - `course_identifier`: Course code or ID
 - `criteria`: Dict with keys: `title_contains`, `older_than` (ISO), `newer_than` (ISO), `title_regex`
 - `limit` (optional): Max announcements to delete (safety limit)
-- `dry_run` (optional): Show what would be deleted without deleting (default: **true**)
+- `confirmation_token` (optional): Token from the preview call; omit to preview
 
 **Example:**
 ```
 "Delete all announcements older than 90 days (preview first)"
 ```
 
-**Returns:** List of matched announcements (dry run) or per-announcement deletion results.
+**Returns:** The matched list with a token; the token is bound to that exact match set, so if the listing drifts before you confirm, the call refuses instead of deleting something you never saw.
 
 ---
 
@@ -1225,12 +1231,13 @@ Replace the content of an existing page.
 ---
 
 #### `delete_page`
-Delete a page from a course. **Permanent.**
+Delete a page from a course. **Permanent.** Two-step: preview first, then confirm with the token.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `page_url_or_id`: Page URL slug or page ID to delete
 - `require_title_match` (optional): Safety check — only delete if the page title matches exactly
+- `confirmation_token` (optional): Token from the preview call; omit to preview
 
 **Example:**
 ```
@@ -1631,11 +1638,12 @@ Update an existing module's settings.
 ---
 
 #### `delete_module`
-Delete a module from a course.
+Delete a module from a course. Two-step: preview first, then confirm with the token.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `module_id`: Module ID to delete
+- `confirmation_token` (optional): Token from the preview call; omit to preview
 
 **Note:** This removes the module organization only. The actual content (pages, assignments, etc.) is NOT deleted.
 
@@ -1698,12 +1706,13 @@ Update an existing module item.
 ---
 
 #### `delete_module_item`
-Remove an item from a module.
+Remove an item from a module. Two-step: preview first, then confirm with the token.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `module_id`: Module ID containing the item
 - `item_id`: Item ID to remove
+- `confirmation_token` (optional): Token from the preview call; omit to preview
 
 **Note:** This only removes the item from the module. The actual content is NOT deleted.
 
