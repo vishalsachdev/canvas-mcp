@@ -14,6 +14,7 @@ from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
+from ..core.config import get_config
 from ..core.untrusted_content import (
     fence_untrusted,
     fence_untrusted_fields,
@@ -23,7 +24,20 @@ from ..core.validation import validate_params
 
 
 def register_accessibility_tools(mcp: FastMCP) -> None:
-    """Register all accessibility-related MCP tools."""
+    """Register accessibility MCP tools.
+
+    The built-in scanner (scan_course_content_accessibility /
+    fix_accessibility_issues) needs no Canvas add-on and is always registered.
+    The UFIXIT/UDOIT report pipeline is registered only when
+    ACCESSIBILITY_CHECKERS includes ``ufixit`` (the default) — see #325.
+    """
+    if "ufixit" in get_config().accessibility_checkers:
+        _register_ufixit_tools(mcp)
+    _register_builtin_scanner_tools(mcp)
+
+
+def _register_ufixit_tools(mcp: FastMCP) -> None:
+    """UFIXIT/UDOIT report pipeline — requires the add-on on the instance."""
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
@@ -204,6 +218,11 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
                 lines.append(f"*...and {len(violations) - 20} more violations*")
 
         return "\n".join(lines)
+
+
+
+def _register_builtin_scanner_tools(mcp: FastMCP) -> None:
+    """Add-on-free scanner over Canvas page/assignment HTML."""
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params

@@ -1271,6 +1271,8 @@ Upload a local file to Canvas course storage.
 
 Two workflows: a built-in scanner (`scan_course_content_accessibility` → `fix_accessibility_issues`), and a UFIXIT-report pipeline (`fetch_ufixit_report` → `parse_ufixit_violations` → `format_accessibility_summary`).
 
+The UFIXIT pipeline requires the UDOIT/UFIXIT add-on on your Canvas instance. Set `ACCESSIBILITY_CHECKERS=none` to leave those three tools unregistered (default: `ufixit`; `udoit` is an alias). The built-in scanner needs no add-on and is always available.
+
 #### `scan_course_content_accessibility`
 Scan course content for basic accessibility issues.
 

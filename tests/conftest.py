@@ -8,13 +8,19 @@ from canvas_mcp.core.config import reset_config
 
 
 @pytest.fixture(autouse=True)
-def reset_config_between_tests():
+def reset_config_between_tests(monkeypatch):
     """Discard the cached config singleton before and after each test.
 
     Without this, the first test to call get_config() freezes the singleton
     from its environment; later tests that patch env vars (e.g. anonymization
     toggles) would silently read stale config.
+
+    Also pins ACCESSIBILITY_CHECKERS to its default so a developer's .env or
+    shell (e.g. ``ACCESSIBILITY_CHECKERS=none``, a supported setting since
+    #325) cannot shrink the registry under the suite. Tests of the gate itself
+    override this through their own fixture.
     """
+    monkeypatch.setenv("ACCESSIBILITY_CHECKERS", "ufixit")
     reset_config()
     yield
     reset_config()

@@ -22,7 +22,8 @@
       "args": ["run", "--directory", "${__dirname}", "canvas-mcp-server"],
       "env": {
         "CANVAS_API_URL": "${user_config.canvas_api_url}",
-        "CANVAS_API_TOKEN": "${user_config.canvas_api_token}"
+        "CANVAS_API_TOKEN": "${user_config.canvas_api_token}",
+        "ACCESSIBILITY_CHECKERS": "${user_config.accessibility_checkers}"
       }
     }
   },
@@ -39,6 +40,13 @@
       "description": "A Canvas personal access token (Account → Settings → New Access Token). Stored securely in your OS keychain.",
       "sensitive": true,
       "required": true
+    },
+    "accessibility_checkers": {
+      "type": "string",
+      "title": "Accessibility checkers",
+      "description": "Checkers installed on your Canvas instance: \"ufixit\" (alias \"udoit\") registers the UFIXIT report tools; \"none\" leaves them out if your institution does not have the add-on. The built-in scanner is always available.",
+      "default": "ufixit",
+      "required": false
     }
   },
   "compatibility": {
