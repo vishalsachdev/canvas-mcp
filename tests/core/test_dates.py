@@ -69,7 +69,7 @@ def test_parse_date_assumes_utc_for_naive_strings():
     # The "%Y-%m-%d %H:%M:%S" format has no tzinfo; parser should backfill UTC
     dt = dates.parse_date("2026-05-28 23:59:00")
     assert dt is not None
-    assert dt.tzinfo == datetime.timezone.utc
+    assert dt.tzinfo == datetime.UTC
 
 
 def test_parse_date_preserves_explicit_offset():

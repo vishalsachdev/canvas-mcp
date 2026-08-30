@@ -14,7 +14,7 @@ import json
 import logging
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
@@ -104,7 +104,7 @@ def init_audit_logging() -> None:
 
 def _emit(event: dict[str, Any]) -> None:
     """Emit a structured JSON audit event."""
-    event["timestamp"] = datetime.now(timezone.utc).isoformat()
+    event["timestamp"] = datetime.now(UTC).isoformat()
     _audit_logger.info(json.dumps(event, default=str))
 
 

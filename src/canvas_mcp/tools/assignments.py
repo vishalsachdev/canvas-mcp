@@ -400,7 +400,7 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             due_date_obj = parse_date(due_date)
             if due_date_obj:
                 due_date_str = format_date(due_date)
-                now = datetime.datetime.now(datetime.timezone.utc)
+                now = datetime.datetime.now(datetime.UTC)
                 is_past_due = due_date_obj < now
             else:
                 due_date_str = due_date

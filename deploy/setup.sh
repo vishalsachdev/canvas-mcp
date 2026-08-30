@@ -3,7 +3,7 @@
 # Run on Hostinger VPS (76.13.122.44) as root
 #
 # Prerequisites:
-#   - Python 3.10+ installed
+#   - Python 3.11+ installed
 #   - nginx installed
 #   - DNS: mcp.illinihunt.org → 76.13.122.44 (Cloudflare proxied, handles SSL)
 

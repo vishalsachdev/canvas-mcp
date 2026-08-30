@@ -281,7 +281,7 @@ The HTTP/streamable transport itself remains fully supported for **self-hosting 
 
 ## Prerequisites (Local Installation)
 
-- **Python 3.10+** - Required for modern features and type hints
+- **Python 3.11+** - Required for modern features and type hints
 - **Canvas API Access** - API token and institution URL
 - **MCP Client** - An MCP-compatible client (Claude Desktop, Cursor, Zed, Windsurf, Continue, etc.); setup and capabilities vary by client
 
@@ -299,7 +299,7 @@ If you use **Claude Desktop**, you can install Canvas MCP with one click — no 
 2. Double-click the file (or drag it into Claude Desktop → Settings → Extensions).
 3. When prompted, enter your **Canvas API URL** — this must include the `/api/v1` path (e.g. `https://canvas.youruniversity.edu/api/v1`) — and your **Canvas API token** (Canvas → Account → Settings → New Access Token — some institutions issue these by request form instead, see [below](#2-configure-environment)). The token is stored in your OS keychain.
 
-The extension runs the server locally and calls Canvas with **your own** token, so requests use that token's Canvas permissions. Canvas and your AI client may retain their own activity records. Requires Python 3.10+ (the bundled runtime manages dependencies automatically). For other clients, or to run from source, use the manual setup below.
+The extension runs the server locally and calls Canvas with **your own** token, so requests use that token's Canvas permissions. Canvas and your AI client may retain their own activity records. Requires Python 3.11+ (the bundled runtime manages dependencies automatically). For other clients, or to run from source, use the manual setup below.
 
 ## Local Installation
 
