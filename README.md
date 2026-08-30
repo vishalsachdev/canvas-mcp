@@ -125,19 +125,23 @@ Canvas MCP provides **up to 101 tools** for interacting with Canvas LMS; the def
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing role-specific workflows for students, educators, learning designers, and developers. Built on the Model Context Protocol (MCP), it is designed for MCP-compatible clients; setup and supported capabilities vary by client.
 
-## Latest Release: v1.11.0
+## Latest Release: v1.12.0
 
 **Released:** August 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
 
-A protocol-correctness release. Every change here is about a client being able to tell what actually happened when it calls a tool. **One change is breaking and one alters response shape** — read both before upgrading.
+A safety release: every delete tool now asks first. **Four changes are breaking.** Each one's migration is a line long:
 
-- **Breaking: `send_peer_review_reminders` is now `send_peer_review_inbox_messages`** ([#303](https://github.com/vishalsachdev/canvas-mcp/issues/303)). The old name implied it invoked Canvas's native reminder action; it does not, it sends ordinary Canvas Inbox messages, and the name now says so. The tool also resolves the course and requires `manage_grades` before previewing or sending, failing closed when the permission cannot be verified. Thanks [@jonespm](https://github.com/jonespm) for catching the mismatch
-- **Tool failures now set MCP `isError: true`** ([#270](https://github.com/vishalsachdev/canvas-mcp/issues/270)). Previously a Canvas error and an empty-but-successful result were indistinguishable to a client: both came back as an ordinary result. Errors keep their existing text or structured payload, they are simply flagged correctly now
-- **Response-shape change: string-returning tools no longer duplicate their payload** ([#271](https://github.com/vishalsachdev/canvas-mcp/issues/271)). 91 of the registered tools were emitting the same value twice, once as text content and again under an information-free `structuredContent.result`. Dictionary-returning tools keep their structured schemas. **If a client reads `structuredContent.result` for a string-returning tool, switch it to the text content**
-- **FastMCP dependency floor raised to 3.4.7** ([#293](https://github.com/vishalsachdev/canvas-mcp/issues/293)), picking up upstream fixes for Azure scope fallback, deterministic transformed-tool schemas, trusted OAuth metadata/JWKS proxies, and `private_key_jwt` audience validation
+- **`delete_announcement` removed** → call `delete_announcement_with_confirmation` with the same arguments; it previews first, then deletes on the second call with the token ([#318](https://github.com/vishalsachdev/canvas-mcp/issues/318))
+- **`dry_run` removed** from the three announcement delete tools → drop the argument; a call without `confirmation_token` is the dry run and deletes nothing. `bulk_delete_announcements` used to delete on the first call; it previews now ([#318](https://github.com/vishalsachdev/canvas-mcp/issues/318))
+- **`confirmation_token` required on all seven delete tools** (`delete_announcement_with_confirmation`, `bulk_delete_announcements`, `delete_announcements_by_criteria`, `delete_page`, `delete_module`, `delete_module_item`, `delete_assignment_with_confirmation`) → call once with your normal arguments, show the preview, then call again with identical arguments plus the token from the `Confirmation token:` line. Tokens are single-use, expire in 5 minutes, and stop matching if the target or the arguments changed ([#318](https://github.com/vishalsachdev/canvas-mcp/issues/318)). Thanks [@zqian](https://github.com/zqian) for the request
+- **Python 3.10 dropped** → `requires-python >= 3.11`; upgrade the interpreter, or pin `canvas-mcp<1.12` until you can ([#315](https://github.com/vishalsachdev/canvas-mcp/issues/315))
+
+Also new: **`delete_assignment_with_confirmation`** (preview shows due date, points and whether submissions exist); **`ACCESSIBILITY_CHECKERS`** so institutions without UDOIT/UFIXIT can set `none` and drop the three UFIXIT tools while keeping the built-in scanner ([#325](https://github.com/vishalsachdev/canvas-mcp/issues/325), thanks [@jonespm](https://github.com/jonespm)); the **content migration** tools ([#309](https://github.com/vishalsachdev/canvas-mcp/issues/309)); and a **Skill Request** issue template ([#302](https://github.com/vishalsachdev/canvas-mcp/issues/302))
 
 <details>
 <summary>Previous releases</summary>
+
+**v1.11.0** — A protocol-correctness release. Breaking: `send_peer_review_reminders` is now `send_peer_review_inbox_messages` ([#303](https://github.com/vishalsachdev/canvas-mcp/issues/303)); tool failures set MCP `isError: true` ([#270](https://github.com/vishalsachdev/canvas-mcp/issues/270)); string-returning tools no longer duplicate their payload into `structuredContent.result` ([#271](https://github.com/vishalsachdev/canvas-mcp/issues/271)); FastMCP floor 3.4.7 ([#293](https://github.com/vishalsachdev/canvas-mcp/issues/293)). Thanks [@jonespm](https://github.com/jonespm)
 
 **v1.10.0** — A community bug-fix release driven by live reporter testing — thanks [@khagyard](https://github.com/khagyard), [@zqian](https://github.com/zqian), [@jonespm](https://github.com/jonespm), [@bruchris](https://github.com/bruchris), and [@SHIL0018](https://github.com/SHIL0018) (our second outside code contribution). Included a breaking `search_canvas_tools` response-shape change.
 
@@ -281,7 +285,7 @@ The HTTP/streamable transport itself remains fully supported for **self-hosting 
 
 ## Prerequisites (Local Installation)
 
-- **Python 3.10+** - Required for modern features and type hints
+- **Python 3.11+** - Required for modern features and type hints
 - **Canvas API Access** - API token and institution URL
 - **MCP Client** - An MCP-compatible client (Claude Desktop, Cursor, Zed, Windsurf, Continue, etc.); setup and capabilities vary by client
 
@@ -297,9 +301,9 @@ If you use **Claude Desktop**, you can install Canvas MCP with one click — no 
 
 1. Download `canvas-mcp.mcpb` from the [latest release](https://github.com/vishalsachdev/canvas-mcp/releases/latest).
 2. Double-click the file (or drag it into Claude Desktop → Settings → Extensions).
-3. When prompted, enter your **Canvas API URL** — this must include the `/api/v1` path (e.g. `https://canvas.youruniversity.edu/api/v1`) — and your **Canvas API token** (Canvas → Account → Settings → New Access Token). The token is stored in your OS keychain.
+3. When prompted, enter your **Canvas API URL** — this must include the `/api/v1` path (e.g. `https://canvas.youruniversity.edu/api/v1`) — and your **Canvas API token** (Canvas → Account → Settings → New Access Token — some institutions issue these by request form instead, see [below](#2-configure-environment)). The token is stored in your OS keychain.
 
-The extension runs the server locally and calls Canvas with **your own** token, so requests use that token's Canvas permissions. Canvas and your AI client may retain their own activity records. Requires Python 3.10+ (the bundled runtime manages dependencies automatically). For other clients, or to run from source, use the manual setup below.
+The extension runs the server locally and calls Canvas with **your own** token, so requests use that token's Canvas permissions. Canvas and your AI client may retain their own activity records. Requires Python 3.11+ (the bundled runtime manages dependencies automatically). For other clients, or to run from source, use the manual setup below.
 
 ## Local Installation
 
@@ -326,7 +330,28 @@ cp env.template .env
 
 Get your Canvas API token from: **Canvas → Account → Settings → New Access Token**
 
-> **Note for Students**: Some educational institutions restrict API token creation for students. If you see an error like "There is a limit to the number of access tokens you can create" or cannot find the token creation option, contact your institution's Canvas administrator or IT support department to request API access or assistance in creating a token.
+> **Some institutions gate token creation.** Where self-service is disabled, the
+> "New Access Token" button is missing or errors out, and tokens are issued through an
+> IT request form instead. Check your institution's IT knowledge base before concluding
+> that API access is unavailable to you.
+>
+> **University of Illinois Urbana-Champaign** works this way for *everyone* — students
+> and instructors alike. Request a token with the
+> [Canvas API Token Request form](https://help.uillinois.edu/TDClient/42/UIUC/Requests/TicketRequests/NewForm?ID=4AZBjiZfXWs_&RequestorType=Service)
+> (NetID login required). Once it is approved:
+>
+> 1. Go to **Canvas → Account → Settings → Approved Integrations**, find the new token,
+>    click **Activate**, and refresh the page.
+> 2. Retrieve the token value from the U of I Box link Technology Services sends you.
+>
+> As of August 2026, all new Illinois tokens carry a **30-day expiration** (an upstream
+> Instructure requirement). Expiry is not monitored or announced, and expired tokens are
+> removed without notice — request the replacement before the current one lapses.
+> Full details: [Answers KB 150325](https://answers.uillinois.edu/illinois/internal/150325).
+>
+> **Students elsewhere**: if you see "There is a limit to the number of access tokens you
+> can create" or cannot find the token creation option, contact your institution's Canvas
+> administrator or IT support department to request API access.
 
 ### 3. MCP Client Configuration
 

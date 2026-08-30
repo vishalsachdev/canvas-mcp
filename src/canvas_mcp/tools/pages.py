@@ -14,9 +14,20 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import make_canvas_request
 from ..core.dates import format_date, parse_date
-from ..core.untrusted_content import FENCE_LEAK_ERROR, contains_fence_markers
+from ..core.untrusted_content import (
+    FENCE_LEAK_ERROR,
+    contains_fence_markers,
+    fence_untrusted_inline,
+)
 from ..core.validation import validate_params
-from ..core.write_confirmation import unconfirmed_write_warning
+from ..core.write_confirmation import (
+    ConfirmationGuard,
+    preview_with_token,
+    redeem_confirmation,
+    unconfirmed_write_warning,
+)
+
+_DELETE_PAGE_GUARD = ConfirmationGuard(nothing_done="Nothing was deleted.")
 
 # Canvas suppresses update notifications for pages younger than this (issue #234).
 _NOTIFY_MIN_PAGE_AGE = datetime.timedelta(minutes=1)
@@ -50,7 +61,7 @@ def _notify_of_update_warning(response: dict[str, Any]) -> str:
     created_at = parse_date(response.get("created_at"))
     if created_at is not None:
         # datetime.UTC is 3.11+; this project supports 3.10.
-        now = datetime.datetime.now(created_at.tzinfo or datetime.timezone.utc)
+        now = datetime.datetime.now(created_at.tzinfo or datetime.UTC)
         if now - created_at < _NOTIFY_MIN_PAGE_AGE:
             return unconfirmed_write_warning(
                 "the update notification",
@@ -391,9 +402,10 @@ def register_educator_page_crud_tools(mcp: FastMCP) -> None:
     async def delete_page(
         course_identifier: str | int,
         page_url_or_id: str,
-        require_title_match: str | None = None
+        require_title_match: str | None = None,
+        confirmation_token: str | None = None
     ) -> str:
-        """Delete a page from a Canvas course.
+        """Delete a page. Two-step: preview first, then confirm with the token.
 
         Permanent — Canvas may retain a recycle-bin copy depending on admin settings.
 
@@ -401,41 +413,51 @@ def register_educator_page_crud_tools(mcp: FastMCP) -> None:
             course_identifier: Course code or Canvas ID
             page_url_or_id: Page URL slug or page ID to delete
             require_title_match: Safety check — only delete if page title matches exactly
+            confirmation_token: Token from the preview call; omit to preview
         """
         course_id = await get_course_id(course_identifier)
 
-        # Fetch page details first for confirmation and safety check
         page = await make_canvas_request(
             "get", f"/courses/{course_id}/pages/{page_url_or_id}"
         )
-
         if "error" in page:
             return f"Error fetching page details: {page['error']}"
 
         page_title = page.get("title", "Unknown Title")
         page_url = page.get("url", page_url_or_id)
+        shown_title = fence_untrusted_inline(page_title, "page title")
 
-        # Safety check: verify title match if requested
         if require_title_match and page_title != require_title_match:
             return (
                 f"❌ Title mismatch — deletion aborted.\n\n"
                 f"  Expected: {require_title_match}\n"
-                f"  Actual:   {page_title}\n\n"
+                f"  Actual:   {shown_title}\n\n"
                 f"  Page URL: {page_url}"
             )
 
-        # Proceed with deletion
+        course_display = await get_course_code(course_id) or course_identifier
+        fingerprint = _DELETE_PAGE_GUARD.fingerprint(
+            "delete_page", str(course_id), str(page_url), page_title
+        )
+        if not confirmation_token:
+            preview = (
+                f"Would delete page **{shown_title}** from course {course_display}\n"
+                f"  URL slug: {page_url}"
+            )
+            return preview_with_token(_DELETE_PAGE_GUARD, fingerprint, "delete_page", preview)
+        error = redeem_confirmation(_DELETE_PAGE_GUARD, confirmation_token, fingerprint)
+        if error:
+            return error
+
         response = await make_canvas_request(
             "delete", f"/courses/{course_id}/pages/{page_url_or_id}"
         )
-
         if "error" in response:
-            return f"Error deleting page '{page_title}': {response['error']}"
+            return f"Error deleting page {shown_title}: {response['error']}"
 
-        course_display = await get_course_code(course_id) or course_identifier
         return (
             f"✅ Page deleted successfully!\n\n"
-            f"  **{page_title}**\n"
+            f"  **{shown_title}**\n"
             f"  Course: {course_display}\n"
             f"  URL slug: {page_url}\n"
             f"  Status: deleted"

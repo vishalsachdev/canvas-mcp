@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.vishalsachdev/canvas-mcp",
   "description": "Canvas LMS integration for students and educators with optional privacy controls",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "websiteUrl": "https://canvas-mcp.illinihunt.org/",
   "repository": {
     "url": "https://github.com/vishalsachdev/canvas-mcp",
@@ -31,7 +31,7 @@
     {
       "registryType": "pypi",
       "identifier": "canvas-mcp",
-      "version": "1.11.0",
+      "version": "1.12.0",
       "transport": {
         "type": "stdio",
         "python": {
@@ -60,6 +60,11 @@
         "description": "Enable anonymization debugging output",
         "required": false,
         "default": "false"
+      },
+      "ACCESSIBILITY_CHECKERS": {
+        "description": "Accessibility checkers installed on your Canvas instance. \"ufixit\" (alias \"udoit\") registers the UFIXIT report tools; \"none\" leaves them out if your institution lacks the add-on. The built-in scanner is always available.",
+        "required": false,
+        "default": "ufixit"
       }
     }
   }

@@ -272,35 +272,45 @@ class TestUpdateModule:
 
 
 class TestDeleteModule:
-    """Tests for delete_module tool."""
+    """Tests for delete_module tool (two-step since #318)."""
 
     @pytest.mark.asyncio
     async def test_delete_module_success(self, mock_canvas_api):
-        """Test successful module deletion."""
-        # First call gets module info, second call deletes
-        mock_canvas_api['make_canvas_request'].side_effect = [
-            {"id": 12345, "name": "Module to Delete", "items_count": 3},
-            {}  # Successful deletion returns empty or confirmation
-        ]
+        """Preview, then confirm with the token; the DELETE happens only on confirm."""
+        import re
+
+        def by_method(method, endpoint, **kwargs):
+            if method == "get":
+                return {"id": 12345, "name": "Module to Delete", "items_count": 3}
+            return {}
+
+        mock_canvas_api['make_canvas_request'].side_effect = by_method
 
         delete_module = get_tool_function('delete_module')
-        result = await delete_module("60366", 12345)
+        preview = await delete_module("60366", 12345)
+        assert "PREVIEW" in preview and "Module to Delete" in preview
+        token = re.search(r"Confirmation token: (\S+)", preview).group(1)
 
+        result = await delete_module("60366", 12345, confirmation_token=token)
         assert "successfully" in result
         assert "Module to Delete" in result
         assert "Items affected: 3" in result
 
     @pytest.mark.asyncio
     async def test_delete_module_error(self, mock_canvas_api):
-        """Test module deletion failure."""
-        mock_canvas_api['make_canvas_request'].side_effect = [
-            {"id": 12345, "name": "Test", "items_count": 0},
-            {"error": "Module not found"}
-        ]
+        """A Canvas error on the DELETE is reported, not hidden."""
+        import re
+
+        def by_method(method, endpoint, **kwargs):
+            if method == "get":
+                return {"id": 12345, "name": "Test", "items_count": 0}
+            return {"error": "Module not found"}
+
+        mock_canvas_api['make_canvas_request'].side_effect = by_method
 
         delete_module = get_tool_function('delete_module')
-        result = await delete_module("60366", 99999)
-
+        token = re.search(r"Confirmation token: (\S+)", await delete_module("60366", 99999)).group(1)
+        result = await delete_module("60366", 99999, confirmation_token=token)
         assert "Error" in result
 
 
@@ -499,20 +509,26 @@ class TestUpdateModuleItem:
 
 
 class TestDeleteModuleItem:
-    """Tests for delete_module_item tool."""
+    """Tests for delete_module_item tool (two-step since #318)."""
 
     @pytest.mark.asyncio
     async def test_delete_item_success(self, mock_canvas_api):
-        """Test successful item deletion."""
-        # First call gets item info, second call deletes
-        mock_canvas_api['make_canvas_request'].side_effect = [
-            {"id": 55001, "title": "Item to Delete", "type": "Page"},
-            {}  # Successful deletion
-        ]
+        """Preview, then confirm with the token."""
+        import re
+
+        def by_method(method, endpoint, **kwargs):
+            if method == "get":
+                return {"id": 55001, "title": "Item to Delete", "type": "Page"}
+            return {}
+
+        mock_canvas_api['make_canvas_request'].side_effect = by_method
 
         delete_module_item = get_tool_function('delete_module_item')
-        result = await delete_module_item("60366", 12345, 55001)
+        preview = await delete_module_item("60366", 12345, 55001)
+        assert "PREVIEW" in preview and "NOT deleted" in preview
+        token = re.search(r"Confirmation token: (\S+)", preview).group(1)
 
+        result = await delete_module_item("60366", 12345, 55001, confirmation_token=token)
         assert "successfully" in result
         assert "Item to Delete" in result
         assert "NOT deleted" in result  # Warning about content preservation

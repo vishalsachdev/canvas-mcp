@@ -7,11 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.0] — 2026-08-30
+
+### Breaking
+
+Four changes need action when upgrading. Each has its migration inline.
+
+- **`delete_announcement` removed.** Call `delete_announcement_with_confirmation`
+  with the same `course_identifier` and `announcement_id`. It is two-step: the
+  first call returns a preview and a `Confirmation token: <token>` line, the
+  second call with `confirmation_token=<token>` and identical arguments deletes
+  ([issue 318](https://github.com/vishalsachdev/canvas-mcp/issues/318)).
+- **`dry_run` removed** from `delete_announcement_with_confirmation`,
+  `bulk_delete_announcements` and `delete_announcements_by_criteria`. Migration:
+  drop the argument. A call without `confirmation_token` *is* the dry run: it
+  lists exactly what would be deleted and deletes nothing. Note that
+  `bulk_delete_announcements` previously defaulted to `dry_run=False` and
+  deleted on the first call; it now previews on the first call like the others
+  ([issue 318](https://github.com/vishalsachdev/canvas-mcp/issues/318)).
+- **`confirmation_token` required on all seven delete tools:**
+  `delete_announcement_with_confirmation`, `bulk_delete_announcements`,
+  `delete_announcements_by_criteria`, `delete_page`, `delete_module`,
+  `delete_module_item` and the new `delete_assignment_with_confirmation`.
+  Migration, per delete: (1) call the tool with your normal arguments and show
+  the returned preview to the user; (2) read the token from the
+  `Confirmation token:` line and call again with the *same* arguments plus
+  `confirmation_token`. Tokens are single-use, expire after 5 minutes, and are
+  bound to the tool, course, the ids as requested, every detail the preview
+  displayed (titles, due date, points, posting dates) and the behavioural
+  arguments (`stop_on_error`, `limit`). If anything changed in between, the
+  call refuses and you preview again. Two calls with different arguments never
+  share a token ([issue 318](https://github.com/vishalsachdev/canvas-mcp/issues/318)).
+- **Python 3.10 dropped:** `requires-python >= 3.11`, ahead of 3.10's
+  2026-10-31 end of life. Migration: upgrade the interpreter (3.11, 3.12 and
+  3.13 are tested in CI). `pip`/`uv` will refuse to install 1.12.0 on 3.10; pin
+  `canvas-mcp<1.12` if you cannot upgrade yet
+  ([issue 315](https://github.com/vishalsachdev/canvas-mcp/issues/315)).
+
 ### Added
 
-- Added educator-only content migration tools for previewing and confirming a
-  full course-copy request, then polling its progress and reviewing all
-  terminal migration issues ([issue 309](https://github.com/vishalsachdev/canvas-mcp/issues/309)).
+- `delete_assignment_with_confirmation`: two-step assignment deletion whose
+  preview shows due date, points, and whether submissions exist, and warns that
+  submissions and grades are deleted with the assignment
+  ([issue 318](https://github.com/vishalsachdev/canvas-mcp/issues/318)).
+- `ACCESSIBILITY_CHECKERS` setting (default `ufixit`, alias `udoit`; `none`
+  leaves the three UFIXIT report tools unregistered for institutions without
+  the add-on). The built-in scanner is always available. Exposed in
+  `env.template`, the Desktop Extension settings and `server.json`
+  ([issue 325](https://github.com/vishalsachdev/canvas-mcp/issues/325)).
+- Educator-only content migration tools for previewing and confirming a full
+  course-copy request, then polling its progress and reviewing all terminal
+  migration issues ([issue 309](https://github.com/vishalsachdev/canvas-mcp/issues/309)).
+- Skill Request issue template, so a workflow can be requested in plain
+  language without a Canvas API endpoint
+  ([issue 302](https://github.com/vishalsachdev/canvas-mcp/issues/302)).
+
+### Changed
+
+- `delete_announcements_by_criteria` is idempotent now that its token is bound
+  to the exact match set; a retry can no longer delete the next batch
+  ([issue 318](https://github.com/vishalsachdev/canvas-mcp/issues/318)).
+- `datetime.timezone.utc` → `datetime.UTC` and `asyncio.TimeoutError` → the
+  builtin alias throughout, enabled by the 3.11 floor. No behaviour change.
 
 ## [1.11.0] — 2026-08-20
 

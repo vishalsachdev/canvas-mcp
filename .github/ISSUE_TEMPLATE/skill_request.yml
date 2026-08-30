@@ -1,0 +1,85 @@
+name: Skill Request
+description: Ask for a new agent skill (a guided workflow built on existing tools). No Canvas API knowledge needed.
+title: "[Skill Request]: "
+labels: ["enhancement", "skill"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the request. A **skill** is a step-by-step workflow an AI agent follows using the
+        Canvas MCP tools (for example `canvas-morning-check` or `canvas-bulk-grading`). You do not
+        need to know GitHub, the Canvas API, or which tools exist. Describe the job you want done in
+        your own words and we will work out the rest with you.
+
+  - type: textarea
+    id: job
+    attributes:
+      label: What should the skill do for you?
+      description: Describe the task as you would explain it to a colleague or teaching assistant.
+      placeholder: "Every Monday, give me a list of students who are missing work or scoring low on tests so I can reach out before they fall behind."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: user-type
+    attributes:
+      label: Who would use it?
+      options:
+        - Educators/Instructors
+        - Students
+        - Teaching Assistants
+        - Administrators / Instructional Designers
+        - All Users
+    validations:
+      required: true
+
+  - type: textarea
+    id: example
+    attributes:
+      label: A concrete example
+      description: Walk through one real case with made-up names and numbers. What goes in, what should come out?
+      placeholder: |
+        Input: my BADM 554 course, week 3.
+        Output: a ranked list of at-risk students with the reason for each (2 missing assignments, quiz average 58%).
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: How do you do this today?
+      description: Manual steps, spreadsheets, another tool, or "I don't; it does not get done."
+      placeholder: "I export the gradebook to Excel and filter it by hand."
+
+  - type: dropdown
+    id: writes
+    attributes:
+      label: Should the skill change anything in Canvas?
+      description: Skills that only read are quick to add. Skills that create, grade, message, or delete need a preview and confirmation step, which takes longer to design.
+      options:
+        - No, it should only read and report
+        - Yes, it should make changes (grades, messages, content)
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: rules
+    attributes:
+      label: Rules or policies it must respect
+      description: Department templates, grading policies, privacy limits, anything the skill must never do.
+      placeholder: "Never email students directly; I want to review the list first."
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: Screenshots, links to your syllabus, or related requests.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before you submit
+      options:
+        - label: I looked at the existing skills in the README and none of them does this
+          required: false

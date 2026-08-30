@@ -98,7 +98,7 @@
                     <section id="prerequisites">
                         <h2>Prerequisites</h2>
                         <ul>
-                            <li><strong>Python 3.10+</strong> installed on your computer</li>
+                            <li><strong>Python 3.11+</strong> installed on your computer</li>
                             <li><strong>An MCP client</strong> &mdash; commonly used options include Claude Desktop, Claude Code, ChatGPT, Cursor, VS Code, Zed, Windsurf, and Continue; setup and capabilities vary, so see <a href="index.html#clients">supported clients</a>.</li>
                             <li><strong>Canvas Account</strong> with instructor/TA permissions</li>
                         </ul>
@@ -130,7 +130,8 @@ pip install -e .</code></pre>
 
                         <div class="info-box tip">
                             <div class="info-box-title">🏫 University of Illinois Urbana-Champaign</div>
-                            <p>UIUC restricts self-service token creation. Request an API token through the <a href="https://answers.uillinois.edu/illinois/internal/150325">Canvas API token request form</a> (answers.uillinois.edu KB 150325) — the token arrives by secure email.</p>
+                            <p>UIUC disables self-service token creation for everyone, instructors included — the <strong>+ New Access Token</strong> button above will not work. Request one through the <a href="https://help.uillinois.edu/TDClient/42/UIUC/Requests/TicketRequests/NewForm?ID=4AZBjiZfXWs_&amp;RequestorType=Service">Canvas API Token Request form</a> (NetID login). After approval, activate the token under <strong>Account → Settings → Approved Integrations</strong>, then retrieve its value from the U of I Box link Technology Services sends you.</p>
+          <p><strong>Tokens issued from August 2026 expire after 30 days.</strong> Expiry is not monitored or announced, and expired tokens are removed without notice — request the replacement before the current one lapses, since approval needs a human. Details: <a href="https://answers.uillinois.edu/illinois/internal/150325">Answers KB 150325</a> (Illinois login).</p>
                         </div>
 
                         <h3>3. Configure Environment</h3>

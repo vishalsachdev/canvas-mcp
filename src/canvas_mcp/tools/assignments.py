@@ -18,7 +18,14 @@ from ..core.untrusted_content import (
     fence_untrusted_inline,
 )
 from ..core.validation import validate_params
+from ..core.write_confirmation import (
+    ConfirmationGuard,
+    preview_with_token,
+    redeem_confirmation,
+)
 from .rubrics import build_rubric_assessment_form_data
+
+_DELETE_ASSIGNMENT_GUARD = ConfirmationGuard(nothing_done="Nothing was deleted.")
 
 
 def register_shared_assignment_tools(mcp: FastMCP) -> None:
@@ -400,7 +407,7 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             due_date_obj = parse_date(due_date)
             if due_date_obj:
                 due_date_str = format_date(due_date)
-                now = datetime.datetime.now(datetime.timezone.utc)
+                now = datetime.datetime.now(datetime.UTC)
                 is_past_due = due_date_obj < now
             else:
                 due_date_str = due_date
@@ -925,6 +932,84 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             result += f"  URL: {html_url}\n"
 
         return result
+
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
+    @validate_params
+    async def delete_assignment_with_confirmation(
+        course_identifier: str | int,
+        assignment_id: str | int,
+        require_name_match: str | None = None,
+        confirmation_token: str | None = None
+    ) -> str:
+        """Delete an assignment. Two-step: preview first, then confirm with the token.
+
+        Permanent: removes the assignment together with every submission and grade
+        attached to it. Canvas may retain a recycle-bin copy depending on admin settings.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            assignment_id: Assignment ID to delete
+            require_name_match: Only delete if the assignment name matches this string exactly
+            confirmation_token: Token from the preview call; omit to preview
+        """
+        course_id = await get_course_id(course_identifier)
+
+        assignment = await make_canvas_request(
+            "get", f"/courses/{course_id}/assignments/{assignment_id}"
+        )
+        if "error" in assignment:
+            return f"Error fetching assignment details: {assignment['error']}"
+
+        name = assignment.get("name", "Unknown")
+        shown_name = fence_untrusted_inline(name, "assignment name")
+        if require_name_match is not None and name != require_name_match:
+            return (
+                f"❌ Name mismatch — deletion aborted.\n\n"
+                f"  Expected: {require_name_match}\n"
+                f"  Actual:   {shown_name}"
+            )
+
+        has_submissions = bool(assignment.get("has_submitted_submissions"))
+        needs_grading = assignment.get("needs_grading_count")
+        course_display = await get_course_code(course_id) or course_identifier
+        # Everything the preview shows to identify the target is bound, so a
+        # due-date or points edit between preview and confirm stops matching.
+        fingerprint = _DELETE_ASSIGNMENT_GUARD.fingerprint(
+            "delete_assignment_with_confirmation", str(course_id), str(assignment_id),
+            name, str(assignment.get("due_at")), str(assignment.get("points_possible")),
+            str(has_submissions), str(needs_grading),
+        )
+        if not confirmation_token:
+            preview = (
+                f"Would delete assignment **{shown_name}** from course {course_display}\n"
+                f"  Assignment ID: {assignment_id}\n"
+                f"  Due: {format_date(assignment.get('due_at'))}\n"
+                f"  Points: {assignment.get('points_possible')}\n"
+                f"  Submissions: {'yes' if has_submissions else 'none'}"
+                f"{f', needs grading: {needs_grading}' if needs_grading is not None else ''}\n"
+                "  ⚠️  Deleting an assignment also deletes all of its submissions and grades."
+            )
+            return preview_with_token(
+                _DELETE_ASSIGNMENT_GUARD, fingerprint,
+                "delete_assignment_with_confirmation", preview,
+            )
+        error = redeem_confirmation(_DELETE_ASSIGNMENT_GUARD, confirmation_token, fingerprint)
+        if error:
+            return error
+
+        response = await make_canvas_request(
+            "delete", f"/courses/{course_id}/assignments/{assignment_id}"
+        )
+        if "error" in response:
+            return f"Error deleting assignment {shown_name}: {response['error']}"
+
+        return (
+            f"✅ Assignment deleted successfully!\n\n"
+            f"  **{shown_name}**\n"
+            f"  Course: {course_display}\n"
+            f"  Assignment ID: {assignment_id}\n"
+            f"  Status: deleted (submissions and grades removed with it)"
+        )
 
     @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
     @validate_params

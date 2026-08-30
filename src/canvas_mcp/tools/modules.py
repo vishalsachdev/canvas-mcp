@@ -19,6 +19,14 @@ from ..core.untrusted_content import (
     fence_untrusted_inline,
 )
 from ..core.validation import validate_params
+from ..core.write_confirmation import (
+    ConfirmationGuard,
+    preview_with_token,
+    redeem_confirmation,
+)
+
+_DELETE_MODULE_GUARD = ConfirmationGuard(nothing_done="Nothing was deleted.")
+_DELETE_MODULE_ITEM_GUARD = ConfirmationGuard(nothing_done="Nothing was deleted.")
 
 
 def register_shared_module_tools(mcp: FastMCP) -> None:
@@ -397,46 +405,55 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
     @validate_params
     async def delete_module(
         course_identifier: str | int,
-        module_id: str | int
+        module_id: str | int,
+        confirmation_token: str | None = None
     ) -> str:
-        """Delete a module from a course.
+        """Delete a module. Two-step: preview first, then confirm with the token.
 
         IMPORTANT: Permanently removes the module and its item associations. The actual content (pages, assignments, etc.) is NOT deleted, only the module organization.
 
         Args:
             course_identifier: Course code or Canvas ID
             module_id: Module ID to delete
+            confirmation_token: Token from the preview call; omit to preview
         """
         course_id = await get_course_id(course_identifier)
 
-        # First get module info for confirmation
         module_response = await make_canvas_request(
-            "get",
-            f"/courses/{course_id}/modules/{module_id}"
+            "get", f"/courses/{course_id}/modules/{module_id}"
         )
+        if "error" in module_response:
+            return f"Error fetching module details: {module_response['error']}"
+        module_name = module_response.get("name", "Unknown")
+        items_count = module_response.get("items_count", 0)
+        shown_name = fence_untrusted_inline(module_name, "module name")
 
-        module_name = "Unknown"
-        items_count = 0
-        if "error" not in module_response:
-            module_name = module_response.get("name", "Unknown")
-            items_count = module_response.get("items_count", 0)
+        course_display = await get_course_code(course_id) or course_identifier
+        fingerprint = _DELETE_MODULE_GUARD.fingerprint(
+            "delete_module", str(course_id), str(module_id), module_name, str(items_count)
+        )
+        if not confirmation_token:
+            preview = (
+                f"Would delete module **{shown_name}** from course {course_display}\n"
+                f"  Module ID: {module_id}\n"
+                f"  Items affected: {items_count} (items unlinked, content preserved)"
+            )
+            return preview_with_token(_DELETE_MODULE_GUARD, fingerprint, "delete_module", preview)
+        error = redeem_confirmation(_DELETE_MODULE_GUARD, confirmation_token, fingerprint)
+        if error:
+            return error
 
-        # Delete the module
         response = await make_canvas_request(
-            "delete",
-            f"/courses/{course_id}/modules/{module_id}"
+            "delete", f"/courses/{course_id}/modules/{module_id}"
         )
-
         if isinstance(response, dict) and "error" in response:
             return f"Error deleting module: {response['error']}"
 
-        course_display = await get_course_code(course_id) or course_identifier
         result = "✅ Module deleted successfully!\n\n"
-        result += f"  Deleted: **{module_name}**\n"
+        result += f"  Deleted: **{shown_name}**\n"
         result += f"  Course: {course_display}\n"
         result += f"  Module ID: {module_id}\n"
         result += f"  Items affected: {items_count} (items unlinked, content preserved)\n"
-
         return result
 
     @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
@@ -709,9 +726,10 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
     async def delete_module_item(
         course_identifier: str | int,
         module_id: str | int,
-        item_id: str | int
+        item_id: str | int,
+        confirmation_token: str | None = None
     ) -> str:
-        """Remove an item from a module.
+        """Remove an item from a module. Two-step: preview first, then confirm with the token.
 
         IMPORTANT: Only unlinks the item from the module. The actual content (page, assignment, etc.) is NOT deleted.
 
@@ -719,36 +737,47 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             course_identifier: Course code or Canvas ID
             module_id: Module ID containing the item
             item_id: Item ID to remove
+            confirmation_token: Token from the preview call; omit to preview
         """
         course_id = await get_course_id(course_identifier)
 
-        # First get item info for confirmation
         item_response = await make_canvas_request(
-            "get",
-            f"/courses/{course_id}/modules/{module_id}/items/{item_id}"
+            "get", f"/courses/{course_id}/modules/{module_id}/items/{item_id}"
         )
+        if "error" in item_response:
+            return f"Error fetching module item details: {item_response['error']}"
+        item_title = item_response.get("title", "Unknown")
+        item_type = item_response.get("type", "Unknown")
+        shown_title = fence_untrusted_inline(item_title, "module item title")
 
-        item_title = "Unknown"
-        item_type = "Unknown"
-        if "error" not in item_response:
-            item_title = item_response.get("title", "Unknown")
-            item_type = item_response.get("type", "Unknown")
+        course_display = await get_course_code(course_id) or course_identifier
+        fingerprint = _DELETE_MODULE_ITEM_GUARD.fingerprint(
+            "delete_module_item", str(course_id), str(module_id), str(item_id), item_title, item_type
+        )
+        if not confirmation_token:
+            preview = (
+                f"Would remove **{shown_title}** ({item_type}) from module {module_id} "
+                f"in course {course_display}\n"
+                f"  Item ID: {item_id}\n"
+                "  Note: The underlying content is NOT deleted, only unlinked from this module."
+            )
+            return preview_with_token(
+                _DELETE_MODULE_ITEM_GUARD, fingerprint, "delete_module_item", preview
+            )
+        error = redeem_confirmation(_DELETE_MODULE_ITEM_GUARD, confirmation_token, fingerprint)
+        if error:
+            return error
 
-        # Delete the item
         response = await make_canvas_request(
-            "delete",
-            f"/courses/{course_id}/modules/{module_id}/items/{item_id}"
+            "delete", f"/courses/{course_id}/modules/{module_id}/items/{item_id}"
         )
-
         if isinstance(response, dict) and "error" in response:
             return f"Error deleting module item: {response['error']}"
 
-        course_display = await get_course_code(course_id) or course_identifier
         result = "✅ Module item removed successfully!\n\n"
-        result += f"  Removed: **{item_title}** ({item_type})\n"
+        result += f"  Removed: **{shown_title}** ({item_type})\n"
         result += f"  Course: {course_display}\n"
         result += f"  Module ID: {module_id}\n"
         result += f"  Item ID: {item_id}\n"
         result += "\n  Note: The underlying content was NOT deleted, only unlinked from this module.\n"
-
         return result

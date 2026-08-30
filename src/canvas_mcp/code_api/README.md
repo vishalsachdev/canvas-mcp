@@ -295,7 +295,9 @@ initializeCanvasClient(
 
 **Problem**: Invalid or expired API token
 
-**Solution**: Generate a new token in Canvas → Account → Settings → New Access Token
+**Solution**: Generate a new token in Canvas → Account → Settings → New Access Token.
+If your institution disables self-service tokens (e.g. UIUC), request one through its IT
+form instead — see [Common Issues](../../../examples/common_issues.md#cannot-create-access-token).
 
 ### "Canvas API error (404)"
 

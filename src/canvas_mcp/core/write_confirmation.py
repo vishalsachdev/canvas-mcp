@@ -56,8 +56,11 @@ class ConfirmationGuard:
     # any hashing (cheap flood defense).
     _MAX_TOKEN_LEN = 256
 
-    def __init__(self, ttl_seconds: int = 300) -> None:
+    def __init__(self, ttl_seconds: int = 300, nothing_done: str = "Nothing was sent.") -> None:
         self._ttl = ttl_seconds
+        # Wording for "the guarded action did not happen" — "sent" for the
+        # messaging tools, "deleted" for the delete tools (#318).
+        self.nothing_done = nothing_done
         self._secret = secrets.token_bytes(32)
         # token nonce -> when its claim can be forgotten. Keyed by nonce, not
         # fingerprint, so redeeming one token does not block a *fresh* preview
@@ -159,7 +162,7 @@ class ConfirmationGuard:
             return (
                 "❌ This confirmation does not match. Either the request changed "
                 "since the preview, or the preview was handled by a different "
-                "server process. Nothing was sent. Preview again and confirm "
+                f"server process. {self.nothing_done} Preview again and confirm "
                 "the new token."
             )
         if expiry < time.time():
@@ -168,7 +171,7 @@ class ConfirmationGuard:
         self._purge()
         if nonce in self._redeemed:
             return (
-                "❌ That confirmation was already used. Nothing was sent. "
+                f"❌ That confirmation was already used. {self.nothing_done} "
                 "Run the preview again."
             )
         return None
@@ -215,3 +218,48 @@ class ConfirmationGuard:
         now = time.time()
         for nonce in [n for n, expiry in self._redeemed.items() if expiry < now]:
             self._redeemed.pop(nonce, None)
+
+
+def preview_with_token(
+    guard: ConfirmationGuard, fingerprint: str, tool_name: str, preview: str
+) -> str:
+    """Render a destructive-tool preview that ends with a fresh single-use token.
+
+    Used by every delete tool (#318): the preview must show exactly what the
+    token authorizes, and the fingerprint must be derived from that same
+    content so a changed target stops matching.
+    """
+    return (
+        "PREVIEW — Nothing deleted.\n\n"
+        f"{preview.rstrip()}\n\n"
+        f"Confirmation token: {guard.issue(fingerprint)}\n"
+        f"Show this preview to the user. To delete, call {tool_name} again with "
+        "this confirmation_token and identical arguments. The token is "
+        "single-use, expires in 5 minutes, and stops matching if the target "
+        "changes in the meantime."
+    )
+
+
+def redeem_confirmation(guard: ConfirmationGuard, token: str, fingerprint: str) -> str | None:
+    """Verify and reserve a token for the current request.
+
+    Returns an error message (and the guarded action must NOT run) or None
+    once the token's nonce is claimed. A mismatching genuine token is burned
+    so a swapped-then-reverted argument set cannot replay it within its TTL —
+    the same rule the messaging tools apply.
+
+    Deliberately NO ``release()`` path for the delete tools: the messaging
+    tools hand a claim back on a provable rejection so a send can be retried,
+    but a failed DELETE is cheap to re-preview and a fresh preview re-checks
+    the target. Spending the token on any confirm attempt is the safe side.
+    """
+    error = guard.check(token, fingerprint)
+    if error:
+        guard.reserve(token)
+        return error
+    if not guard.reserve(token):
+        return (
+            f"❌ That confirmation was already used. {guard.nothing_done} "
+            "Run the preview again."
+        )
+    return None

@@ -4,11 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "canvas-mcp"
-version = "1.11.0"
+version = "1.12.0"
 description = "A Model Context Protocol server for Canvas LMS integration"
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [
     { name = "Vishal Sachdev", email = "vsachde2@illinois.edu" },
 ]
@@ -18,7 +18,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -60,7 +59,7 @@ path = "src/canvas_mcp/__init__.py"
 packages = ["src/canvas_mcp"]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 88
 exclude = ["archive/"]
 
@@ -92,11 +91,11 @@ ignore = [
 "canvas_mcp.core.anonymization.anonymize_response_data".msg = "Anonymization is applied once, at the client layer (core/client.py, gated by ENABLE_DATA_ANONYMIZATION). Do not re-anonymize in tool code — see issue #179."
 
 [tool.black]
-target-version = ['py310']
+target-version = ['py311']
 line-length = 88
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
