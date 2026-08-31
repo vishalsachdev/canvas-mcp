@@ -416,3 +416,40 @@ class TestSandboxUidGidConfigurable:
             f"malformed value should fall back to default 65532:65532, got {uid_gid}"
         )
 
+    @pytest.mark.asyncio
+    async def test_root_uid_gid_rejected_with_default(self):
+        """A 0:0 uid:gid falls back to the default non-root value.
+
+        validate_config() warns and resets to 65532:65532 when the value
+        would run the sandbox as root, undoing the non-root protection
+        from PR #317.
+        """
+        tool = get_execute_typescript(
+            TS_SANDBOX_MODE="container", TS_SANDBOX_UID_GID="0:0"
+        )
+        if tool is None:
+            pytest.skip("execute_typescript not registered in this configuration")
+
+        # Trigger the startup validation that resets root uid:gid values
+        validate_config()
+
+        with patch(
+            "canvas_mcp.tools.code_execution._detect_container_runtime",
+            return_value="docker",
+        ), patch(
+            "canvas_mcp.tools.code_execution._runtime_available",
+            new=AsyncMock(return_value=True),
+        ), patch(
+            "canvas_mcp.tools.code_execution.asyncio.create_subprocess_exec",
+            new_callable=AsyncMock,
+            return_value=_mock_process(),
+        ) as spawn:
+            await tool(code="console.log(1)")
+
+        cmd = list(spawn.call_args.args)
+        assert "--user" in cmd
+        uid_gid = cmd[cmd.index("--user") + 1]
+        assert uid_gid == "65532:65532", (
+            f"0:0 should fall back to default 65532:65532, got {uid_gid}"
+        )
+

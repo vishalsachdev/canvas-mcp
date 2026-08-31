@@ -453,6 +453,14 @@ def validate_config() -> bool:
         )
         config.ts_sandbox_uid_gid = "65532:65532"
 
+    uid, gid = config.ts_sandbox_uid_gid.split(":")
+    if uid == "0" or gid == "0":
+        log_warning(
+            "TS_SANDBOX_UID_GID=0:0 would run the sandbox as root; "
+            f"defaulting to '65532:65532' (got '{config.ts_sandbox_uid_gid}')"
+        )
+        config.ts_sandbox_uid_gid = "65532:65532"
+
     valid_roles = ("student", "educator", "all")
     if config.canvas_role not in valid_roles:
         log_warning(
