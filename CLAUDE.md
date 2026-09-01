@@ -376,6 +376,10 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   PyPI already returned 200. Both modes and the test that distinguishes them are in the checklist
 
 ## Roadmap
+- [ ] Grok/xAI integration research and pilot — verify the current official path for third-party
+  tools, connectors, bots, or MCP servers; document registration, hosting, authentication, review,
+  and cost requirements; then test the nearest supported integration path. If Grok still has no
+  public plugin or MCP registry, record that boundary and revisit when xAI publishes one.
 - [x] Release v1.0.8 — all CI/CD pipelines passing (PyPI, MCP Registry, GitHub Release)
 - [x] Learning Designer tools & skills — `get_course_structure` tool + 3 skills (QC, accessibility, builder)
 - [x] GitHub Pages audit — 7 disconnects fixed (tool count, test count, analytics, URLs, compatibility)
@@ -422,6 +426,19 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 > the newest one to compute its cutoff, so they **must not** record an external collaborator's
 > institutional affiliation, evaluation status, deployment timeline, or which competing
 > products they are weighing. Name the person and the technical issue, nothing else.
+
+### 2026-09-01 — routine maintenance completed; impact metrics refreshed and published
+
+- **Repository maintenance:** merged the ready dependency updates, closed the superseded update,
+  clarified the FastMCP 4 migration issue, added missing maintenance labels, and requested a safety
+  correction on the remaining contributor pull request.
+- **Impact metrics:** refreshed `docs/data/impact.json`, pushed commit `587d512`, deployed the site
+  to Cloudflare Pages, and verified the public page renders 209 stars, 73 forks, 20 contributors,
+  and 2,418 monthly installs.
+- **Website health:** removed a dead third-party display-font reference discovered during the live
+  check; the existing local fallback preserves the rendered typography without the failed request.
+- **Next:** complete the Grok/xAI integration research and pilot above; revisit the remaining
+  contributor pull request after its author addresses the requested correction.
 
 ### 2026-08-30 — v1.12.0 RELEASED; #317 merged (with a regression caught first); #336 shipped; README leads with the server install
 
