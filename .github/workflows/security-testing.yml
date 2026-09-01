@@ -184,7 +184,7 @@ jobs:
         continue-on-error: true
       
       - name: TruffleHog scan
-        uses: trufflesecurity/trufflehog@3ab759fef4bb5935d4fe9ac68b503d05346b8364 # main@2026-08-10
+        uses: trufflesecurity/trufflehog@0c952ace0f842f11c75775922d7400335cf60bc6 # main@2026-08-10
         with:
           path: ./
           base: main
@@ -217,15 +217,15 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
+        uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
         with:
           languages: python
           queries: security-and-quality
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
+        uses: github/codeql-action/autobuild@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
+        uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
         with:
           category: "/language:python"
