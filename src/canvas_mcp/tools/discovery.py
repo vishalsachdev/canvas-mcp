@@ -130,7 +130,7 @@ def register_discovery_tools(mcp: FastMCP) -> None:
                     if not file_match:
                         # Also check file contents for query
                         try:
-                            content = ts_file.read_text()
+                            content = ts_file.read_text(encoding="utf-8")
                             if query_lower not in content.lower():
                                 continue
                         except Exception as e:
@@ -145,7 +145,7 @@ def register_discovery_tools(mcp: FastMCP) -> None:
                     elif detail_level == "signatures":
                         # Extract function signature from file
                         try:
-                            content = ts_file.read_text()
+                            content = ts_file.read_text(encoding="utf-8")
                             signature = extract_function_signature(content)
                             doc_comment = extract_doc_comment(content)
 
@@ -162,7 +162,7 @@ def register_discovery_tools(mcp: FastMCP) -> None:
 
                     else:  # full
                         try:
-                            content = ts_file.read_text()
+                            content = ts_file.read_text(encoding="utf-8")
                             code_api_matches.append({
                                 "file": relative_path,
                                 "content": _cap(content, _CODE_API_FULL_CONTENT_CHARS)
