@@ -207,6 +207,30 @@ def _float_env(name: str, default: float) -> float:
     return parsed
 
 
+_DEFAULT_TS_SANDBOX_UID_GID = "65532:65532"
+_TS_SANDBOX_UID_GID_PATTERN = re.compile(r"^\d+:\d+$")
+
+
+def _parse_ts_sandbox_uid_gid(value: str) -> str:
+    """Return a safe numeric uid:gid for every transport startup path."""
+    if not _TS_SANDBOX_UID_GID_PATTERN.fullmatch(value):
+        log_warning(
+            "TS_SANDBOX_UID_GID should be in <uid>:<gid> numeric form; "
+            f"defaulting to '{_DEFAULT_TS_SANDBOX_UID_GID}' (got '{value}')"
+        )
+        return _DEFAULT_TS_SANDBOX_UID_GID
+
+    uid, gid = (int(part) for part in value.split(":"))
+    if uid == 0 or gid == 0:
+        log_warning(
+            "TS_SANDBOX_UID_GID must use a non-zero uid and non-zero gid; "
+            f"defaulting to '{_DEFAULT_TS_SANDBOX_UID_GID}' (got '{value}')"
+        )
+        return _DEFAULT_TS_SANDBOX_UID_GID
+
+    return value
+
+
 class Config:
     """Configuration class for Canvas MCP server."""
 
@@ -250,7 +274,9 @@ class Config:
         self.ts_sandbox_memory_limit_mb = _int_env("TS_SANDBOX_MEMORY_LIMIT_MB", 512)
         self.ts_sandbox_timeout_sec = _int_env("TS_SANDBOX_TIMEOUT_SEC", 120)
         self.ts_sandbox_container_image = os.getenv("TS_SANDBOX_CONTAINER_IMAGE", "node:20-alpine")
-        self.ts_sandbox_uid_gid = os.getenv("TS_SANDBOX_UID_GID", "65532:65532")
+        self.ts_sandbox_uid_gid = _parse_ts_sandbox_uid_gid(
+            os.getenv("TS_SANDBOX_UID_GID", _DEFAULT_TS_SANDBOX_UID_GID)
+        )
 
         # Code execution is opt-in — set EXECUTE_TYPESCRIPT_ENABLED=true to
         # enable the execute_typescript tool (independent of CANVAS_ROLE).
@@ -444,22 +470,6 @@ def validate_config() -> bool:
             "TS_SANDBOX_MODE should be one of auto, local, container; "
             f"defaulting to 'auto' (got '{config.ts_sandbox_mode}')"
         )
-
-    uid_gid_pattern = re.compile(r"^\d+:\d+$")
-    if not uid_gid_pattern.match(config.ts_sandbox_uid_gid):
-        log_warning(
-            "TS_SANDBOX_UID_GID should be in <uid>:<gid> numeric form; "
-            f"defaulting to '65532:65532' (got '{config.ts_sandbox_uid_gid}')"
-        )
-        config.ts_sandbox_uid_gid = "65532:65532"
-
-    uid, gid = (int(part) for part in config.ts_sandbox_uid_gid.split(":"))
-    if uid == 0 or gid == 0:
-        log_warning(
-            "TS_SANDBOX_UID_GID must use non-zero uid and gid; "
-            f"defaulting to '65532:65532' (got '{config.ts_sandbox_uid_gid}')"
-        )
-        config.ts_sandbox_uid_gid = "65532:65532"
 
     valid_roles = ("student", "educator", "all")
     if config.canvas_role not in valid_roles:

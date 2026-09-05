@@ -28,7 +28,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastmcp import FastMCP
 
-from canvas_mcp.core.config import get_config, reset_config, validate_config
+from canvas_mcp.core.config import get_config, reset_config
 from canvas_mcp.tools.code_execution import register_code_execution_tools
 
 
@@ -387,8 +387,8 @@ class TestSandboxUidGidConfigurable:
     async def test_malformed_uid_gid_rejected_with_default(self):
         """A malformed TS_SANDBOX_UID_GID falls back to the default.
 
-        validate_config() warns and resets to 65532:65532 when the value
-        does not match the <uid>:<gid> numeric pattern.
+        Configuration construction resets the value without relying on
+        validate_config(), which the HTTP startup path intentionally skips.
         """
         tool = get_execute_typescript(
             TS_SANDBOX_MODE="container", TS_SANDBOX_UID_GID="not-a-number"
@@ -396,9 +396,7 @@ class TestSandboxUidGidConfigurable:
         if tool is None:
             pytest.skip("execute_typescript not registered in this configuration")
 
-        # Trigger the startup validation that resets malformed values
-        validate_config()
-
+        # Config construction must clamp this for both stdio and HTTP startup.
         with patch(
             "canvas_mcp.tools.code_execution._detect_container_runtime",
             return_value="docker",
@@ -427,9 +425,8 @@ class TestSandboxUidGidConfigurable:
     async def test_root_uid_gid_rejected_with_default(self, root_uid_gid):
         """Any numeric representation of a zero uid or gid falls back safely.
 
-        validate_config() warns and resets to 65532:65532 when the value
-        would run the sandbox as root, undoing the non-root protection
-        from PR #317.
+        Configuration construction resets the value without relying on
+        validate_config(), which the HTTP startup path intentionally skips.
         """
         tool = get_execute_typescript(
             TS_SANDBOX_MODE="container", TS_SANDBOX_UID_GID=root_uid_gid
@@ -437,9 +434,7 @@ class TestSandboxUidGidConfigurable:
         if tool is None:
             pytest.skip("execute_typescript not registered in this configuration")
 
-        # Trigger the startup validation that resets root uid:gid values
-        validate_config()
-
+        # Config construction must clamp this for both stdio and HTTP startup.
         with patch(
             "canvas_mcp.tools.code_execution._detect_container_runtime",
             return_value="docker",

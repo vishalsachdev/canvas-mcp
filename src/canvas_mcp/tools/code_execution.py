@@ -33,7 +33,6 @@ _SAFE_ENV_KEYS = frozenset({
 })
 
 
-
 def _container_run_script(container_code_api_dir: str) -> str:
     """Return the `sh -c` body that runs stdin-delivered code inside the container.
 
