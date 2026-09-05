@@ -56,6 +56,10 @@ jobs:
   # break on the oldest one is invisible on a newer-only runner.
   test:
     runs-on: ubuntu-latest
+    env:
+      # FastMCP 4 temporarily bridges MCP SDK v1 camelCase attribute reads.
+      # Keep the bridge off in CI so new code must use the v2 snake_case API.
+      FASTMCP_MCP_CAMELCASE_COMPAT: "false"
     strategy:
       fail-fast: false
       matrix:

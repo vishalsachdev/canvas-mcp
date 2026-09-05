@@ -639,7 +639,7 @@ def register_student_write_tools(mcp: FastMCP) -> None:
     """
     enabled = get_config().student_write_tools
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def get_my_submission(
         course_identifier: str | int,
@@ -709,7 +709,7 @@ def register_student_write_tools(mcp: FastMCP) -> None:
 
     if "submit_assignment" in enabled:
 
-        @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
+        @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=False))
         @validate_params
         async def submit_assignment(
             course_identifier: str | int,
@@ -963,7 +963,7 @@ def register_student_write_tools(mcp: FastMCP) -> None:
 
     if "comment_on_my_submission" in enabled:
 
-        @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
+        @mcp.tool(annotations=ToolAnnotations(destructive_hint=False, idempotent_hint=False))
         @validate_params
         async def comment_on_my_submission(
             course_identifier: str | int,
@@ -1015,7 +1015,7 @@ def register_student_write_tools(mcp: FastMCP) -> None:
 
     if "mark_module_item_done" in enabled:
 
-        @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=True))
+        @mcp.tool(annotations=ToolAnnotations(destructive_hint=False, idempotent_hint=True))
         @validate_params
         async def mark_module_item_done(
             course_identifier: str | int,

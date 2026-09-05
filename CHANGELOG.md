@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Migrated to FastMCP 4 and MCP SDK 2. Protocol-model attribute reads now use
+  the SDK's native snake_case API, and CI disables FastMCP's temporary
+  camelCase compatibility bridge to prevent regressions. Canvas API clients
+  continue to use `httpx`; they are independent of FastMCP's `httpx2` transport
+  stack ([issue 142](https://github.com/vishalsachdev/canvas-mcp/issues/142)).
+
 ## [1.12.0] — 2026-08-30
 
 ### Breaking

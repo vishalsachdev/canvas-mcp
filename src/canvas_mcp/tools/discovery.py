@@ -86,7 +86,7 @@ async def _search_mcp_tools(
 def register_discovery_tools(mcp: FastMCP) -> None:
     """Register tool discovery tools."""
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def search_canvas_tools(
         query: str = "",

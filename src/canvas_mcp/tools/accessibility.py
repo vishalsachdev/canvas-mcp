@@ -39,7 +39,7 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
 def _register_ufixit_tools(mcp: FastMCP) -> None:
     """UFIXIT/UDOIT report pipeline — requires the add-on on the instance."""
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def fetch_ufixit_report(
         course_identifier: str | int,
@@ -100,7 +100,7 @@ def _register_ufixit_tools(mcp: FastMCP) -> None:
             "course_id": course_id
         })
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def parse_ufixit_violations(report_json: str) -> str:
         """Parse UFIXIT report content to extract accessibility violations.
@@ -145,7 +145,7 @@ def _register_ufixit_tools(mcp: FastMCP) -> None:
             }
         })
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def format_accessibility_summary(violations_json: str) -> str:
         """Format parsed violations into a human-readable summary.
@@ -224,7 +224,7 @@ def _register_ufixit_tools(mcp: FastMCP) -> None:
 def _register_builtin_scanner_tools(mcp: FastMCP) -> None:
     """Add-on-free scanner over Canvas page/assignment HTML."""
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def scan_course_content_accessibility(
         course_identifier: str | int,
@@ -292,7 +292,7 @@ def _register_builtin_scanner_tools(mcp: FastMCP) -> None:
             "scanned_types": types
         })
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=True))
     @validate_params
     async def fix_accessibility_issues(
         course_identifier: str | int,

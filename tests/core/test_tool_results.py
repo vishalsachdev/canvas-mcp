@@ -19,11 +19,11 @@ def _result_server() -> FastMCP:
     mcp = FastMCP("tool-result-contract")
     install_tool_result_contract(mcp)
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     async def text_result(value: str) -> str:
         return value
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     async def dict_result(fail: bool) -> dict[str, Any]:
         if fail:
             return {"error": "boom", "nothing_sent": True}
@@ -31,7 +31,7 @@ def _result_server() -> FastMCP:
 
     @mcp.tool(
         output_schema=_EXPLICIT_TEXT_SCHEMA,
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
     async def explicit_text(value: str) -> str:
         return value
@@ -92,7 +92,7 @@ async def test_string_result_has_one_text_surface_and_no_structured_duplicate():
             "text_result", {"value": "single copy"}, raise_on_error=False
         )
 
-    assert tools["text_result"].outputSchema is None
+    assert tools["text_result"].output_schema is None
     assert result.structured_content is None
     assert len(result.content) == 1
     assert getattr(result.content[0], "text", None) == "single copy"
@@ -106,7 +106,7 @@ async def test_dictionary_tool_retains_schema_and_structured_content():
             "dict_result", {"fail": False}, raise_on_error=False
         )
 
-    assert tools["dict_result"].outputSchema is not None
+    assert tools["dict_result"].output_schema is not None
     assert result.structured_content == {
         "success": True,
         "detail": {"error": "quoted example"},
@@ -121,7 +121,7 @@ async def test_installing_contract_twice_does_not_double_wrap_registration():
     install_tool_result_contract(mcp)
     install_tool_result_contract(mcp)
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     async def once() -> str:
         return "one"
 
@@ -142,7 +142,7 @@ async def test_explicit_string_schema_is_respected_and_legacy_wrapper_errors():
             raise_on_error=False,
         )
 
-    assert tools["explicit_text"].outputSchema["x-fastmcp-wrap-result"] is True
+    assert tools["explicit_text"].output_schema["x-fastmcp-wrap-result"] is True
     assert result.structured_content == {"result": "Error: explicit schema failure"}
     assert result.is_error is True
 

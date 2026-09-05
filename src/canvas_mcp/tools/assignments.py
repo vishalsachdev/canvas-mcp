@@ -31,7 +31,7 @@ _DELETE_ASSIGNMENT_GUARD = ConfirmationGuard(nothing_done="Nothing was deleted."
 def register_shared_assignment_tools(mcp: FastMCP) -> None:
     """Register assignment tools accessible to both students and educators."""
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def list_assignments(course_identifier: str | int) -> str:
         """List assignments for a specific course.
@@ -72,7 +72,7 @@ def register_shared_assignment_tools(mcp: FastMCP) -> None:
         course_display = await get_course_code(course_id) or course_identifier
         return f"Assignments for Course {course_display}:\n\n" + "\n".join(assignments_info)
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def get_assignment_details(course_identifier: str | int, assignment_id: str | int) -> str:
         """Get detailed information about a specific assignment.
@@ -114,7 +114,7 @@ def register_shared_assignment_tools(mcp: FastMCP) -> None:
 def register_educator_assignment_tools(mcp: FastMCP) -> None:
     """Register educator-only assignment tools (grading, analytics, management)."""
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=False, idempotent_hint=False))
     @validate_params
     async def assign_peer_review(course_identifier: str, assignment_id: str, reviewer_id: str, reviewee_id: str) -> str:
         """Manually assign a peer review to a student for a specific assignment.
@@ -191,7 +191,7 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
                f"Reviewee ID: {reviewee_id}\n" + \
                f"Submission ID: {submission_id}"
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def list_peer_reviews(course_identifier: str, assignment_id: str) -> str:
         """List all peer review assignments for a specific assignment.
@@ -299,7 +299,7 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
 
         return output
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def list_submissions(course_identifier: str | int, assignment_id: str | int) -> str:
         """List submissions for a specific assignment.
@@ -345,7 +345,7 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
         course_display = await get_course_code(course_id) or course_identifier
         return f"Submissions for Assignment {assignment_id} in course {course_display}:\n\n" + "\n".join(submissions_info)
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def get_assignment_analytics(course_identifier: str | int, assignment_id: str | int) -> str:
         """Get detailed analytics about student performance on a specific assignment.
@@ -610,7 +610,7 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
 
         return output
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=False, idempotent_hint=False))
     @validate_params
     async def create_assignment(
         course_identifier: str | int,
@@ -768,7 +768,7 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=True))
     @validate_params
     async def update_assignment(
         course_identifier: str | int,
@@ -933,7 +933,7 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=True))
     @validate_params
     async def delete_assignment_with_confirmation(
         course_identifier: str | int,
@@ -1011,7 +1011,7 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             f"  Status: deleted (submissions and grades removed with it)"
         )
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=False))
     @validate_params
     async def bulk_grade_submissions(
         course_identifier: str | int,

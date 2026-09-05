@@ -41,7 +41,7 @@ from ..core.validation import validate_params
 def register_shared_file_tools(mcp: FastMCP) -> None:
     """Register file tools accessible to both students and educators."""
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def download_course_file(
         course_identifier: str | int,
@@ -159,7 +159,7 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
         result += f"  Course: {course_display}\n"
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def read_course_file(
         course_identifier: str | int,
@@ -250,7 +250,7 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
         except Exception as e:
             return f"Error reading file: {str(e)}"
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def list_course_files(
         course_identifier: str | int,
@@ -315,7 +315,7 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
 def register_educator_file_tools(mcp: FastMCP) -> None:
     """Register educator-only file tools (upload)."""
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=False))
     @validate_params
     async def upload_course_file(
         course_identifier: str | int,

@@ -32,7 +32,7 @@ _DELETE_MODULE_ITEM_GUARD = ConfirmationGuard(nothing_done="Nothing was deleted.
 def register_shared_module_tools(mcp: FastMCP) -> None:
     """Register module tools accessible to both students and educators."""
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def list_modules(
         course_identifier: str | int,
@@ -108,7 +108,7 @@ def register_shared_module_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def get_course_structure(
         course_identifier: str | int,
@@ -217,7 +217,7 @@ def register_shared_module_tools(mcp: FastMCP) -> None:
 def register_educator_module_tools(mcp: FastMCP) -> None:
     """Register educator-only module management tools."""
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=False, idempotent_hint=False))
     @validate_params
     async def create_module(
         course_identifier: str | int,
@@ -303,7 +303,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=True))
     @validate_params
     async def update_module(
         course_identifier: str | int,
@@ -401,7 +401,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=True))
     @validate_params
     async def delete_module(
         course_identifier: str | int,
@@ -456,7 +456,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
         result += f"  Items affected: {items_count} (items unlinked, content preserved)\n"
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=False, idempotent_hint=False))
     @validate_params
     async def add_module_item(
         course_identifier: str | int,
@@ -605,7 +605,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=True))
     @validate_params
     async def update_module_item(
         course_identifier: str | int,
@@ -721,7 +721,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=True))
     @validate_params
     async def delete_module_item(
         course_identifier: str | int,

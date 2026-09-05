@@ -31,7 +31,7 @@ async def test_every_read_tool_declares_and_keeps_its_untrusted_content_policy()
     read_tools = {
         tool.name: tool
         for tool in await mcp.list_tools(run_middleware=False)
-        if tool.annotations and tool.annotations.readOnlyHint
+        if tool.annotations and tool.annotations.read_only_hint
     }
     policies = getattr(untrusted_content, "READ_TOOL_CONTENT_POLICIES", {})
 

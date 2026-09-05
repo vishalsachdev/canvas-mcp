@@ -43,7 +43,7 @@ def _own_roles(course: dict) -> list[str]:
 def register_self_identity_tools(mcp: FastMCP) -> None:
     """Register the caller-scoped identity tools (all role profiles)."""
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def get_my_enrollments(include_concluded: bool = False) -> str:
         """List the courses YOU are enrolled in, with your role in each.
@@ -112,7 +112,7 @@ def register_self_identity_tools(mcp: FastMCP) -> None:
         )
         return header + "\n".join(lines) + footer
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def get_my_profile() -> str:
         """Get YOUR own Canvas identity (user ID, name, login ID).

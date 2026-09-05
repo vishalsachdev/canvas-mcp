@@ -14,7 +14,7 @@ from ..core.validation import validate_params
 def register_admin_tools(mcp: FastMCP) -> None:
     """Register admin/developer MCP tools."""
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     async def get_anonymization_status() -> str:
         """Get current data anonymization status and statistics."""
         from ..core.anonymization import get_anonymization_stats
@@ -52,7 +52,7 @@ def register_admin_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def list_groups(course_identifier: str | int) -> str:
         """List all groups and their members for a specific course.
@@ -118,7 +118,7 @@ def register_admin_tools(mcp: FastMCP) -> None:
 
         return output
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def list_users(course_identifier: str) -> str:
         """List users enrolled in a specific course.
@@ -165,7 +165,7 @@ def register_admin_tools(mcp: FastMCP) -> None:
         course_display = await get_course_code(course_id) or course_identifier
         return f"Users in Course {course_display}:\n\n" + "\n".join(users_info)
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def get_student_analytics(course_identifier: str,
                                   include_participation: bool = True,
@@ -295,7 +295,7 @@ def register_admin_tools(mcp: FastMCP) -> None:
 
         return "\n".join(lines)
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=True))
     @validate_params
     async def create_student_anonymization_map(course_identifier: str | int) -> str:
         """Create a local CSV file mapping real student data to anonymous IDs for a course.
