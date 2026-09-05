@@ -207,6 +207,30 @@ def _float_env(name: str, default: float) -> float:
     return parsed
 
 
+_DEFAULT_TS_SANDBOX_UID_GID = "65532:65532"
+_TS_SANDBOX_UID_GID_PATTERN = re.compile(r"^[0-9]{1,10}:[0-9]{1,10}$")
+
+
+def _parse_ts_sandbox_uid_gid(value: str) -> str:
+    """Return a safe numeric uid:gid for every transport startup path."""
+    if not _TS_SANDBOX_UID_GID_PATTERN.fullmatch(value):
+        log_warning(
+            "TS_SANDBOX_UID_GID should be in <uid>:<gid> numeric form; "
+            f"defaulting to '{_DEFAULT_TS_SANDBOX_UID_GID}' (got '{value}')"
+        )
+        return _DEFAULT_TS_SANDBOX_UID_GID
+
+    uid, gid = (int(part) for part in value.split(":"))
+    if uid == 0 or gid == 0:
+        log_warning(
+            "TS_SANDBOX_UID_GID must use a non-zero uid and non-zero gid; "
+            f"defaulting to '{_DEFAULT_TS_SANDBOX_UID_GID}' (got '{value}')"
+        )
+        return _DEFAULT_TS_SANDBOX_UID_GID
+
+    return value
+
+
 class Config:
     """Configuration class for Canvas MCP server."""
 
@@ -250,6 +274,9 @@ class Config:
         self.ts_sandbox_memory_limit_mb = _int_env("TS_SANDBOX_MEMORY_LIMIT_MB", 512)
         self.ts_sandbox_timeout_sec = _int_env("TS_SANDBOX_TIMEOUT_SEC", 120)
         self.ts_sandbox_container_image = os.getenv("TS_SANDBOX_CONTAINER_IMAGE", "node:20-alpine")
+        self.ts_sandbox_uid_gid = _parse_ts_sandbox_uid_gid(
+            os.getenv("TS_SANDBOX_UID_GID", _DEFAULT_TS_SANDBOX_UID_GID)
+        )
 
         # Code execution is opt-in — set EXECUTE_TYPESCRIPT_ENABLED=true to
         # enable the execute_typescript tool (independent of CANVAS_ROLE).

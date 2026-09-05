@@ -319,3 +319,147 @@ class TestContainerRunsAsNonRoot:
             b"import { x } from './canvas/x.js';"
         )
 
+
+class TestSandboxUidGidConfigurable:
+    """TS_SANDBOX_UID_GID makes the hardcoded uid:gid from PR #317 overridable.
+
+    Two environments break the default (65532:65532):
+    - umask 077 checkouts where the host user's uid differs from the default
+    - custom container images with a mismatched non-root user
+    """
+
+    @pytest.mark.asyncio
+    async def test_default_uid_gid_when_unset(self):
+        """Without TS_SANDBOX_UID_GID set, the container runs as 65532:65532."""
+        tool = get_execute_typescript(TS_SANDBOX_MODE="container")
+        if tool is None:
+            pytest.skip("execute_typescript not registered in this configuration")
+
+        with patch(
+            "canvas_mcp.tools.code_execution._detect_container_runtime",
+            return_value="docker",
+        ), patch(
+            "canvas_mcp.tools.code_execution._runtime_available",
+            new=AsyncMock(return_value=True),
+        ), patch(
+            "canvas_mcp.tools.code_execution.asyncio.create_subprocess_exec",
+            new_callable=AsyncMock,
+            return_value=_mock_process(),
+        ) as spawn:
+            await tool(code="console.log(1)")
+
+        cmd = list(spawn.call_args.args)
+        assert "--user" in cmd
+        uid_gid = cmd[cmd.index("--user") + 1]
+        assert uid_gid == "65532:65532", f"expected default 65532:65532, got {uid_gid}"
+
+    @pytest.mark.parametrize("configured_uid_gid", ["1000:1000", "010:010"])
+    @pytest.mark.asyncio
+    async def test_configured_uid_gid_is_used(self, configured_uid_gid):
+        """Setting TS_SANDBOX_UID_GID overrides the default uid:gid."""
+        tool = get_execute_typescript(
+            TS_SANDBOX_MODE="container", TS_SANDBOX_UID_GID=configured_uid_gid
+        )
+        if tool is None:
+            pytest.skip("execute_typescript not registered in this configuration")
+
+        with patch(
+            "canvas_mcp.tools.code_execution._detect_container_runtime",
+            return_value="docker",
+        ), patch(
+            "canvas_mcp.tools.code_execution._runtime_available",
+            new=AsyncMock(return_value=True),
+        ), patch(
+            "canvas_mcp.tools.code_execution.asyncio.create_subprocess_exec",
+            new_callable=AsyncMock,
+            return_value=_mock_process(),
+        ) as spawn:
+            await tool(code="console.log(1)")
+
+        cmd = list(spawn.call_args.args)
+        assert "--user" in cmd
+        uid_gid = cmd[cmd.index("--user") + 1]
+        assert uid_gid == configured_uid_gid, (
+            f"expected configured {configured_uid_gid}, got {uid_gid}"
+        )
+
+    @pytest.mark.parametrize(
+        "malformed_uid_gid",
+        [
+            pytest.param("not-a-number", id="non-numeric"),
+            pytest.param(f"{'0' * 4301}:1000", id="pathologically-long"),
+            pytest.param("١٠٠٠:١٠٠٠", id="unicode-digits"),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_malformed_uid_gid_rejected_with_default(self, malformed_uid_gid):
+        """A malformed TS_SANDBOX_UID_GID falls back to the default.
+
+        Configuration construction resets the value without relying on
+        validate_config(), which the HTTP startup path intentionally skips.
+        """
+        tool = get_execute_typescript(
+            TS_SANDBOX_MODE="container", TS_SANDBOX_UID_GID=malformed_uid_gid
+        )
+        if tool is None:
+            pytest.skip("execute_typescript not registered in this configuration")
+
+        # Config construction must clamp this for both stdio and HTTP startup.
+        with patch(
+            "canvas_mcp.tools.code_execution._detect_container_runtime",
+            return_value="docker",
+        ), patch(
+            "canvas_mcp.tools.code_execution._runtime_available",
+            new=AsyncMock(return_value=True),
+        ), patch(
+            "canvas_mcp.tools.code_execution.asyncio.create_subprocess_exec",
+            new_callable=AsyncMock,
+            return_value=_mock_process(),
+        ) as spawn:
+            await tool(code="console.log(1)")
+
+        cmd = list(spawn.call_args.args)
+        assert "--user" in cmd
+        uid_gid = cmd[cmd.index("--user") + 1]
+        assert uid_gid == "65532:65532", (
+            f"{malformed_uid_gid!r} should fall back to 65532:65532, got {uid_gid}"
+        )
+
+    @pytest.mark.parametrize(
+        "root_uid_gid",
+        ["0:0", "0:65532", "65532:0", "00:00", "00:65532", "65532:00"],
+    )
+    @pytest.mark.asyncio
+    async def test_root_uid_gid_rejected_with_default(self, root_uid_gid):
+        """Any numeric representation of a zero uid or gid falls back safely.
+
+        Configuration construction resets the value without relying on
+        validate_config(), which the HTTP startup path intentionally skips.
+        """
+        tool = get_execute_typescript(
+            TS_SANDBOX_MODE="container", TS_SANDBOX_UID_GID=root_uid_gid
+        )
+        if tool is None:
+            pytest.skip("execute_typescript not registered in this configuration")
+
+        # Config construction must clamp this for both stdio and HTTP startup.
+        with patch(
+            "canvas_mcp.tools.code_execution._detect_container_runtime",
+            return_value="docker",
+        ), patch(
+            "canvas_mcp.tools.code_execution._runtime_available",
+            new=AsyncMock(return_value=True),
+        ), patch(
+            "canvas_mcp.tools.code_execution.asyncio.create_subprocess_exec",
+            new_callable=AsyncMock,
+            return_value=_mock_process(),
+        ) as spawn:
+            await tool(code="console.log(1)")
+
+        cmd = list(spawn.call_args.args)
+        assert "--user" in cmd
+        uid_gid = cmd[cmd.index("--user") + 1]
+        assert uid_gid == "65532:65532", (
+            f"{root_uid_gid} should fall back to default 65532:65532, got {uid_gid}"
+        )
+
