@@ -32,10 +32,6 @@ _SAFE_ENV_KEYS = frozenset({
     "CONTAINER_HOST",
 })
 
-# Numeric uid:gid the sandbox container runs as instead of image-default root
-# (the distroless "nonroot" convention). Numeric, not a named user, because
-# the operator-configured image is not guaranteed to define one.
-_SANDBOX_UID_GID = "65532:65532"
 
 
 def _container_run_script(container_code_api_dir: str) -> str:
@@ -581,7 +577,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     # (root for node:*-alpine and most images), so a container
                     # escape does not hand back root.
                     "--user",
-                    _SANDBOX_UID_GID,
+                    config.ts_sandbox_uid_gid,
                     # Drop all Linux capabilities and block privilege escalation;
                     # the tsx runtime needs none of them.
                     "--cap-drop=ALL",
