@@ -14,6 +14,7 @@ fixture standing in for it.
 """
 
 import json
+from pathlib import Path
 
 import pytest
 from fastmcp import Client, FastMCP
@@ -235,3 +236,63 @@ async def test_registry_is_queried_live_not_at_registration_time():
     mcp = _registry()
     data = await _search(mcp, "execute_typescript", detail_level="names")
     assert "execute_typescript" in data["mcp_tools"]["tools"]
+
+
+# --- Locale-independent decoding of the TypeScript code-API files ----------
+#
+# The code_api/**/*.ts files are UTF-8 and two of them contain U+2713/U+2717
+# ("✓"/"✗") in console output strings. Path.read_text() without an explicit
+# encoding resolves to locale.getpreferredencoding(), so on a Windows install
+# whose code page is not cp1252 (cp932 Japanese, cp936 Simplified Chinese,
+# cp1253 Greek, ...) those two files raise UnicodeDecodeError. The read sits
+# under `except Exception: continue`, so they are silently dropped from the
+# search results with no error reported to the caller.
+#
+# CI runs on UTF-8, where the bug is invisible — hence the explicit shim
+# below rather than relying on the ambient locale.
+
+@pytest.fixture
+def _non_utf8_default_locale(monkeypatch):
+    """Make encoding-less text reads behave as they do on a cp932 host."""
+    real_read_text = Path.read_text
+
+    def shim(self, encoding=None, errors=None, *args, **kwargs):
+        return real_read_text(self, encoding=encoding or "cp932", errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", shim)
+
+
+def _code_api_files(data: dict) -> set[str]:
+    return {
+        entry["file"].replace("\\", "/")
+        for entry in data["code_execution_api"]["tools"]
+        if isinstance(entry, dict)
+    }
+
+
+@pytest.mark.asyncio
+async def test_code_api_search_does_not_drop_files_on_non_utf8_locale(
+    _non_utf8_default_locale,
+):
+    """Content search must find UTF-8 modules whatever the host code page."""
+    mcp = _registry()
+    data = await _search(mcp, "submission", detail_level="signatures")
+
+    found = _code_api_files(data)
+    # Both of these match "submission" only in their body, so they are
+    # reached through the content-search path that does the decoding.
+    assert "grading/bulkGrade.ts" in found
+    assert "discussions/bulkGradeDiscussion.ts" in found
+
+
+@pytest.mark.asyncio
+async def test_code_api_signatures_readable_on_non_utf8_locale(
+    _non_utf8_default_locale,
+):
+    """Signature extraction must not degrade to an error entry."""
+    mcp = _registry()
+    data = await _search(mcp, "bulkGrade", detail_level="signatures")
+
+    entries = data["code_execution_api"]["tools"]
+    assert entries, "expected bulkGrade modules to be found"
+    assert not [e for e in entries if isinstance(e, dict) and "error" in e]
