@@ -208,7 +208,7 @@ def _float_env(name: str, default: float) -> float:
 
 
 _DEFAULT_TS_SANDBOX_UID_GID = "65532:65532"
-_TS_SANDBOX_UID_GID_PATTERN = re.compile(r"^\d+:\d+$")
+_TS_SANDBOX_UID_GID_PATTERN = re.compile(r"^[0-9]{1,10}:[0-9]{1,10}$")
 
 
 def _parse_ts_sandbox_uid_gid(value: str) -> str:

@@ -383,15 +383,23 @@ class TestSandboxUidGidConfigurable:
             f"expected configured {configured_uid_gid}, got {uid_gid}"
         )
 
+    @pytest.mark.parametrize(
+        "malformed_uid_gid",
+        [
+            pytest.param("not-a-number", id="non-numeric"),
+            pytest.param(f"{'0' * 4301}:1000", id="pathologically-long"),
+            pytest.param("١٠٠٠:١٠٠٠", id="unicode-digits"),
+        ],
+    )
     @pytest.mark.asyncio
-    async def test_malformed_uid_gid_rejected_with_default(self):
+    async def test_malformed_uid_gid_rejected_with_default(self, malformed_uid_gid):
         """A malformed TS_SANDBOX_UID_GID falls back to the default.
 
         Configuration construction resets the value without relying on
         validate_config(), which the HTTP startup path intentionally skips.
         """
         tool = get_execute_typescript(
-            TS_SANDBOX_MODE="container", TS_SANDBOX_UID_GID="not-a-number"
+            TS_SANDBOX_MODE="container", TS_SANDBOX_UID_GID=malformed_uid_gid
         )
         if tool is None:
             pytest.skip("execute_typescript not registered in this configuration")
@@ -414,7 +422,7 @@ class TestSandboxUidGidConfigurable:
         assert "--user" in cmd
         uid_gid = cmd[cmd.index("--user") + 1]
         assert uid_gid == "65532:65532", (
-            f"malformed value should fall back to default 65532:65532, got {uid_gid}"
+            f"{malformed_uid_gid!r} should fall back to 65532:65532, got {uid_gid}"
         )
 
     @pytest.mark.parametrize(
