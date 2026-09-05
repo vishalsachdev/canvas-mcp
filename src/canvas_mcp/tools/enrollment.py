@@ -26,7 +26,7 @@ from ..core.validation import validate_params
 def register_enrollment_tools(mcp: FastMCP) -> None:
     """Register the enrollment-check MCP tool."""
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def check_enrollment(
         course_identifier: str | int,

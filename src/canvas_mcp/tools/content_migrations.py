@@ -252,7 +252,7 @@ def register_content_migration_tools(mcp: FastMCP) -> None:
     """Register educator-only content migration tools."""
 
     @mcp.tool(
-        annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False)
+        annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=False)
     )
     @validate_params
     async def create_content_migration(
@@ -381,7 +381,7 @@ def register_content_migration_tools(mcp: FastMCP) -> None:
             "next_action": _next_status_action(target_id, migration_id),
         }
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def get_content_migration_status(
         course_identifier: str | int,

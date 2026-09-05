@@ -1,16 +1,16 @@
 """Tool-annotation contract (issues #200, #204).
 
 Every registered tool must declare what it does to the world. A read tool says
-``readOnlyHint=True``; a write tool must answer both remaining questions —
-whether it replaces existing data (``destructiveHint``) and whether repeating it
-changes anything (``idempotentHint``).
+``read_only_hint=True``; a write tool must answer both remaining questions —
+whether it replaces existing data (``destructive_hint``) and whether repeating it
+changes anything (``idempotent_hint``).
 
 The point of the first test is that a NEW tool cannot land without making those
 declarations: an unannotated tool fails CI rather than shipping bare, which is
 how #200 happened in the first place. Enumerating the live registry rather than
 a hand-maintained list is what makes that work.
 
-Semantics follow the MCP spec, not a local convention: ``destructiveHint=False``
+Semantics follow the MCP spec, not a local convention: ``destructive_hint=False``
 asserts the tool performs ONLY ADDITIVE updates, so a tool that overwrites grades
 or replaces a page body is destructive even though it deletes nothing.
 """
@@ -174,28 +174,28 @@ async def test_every_tool_declares_its_effect_on_the_world():
         if annotations is None:
             undeclared.append(f"{tool.name}: no annotations at all")
             continue
-        if annotations.readOnlyHint:
+        if annotations.read_only_hint:
             continue
-        if annotations.destructiveHint is None:
-            undeclared.append(f"{tool.name}: write tool missing destructiveHint")
-        if annotations.idempotentHint is None:
-            undeclared.append(f"{tool.name}: write tool missing idempotentHint")
+        if annotations.destructive_hint is None:
+            undeclared.append(f"{tool.name}: write tool missing destructive_hint")
+        if annotations.idempotent_hint is None:
+            undeclared.append(f"{tool.name}: write tool missing idempotent_hint")
 
     assert not undeclared, (
-        "every tool must declare readOnlyHint, or both destructiveHint and "
-        "idempotentHint (see issue #204):\n  " + "\n  ".join(sorted(undeclared))
+        "every tool must declare read_only_hint, or both destructive_hint and "
+        "idempotent_hint (see issue #204):\n  " + "\n  ".join(sorted(undeclared))
     )
 
 
 @pytest.mark.asyncio
 async def test_tools_that_replace_data_are_marked_destructive():
-    """destructiveHint=False claims 'additive only' — grades say otherwise."""
+    """destructive_hint=False claims 'additive only' — grades say otherwise."""
     tools = {tool.name: tool for tool in await _registry().list_tools()}
 
     for name in DESTRUCTIVE:
         assert name in tools, f"{name} is no longer registered — update this list"
-        assert tools[name].annotations.destructiveHint is True, (
-            f"{name} replaces existing data, so destructiveHint must be True; "
+        assert tools[name].annotations.destructive_hint is True, (
+            f"{name} replaces existing data, so destructive_hint must be True; "
             "False asserts the tool performs only additive updates"
         )
 
@@ -206,7 +206,7 @@ async def test_additive_tools_are_not_marked_destructive():
 
     for name in ADDITIVE:
         assert name in tools, f"{name} is no longer registered — update this list"
-        assert tools[name].annotations.destructiveHint is False, (
+        assert tools[name].annotations.destructive_hint is False, (
             f"{name} only adds; marking it destructive costs users an "
             "unnecessary confirmation"
         )
@@ -217,8 +217,8 @@ async def test_repeatable_tools_declare_idempotency_honestly():
     tools = {tool.name: tool for tool in await _registry().list_tools()}
 
     for name in NOT_IDEMPOTENT:
-        assert tools[name].annotations.idempotentHint is False, (
-            f"{name} produces a duplicate when repeated, so idempotentHint "
+        assert tools[name].annotations.idempotent_hint is False, (
+            f"{name} produces a duplicate when repeated, so idempotent_hint "
             "must be False — a host may otherwise retry it safely"
         )
 
@@ -232,7 +232,7 @@ async def test_repeatable_tools_declare_idempotency_honestly():
     for name in ("update_assignment", "update_module", "update_discussion_topic",
                  "edit_page_content", "delete_page", "bulk_delete_announcements",
                  "delete_announcements_by_criteria", "delete_assignment_with_confirmation"):
-        assert tools[name].annotations.idempotentHint is True, (
+        assert tools[name].annotations.idempotent_hint is True, (
             f"{name} converges on the same end state when repeated"
         )
 
@@ -244,7 +244,7 @@ async def test_read_tools_are_marked_read_only():
 
     for name in ("list_courses", "get_course_details", "check_enrollment",
                  "list_submissions", "get_syllabus", "read_course_file"):
-        assert tools[name].annotations.readOnlyHint is True, (
+        assert tools[name].annotations.read_only_hint is True, (
             f"{name} does not write and should say so"
         )
 
@@ -288,7 +288,7 @@ async def test_list_courses_boolean_parameters_have_descriptions():
     async with Client(_registry()) as client:
         tools = {tool.name: tool for tool in await client.list_tools()}
 
-    properties = tools["list_courses"].inputSchema["properties"]
+    properties = tools["list_courses"].input_schema["properties"]
 
     assert "concluded" in properties["include_concluded"]["description"].lower()
     assert "active" in properties["include_all"]["description"].lower()

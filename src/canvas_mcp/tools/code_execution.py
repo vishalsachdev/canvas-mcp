@@ -354,7 +354,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
     # endpoint the token reaches. Nothing here can be inspected ahead of time,
     # so both hints take their most conservative value: assume it replaces data
     # and assume repeating it does more (issue #204).
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=False))
     @validate_params
     async def execute_typescript(
         code: str,
@@ -771,7 +771,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
             except Exception:
                 pass  # Ignore cleanup errors
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def list_code_api_modules() -> str:
         """List all available TypeScript modules in the code execution API.

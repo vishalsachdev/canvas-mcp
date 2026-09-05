@@ -81,7 +81,7 @@ def _notify_of_update_warning(response: dict[str, Any]) -> str:
 def register_page_tools(mcp: FastMCP) -> None:
     """Register page settings MCP tools."""
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=False))
     @validate_params
     async def update_page_settings(
         course_identifier: str | int,
@@ -166,7 +166,7 @@ def register_page_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=False))
     @validate_params
     async def bulk_update_pages(
         course_identifier: str | int,
@@ -288,7 +288,7 @@ def register_educator_page_crud_tools(mcp: FastMCP) -> None:
 
     # front_page=True displaces the course's CURRENT front page -- Canvas
     # allows only one -- so the whole effect is not additive (#204).
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=False))
     @validate_params
     async def create_page(course_identifier: str | int,
                          title: str,
@@ -347,7 +347,7 @@ def register_educator_page_crud_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=True))
     @validate_params
     async def edit_page_content(course_identifier: str | int,
                                page_url_or_id: str,
@@ -397,7 +397,7 @@ def register_educator_page_crud_tools(mcp: FastMCP) -> None:
 
         return f"Successfully updated page '{page_title}' in course {course_display}. Last updated: {updated_at}"
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=True))
     @validate_params
     async def delete_page(
         course_identifier: str | int,

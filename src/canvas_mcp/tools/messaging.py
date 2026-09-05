@@ -312,7 +312,7 @@ Please complete your peer reviews as soon as possible to receive full participat
 def register_shared_messaging_tools(mcp: FastMCP) -> None:
     """Register messaging tools accessible to both students and educators."""
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def list_conversations(
         scope: str = "unread",
@@ -370,7 +370,7 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
             print(f"Error listing conversations: {str(e)}", file=sys.stderr)
             return {"error": f"Failed to list conversations: {str(e)}"}
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def get_conversation_details(
         conversation_id: str | int,
@@ -418,7 +418,7 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
             print(f"Error getting conversation details: {str(e)}", file=sys.stderr)
             return {"error": f"Failed to get conversation details: {str(e)}"}
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     async def get_unread_count() -> dict[str, Any]:
         """Get number of unread conversations."""
 
@@ -438,7 +438,7 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
             print(f"Error getting unread count: {str(e)}", file=sys.stderr)
             return {"error": f"Failed to get unread count: {str(e)}"}
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=False, idempotent_hint=True))
     @validate_params
     async def mark_conversations_read(conversation_ids: list[str]) -> dict[str, Any]:
         """
@@ -481,7 +481,7 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
 def register_educator_messaging_tools(mcp: FastMCP) -> None:
     """Register educator-only messaging tools (send, bulk, campaigns)."""
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=False, idempotent_hint=False))
     @validate_params
     async def send_conversation(
         course_identifier: str | int,
@@ -620,7 +620,7 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
             print(f"Error sending conversation: {str(e)}", file=sys.stderr)
             return {"error": f"Failed to send conversation: {str(e)}"}
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=False, idempotent_hint=False))
     @validate_params
     async def send_peer_review_inbox_messages(
         course_identifier: str | int,
@@ -785,7 +785,7 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                 "nothing_sent": True,
             }
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=False, idempotent_hint=False))
     @validate_params
     async def send_bulk_messages_from_list(
         course_identifier: str | int,
@@ -949,7 +949,7 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
             print(f"Error sending bulk messages: {str(e)}", file=sys.stderr)
             return {"error": f"Failed to send bulk messages: {str(e)}"}
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=False, idempotent_hint=False))
     @validate_params
     async def send_peer_review_followup_campaign(
         course_identifier: str | int,

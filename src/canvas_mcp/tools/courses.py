@@ -147,7 +147,7 @@ def strip_html_tags(html_content: str) -> str:
 def register_course_tools(mcp: FastMCP) -> None:
     """Register all course-related MCP tools."""
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def list_courses(
         include_concluded: bool = False, include_all: bool = False
@@ -218,7 +218,7 @@ def register_course_tools(mcp: FastMCP) -> None:
 
         return "Courses:\n\n" + "\n".join(courses_info)
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def get_course_details(course_identifier: str | int) -> str:
         """Get detailed information about a specific course.
@@ -262,7 +262,7 @@ def register_course_tools(mcp: FastMCP) -> None:
         course_display = response.get("course_code", course_identifier)
         return f"Course Details for {course_display}:\n\n" + "\n".join(details)
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def get_syllabus(course_identifier: str | int,
                            output_format: str = "text",
@@ -335,7 +335,7 @@ def register_course_tools(mcp: FastMCP) -> None:
 
         return "\n".join(sections)
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def get_course_content_overview(course_identifier: str | int,
                                         include_pages: bool = True,
@@ -482,7 +482,7 @@ def register_course_tools(mcp: FastMCP) -> None:
 def register_shared_content_tools(mcp: FastMCP) -> None:
     """Register shared content tools (pages, module items) for both students and educators."""
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def list_pages(course_identifier: str | int,
                         sort: str | None = "title",
@@ -540,7 +540,7 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
         course_display = await get_course_code(course_id) or course_identifier
         return f"Pages for Course {course_display}:\n\n" + "\n".join(pages_info)
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def get_page_content(course_identifier: str | int, page_url_or_id: str) -> str:
         """Get the full content body of a specific page.
@@ -587,7 +587,7 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
             + fence_untrusted(untrusted, "page title, body, and media inventory")
         )
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def get_page_details(course_identifier: str | int, page_url_or_id: str) -> str:
         """Get a specific page's metadata plus a short text preview.
@@ -681,7 +681,7 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def get_front_page(course_identifier: str | int) -> str:
         """Get the front page content for a course.
@@ -713,7 +713,7 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
             + fence_untrusted(f"Title: {title}\n\n{body}", "front page title and body")
         )
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def list_module_items(course_identifier: str | int,
                                module_id: str | int,

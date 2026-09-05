@@ -64,7 +64,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
     # ===== DISCUSSION TOOLS =====
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def list_discussion_topics(course_identifier: str | int,
                                    include_announcements: bool = False) -> str:
@@ -140,7 +140,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         course_display = await get_course_code(course_id) or course_identifier
         return f"Discussion Topics for Course {course_display}:\n\n" + "\n".join(topics_info)
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def list_announcements(course_identifier: str) -> str:
         """List a course's announcements, and nothing else.
@@ -185,7 +185,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         course_display = await get_course_code(course_id) or course_identifier
         return f"Announcements for Course {course_display}:\n\n" + "\n".join(announcements_info)
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def get_discussion_topic_details(course_identifier: str | int,
                                          topic_id: str | int) -> str:
@@ -258,7 +258,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def list_discussion_entries(course_identifier: str | int,
                                     topic_id: str | int,
@@ -482,7 +482,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             + footer
         )
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def get_discussion_entry_details(course_identifier: str | int,
                                          topic_id: str | int,
@@ -660,7 +660,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def get_discussion_with_replies(course_identifier: str | int,
                                         topic_id: str | int,
@@ -797,7 +797,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=False, idempotent_hint=False))
     @validate_params
     async def post_discussion_entry(course_identifier: str | int,
                                   topic_id: str | int,
@@ -860,7 +860,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=False, idempotent_hint=False))
     @validate_params
     async def reply_to_discussion_entry(course_identifier: str | int,
                                       topic_id: str | int,
@@ -910,7 +910,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 def register_educator_discussion_tools(mcp: FastMCP) -> None:
     """Register educator-only discussion and announcement tools."""
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=False, idempotent_hint=False))
     @validate_params
     async def create_discussion_topic(course_identifier: str | int,
                                     title: str,
@@ -972,7 +972,7 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                f"Title: {topic_title}\n" + \
                f"Created: {created_at}"
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=True))
     @validate_params
     async def update_discussion_topic(
         course_identifier: str | int,
@@ -1081,7 +1081,7 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
 
     # ===== ANNOUNCEMENT TOOLS =====
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=False, idempotent_hint=False))
     @validate_params
     async def create_announcement(course_identifier: str | int,
                                 title: str,
@@ -1216,7 +1216,7 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
     # matching and nothing is deleted. The un-tokened delete_announcement was
     # retired in the same pass.
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=True))
     @validate_params
     async def delete_announcement_with_confirmation(
         course_identifier: str | int,
@@ -1285,7 +1285,7 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
             result += "Title matched: True\n"
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=True))
     @validate_params
     async def bulk_delete_announcements(
         course_identifier: str | int,
@@ -1411,7 +1411,7 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
     # Idempotent since #318: the token is bound to the exact matched id set and
     # is single-use, so an identical retry either previews (no token) or is
     # refused (spent token) — it can no longer delete the NEXT batch.
-    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=True))
     @validate_params
     async def delete_announcements_by_criteria(
         course_identifier: str | int,

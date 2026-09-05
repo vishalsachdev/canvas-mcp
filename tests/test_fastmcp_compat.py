@@ -1,7 +1,7 @@
 """Characterization tests for the fastmcp APIs this codebase relies on.
 
-These pin the exact upstream behaviors the migration (issue #145) assumes,
-originally written against fastmcp 2.x and revalidated on 3.x. If a fastmcp
+These pin the exact upstream behaviors the migration (issue #142) assumes,
+originally written against fastmcp 2.x and revalidated on 3.x and 4.x. If a fastmcp
 upgrade breaks one of these, it breaks the server the same way.
 """
 
@@ -13,7 +13,7 @@ from mcp.types import ToolAnnotations
 def _make_server() -> FastMCP:
     mcp = FastMCP(name="compat-test")
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     async def sample_tool(course_identifier: str) -> str:
         """A sample tool."""
         return f"ok:{course_identifier}"
@@ -40,7 +40,7 @@ async def test_tool_registration_and_annotations():
         tools = await client.list_tools()
         tool = next(t for t in tools if t.name == "sample_tool")
         assert tool.annotations is not None
-        assert tool.annotations.readOnlyHint is True
+        assert tool.annotations.read_only_hint is True
         result = await client.call_tool(
             "sample_tool", {"course_identifier": "badm_350"}
         )
@@ -52,7 +52,7 @@ async def test_resource_template_with_keyword_uri():
     mcp = _make_server()
     async with Client(mcp) as client:
         templates = await client.list_resource_templates()
-        assert any("canvas://course/" in t.uriTemplate for t in templates)
+        assert any("canvas://course/" in t.uri_template for t in templates)
 
 
 @pytest.mark.asyncio

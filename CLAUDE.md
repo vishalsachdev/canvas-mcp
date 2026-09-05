@@ -303,7 +303,9 @@ See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comp
   patched 2026-07-31**: merging a brief closed #172, because it described another PR as `fixes #172`
   and GitHub parses closing keywords anywhere in a merged PR body. Routine now forbids them *and*
   greps its own output before opening the PR (#172 reopened)
-- [ ] Issue #142 → **watch item, unassigned** (`blocked-upstream`): `fastmcp-slim` 3.4.5 still pins `mcp<2.0`, so relaxing our pin cannot resolve; `mcp` 2.0.0 stable has shipped. Scope collapsed since #167 removed the FastMCP→MCPServer rename — hours, not a day. Trigger: a fastmcp release lifting `mcp<2.0`
+- [x] Issue #142 → FastMCP 4 / MCP SDK 2 migration complete: dependency
+  constraints and lockfile upgraded, protocol-model reads use native snake_case,
+  and CI runs with the temporary camelCase compatibility bridge disabled
 - [x] Issue #145 / PR #167: fastmcp 3.4.4 migration — **DONE 2026-07-21** (CVEs PYSEC-2026-2475/2476 resolved; dep-scan green; staging-validated then prod-deployed + live-verified; #145 closed)
 - [ ] Issue #157: `execute_typescript` sandbox hardening backlog (container-level egress, non-root user, prebuilt tsx image) — **self-hosted-only now**: tool is DISABLED on both hosted slots (`EXECUTE_TYPESCRIPT_ENABLED=false`, verified 2026-07-10); gate on re-enabling hosted code-exec
 - [ ] **Agent Plugins ([agent-plugins.org](https://agent-plugins.org)) → watch item, no owner.** Spec 1.0.0
