@@ -119,7 +119,7 @@ class PeerReviewAnalyzer:
         try:
             # Get the assignments data
             assignments_data = await self.get_assignments(
-                course_id, assignment_id, include_names=True
+                course_id, assignment_id, include_names=False
             )
 
             if "error" in assignments_data:
@@ -137,6 +137,10 @@ class PeerReviewAnalyzer:
                 return {"error": f"Failed to get users: {users_response}"}
 
             students = users_response if isinstance(users_response, list) else []
+            student_names = {
+                student.get("id"): student.get("name", "Unknown")
+                for student in students
+            }
 
             # Calculate completion statistics
             reviewer_stats = {}
@@ -149,7 +153,7 @@ class PeerReviewAnalyzer:
                 if reviewer_id not in reviewer_stats:
                     reviewer_stats[reviewer_id] = {
                         "student_id": reviewer_id,
-                        "student_name": assignment.get("reviewer_name", "Unknown"),
+                        "student_name": student_names.get(reviewer_id, "Unknown"),
                         "assigned_count": 0,
                         "completed_count": 0,
                         "pending_reviews": []
@@ -171,7 +175,9 @@ class PeerReviewAnalyzer:
 
                     reviewer_stats[reviewer_id]["pending_reviews"].append({
                         "reviewee_id": assignment["reviewee_id"],
-                        "reviewee_name": assignment.get("reviewee_name", "Unknown"),
+                        "reviewee_name": student_names.get(
+                            assignment["reviewee_id"], "Unknown"
+                        ),
                         "days_since_assigned": days_since_assigned
                     })
 
