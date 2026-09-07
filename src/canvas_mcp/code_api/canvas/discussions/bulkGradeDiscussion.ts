@@ -1,6 +1,6 @@
 import { canvasGet, canvasPut, canvasPutForm, fetchAllPaginated } from "../../client.js";
 
-interface DiscussionEntry {
+export interface DiscussionEntry {
   id: number;
   user_id: number;
   parent_id?: number | null;
