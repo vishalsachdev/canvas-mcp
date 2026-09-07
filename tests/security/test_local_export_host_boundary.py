@@ -5,7 +5,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastmcp import FastMCP
 
-from canvas_mcp.core.credentials import clear_http_request_context, set_http_request_active
+from canvas_mcp.core.credentials import (
+    clear_http_request_context,
+    set_http_request_active,
+)
 from canvas_mcp.tools.admin_tools import register_admin_tools
 from canvas_mcp.tools.peer_review_comments import register_peer_review_comment_tools
 from canvas_mcp.tools.peer_reviews import register_peer_review_tools
