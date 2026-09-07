@@ -12,6 +12,7 @@ from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_id
 from ..core.client import make_canvas_request
+from ..core.credentials import is_http_request_active
 from ..core.csv_safety import csv_safe_cell, rows_to_csv_string
 from ..core.file_validation import sanitize_filename
 from ..core.peer_review_comments import PeerReviewCommentAnalyzer
@@ -194,7 +195,7 @@ def register_peer_review_comment_tools(mcp: FastMCP) -> None:
         except Exception as e:
             return f"Error in identify_problematic_peer_reviews: {str(e)}"
 
-    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=False))
     @validate_params
     async def extract_peer_review_dataset(
         course_identifier: str | int,
@@ -216,6 +217,11 @@ def register_peer_review_comment_tools(mcp: FastMCP) -> None:
             save_locally: Save file locally
             filename: Custom filename
         """
+        if save_locally and is_http_request_active():
+            return (
+                "Error: Saving datasets to the server filesystem is only available "
+                "on a local (stdio) server. Set save_locally=false to return the data."
+            )
         try:
             course_id = await get_course_id(course_identifier)
             analyzer = PeerReviewCommentAnalyzer()
