@@ -12,6 +12,7 @@ Test Coverage:
 - TC-1.4: Data Retention
 """
 
+import json
 import os
 from unittest.mock import patch
 
@@ -123,12 +124,15 @@ class TestAuditLogging:
             cfg_mod._config = None
             try:
                 init_audit_logging()
-                log_data_access("GET", "/courses/123/users/456", "success")
+                with patch("canvas_mcp.core.audit.datetime") as audit_datetime:
+                    audit_datetime.now.return_value.isoformat.return_value = (
+                        "2026-09-08T04:38:06.123456+00:00"
+                    )
+                    log_data_access("GET", "/courses/123/users/456", "success")
                 captured = capsys.readouterr()
-                assert "data_access" in captured.err
-                # Verify endpoint is sanitized (no raw IDs)
-                assert "123" not in captured.err
-                assert "456" not in captured.err
+                event = json.loads(captured.err)
+                assert event["event_type"] == "data_access"
+                assert event["endpoint"] == "/courses/***/users/***"
             finally:
                 cfg_mod._config = old
                 reset_audit_state()
