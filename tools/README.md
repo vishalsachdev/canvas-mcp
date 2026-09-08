@@ -880,6 +880,8 @@ Get the peer review mapping showing who reviews whom, with completion status.
 #### `generate_peer_review_report`
 Generate a peer review completion report with summary statistics, analytics, and follow-up recommendations.
 
+> **Local file exports require a local (stdio) server.** Over HTTP, `save_to_file=true` is refused; use `save_to_file=false` to receive the report instead.
+
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `assignment_id`: Assignment ID
@@ -961,6 +963,8 @@ Create instructor-ready reports on peer review quality.
 
 #### `extract_peer_review_dataset`
 Export all peer review data for external analysis.
+
+> **Local file exports require a local (stdio) server.** Over HTTP, the default `save_locally=true` is refused; explicitly set `save_locally=false` to receive the dataset instead.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
@@ -1406,6 +1410,8 @@ Get the server's current data anonymization configuration and statistics.
 
 #### `create_student_anonymization_map`
 Create a local CSV file mapping real student data to anonymous IDs for a course.
+
+> **Local (stdio) servers only.** This tool refuses all HTTP calls without fetching identities or writing a file; run it on a local stdio server to create the map.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
