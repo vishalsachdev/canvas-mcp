@@ -1475,6 +1475,29 @@ Get the complete Canvas Syllabus tab content for a course, **untruncated**. Unli
 
 ---
 
+#### `update_syllabus`
+Write the Canvas Syllabus tab for a course. Educator-only — a student token cannot write a syllabus, so this tool is absent from the `student` profile.
+
+Canvas keeps **no revision history** for `syllabus_body`, unlike a wiki page. Replacing a syllabus that already has content is therefore two calls: the first returns a preview of what would be lost plus a single-use `Confirmation token: <token>`, and writes nothing; the second, with `confirmation_token=<token>` and identical arguments, performs the write. Writing into an empty syllabus, appending, or prepending destroys nothing and is a single call.
+
+After writing, the tool reads the syllabus back from Canvas and checks that what was sent is present. If Canvas accepted the request but the syllabus does not contain it — most often a token without `manage_course_content` — it reports a warning rather than success. The check compares visible text, not markup, because Canvas rewrites the body server-side: institutional themes inject `<link>`/`<script>` tags into every syllabus and the sanitizer drops attributes such as `rel="noopener"`. When Canvas does rewrite the HTML, the success message says so.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `syllabus_body`: HTML for the syllabus. Canvas stores this as HTML; plain text is accepted but renders unformatted.
+- `mode` (optional): `replace` (default) swaps the whole body, `append` adds to the end, `prepend` adds to the start
+- `confirmation_token` (optional): Token from the preview call. Only required when replacing a syllabus that already has content.
+
+**Example:**
+```
+"Add a link to the course website at the top of the BADM 350 syllabus"
+"Replace the CS101 syllabus with this HTML"
+```
+
+**Returns:** Confirmation that the syllabus was written and verified by reading it back. A replace over existing content first returns a preview plus a token.
+
+---
+
 #### `get_course_content_overview`
 Get a comprehensive overview of course content including pages, modules, and syllabus in one call.
 
