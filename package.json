@@ -4,19 +4,11 @@
   "description": "TypeScript code execution API for Canvas MCP",
   "type": "module",
   "scripts": {
-    "build": "tsc",
-    "exec": "node --loader ts-node/esm"
-  },
-  "dependencies": {
-    "node-fetch": "^3.3.2"
+    "build": "tsc"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
-    "ts-node": "^10.9.2",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2"
-  },
-  "overrides": {
-    "diff": "^4.0.4"
   }
 }

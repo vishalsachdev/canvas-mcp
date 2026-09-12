@@ -564,8 +564,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     warnings.append(message)
                     log_warning(message)
 
-            # Execute using tsx (faster than ts-node) or ts-node as fallback
-            # tsx is a fast TypeScript execution engine that doesn't require compilation
+            # Execute with tsx, which runs TypeScript without a separate build step.
             if sandbox_mode == "container" and container_runtime:
                 cmd = [
                     container_runtime,
