@@ -70,6 +70,10 @@ DESTRUCTIVE = {
     # Replaces a file (on_duplicate="overwrite") or a local CSV.
     "upload_course_file",
     "create_student_anonymization_map",
+    # Local (stdio) exports open their target with mode "w": a caller-supplied
+    # filename overwrites whatever is there.
+    "generate_peer_review_report",
+    "extract_peer_review_dataset",
     # "create_*" is not a safe guide: these displace existing state via an
     # option. front_page=True unseats the course's current front page (Canvas
     # allows one); assignment_id attaches a rubric over whatever was there.
@@ -140,6 +144,9 @@ NOT_IDEMPOTENT = {
     "upload_course_file",
     # mode="append"/"prepend" adds the same block again on every repeat.
     "update_syllabus",
+    # Default filename is timestamped to the second, so each repeat writes a
+    # NEW report file.
+    "generate_peer_review_report",
 }
 
 
@@ -232,9 +239,12 @@ async def test_repeatable_tools_declare_idempotency_honestly():
     # (an identical retry deleted the NEXT batch); since #318 its token is
     # bound to the exact match set and single-use, so a repeat previews or
     # refuses, never deletes more.
+    # extract_peer_review_dataset: fixed default filename + mode "w" means a repeat
+    # overwrites the same file. Contrast generate_peer_review_report above.
     for name in ("update_assignment", "update_module", "update_discussion_topic",
                  "edit_page_content", "delete_page", "bulk_delete_announcements",
-                 "delete_announcements_by_criteria", "delete_assignment_with_confirmation"):
+                 "delete_announcements_by_criteria", "delete_assignment_with_confirmation",
+                 "extract_peer_review_dataset"):
         assert tools[name].annotations.idempotent_hint is True, (
             f"{name} converges on the same end state when repeated"
         )

@@ -6,6 +6,7 @@ from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
+from ..core.credentials import is_http_request_active
 from ..core.csv_safety import csv_safe_cell
 from ..core.untrusted_content import fence_untrusted_inline
 from ..core.validation import validate_params
@@ -307,6 +308,12 @@ def register_admin_tools(mcp: FastMCP) -> None:
         from pathlib import Path
 
         from ..core.anonymization import generate_anonymous_id
+
+        if is_http_request_active():
+            return (
+                "Error: Creating a local identity map is only available on a local "
+                "(stdio) server. No file was written."
+            )
 
         course_id = await get_course_id(course_identifier)
 

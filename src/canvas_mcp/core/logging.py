@@ -5,6 +5,7 @@ import os
 import re
 import sys
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 # Configure logger for Canvas MCP
 logger = logging.getLogger("canvas_mcp")
@@ -70,10 +71,16 @@ def _sanitize_context(context: dict[str, Any]) -> dict[str, Any]:
 
 
 def sanitize_url(url: str) -> str:
-    """Replace numeric path segments in a URL with '***'.
+    """Remove URL credentials/query data and replace numeric path segments.
 
     Example: /courses/12345/users/678 → /courses/***/users/***
     """
+    parsed = urlsplit(url)
+    if parsed.scheme or parsed.netloc:
+        safe_netloc = parsed.netloc.rsplit("@", 1)[-1]
+        url = urlunsplit((parsed.scheme, safe_netloc, parsed.path, "", ""))
+    else:
+        url = url.split("?", 1)[0].split("#", 1)[0]
     return _NUMERIC_PATH_RE.sub("/***", url)
 
 
