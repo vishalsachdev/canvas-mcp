@@ -42,6 +42,11 @@ _UPDATE_SYLLABUS_GUARD = ConfirmationGuard(
 )
 
 
+def _syllabus_text(body: str) -> str:
+    """Visible text of a syllabus body, whitespace-collapsed, for comparison."""
+    return " ".join(strip_html_tags(body).split())
+
+
 class _MediaCollector(HTMLParser):
     """Collect embedded-media elements from a Canvas page body.
 
@@ -931,7 +936,18 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
                 "Open the course Syllabus tab in Canvas to check whether it saved.",
             )
 
-        if saved_body.strip() != new_body.strip():
+        # Compare the visible text, not the markup. Canvas returns HTML it
+        # rewrote server-side: institutional themes (DesignPlus on the Canvas
+        # this was tested against) inject <link>/<script> tags into every
+        # syllabus body, and the sanitizer drops attributes such as
+        # rel="noopener". Byte equality therefore fails on writes that
+        # succeeded perfectly, which would train the reader to ignore the
+        # warning. Text containment still catches the failure that matters --
+        # a token without manage_course_content leaves the old body in place,
+        # so the text just written is absent.
+        sent_text = _syllabus_text(new_body)
+        stored_text = _syllabus_text(saved_body)
+        if sent_text and sent_text not in stored_text:
             return unconfirmed_write_warning(
                 "the syllabus update",
                 {
@@ -940,9 +956,9 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
                     "Sent": f"{len(new_body)} characters",
                     "Stored by Canvas": f"{len(saved_body)} characters",
                 },
-                "Canvas accepted the request but stored something different. This "
-                "usually means the token lacks permission to edit the syllabus, or "
-                "Canvas rewrote the HTML. Check the Syllabus tab.",
+                "Canvas accepted the request but the syllabus does not contain "
+                "what was sent. This usually means the token lacks permission to "
+                "edit the syllabus. Check the Syllabus tab.",
             )
 
         verb = {
@@ -950,9 +966,15 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
             "append": "Appended to",
             "prepend": "Prepended to",
         }[normalized_mode]
-        return (
-            f"✅ {verb} the syllabus of course {course_display}.\n\n"
-            f"  Mode: {normalized_mode}\n"
-            f"  Syllabus is now {len(saved_body)} characters\n"
-            f"  Verified by reading the syllabus back from Canvas"
-        )
+        lines = [
+            f"✅ {verb} the syllabus of course {course_display}.\n",
+            f"  Mode: {normalized_mode}",
+            f"  Syllabus is now {len(saved_body)} characters",
+            "  Verified by reading the syllabus back from Canvas",
+        ]
+        if saved_body.strip() != new_body.strip():
+            lines.append(
+                "  Note: Canvas stored a rewritten copy of the HTML (institutional "
+                "theme injection or sanitizing). The text sent is present."
+            )
+        return "\n".join(lines)

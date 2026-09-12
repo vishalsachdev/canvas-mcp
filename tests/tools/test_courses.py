@@ -780,13 +780,42 @@ class TestUpdateSyllabus:
         assert "fence" in result.lower() or "untrusted" in result.lower()
 
     @pytest.mark.asyncio
-    async def test_reports_a_warning_when_canvas_stores_something_else(self, mock_api):
-        """A 200 from Canvas is not proof the syllabus changed."""
-        fake, _ = self._canvas(existing="", stored="")
+    async def test_reports_a_warning_when_canvas_keeps_the_old_body(self, mock_api):
+        """A 200 from Canvas is not proof the syllabus changed.
+
+        A token without manage_course_content leaves the old body in place,
+        which is what the read-back is there to catch.
+        """
+        fake, _ = self._canvas(existing="<p>Old</p>", stored="<p>Old</p>")
+        mock_api['make_canvas_request'].side_effect = fake
+
+        update_syllabus = get_tool_function('update_syllabus')
+        result = await update_syllabus("CS101", "<p>New syllabus</p>", mode="append")
+
+        assert "✅" not in result
+        assert "Could not confirm" in result
+
+    @pytest.mark.asyncio
+    async def test_theme_injected_html_still_counts_as_success(self, mock_api):
+        """Canvas rewrites the body server-side; that is not a failed write.
+
+        Observed live: an institutional DesignPlus theme injects <link> and
+        <script> tags into every syllabus body, so the stored HTML never
+        matches the bytes sent. Byte equality reported "could not confirm" on
+        writes that had in fact succeeded.
+        """
+        injected = (
+            '<link rel="stylesheet" href="https://example.com/dp_app.css">'
+            "<p>New syllabus</p>"
+            '<script src="https://example.com/dp_app.js"></script>'
+        )
+        fake, sent = self._canvas(existing="", stored=injected)
         mock_api['make_canvas_request'].side_effect = fake
 
         update_syllabus = get_tool_function('update_syllabus')
         result = await update_syllabus("CS101", "<p>New syllabus</p>")
 
-        assert "✅" not in result
-        assert "Could not confirm" in result
+        assert "✅" in result, result
+        assert "Could not confirm" not in result
+        assert "rewritten copy" in result  # the rewrite is disclosed, not hidden
+        assert sent["body"] == "<p>New syllabus</p>"

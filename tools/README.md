@@ -1474,7 +1474,7 @@ Write the Canvas Syllabus tab for a course. Educator-only — a student token ca
 
 Canvas keeps **no revision history** for `syllabus_body`, unlike a wiki page. Replacing a syllabus that already has content is therefore two calls: the first returns a preview of what would be lost plus a single-use `Confirmation token: <token>`, and writes nothing; the second, with `confirmation_token=<token>` and identical arguments, performs the write. Writing into an empty syllabus, appending, or prepending destroys nothing and is a single call.
 
-After writing, the tool reads the syllabus back from Canvas and compares it to what was sent. If Canvas accepted the request but stored something different — most often a token without `manage_course_content` — it reports a warning rather than success.
+After writing, the tool reads the syllabus back from Canvas and checks that what was sent is present. If Canvas accepted the request but the syllabus does not contain it — most often a token without `manage_course_content` — it reports a warning rather than success. The check compares visible text, not markup, because Canvas rewrites the body server-side: institutional themes inject `<link>`/`<script>` tags into every syllabus and the sanitizer drops attributes such as `rel="noopener"`. When Canvas does rewrite the HTML, the success message says so.
 
 **Parameters:**
 - `course_identifier`: Course code or ID

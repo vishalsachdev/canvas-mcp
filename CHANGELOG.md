@@ -16,8 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   preview → token → confirm path as the delete tools; writing into an empty
   syllabus, appending, or prepending is a single call. The write is verified by
   reading the syllabus back, and reports `unconfirmed_write_warning` rather than
-  success when Canvas accepts the request but stores something else (a token
-  without `manage_course_content` is the usual cause). Registered for the
+  success when the syllabus does not contain what was sent (a token without
+  `manage_course_content` is the usual cause). That read-back compares visible
+  text rather than markup: Canvas rewrites the body server-side, and an
+  institutional theme injecting `<link>`/`<script>` tags into every syllabus
+  made byte equality report failure on writes that had succeeded. When Canvas
+  does rewrite the HTML the success message says so. Registered for the
   `educator` and `all` profiles only.
 
 ### Changed
