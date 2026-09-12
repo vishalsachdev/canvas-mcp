@@ -180,6 +180,30 @@ def test_api_refuses_to_call_out_once_the_budget_is_spent(monkeypatch):
         brief.api("/repos/o/r/pulls", brief.Deadline(0))
 
 
+def test_discussions_are_skipped_once_the_budget_is_spent(monkeypatch):
+    def must_not_run(*a, **k):
+        raise AssertionError("gh was invoked after the budget was exhausted")
+
+    monkeypatch.setattr(brief.shutil, "which", lambda name: "/usr/bin/gh")
+    monkeypatch.setattr(brief.subprocess, "run", must_not_run)
+    lines = brief.fetch_discussions("o/r", NOW, brief.Deadline(0))
+    assert len(lines) == 1 and "time budget" in lines[0]
+
+
+def test_brief_names_unauthenticated_rate_limit_only_without_a_token(monkeypatch):
+    for fn in ("fetch_prs", "fetch_issues", "fetch_discussions"):
+        monkeypatch.setattr(brief, fn, lambda *a, **k: (["- x"], "1") if fn == "fetch_issues" else ["- x"])
+    monkeypatch.setattr(brief, "detect_repo", lambda root: "o/r")
+    monkeypatch.setattr(brief, "newest_triage_brief", lambda root: None)
+
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    assert "unauthenticated" in brief.build_brief("/x", far_deadline())
+
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+    assert "unauthenticated" not in brief.build_brief("/x", far_deadline())
+
+
 def test_check_runs_are_skipped_when_little_budget_remains(monkeypatch):
     calls = []
 

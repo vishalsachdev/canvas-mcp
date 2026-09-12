@@ -25,7 +25,19 @@ Constraints, each measured on the web (remote) environment:
 - One wall-clock budget (``BUDGET``) bounds the whole run, well inside the
   hook's 45s timeout: a harness kill happens before the JSON fallback can be
   printed, so per-call timeouts alone would not keep the fail-soft promise on
-  a slow-but-responsive network.
+  a slow-but-responsive network. Every network path checks the budget before
+  calling out, the gh subprocess included.
+- Unauthenticated GitHub calls are limited to 60 per hour per address, and a
+  run costs up to nine. The brief says so when no token is present; set
+  ``GITHUB_TOKEN`` (or ``GH_TOKEN``) for reliable briefs across many sessions.
+
+Trust model, written down because this file runs unasked: ``.claude/settings.json``
+is tracked, so a change to the hook command or to this script runs on any
+maintainer's machine the next time they start or resume a session on a checkout
+carrying it. Treat edits to either file as code execution on every maintainer's
+machine and review them that way; Claude Code's own trust prompt for a changed
+settings file is the only other gate. The script makes read-only GitHub calls
+and sends the token, if any, to api.github.com only.
 
 Usage:
     github_session_brief.py            # hook mode: JSON on stdout
@@ -218,6 +230,8 @@ def fetch_issues(repo: str, now: dt.datetime, deadline: Deadline) -> tuple[list[
 
 def fetch_discussions(repo: str, now: dt.datetime, deadline: Deadline) -> list[str]:
     """Discussions are GraphQL-only; use gh when it is installed and logged in."""
+    if deadline.remaining() <= 0.5:
+        return ["- skipped: the time budget was spent on PRs and issues"]
     gh = shutil.which("gh")
     if not gh:
         return ["- not reachable from this environment: GitHub serves Discussions over "
@@ -298,6 +312,13 @@ def build_brief(root: str, deadline: Deadline | None = None) -> str:
     brief = newest_triage_brief(root)
     if brief:
         sections.append(f"Newest daily triage brief: `{brief}` (the routine's own read of recent activity).")
+        sections.append("")
+
+    if not (os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")):
+        sections.append(
+            "Note: these calls were unauthenticated (60 per hour per address; a run costs up "
+            "to nine). Set GITHUB_TOKEN for reliable briefs across many sessions."
+        )
         sections.append("")
 
     sections.append(
