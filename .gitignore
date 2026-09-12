@@ -76,7 +76,11 @@ smithery-wrapper/.smithery/
 
 # Claude Code per-project working directory (local-only: permissions, in-flight plans, drafts)
 # Canonical skills live in top-level skills/ for skills.sh distribution.
-.claude/
+# settings.json is the one tracked file: it carries the SessionStart hook that
+# briefs every session on open issues/PRs/discussions, and web sessions clone
+# fresh, so an untracked hook would never fire there.
+.claude/*
+!.claude/settings.json
 
 # Cloudflare Wrangler local cache and state
 .wrangler/
