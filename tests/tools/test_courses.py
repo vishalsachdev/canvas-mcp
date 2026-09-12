@@ -20,7 +20,10 @@ def get_tool_function(tool_name: str):
     """
     from fastmcp import FastMCP
 
-    from canvas_mcp.tools.courses import register_course_tools
+    from canvas_mcp.tools.courses import (
+        register_course_tools,
+        register_educator_course_tools,
+    )
 
     mcp = FastMCP("test")
     captured_functions = {}
@@ -37,6 +40,7 @@ def get_tool_function(tool_name: str):
 
     mcp.tool = capturing_tool
     register_course_tools(mcp)
+    register_educator_course_tools(mcp)
 
     return captured_functions.get(tool_name)
 
@@ -649,3 +653,226 @@ class TestPageMediaReporting:
         result = await tool("TEST-101", "missing")
 
         assert "Error fetching page details" in result
+
+
+class TestUpdateSyllabus:
+    """Tests for the update_syllabus tool.
+
+    The behaviour that matters here is which writes are allowed to happen in a
+    single call. Canvas keeps no revision history for syllabus_body, so a
+    replace over existing content must go through preview->token->confirm,
+    while a write into an empty syllabus or an append must not.
+    """
+
+    @pytest.fixture
+    def mock_api(self):
+        with patch('canvas_mcp.tools.courses.get_course_id', new_callable=AsyncMock) as mock_id, \
+             patch('canvas_mcp.tools.courses.make_canvas_request', new_callable=AsyncMock) as mock_req:
+            mock_id.return_value = "60366"
+            yield {'get_course_id': mock_id, 'make_canvas_request': mock_req}
+
+    @staticmethod
+    def _canvas(existing: str, stored: str | None = None):
+        """Sequence the GET / PUT / read-back the tool performs.
+
+        ``stored`` defaults to echoing whatever the PUT sent, i.e. Canvas
+        behaving. Pass it explicitly to simulate Canvas silently storing
+        something else.
+        """
+        sent: dict[str, str] = {}
+
+        async def fake(method, path, params=None, data=None):
+            if method == "put":
+                sent["body"] = data["course"]["syllabus_body"]
+                return {"id": 60366, "course_code": "CS101"}
+            body = existing if "body" not in sent else (
+                sent["body"] if stored is None else stored
+            )
+            return {"course_code": "CS101", "syllabus_body": body}
+
+        return fake, sent
+
+    @pytest.mark.asyncio
+    async def test_writes_into_empty_syllabus_without_a_token(self, mock_api):
+        """Nothing is destroyed, so this must not demand a confirmation step."""
+        fake, sent = self._canvas(existing="")
+        mock_api['make_canvas_request'].side_effect = fake
+
+        update_syllabus = get_tool_function('update_syllabus')
+        assert update_syllabus is not None
+
+        result = await update_syllabus("CS101", "<p>See the course website</p>")
+
+        assert "✅" in result
+        assert "confirmation" not in result.lower()
+        assert sent["body"] == "<p>See the course website</p>"
+
+    @pytest.mark.asyncio
+    async def test_replacing_existing_content_previews_instead_of_writing(self, mock_api):
+        """The first call must show what would be lost and write nothing."""
+        fake, sent = self._canvas(existing="<p>Original syllabus</p>")
+        mock_api['make_canvas_request'].side_effect = fake
+
+        update_syllabus = get_tool_function('update_syllabus')
+        result = await update_syllabus("CS101", "<p>Replacement</p>")
+
+        assert "body" not in sent, "preview call must not PUT anything"
+        assert "Original syllabus" in result
+        assert "cannot be recovered" in result
+
+    @pytest.mark.asyncio
+    async def test_replace_goes_through_with_the_previewed_token(self, mock_api):
+        fake, sent = self._canvas(existing="<p>Original syllabus</p>")
+        mock_api['make_canvas_request'].side_effect = fake
+
+        update_syllabus = get_tool_function('update_syllabus')
+        preview = await update_syllabus("CS101", "<p>Replacement</p>")
+
+        token = preview.split("Confirmation token: ", 1)[1].split("\n", 1)[0].strip()
+        result = await update_syllabus(
+            "CS101", "<p>Replacement</p>", confirmation_token=token
+        )
+
+        assert "✅" in result, result
+        assert sent["body"] == "<p>Replacement</p>"
+
+    @pytest.mark.asyncio
+    async def test_append_keeps_existing_content_and_needs_no_token(self, mock_api):
+        """Appending cannot lose anything, so it stays a single call."""
+        fake, sent = self._canvas(existing="<p>Original</p>")
+        mock_api['make_canvas_request'].side_effect = fake
+
+        update_syllabus = get_tool_function('update_syllabus')
+        result = await update_syllabus("CS101", "<p>Added</p>", mode="append")
+
+        assert "✅" in result
+        assert sent["body"] == "<p>Original</p>\n<p>Added</p>"
+
+    @pytest.mark.asyncio
+    async def test_prepend_puts_new_content_first(self, mock_api):
+        fake, sent = self._canvas(existing="<p>Original</p>")
+        mock_api['make_canvas_request'].side_effect = fake
+
+        update_syllabus = get_tool_function('update_syllabus')
+        await update_syllabus("CS101", "<p>Added</p>", mode="prepend")
+
+        assert sent["body"] == "<p>Added</p>\n<p>Original</p>"
+
+    @pytest.mark.asyncio
+    async def test_rejects_unknown_mode_before_any_request(self, mock_api):
+        update_syllabus = get_tool_function('update_syllabus')
+        result = await update_syllabus("CS101", "<p>x</p>", mode="overwrite")
+
+        assert "invalid mode" in result
+        mock_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_refuses_to_write_back_fence_markers(self, mock_api):
+        """get_syllabus fences its output; that must never be round-tripped in."""
+        from canvas_mcp.core.untrusted_content import FENCE_TEXT_START
+
+        update_syllabus = get_tool_function('update_syllabus')
+        result = await update_syllabus(
+            "CS101", f"{FENCE_TEXT_START} (course syllabus)>>>\nhi"
+        )
+
+        mock_api['make_canvas_request'].assert_not_called()
+        assert "fence" in result.lower() or "untrusted" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_reports_a_warning_when_canvas_keeps_the_old_body(self, mock_api):
+        """A 200 from Canvas is not proof the syllabus changed.
+
+        A token without manage_course_content leaves the old body in place,
+        which is what the read-back is there to catch.
+        """
+        fake, _ = self._canvas(existing="<p>Old</p>", stored="<p>Old</p>")
+        mock_api['make_canvas_request'].side_effect = fake
+
+        update_syllabus = get_tool_function('update_syllabus')
+        result = await update_syllabus("CS101", "<p>New syllabus</p>", mode="append")
+
+        assert "✅" not in result
+        assert "Could not confirm" in result
+
+    @pytest.mark.asyncio
+    async def test_theme_injected_html_still_counts_as_success(self, mock_api):
+        """Canvas rewrites the body server-side; that is not a failed write.
+
+        Observed live: an institutional DesignPlus theme injects <link> and
+        <script> tags into every syllabus body, so the stored HTML never
+        matches the bytes sent. Byte equality reported "could not confirm" on
+        writes that had in fact succeeded.
+        """
+        injected = (
+            '<link rel="stylesheet" href="https://example.com/dp_app.css">'
+            "<p>New syllabus</p>"
+            '<script src="https://example.com/dp_app.js"></script>'
+        )
+        fake, sent = self._canvas(existing="", stored=injected)
+        mock_api['make_canvas_request'].side_effect = fake
+
+        update_syllabus = get_tool_function('update_syllabus')
+        result = await update_syllabus("CS101", "<p>New syllabus</p>")
+
+        assert "✅" in result, result
+        assert "Could not confirm" not in result
+        assert "rewritten copy" in result  # the rewrite is disclosed, not hidden
+        assert sent["body"] == "<p>New syllabus</p>"
+
+    @pytest.mark.asyncio
+    async def test_token_stops_matching_when_the_syllabus_changed_meanwhile(self, mock_api):
+        """The preview shows what will be destroyed; the token must be bound to it.
+
+        A co-teacher editing the syllabus between preview and confirm means the
+        confirmer would otherwise overwrite content no human ever saw, while
+        the preview's own wording promises the token "stops matching if the
+        target changes in the meantime".
+        """
+        fake, sent = self._canvas(existing="<p>Original syllabus</p>")
+        mock_api['make_canvas_request'].side_effect = fake
+
+        update_syllabus = get_tool_function('update_syllabus')
+        preview = await update_syllabus("CS101", "<p>Replacement</p>")
+        token = preview.split("Confirmation token: ", 1)[1].split("\n", 1)[0].strip()
+
+        # Someone else rewrote the syllabus in between.
+        changed, changed_sent = self._canvas(existing="<p>Edited by a colleague</p>")
+        mock_api['make_canvas_request'].side_effect = changed
+
+        result = await update_syllabus(
+            "CS101", "<p>Replacement</p>", confirmation_token=token
+        )
+
+        assert "body" not in changed_sent, "a stale token must not write"
+        assert "✅" not in result
+        assert "not changed" in result.lower() or "changed" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_rejects_an_empty_body_in_every_mode(self, mock_api):
+        update_syllabus = get_tool_function('update_syllabus')
+
+        for mode in ("append", "prepend"):
+            result = await update_syllabus("CS101", "   ", mode=mode)
+            assert "nothing to" in result, result
+
+        result = await update_syllabus("CS101", "", mode="replace")
+        assert "is empty" in result
+        mock_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_does_not_claim_verification_it_could_not_run(self, mock_api):
+        """A body with no visible text gives the containment check nothing.
+
+        Claiming "verified" there would be exactly the unearned success the
+        read-back exists to prevent.
+        """
+        fake, _ = self._canvas(existing="")
+        mock_api['make_canvas_request'].side_effect = fake
+
+        update_syllabus = get_tool_function('update_syllabus')
+        result = await update_syllabus("CS101", '<p><img src="/files/1/preview"></p>')
+
+        assert "✅" in result, result
+        assert "Verified by reading" not in result
+        assert "Not verified" in result

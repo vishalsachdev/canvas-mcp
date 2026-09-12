@@ -221,20 +221,31 @@ class ConfirmationGuard:
 
 
 def preview_with_token(
-    guard: ConfirmationGuard, fingerprint: str, tool_name: str, preview: str
+    guard: ConfirmationGuard,
+    fingerprint: str,
+    tool_name: str,
+    preview: str,
+    action: str = "delete",
 ) -> str:
     """Render a destructive-tool preview that ends with a fresh single-use token.
 
     Used by every delete tool (#318): the preview must show exactly what the
     token authorizes, and the fingerprint must be derived from that same
     content so a changed target stops matching.
+
+    ``action`` names the verb for tools whose irreversible write is not a
+    deletion -- ``update_syllabus`` replaces a body Canvas keeps no history
+    for. Telling the user a replace would "delete" something, or that nothing
+    was deleted when content was about to be overwritten, describes the wrong
+    risk. Defaults to "delete" so every existing call site reads unchanged.
     """
+    nothing_done = "Nothing deleted." if action == "delete" else guard.nothing_done
     return (
-        "PREVIEW — Nothing deleted.\n\n"
+        f"PREVIEW — {nothing_done}\n\n"
         f"{preview.rstrip()}\n\n"
         f"Confirmation token: {guard.issue(fingerprint)}\n"
-        f"Show this preview to the user. To delete, call {tool_name} again with "
-        "this confirmation_token and identical arguments. The token is "
+        f"Show this preview to the user. To {action}, call {tool_name} again "
+        "with this confirmation_token and identical arguments. The token is "
         "single-use, expires in 5 minutes, and stops matching if the target "
         "changes in the meantime."
     )
