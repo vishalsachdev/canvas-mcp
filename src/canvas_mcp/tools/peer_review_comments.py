@@ -195,7 +195,11 @@ def register_peer_review_comment_tools(mcp: FastMCP) -> None:
         except Exception as e:
             return f"Error in identify_problematic_peer_reviews: {str(e)}"
 
-    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=False))
+    # idempotent_hint=True: the default filename is fixed (peer_reviews_<name>_<id>)
+    # and the write opens with mode "w", so a repeat overwrites the same file and
+    # converges. destructive_hint=True for the same reason: a caller-supplied
+    # filename overwrites whatever is there.
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=True))
     @validate_params
     async def extract_peer_review_dataset(
         course_identifier: str | int,

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking
+
+- **Local file exports refuse HTTP callers.** On a shared (HTTP-transport)
+  server, `generate_peer_review_report(save_to_file=True)` and
+  `extract_peer_review_dataset(save_locally=True)` now return an error before
+  fetching anything, and `create_student_anonymization_map` refuses every HTTP
+  call, so one caller's student reports, datasets and identity maps can no
+  longer land on the server's disk. Migration: pass `save_to_file=False` /
+  `save_locally=False` to receive the content in the response instead. Note
+  that `extract_peer_review_dataset` defaults to `save_locally=True`, so its
+  bare call now fails over HTTP. Local stdio servers are unchanged. The two
+  export tools are no longer annotated read-only, since their local variants
+  write files; `extract_peer_review_dataset` is idempotent (fixed default
+  filename, overwritten in place) and `generate_peer_review_report` is not
+  (timestamped default filename, a new file per call).
+
 ### Added
 
 - **`update_syllabus`** — write the course Syllabus tab, which previously had a
@@ -29,6 +45,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Logged Canvas URLs are redacted before they reach the log: userinfo, query
+  string and fragment are stripped on top of the existing numeric-ID masking.
+  A presigned upload URL's signature was previously written to the log
+  verbatim.
+- `get_completion_analytics` fetches the peer-review roster once per analysis
+  instead of twice.
 - `preview_with_token` takes an optional `action` verb (default `"delete"`, so
   every existing call site is unchanged). Delete tools were its only callers, so
   its wording was hardcoded to deletion; `update_syllabus` is the first
