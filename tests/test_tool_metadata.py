@@ -62,6 +62,7 @@ DESTRUCTIVE = {
     "fix_accessibility_issues",
     # Replaces existing settings/fields.
     "update_assignment",
+    "update_syllabus",
     "update_module",
     "update_module_item",
     "update_page_settings",
@@ -137,6 +138,8 @@ NOT_IDEMPOTENT = {
     "send_peer_review_inbox_messages",
     # Default on_duplicate="rename" makes a NEW file on every call.
     "upload_course_file",
+    # mode="append"/"prepend" adds the same block again on every repeat.
+    "update_syllabus",
 }
 
 
