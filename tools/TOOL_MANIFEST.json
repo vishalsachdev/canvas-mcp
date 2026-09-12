@@ -652,6 +652,44 @@
       ]
     },
     {
+      "name": "update_syllabus",
+      "category": "educator",
+      "description": "Set the Canvas Syllabus tab content for a course. Replacing a syllabus that already has content is two-step: preview first, then confirm with the token.",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "syllabus_body",
+          "type": "string",
+          "required": true,
+          "description": "HTML for the syllabus. Canvas stores this as HTML; plain text renders without formatting"
+        },
+        {
+          "name": "mode",
+          "type": "string",
+          "required": false,
+          "default": "replace",
+          "description": "'replace' swaps the whole body, 'append' adds to the end, 'prepend' adds to the start"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Token from the preview call. Only required when replacing a syllabus that already has content"
+        }
+      ],
+      "returns": "Confirmation that the syllabus was written, verified by reading it back from Canvas. Replacing existing content first returns a preview plus a single-use token and writes nothing.",
+      "examples": [
+        "Add a link to the course website at the top of the BADM 350 syllabus",
+        "Replace the CS101 syllabus with this HTML"
+      ],
+      "notes": "Canvas keeps no revision history for syllabus_body, so a replace cannot be undone. Append and prepend, and any write into an empty syllabus, are single-call because they destroy nothing."
+    },
+    {
       "name": "list_discussion_topics",
       "category": "shared",
       "description": "View discussion forums in a course. Returns discussion topics only; announcements are excluded unless include_announcements is set. Use list_announcements to list announcements on their own.",

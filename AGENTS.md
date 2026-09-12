@@ -29,8 +29,8 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 ```
 # In .env:
 CANVAS_ROLE=student    # ~37 tools (student + shared)
-CANVAS_ROLE=educator   # 90 tools (educator + shared)
-CANVAS_ROLE=all        # Default profile; 96 tools by default, 101 with all feature-gated tools enabled
+CANVAS_ROLE=educator   # 91 tools (educator + shared)
+CANVAS_ROLE=all        # Default profile; 97 tools by default, 102 with all feature-gated tools enabled
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
@@ -107,6 +107,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `send_peer_review_inbox_messages` | Send direct Canvas Inbox messages about incomplete peer reviews; this is not Canvas's native reminder action. Requires `manage_grades` permission and uses **two calls** (preview + confirm) |
 | `create_announcement` | Post course announcements. Pre-checks Canvas's announcement permission; if Canvas silently creates a discussion instead, the tool deletes that unintended topic and reports failure (or warns if cleanup cannot be confirmed) |
 | `update_discussion_topic` | Edit discussion or announcement title/body and settings |
+| `update_syllabus` | Write the course Syllabus tab (`replace`, `append`, or `prepend`). Canvas keeps no revision history for the syllabus, so **replacing a syllabus that already has content is two calls** — preview + token, then confirm. Writing into an empty syllabus, appending, or prepending is a single call. The write is verified by reading the syllabus back |
 
 ### Untrusted Canvas content is fenced
 
@@ -140,7 +141,7 @@ Content access tools available to all authenticated users.
 | `get_my_enrollments` | What am I enrolled in, and as what role? Needs no roster permission |
 | `list_courses` | Enrolled courses (includes your own role in each) |
 | `get_course_details` | Course info and syllabus (includes your own role) |
-| `get_syllabus` | Full Syllabus tab content, untruncated (text/html/both) |
+| `get_syllabus` | Full Syllabus tab content, untruncated (text/html/both). Educators write it with `update_syllabus` |
 | `list_pages` | Course pages |
 | `get_page_content` | Read page content |
 | `update_page_settings` | Publish/unpublish, set front page, editing roles |
@@ -280,6 +281,26 @@ delete_announcements_by_criteria, delete_page, delete_module, delete_module_item
 delete_assignment_with_confirmation. There is no un-tokened delete tool.
 ```
 
+### Educator: Write the Syllabus
+```
+1. Read what is there now
+   → get_syllabus(course_id)
+
+2a. Adding to a syllabus, or filling an empty one — single call
+   → update_syllabus(course_id, "<p>...</p>", mode="append")
+
+2b. Replacing a syllabus that already has content — two calls
+   → update_syllabus(course_id, "<p>...</p>")            # returns a preview + token
+   Show the preview to the educator, then
+   → update_syllabus(course_id, "<p>...</p>", confirmation_token=token)
+
+Canvas keeps no revision history for the syllabus, so a replace cannot be
+undone — that is why only the destructive case asks for a token. The tool reads
+the syllabus back after writing and reports a warning rather than success if
+Canvas stored something different (a token without manage_course_content is the
+usual cause).
+```
+
 ### Educator: Copy Course Content
 ```
 1. Preview the source, target, optional date shift, and target occupancy
@@ -310,7 +331,7 @@ delete_assignment_with_confirmation. There is no un-tokened delete tool.
 
 ### Cannot Do
 - Create or delete courses
-- Modify course settings or structure
+- Modify course settings other than the syllabus body (`update_syllabus`)
 - Access data outside user's Canvas permissions
 - Bypass Canvas API rate limits
 - Access other students' data (for student users)

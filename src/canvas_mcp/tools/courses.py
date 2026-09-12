@@ -17,9 +17,29 @@ from ..core.cache import (
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.config import get_config
 from ..core.dates import format_date
-from ..core.untrusted_content import fence_untrusted, fence_untrusted_inline
+from ..core.untrusted_content import (
+    FENCE_LEAK_ERROR,
+    contains_fence_markers,
+    fence_untrusted,
+    fence_untrusted_inline,
+)
 from ..core.validation import validate_params
+from ..core.write_confirmation import (
+    ConfirmationGuard,
+    preview_with_token,
+    redeem_confirmation,
+    unconfirmed_write_warning,
+)
 from .self_identity import _own_roles
+
+# Replacing a syllabus that already has content destroys the only copy Canvas
+# keeps -- syllabus_body carries no revision history, unlike a wiki page. So
+# that one case takes the same preview->token->confirm path as the delete
+# tools; writing into an empty syllabus, or appending, has nothing to lose and
+# stays a single call.
+_UPDATE_SYLLABUS_GUARD = ConfirmationGuard(
+    nothing_done="The syllabus was not changed."
+)
 
 
 class _MediaCollector(HTMLParser):
@@ -778,3 +798,161 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
             result += f"Published: {'Yes' if published else 'No'}\n\n"
 
         return result
+
+
+def register_educator_course_tools(mcp: FastMCP) -> None:
+    """Register course tools that write, so need an instructor-scoped token.
+
+    Kept out of ``register_course_tools`` on purpose: that group is shared with
+    the student profile, and a student token cannot write a syllabus. Offering
+    the tool there would only produce 401s and widen the student profile's
+    write surface for no gain.
+    """
+
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=True))
+    @validate_params
+    async def update_syllabus(course_identifier: str | int,
+                              syllabus_body: str,
+                              mode: str = "replace",
+                              confirmation_token: str | None = None) -> str:
+        """Set the Canvas Syllabus tab content for a course.
+
+        Canvas keeps no revision history for the syllabus, so replacing a
+        syllabus that already has content is a two-step call: call without
+        confirmation_token to get a preview plus a single-use token, show the
+        preview to the educator, then call again with the token and identical
+        arguments. Writing into an empty syllabus, or appending/prepending,
+        destroys nothing and takes a single call.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            syllabus_body: HTML for the syllabus. Canvas stores this as HTML;
+                plain text is accepted but renders without formatting.
+            mode: "replace" (default) swaps the whole body, "append" adds to
+                the end of the existing body, "prepend" adds to the start.
+            confirmation_token: Token from the preview call. Only needed when
+                replacing a syllabus that already has content.
+        """
+        normalized_mode = (mode or "replace").lower()
+        if normalized_mode not in ("replace", "append", "prepend"):
+            return (
+                f"Error: invalid mode '{mode}'. "
+                "Use 'replace', 'append', or 'prepend'."
+            )
+
+        # Backstop for issue 239: get_syllabus fences the body it returns, so a
+        # model round-tripping that output would otherwise write our own
+        # provenance markers into the course.
+        if contains_fence_markers(syllabus_body):
+            return FENCE_LEAK_ERROR
+
+        if normalized_mode == "replace" and not syllabus_body.strip():
+            return (
+                "Error: syllabus_body is empty. To clear a syllabus "
+                "deliberately, pass a body such as '<p></p>'."
+            )
+
+        course_id = await get_course_id(course_identifier)
+
+        current = await make_canvas_request(
+            "get",
+            f"/courses/{course_id}",
+            params={"include[]": "syllabus_body"},
+        )
+        if "error" in current:
+            return f"Error fetching current syllabus: {current['error']}"
+
+        existing_body = current.get("syllabus_body") or ""
+        course_display = current.get("course_code", course_identifier)
+        has_existing = bool(existing_body.strip())
+
+        if normalized_mode == "append":
+            new_body = f"{existing_body}\n{syllabus_body}" if has_existing else syllabus_body
+        elif normalized_mode == "prepend":
+            new_body = f"{syllabus_body}\n{existing_body}" if has_existing else syllabus_body
+        else:
+            new_body = syllabus_body
+
+        # Only a replace over existing content is unrecoverable, so only that
+        # path demands the token.
+        if normalized_mode == "replace" and has_existing:
+            fingerprint = _UPDATE_SYLLABUS_GUARD.fingerprint(
+                "update_syllabus", str(course_id), new_body
+            )
+            if not confirmation_token:
+                preview = (
+                    f"Would REPLACE the entire syllabus of course {course_display}.\n"
+                    f"  Replacing {len(existing_body)} characters of existing "
+                    f"content with {len(new_body)}.\n"
+                    f"  Canvas keeps no revision history for the syllabus, so "
+                    f"the current content cannot be recovered.\n\n"
+                    f"  Current syllabus (plain text):\n"
+                    f"{fence_untrusted(strip_html_tags(existing_body), 'course syllabus')}"
+                )
+                return preview_with_token(
+                    _UPDATE_SYLLABUS_GUARD,
+                    fingerprint,
+                    "update_syllabus",
+                    preview,
+                    action="replace the syllabus",
+                )
+            error = redeem_confirmation(
+                _UPDATE_SYLLABUS_GUARD, confirmation_token, fingerprint
+            )
+            if error:
+                return error
+
+        response = await make_canvas_request(
+            "put",
+            f"/courses/{course_id}",
+            data={"course": {"syllabus_body": new_body}},
+        )
+        if "error" in response:
+            return f"Error updating syllabus: {response['error']}"
+
+        # Canvas answers 200 on this PUT without echoing syllabus_body, and it
+        # drops the field entirely for a token lacking manage_course_content.
+        # Read it back rather than trusting the status code.
+        verify = await make_canvas_request(
+            "get",
+            f"/courses/{course_id}",
+            params={"include[]": "syllabus_body"},
+        )
+        saved_body = verify.get("syllabus_body") or "" if "error" not in verify else None
+
+        if saved_body is None:
+            return unconfirmed_write_warning(
+                "the syllabus update",
+                {
+                    "Course": course_display,
+                    "Mode": normalized_mode,
+                    "Canvas response": "accepted the write but the read-back failed",
+                },
+                "Open the course Syllabus tab in Canvas to check whether it saved.",
+            )
+
+        if saved_body.strip() != new_body.strip():
+            return unconfirmed_write_warning(
+                "the syllabus update",
+                {
+                    "Course": course_display,
+                    "Mode": normalized_mode,
+                    "Sent": f"{len(new_body)} characters",
+                    "Stored by Canvas": f"{len(saved_body)} characters",
+                },
+                "Canvas accepted the request but stored something different. This "
+                "usually means the token lacks permission to edit the syllabus, or "
+                "Canvas rewrote the HTML. Check the Syllabus tab.",
+            )
+
+        verb = {
+            "replace": "Replaced",
+            "append": "Appended to",
+            "prepend": "Prepended to",
+        }[normalized_mode]
+        return (
+            f"✅ {verb} the syllabus of course {course_display}.\n\n"
+            f"  Mode: {normalized_mode}\n"
+            f"  Syllabus is now {len(saved_body)} characters\n"
+            f"  Verified by reading the syllabus back from Canvas"
+        )

@@ -7,7 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`update_syllabus`** — write the course Syllabus tab, which previously had a
+  read tool (`get_syllabus`) and no way to write. Supports `replace` (default),
+  `append` and `prepend`. Canvas keeps no revision history for `syllabus_body`,
+  so replacing a syllabus that already has content takes the same
+  preview → token → confirm path as the delete tools; writing into an empty
+  syllabus, appending, or prepending is a single call. The write is verified by
+  reading the syllabus back, and reports `unconfirmed_write_warning` rather than
+  success when Canvas accepts the request but stores something else (a token
+  without `manage_course_content` is the usual cause). Registered for the
+  `educator` and `all` profiles only.
+
 ### Changed
+
+- `preview_with_token` takes an optional `action` verb (default `"delete"`, so
+  every existing call site is unchanged). Delete tools were its only callers, so
+  its wording was hardcoded to deletion; `update_syllabus` is the first
+  irreversible write that is not a delete, and telling the user a replace would
+  "delete" something describes the wrong risk.
 
 - Migrated to FastMCP 4 and MCP SDK 2. Protocol-model attribute reads now use
   the SDK's native snake_case API, and CI disables FastMCP's temporary
