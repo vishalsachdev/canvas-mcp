@@ -21,8 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   text rather than markup: Canvas rewrites the body server-side, and an
   institutional theme injecting `<link>`/`<script>` tags into every syllabus
   made byte equality report failure on writes that had succeeded. When Canvas
-  does rewrite the HTML the success message says so. Registered for the
-  `educator` and `all` profiles only.
+  does rewrite the HTML the success message says so. The confirmation token is
+  bound to the syllabus the preview displayed, so an edit by someone else
+  between preview and confirm stops the token matching. Annotated
+  `idempotentHint: false` — a repeat in `append`/`prepend` mode adds the same
+  block again. Registered for the `educator` and `all` profiles only.
 
 ### Changed
 

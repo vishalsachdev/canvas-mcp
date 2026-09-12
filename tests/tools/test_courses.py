@@ -819,3 +819,60 @@ class TestUpdateSyllabus:
         assert "Could not confirm" not in result
         assert "rewritten copy" in result  # the rewrite is disclosed, not hidden
         assert sent["body"] == "<p>New syllabus</p>"
+
+    @pytest.mark.asyncio
+    async def test_token_stops_matching_when_the_syllabus_changed_meanwhile(self, mock_api):
+        """The preview shows what will be destroyed; the token must be bound to it.
+
+        A co-teacher editing the syllabus between preview and confirm means the
+        confirmer would otherwise overwrite content no human ever saw, while
+        the preview's own wording promises the token "stops matching if the
+        target changes in the meantime".
+        """
+        fake, sent = self._canvas(existing="<p>Original syllabus</p>")
+        mock_api['make_canvas_request'].side_effect = fake
+
+        update_syllabus = get_tool_function('update_syllabus')
+        preview = await update_syllabus("CS101", "<p>Replacement</p>")
+        token = preview.split("Confirmation token: ", 1)[1].split("\n", 1)[0].strip()
+
+        # Someone else rewrote the syllabus in between.
+        changed, changed_sent = self._canvas(existing="<p>Edited by a colleague</p>")
+        mock_api['make_canvas_request'].side_effect = changed
+
+        result = await update_syllabus(
+            "CS101", "<p>Replacement</p>", confirmation_token=token
+        )
+
+        assert "body" not in changed_sent, "a stale token must not write"
+        assert "✅" not in result
+        assert "not changed" in result.lower() or "changed" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_rejects_an_empty_body_in_every_mode(self, mock_api):
+        update_syllabus = get_tool_function('update_syllabus')
+
+        for mode in ("append", "prepend"):
+            result = await update_syllabus("CS101", "   ", mode=mode)
+            assert "nothing to" in result, result
+
+        result = await update_syllabus("CS101", "", mode="replace")
+        assert "is empty" in result
+        mock_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_does_not_claim_verification_it_could_not_run(self, mock_api):
+        """A body with no visible text gives the containment check nothing.
+
+        Claiming "verified" there would be exactly the unearned success the
+        read-back exists to prevent.
+        """
+        fake, _ = self._canvas(existing="")
+        mock_api['make_canvas_request'].side_effect = fake
+
+        update_syllabus = get_tool_function('update_syllabus')
+        result = await update_syllabus("CS101", '<p><img src="/files/1/preview"></p>')
+
+        assert "✅" in result, result
+        assert "Verified by reading" not in result
+        assert "Not verified" in result

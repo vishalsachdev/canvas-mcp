@@ -814,7 +814,10 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
     write surface for no gain.
     """
 
-    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=True))
+    # idempotent_hint=False: a replace converges, but mode="append"/"prepend"
+    # adds the same block again on every repeat, and the hint is per-tool (a
+    # host retrying a timed-out call cannot know which mode was used).
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=False))
     @validate_params
     async def update_syllabus(course_identifier: str | int,
                               syllabus_body: str,
@@ -851,11 +854,13 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
         if contains_fence_markers(syllabus_body):
             return FENCE_LEAK_ERROR
 
-        if normalized_mode == "replace" and not syllabus_body.strip():
-            return (
-                "Error: syllabus_body is empty. To clear a syllabus "
-                "deliberately, pass a body such as '<p></p>'."
-            )
+        if not syllabus_body.strip():
+            if normalized_mode == "replace":
+                return (
+                    "Error: syllabus_body is empty. To clear a syllabus "
+                    "deliberately, pass a body such as '<p></p>'."
+                )
+            return f"Error: syllabus_body is empty, so there is nothing to {normalized_mode}."
 
         course_id = await get_course_id(course_identifier)
 
@@ -881,8 +886,13 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
         # Only a replace over existing content is unrecoverable, so only that
         # path demands the token.
         if normalized_mode == "replace" and has_existing:
+            # existing_body is bound too, not just the replacement: the
+            # preview shows the content about to be destroyed, and the token
+            # promises it "stops matching if the target changes in the
+            # meantime". Without it, a co-teacher editing the syllabus between
+            # preview and confirm loses work the confirmer never saw.
             fingerprint = _UPDATE_SYLLABUS_GUARD.fingerprint(
-                "update_syllabus", str(course_id), new_body
+                "update_syllabus", str(course_id), existing_body, new_body
             )
             if not confirmation_token:
                 preview = (
@@ -970,8 +980,17 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
             f"✅ {verb} the syllabus of course {course_display}.\n",
             f"  Mode: {normalized_mode}",
             f"  Syllabus is now {len(saved_body)} characters",
-            "  Verified by reading the syllabus back from Canvas",
         ]
+        if sent_text:
+            lines.append("  Verified by reading the syllabus back from Canvas")
+        else:
+            # Markup with no visible text (an image or embed on its own) gives
+            # the containment check nothing to look for, so say that rather
+            # than claiming a verification that never ran.
+            lines.append(
+                "  ⚠️  Not verified: the body sent has no visible text to look "
+                "for in the read-back. Check the Syllabus tab."
+            )
         if saved_body.strip() != new_body.strip():
             lines.append(
                 "  Note: Canvas stored a rewritten copy of the HTML (institutional "
