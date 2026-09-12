@@ -77,6 +77,9 @@ EDUCATOR_ONLY_SAMPLE = {
     "create_module",
     "upload_course_file",
     "create_page",
+    # Writing a syllabus needs an instructor-scoped token, so it must not leak
+    # into the student profile even though its read twin get_syllabus is shared.
+    "update_syllabus",
     "list_users",
     "get_student_analytics",
 }
