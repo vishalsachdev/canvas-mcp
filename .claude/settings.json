@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/scripts/github_session_brief.py\"",
+            "timeout": 45,
+            "statusMessage": "Checking GitHub issues, PRs and discussions"
+          }
+        ]
+      }
+    ]
+  }
+}
