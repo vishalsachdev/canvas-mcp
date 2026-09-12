@@ -1,4 +1,4 @@
-"""Exhaustive trust-policy gate for every registered read-only tool (#262)."""
+"""Exhaustive trust-policy gate for registered tools that return Canvas data."""
 
 import inspect
 
@@ -25,27 +25,30 @@ def _all_feature_gated_tools_enabled(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_every_read_tool_declares_and_keeps_its_untrusted_content_policy():
-    """A new read tool cannot ship unclassified or lose its declared fence path."""
+    """Read tools need policy; hybrid tools may keep one after metadata changes."""
     mcp = FastMCP("untrusted-content-registry")
     register_all_tools(mcp, role="all")
+    all_tools = {
+        tool.name: tool for tool in await mcp.list_tools(run_middleware=False)
+    }
     read_tools = {
-        tool.name: tool
-        for tool in await mcp.list_tools(run_middleware=False)
+        name: tool
+        for name, tool in all_tools.items()
         if tool.annotations and tool.annotations.read_only_hint
     }
     policies = getattr(untrusted_content, "READ_TOOL_CONTENT_POLICIES", {})
 
     missing = set(read_tools) - set(policies)
-    extra = set(policies) - set(read_tools)
+    extra = set(policies) - set(all_tools)
     assert not missing and not extra, (
         "every live read-only tool must be classified for untrusted Canvas "
         "content:\n"
         f"  unclassified tools: {sorted(missing)}\n"
-        f"  stale/non-read policy entries: {sorted(extra)}"
+        f"  stale policy entries: {sorted(extra)}"
     )
 
-    for name, tool in read_tools.items():
-        policy = policies[name]
+    for name, policy in policies.items():
+        tool = all_tools[name]
         assert policy.category in {"fenced", "safe", "deferred"}, name
 
         if policy.category == "fenced":

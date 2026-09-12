@@ -653,7 +653,7 @@ async def upload_file_to_storage(
 
             # Log for debugging
             if config.log_api_requests:
-                log_debug(f"Uploading file to storage: {upload_url}", filename=filename, content_type=content_type, size=len(file_content))
+                log_debug(f"Uploading file to storage: {sanitize_url(upload_url)}", filename=filename, content_type=content_type, size=len(file_content))
 
             # Make the upload request
             # Note: follow_redirects=False because Canvas may return a 3xx with file info
