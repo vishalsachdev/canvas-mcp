@@ -191,14 +191,17 @@ def test_discussions_are_skipped_once_the_budget_is_spent(monkeypatch):
 
 
 def test_brief_names_unauthenticated_rate_limit_only_without_a_token(monkeypatch):
-    for fn in ("fetch_prs", "fetch_issues", "fetch_discussions"):
-        monkeypatch.setattr(brief, fn, lambda *a, **k: (["- x"], "1") if fn == "fetch_issues" else ["- x"])
+    monkeypatch.setattr(brief, "fetch_prs", lambda *a, **k: ["- x"])
+    monkeypatch.setattr(brief, "fetch_issues", lambda *a, **k: (["- x"], "1"))
+    monkeypatch.setattr(brief, "fetch_discussions", lambda *a, **k: ["- x"])
     monkeypatch.setattr(brief, "detect_repo", lambda root: "o/r")
     monkeypatch.setattr(brief, "newest_triage_brief", lambda root: None)
 
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     monkeypatch.delenv("GH_TOKEN", raising=False)
-    assert "unauthenticated" in brief.build_brief("/x", far_deadline())
+    text = brief.build_brief("/x", far_deadline())
+    assert "unauthenticated" in text
+    assert "could not fetch" not in text, "a stub of the wrong shape was swallowed"
 
     monkeypatch.setenv("GITHUB_TOKEN", "t")
     assert "unauthenticated" not in brief.build_brief("/x", far_deadline())
