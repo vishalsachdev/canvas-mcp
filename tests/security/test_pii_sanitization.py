@@ -12,7 +12,7 @@ Test Coverage:
 """
 
 import os
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -116,6 +116,46 @@ class TestURLSanitization:
         assert "/users/***" in result
         assert "12345" not in result
         assert "678" not in result
+
+    def test_sanitize_url_removes_embedded_credentials_and_query(self):
+        """Presigned URL secrets must never reach request logs."""
+        url = (
+            "https://service:password@storage.example/upload/12345"
+            "?X-Amz-Credential=ABCD1234&X-Amz-Signature=secret#fragment"
+        )
+
+        result = sanitize_url(url)
+
+        assert result == "https://storage.example/upload/***"
+
+
+@pytest.mark.asyncio
+async def test_storage_upload_log_uses_sanitized_url(tmp_path):
+    """The upload path must apply URL sanitization before logging."""
+    from canvas_mcp.core.client import upload_file_to_storage
+
+    source = tmp_path / "upload.txt"
+    source.write_text("content")
+    response = MagicMock(status_code=200)
+    response.json.return_value = {"id": 1}
+    client = AsyncMock()
+    client.post.return_value = response
+    client_context = AsyncMock()
+    client_context.__aenter__.return_value = client
+    client_context.__aexit__.return_value = False
+    config = MagicMock(api_timeout=30, log_api_requests=True)
+    upload_url = (
+        "https://storage.example/upload"
+        "?X-Amz-Credential=ABCD1234&X-Amz-Signature=secret"
+    )
+
+    with patch("canvas_mcp.core.config.get_config", return_value=config), patch(
+        "canvas_mcp.core.client.httpx.AsyncClient", return_value=client_context
+    ), patch("canvas_mcp.core.client.log_debug") as logged:
+        await upload_file_to_storage(upload_url, {}, str(source), source.name, "text/plain")
+
+    message = logged.call_args.args[0]
+    assert message == "Uploading file to storage: https://storage.example/upload"
 
 
 if __name__ == "__main__":
