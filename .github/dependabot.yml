@@ -23,8 +23,7 @@ updates:
         patterns: ["*"]
 
   # Root package-lock.json belongs to the execute_typescript sandbox.
-  # Without this entry nothing maintains it — it currently locks a
-  # vulnerable transitive `diff` (GHSA-73rr-hh4g-fpgx) via ts-node.
+  # Without this entry nothing maintains its TypeScript toolchain.
   - package-ecosystem: "npm"
     directory: "/"
     schedule:

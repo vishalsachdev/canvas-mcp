@@ -49,9 +49,7 @@ _KEY_ALLOW_TOOLS = "allow_tools"
 _KEY_NOTE = "note"
 
 _TAG_RE = re.compile(r"<[^>]+>")
-_HTTP_STATUS_RE = re.compile(r"^HTTP error:\s*(\d{3})\b")
 _KV_RE = re.compile(r"^\s*([a-z_]+)\s*:\s*(.*?)\s*$", re.IGNORECASE)
-
 
 
 class CoursePolicy(NamedTuple):
@@ -86,25 +84,6 @@ def _evict_expired_policies() -> None:
     now = time.monotonic()
     for key in [k for k, (expiry, _) in _policy_cache.items() if expiry < now]:
         _policy_cache.pop(key, None)
-
-
-def _is_not_found(error_message: str) -> bool:
-    """Distinguish "no policy artifact" from "the read failed".
-
-    ``make_canvas_request`` flattens HTTP failures into ``{"error": "HTTP error:
-    404"}``, so status is only available as text. The distinction is
-    load-bearing: a 404 means the artifact is absent and the configured default
-    posture applies, while any other failure means the policy is *unknown* and
-    must deny. Collapsing the two would let a Canvas outage grant writes
-    everywhere the default is permissive.
-
-    The status is therefore parsed from the front of the message rather than
-    searched for anywhere in it. A substring test would read
-    ``"HTTP error: 500, Details: {'message': 'upstream 404...'}"`` as an absent
-    artifact and, under a permissive default, turn a server error into a grant.
-    """
-    match = _HTTP_STATUS_RE.match(error_message.strip())
-    return match is not None and match.group(1) == "404"
 
 
 def _strip_html(body: str) -> str:

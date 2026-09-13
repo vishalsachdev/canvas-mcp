@@ -128,5 +128,4 @@ a class twice, is exactly the harm this hint exists to prevent.
 - `send_conversation()`: Core Canvas messaging with form data support
 - `send_peer_review_inbox_messages()`: Direct Canvas Inbox messages about incomplete peer reviews
 - `send_peer_review_followup_campaign()`: Complete analytics → messaging pipeline
-- `MessageTemplates`: Flexible template system for various communication types
 - Privacy-aware: Works with anonymization while preserving functional user IDs

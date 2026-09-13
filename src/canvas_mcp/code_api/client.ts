@@ -15,7 +15,7 @@
 interface CanvasConfig {
   apiUrl: string;
   apiToken: string;
-  timeout?: number;
+  timeout: number;
 }
 
 let config: CanvasConfig | null = null;

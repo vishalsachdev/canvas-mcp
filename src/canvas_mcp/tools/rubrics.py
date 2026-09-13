@@ -197,60 +197,6 @@ def format_rubric_response(response: dict[str, Any]) -> str:
         return result
 
 
-def build_criteria_structure(criteria: dict[str, Any]) -> dict[str, Any]:
-    """Build Canvas API-compatible criteria structure.
-
-    Args:
-        criteria: Validated criteria dictionary
-
-    Returns:
-        Canvas API-compatible criteria structure
-    """
-    # Canvas expects criteria as a flat dictionary with string keys
-    formatted_criteria = {}
-
-    for criterion_key, criterion_data in criteria.items():
-        formatted_criteria[str(criterion_key)] = {
-            "description": criterion_data["description"],
-            "points": float(criterion_data["points"]),
-            "long_description": criterion_data.get("long_description", "")
-        }
-
-        # Handle ratings if present
-        if "ratings" in criterion_data:
-            ratings = criterion_data["ratings"]
-
-            # Canvas API expects ratings as an array, not object
-            # Convert from object format to array format
-            formatted_ratings = []
-
-            # Sort ratings by points (highest to lowest) for consistent ordering
-            if isinstance(ratings, dict):
-                # Convert object-style ratings to array
-                rating_items = []
-                for _rating_key, rating_data in ratings.items():
-                    rating_items.append({
-                        "description": rating_data["description"],
-                        "points": float(rating_data["points"]),
-                        "long_description": rating_data.get("long_description", "")
-                    })
-                # Sort by points descending
-                rating_items.sort(key=lambda x: x["points"], reverse=True)
-                formatted_ratings = rating_items
-            elif isinstance(ratings, list):
-                # Already in array format, just ensure proper typing
-                for rating_data in ratings:
-                    formatted_ratings.append({
-                        "description": rating_data["description"],
-                        "points": float(rating_data["points"]),
-                        "long_description": rating_data.get("long_description", "")
-                    })
-
-            formatted_criteria[str(criterion_key)]["ratings"] = formatted_ratings
-
-    return formatted_criteria
-
-
 def build_rubric_assessment_form_data(
     rubric_assessment: dict[str, Any],
     comment: str | None = None

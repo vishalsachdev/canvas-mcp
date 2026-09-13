@@ -3,7 +3,7 @@
     "target": "ES2022",
     "module": "ES2022",
     "lib": ["ES2022"],
-    "moduleResolution": "node",
+    "types": ["node"],
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "strict": true,
@@ -22,9 +22,5 @@
   "exclude": [
     "node_modules",
     "dist"
-  ],
-  "ts-node": {
-    "esm": true,
-    "experimentalSpecifierResolution": "node"
-  }
+  ]
 }
