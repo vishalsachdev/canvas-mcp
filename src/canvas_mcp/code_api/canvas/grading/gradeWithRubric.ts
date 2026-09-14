@@ -110,67 +110,89 @@ function buildRubricAssessmentFormData(
  * });
  * ```
  */
-export async function gradeWithRubric(
-  input: GradeWithRubricInput
-): Promise<GradeResponse> {
-  const { courseIdentifier, assignmentId, userId, rubricAssessment, grade, comment } = input;
+export async function gradeWithRubric(input: GradeWithRubricInput): Promise<GradeResponse> {
+  return createRubricGrader()(input);
+}
 
-  // Validate: Must have either rubricAssessment OR grade
-  if (!rubricAssessment && !grade && grade !== 0) {
-    throw new Error('Must provide either rubricAssessment or grade');
-  }
+interface RubricAssignment {
+  use_rubric_for_grading?: boolean;
+  rubric?: Array<{id: string; ignore_for_scoring?: boolean}>;
+}
 
-  let formData: Record<string, string> = {};
-  let expectedScore: number | undefined;
+/** Internal batch helper: share in-flight lookups only within one bulk run.
+ * Standalone calls always get fresh settings. Failed lookups remain failed for
+ * the run, so another student cannot bypass a failed batch precheck.
+ */
+export function createRubricGrader(): (input: GradeWithRubricInput) => Promise<GradeResponse> {
+  const assignments = new Map<string, Promise<RubricAssignment>>();
+  return async function gradeWithRubric(
+    input: GradeWithRubricInput
+  ): Promise<GradeResponse> {
+    const { courseIdentifier, assignmentId, userId, rubricAssessment, grade, comment } = input;
 
-  // Handle rubric-based grading
-  if (rubricAssessment && Object.keys(rubricAssessment).length > 0) {
-    validateRubricAssessment(rubricAssessment);
-    // Fail closed: an unavailable assignment or absent flag must never allow a write.
-    const assignment = await canvasGet<{
-      use_rubric_for_grading?: boolean;
-      rubric?: Array<{id: string; ignore_for_scoring?: boolean}>;
-    }>(`/courses/${courseIdentifier}/assignments/${assignmentId}`);
-    if (assignment.use_rubric_for_grading !== true) {
-      throw new Error('Rubric is not configured for grading; no assessment was submitted.');
+    // Validate: Must have either rubricAssessment OR grade
+    if (!rubricAssessment && !grade && grade !== 0) {
+      throw new Error('Must provide either rubricAssessment or grade');
     }
-    const criteria = assignment.rubric;
-    if (Array.isArray(criteria) && criteria.length > 0 &&
-        criteria.length === Object.keys(rubricAssessment).length &&
-        criteria.every(c => Object.hasOwn(rubricAssessment, c.id))) {
-      expectedScore = criteria.reduce((total, c) => total +
-        (c.ignore_for_scoring ? 0 : rubricAssessment[c.id].points), 0);
-    }
-    formData = buildRubricAssessmentFormData(rubricAssessment, comment);
-  }
-  // Handle simple grading
-  else if (grade !== undefined) {
-    formData['submission[posted_grade]'] = String(grade);
-    if (comment) {
-      formData['comment[text_comment]'] = comment;
-    }
-  }
 
-  // Canvas API endpoint for updating submission
-  const endpoint = `/courses/${courseIdentifier}/assignments/${assignmentId}/submissions/${userId}`;
+    let formData: Record<string, string> = {};
+    let expectedScore: number | undefined;
 
-  try {
-    // Submit the grade with rubric assessment using form encoding
-    const response = await canvasPutForm<GradeResponse>(endpoint, formData);
-    if (rubricAssessment && Object.keys(rubricAssessment).length > 0 &&
-        (expectedScore === undefined || !Number.isFinite(expectedScore) ||
-         typeof response.score !== 'number' || !Number.isFinite(response.score) ||
-         response.grade == null ||
-         Math.abs(response.score - expectedScore) > Math.max(1e-6, Math.abs(expectedScore) * 1e-9))) {
-      throw new Error('Rubric grade unconfirmed: the assessment may have been saved, ' +
-        'but the returned grade/score could not be verified against the complete rubric. ' +
-        'Check the submission in Canvas before retrying. No explicit grade was forced.');
+    // Handle rubric-based grading
+    if (rubricAssessment && Object.keys(rubricAssessment).length > 0) {
+      validateRubricAssessment(rubricAssessment);
+      // Fail closed: an unavailable assignment or absent flag must never allow a write.
+      const key = JSON.stringify([String(courseIdentifier), String(assignmentId)]);
+      let pending = assignments.get(key);
+      if (!pending) {
+        pending = canvasGet<RubricAssignment>(
+          `/courses/${courseIdentifier}/assignments/${assignmentId}`,
+          {"include[]": ["rubric", "rubric_settings"]}
+        );
+        assignments.set(key, pending);
+      }
+      const assignment = await pending;
+      if (assignment.use_rubric_for_grading !== true) {
+        throw new Error('Rubric is not configured for grading; no assessment was submitted.');
+      }
+      const criteria = assignment.rubric;
+      if (Array.isArray(criteria) && criteria.length > 0 &&
+          criteria.length === Object.keys(rubricAssessment).length &&
+          criteria.every(c => Object.hasOwn(rubricAssessment, c.id))) {
+        expectedScore = criteria.reduce((total, c) => total +
+          (c.ignore_for_scoring ? 0 : rubricAssessment[c.id].points), 0);
+      }
+      formData = buildRubricAssessmentFormData(rubricAssessment, comment);
     }
-    return response;
-  } catch (error: any) {
-    throw new Error(
-      `Failed to grade submission: ${error.message}\n` +
-      `Check that rubric is configured for grading and criterion IDs are correct.`
-    );
-  }
+    // Handle simple grading
+    else if (grade !== undefined) {
+      formData['submission[posted_grade]'] = String(grade);
+      if (comment) {
+        formData['comment[text_comment]'] = comment;
+      }
+    }
+
+    // Canvas API endpoint for updating submission
+    const endpoint = `/courses/${courseIdentifier}/assignments/${assignmentId}/submissions/${userId}`;
+
+    try {
+      // Submit the grade with rubric assessment using form encoding
+      const response = await canvasPutForm<GradeResponse>(endpoint, formData);
+      if (rubricAssessment && Object.keys(rubricAssessment).length > 0 &&
+          (expectedScore === undefined || !Number.isFinite(expectedScore) ||
+           typeof response.score !== 'number' || !Number.isFinite(response.score) ||
+           response.grade == null ||
+           Math.abs(response.score - expectedScore) > Math.max(1e-6, Math.abs(expectedScore) * 1e-9))) {
+        throw new Error('Rubric grade unconfirmed: the assessment may have been saved, ' +
+          'but the returned grade/score could not be verified against the complete rubric. ' +
+          'Check the submission in Canvas before retrying. No explicit grade was forced.');
+      }
+      return response;
+    } catch (error: any) {
+      throw new Error(
+        `Failed to grade submission: ${error.message}\n` +
+        `Check that rubric is configured for grading and criterion IDs are correct.`
+      );
+    }
+  };
 }

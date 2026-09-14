@@ -74,3 +74,36 @@ for (const rubric of [undefined, [{id: 'a'}]]) {
     finally { globalThis.fetch = original; }
   });
 }
+
+
+test('bulk rubric grading fetches metadata once per run with repeated include params', async () => {
+  const { bulkGrade } = await import('../../src/canvas_mcp/code_api/canvas/grading/bulkGrade.ts');
+  const original = globalThis.fetch;
+  let lookups = 0;
+  let writes = 0;
+  const includes: string[][] = [];
+  globalThis.fetch = async (url, options) => {
+    if (options?.method === 'PUT') {
+      writes++;
+      return new Response(JSON.stringify({score: 5, grade: '5'}));
+    }
+    if (String(url).includes('/submissions')) {
+      return new Response(JSON.stringify([{user_id: 3}, {user_id: 4}]));
+    }
+    lookups++;
+    includes.push(new URL(String(url)).searchParams.getAll('include[]'));
+    return new Response(JSON.stringify({use_rubric_for_grading: true,
+      rubric: [{id: 'a'}, {id: 'b', ignore_for_scoring: true}]}));
+  };
+  try {
+    for (let run = 0; run < 2; run++) {
+      const result = await bulkGrade({courseIdentifier: 1, assignmentId: 2,
+        gradingFunction: () => ({rubricAssessment: input.rubricAssessment}),
+        maxConcurrent: 2, dryRun: false});
+      assert.equal(result.graded, 2);
+      assert.equal(lookups, run + 1);
+    }
+    assert.equal(writes, 4);
+    assert.deepEqual(includes, [['rubric', 'rubric_settings'], ['rubric', 'rubric_settings']]);
+  } finally { globalThis.fetch = original; }
+});

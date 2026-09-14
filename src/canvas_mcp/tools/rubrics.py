@@ -826,27 +826,26 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         assignment_check = await make_canvas_request(
             "get",
             f"/courses/{course_id}/assignments/{assignment_id_str}",
-            params={"include[]": ["rubric_settings"]}
+            params={"include[]": ["rubric", "rubric_settings"]}
         )
 
         if "error" in assignment_check:
             return "Error: Could not verify rubric grading settings; no assessment was submitted."
 
-        if "error" not in assignment_check:
-            use_rubric_for_grading = assignment_check.get("use_rubric_for_grading") is True
-            if not use_rubric_for_grading:
-                return (
-                    "⚠️  ERROR: Rubric is not configured for grading!\n\n"
-                    "The rubric exists but 'use_for_grading' is set to FALSE.\n"
-                    "Grades will NOT be saved to the gradebook.\n\n"
-                    "To fix this:\n"
-                    "1. Use get_rubric to verify rubric settings\n"
-                    "2. Use associate_rubric with use_for_grading=True\n"
-                    "3. Or configure the rubric in Canvas UI: Assignment Settings → Rubric → Use for Grading\n\n"
-                    f"Assignment: {fence_untrusted_inline(assignment_check.get('name', 'Unknown'), 'assignment name')}\n"
-                    f"Course ID: {course_id}\n"
-                    f"Assignment ID: {assignment_id}\n"
-                )
+        use_rubric_for_grading = assignment_check.get("use_rubric_for_grading") is True
+        if not use_rubric_for_grading:
+            return (
+                "⚠️  ERROR: Rubric is not configured for grading!\n\n"
+                "The rubric exists but 'use_for_grading' is set to FALSE.\n"
+                "Grades will NOT be saved to the gradebook.\n\n"
+                "To fix this:\n"
+                "1. Use get_rubric to verify rubric settings\n"
+                "2. Use associate_rubric with use_for_grading=True\n"
+                "3. Or configure the rubric in Canvas UI: Assignment Settings → Rubric → Use for Grading\n\n"
+                f"Assignment: {fence_untrusted_inline(assignment_check.get('name', 'Unknown'), 'assignment name')}\n"
+                f"Course ID: {course_id}\n"
+                f"Assignment ID: {assignment_id}\n"
+            )
 
         # Build form data in Canvas's expected format
         form_data = build_rubric_assessment_form_data(rubric_assessment, comment)

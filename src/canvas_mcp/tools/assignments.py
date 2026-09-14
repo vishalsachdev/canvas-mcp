@@ -1060,24 +1060,23 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             assignment_check = await make_canvas_request(
                 "get",
                 f"/courses/{course_id}/assignments/{assignment_id_str}",
-                params={"include[]": ["rubric_settings"]}
+                params={"include[]": ["rubric", "rubric_settings"]}
             )
 
             if "error" in assignment_check:
                 return "Error: Could not verify rubric grading settings; no assessments were submitted."
 
-            if "error" not in assignment_check:
-                use_rubric_for_grading = assignment_check.get("use_rubric_for_grading") is True
-                if not use_rubric_for_grading and not dry_run:
-                    return (
-                        "⚠️  ERROR: Rubric is not configured for grading!\n\n"
-                        "The rubric exists but 'use_for_grading' is set to FALSE.\n"
-                        "Grades will NOT be saved to the gradebook.\n\n"
-                        "To fix this:\n"
-                        "1. Use get_rubric to verify rubric settings\n"
-                        "2. Use associate_rubric with use_for_grading=True\n"
-                        "3. Or set dry_run=True to test without submitting\n"
-                    )
+            use_rubric_for_grading = assignment_check.get("use_rubric_for_grading") is True
+            if not use_rubric_for_grading:
+                return (
+                    "⚠️  ERROR: Rubric is not configured for grading!\n\n"
+                    "The rubric exists but 'use_for_grading' is set to FALSE.\n"
+                    "Grades will NOT be saved to the gradebook.\n\n"
+                    "To fix this:\n"
+                    "1. Use get_rubric to verify rubric settings\n"
+                    "2. Use associate_rubric with use_for_grading=True\n"
+                    "3. Re-run dry_run=True after correcting the configuration\n"
+                )
 
         # Statistics tracking
         stats = {

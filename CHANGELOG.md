@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- Rubric grading now stops when grading settings cannot be verified. Python
+  bulk dry runs also reject false/missing grading flags. Post-write rubric
+  results that cannot be confirmed count under bulk failures, even when the
+  assessment may have been saved; check Canvas before retrying. TypeScript
+  bulk grading shares one assignment lookup per run. Rubric creation remains
+  supported; editing still uses the Canvas UI (#374, #375).
+
 - **Local file exports refuse HTTP callers.** On a shared (HTTP-transport)
   server, `generate_peer_review_report(save_to_file=True)` and
   `extract_peer_review_dataset(save_locally=True)` now return an error before

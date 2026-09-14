@@ -12,7 +12,7 @@ Grade Canvas LMS assignments efficiently using rubric-based workflows. This skil
 - Canvas MCP server running and connected
 - Authenticated with an **educator** (instructor/TA) Canvas API token
 - Assignment must exist and have submissions to grade
-- Rubric must already be created in Canvas and associated with the assignment (Canvas API cannot reliably create rubrics -- use the Canvas web UI for that)
+- Rubric must be created and associated with the assignment with `use_for_grading=true`. Use `create_rubric` for creation and `associate_rubric` for an existing rubric; use the Canvas web UI for editing.
 
 ## Workflow
 
@@ -24,12 +24,12 @@ Before grading, retrieve the assignment details and its rubric criteria.
 get_assignment_details(course_identifier, assignment_id)
 ```
 
-Then get the rubric. Use `get_assignment_rubric_details` if the rubric is already linked to the assignment, or `list_all_rubrics` to browse all rubrics in the course:
+Then get the rubric. Use `get_rubric` if the rubric is already linked to the assignment, or `list_rubrics` to browse all rubrics in the course:
 
 ```
-get_assignment_rubric_details(course_identifier, assignment_id)
-list_all_rubrics(course_identifier)
-get_rubric_details(course_identifier, rubric_id)
+get_rubric(course_identifier, assignment_id=assignment_id)
+list_rubrics(course_identifier)
+get_rubric(course_identifier, rubric_id=rubric_id)
 ```
 
 Record the **criterion IDs** (often prefixed with underscore, e.g., `_8027`) and **rating IDs** from the rubric response. These are required for rubric-based grading.
@@ -181,6 +181,6 @@ The key insight: as submission count grows, sending grading logic to the server 
 |-------|-------|--------|
 | 401 Unauthorized | Token expired or invalid | Regenerate Canvas API token |
 | 403 Forbidden | Not an instructor/TA for this course | Verify Canvas role |
-| 404 Not Found | Wrong course, assignment, or rubric ID | Re-check IDs with `list_assignments` or `list_all_rubrics` |
+| 404 Not Found | Wrong course, assignment, or rubric ID | Re-check IDs with `list_assignments` or `list_rubrics` |
 | 422 Unprocessable | Invalid rubric assessment format | Verify criterion IDs and point ranges match the rubric |
-| Partial failures in bulk | Some grades submitted, others failed | Check the response for per-student status; retry only failed ones |
+| Partial failures in bulk | Some grades submitted, others failed | Check each status. Unconfirmed assessments may already be saved: inspect Canvas before retrying to avoid duplicate comments. Retry only confirmed unsaved failures |

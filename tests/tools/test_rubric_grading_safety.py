@@ -8,7 +8,7 @@ from canvas_mcp.tools.assignments import register_educator_assignment_tools
 from canvas_mcp.tools.rubrics import register_rubric_tools
 
 
-async def call_grade(bulk, assignment, response):
+async def call_grade(bulk, assignment, response, dry_run=False):
     module = 'assignments' if bulk else 'rubrics'
     mcp = FastMCP('test')
     (register_educator_assignment_tools if bulk else register_rubric_tools)(mcp)
@@ -19,6 +19,7 @@ async def call_grade(bulk, assignment, response):
         args = {'course_identifier': '1', 'assignment_id': '2'}
         assessment = {'a': {'points': 5}, 'b': {'points': 9}}
         if bulk:
+            args['dry_run'] = dry_run
             args['grades'] = {'3': {'rubric_assessment': assessment, 'grade': 99}}
         else:
             args.update(user_id='3', rubric_assessment=assessment)
@@ -67,3 +68,18 @@ def test_confirmation_requires_complete_metadata_and_accepts_zero(score):
     assert not rubric_grade_is_confirmed({}, assessment, response)
     assert not rubric_grade_is_confirmed({'rubric': [{'id': 'a'}, {'id': 'b'}]}, assessment, response)
     assert not rubric_grade_is_confirmed({'rubric': [{'id': 'a'}]}, assessment, {'score': score})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('bulk', [False, True])
+async def test_precheck_requests_rubric_metadata(bulk):
+    _, calls = await call_grade(bulk, {'use_rubric_for_grading': True}, {})
+    assert calls[0].kwargs['params']['include[]'] == ['rubric', 'rubric_settings']
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('flag', [False, None])
+async def test_dry_run_surfaces_invalid_grading_configuration(flag):
+    text, calls = await call_grade(True, {'use_rubric_for_grading': flag}, {}, dry_run=True)
+    assert 'error' in text.lower()
+    assert not any(c.args[0] == 'put' for c in calls)
