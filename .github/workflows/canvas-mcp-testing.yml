@@ -50,6 +50,15 @@ jobs:
     - name: Run mypy
       run: mypy src/
 
+  test-code-api:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - name: Install TypeScript dependencies
+      run: npm ci
+    - name: Build and test code API
+      run: npm run build && npm test
+
   # Runs the WHOLE suite on every supported interpreter. pyproject declares
   # requires-python = ">=3.11" (3.10 dropped ahead of its 2026-10-31 EOL, #315),
   # so every version in the matrix is a supported target and a version-specific
@@ -97,18 +106,18 @@ jobs:
   # "test-enhancements", and a matrix job publishes per-version names
   # ("test (3.11)"), which would leave the required check permanently pending
   # and block every PR. This gate keeps the required name while making it mean
-  # "the full suite passed on every supported Python".
+  # "the full suite passed on every supported Python and the code API passed".
   test-enhancements:
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, test-code-api]
     if: always()
 
     steps:
-    - name: Require every matrix job to have succeeded
+    - name: Require Python and code API tests to have succeeded
       run: |
         echo "matrix result: ${{ needs.test.result }}"
-        if [ "${{ needs.test.result }}" != "success" ]; then
-          echo "::error::Test suite failed on at least one supported Python version."
+        if [ "${{ needs.test.result }}" != "success" ] || [ "${{ needs.test-code-api.result }}" != "success" ]; then
+          echo "::error::Python or code API checks did not succeed."
           exit 1
         fi
         echo "## Canvas MCP test results" >> $GITHUB_STEP_SUMMARY

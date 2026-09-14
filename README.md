@@ -522,7 +522,7 @@ The Canvas MCP Server provides a set of tools for interacting with the Canvas LM
 
 **Educator Tools**
 4. **Assignment Tools** - Handle assignments, submissions, and peer reviews with analytics
-5. **Rubric Tools** - List rubrics, associate with assignments, and grade submissions (including `bulk_grade_submissions` for efficient batch grading). Note: Create/update rubrics via Canvas web UI due to API limitations.
+5. **Rubric Tools** - Create and list rubrics, associate them with assignments, and grade submissions (including `bulk_grade_submissions` for efficient batch grading). Rubric editing is not exposed as an MCP tool; use the Canvas web UI. See [rubric API behavior and grading caveats](docs/rubric-api-behavior.md).
 6. **User & Enrollment Tools** - Manage enrollments, users, and groups
 7. **Analytics Tools** - View student analytics, assignment statistics, and progress tracking
 8. **Messaging Tools** - Send messages and announcements to students

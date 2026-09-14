@@ -23,7 +23,11 @@ from ..core.write_confirmation import (
     preview_with_token,
     redeem_confirmation,
 )
-from .rubrics import build_rubric_assessment_form_data
+from .rubrics import (
+    RUBRIC_GRADE_UNCONFIRMED,
+    build_rubric_assessment_form_data,
+    rubric_grade_is_confirmed,
+)
 
 _DELETE_ASSIGNMENT_GUARD = ConfirmationGuard(nothing_done="Nothing was deleted.")
 
@@ -1059,8 +1063,11 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
                 params={"include[]": ["rubric_settings"]}
             )
 
+            if "error" in assignment_check:
+                return "Error: Could not verify rubric grading settings; no assessments were submitted."
+
             if "error" not in assignment_check:
-                use_rubric_for_grading = assignment_check.get("use_rubric_for_grading", False)
+                use_rubric_for_grading = assignment_check.get("use_rubric_for_grading") is True
                 if not use_rubric_for_grading and not dry_run:
                     return (
                         "⚠️  ERROR: Rubric is not configured for grading!\n\n"
@@ -1172,6 +1179,15 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
                         "status": "failed",
                         "user_id": user_id,
                         "error": response["error"]
+                    }
+
+                if grade_info.get("rubric_assessment") and not rubric_grade_is_confirmed(
+                    assignment_check, grade_info["rubric_assessment"], response
+                ):
+                    return {
+                        "status": "failed",
+                        "user_id": user_id,
+                        "error": RUBRIC_GRADE_UNCONFIRMED,
                     }
 
                 return {
