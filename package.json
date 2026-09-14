@@ -4,7 +4,8 @@
   "description": "TypeScript code execution API for Canvas MCP",
   "type": "module",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "node --import tsx --test tests/code_api/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

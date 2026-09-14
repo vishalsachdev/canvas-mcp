@@ -1,5 +1,5 @@
 import { listSubmissions, Submission } from "../assignments/listSubmissions.js";
-import { gradeWithRubric } from "./gradeWithRubric.js";
+import { createRubricGrader } from "./gradeWithRubric.js";
 
 export interface GradeResult {
   points?: number;
@@ -39,7 +39,8 @@ async function processBatch(
   submissions: Submission[],
   input: BulkGradeInput,
   stats: { graded: number; skipped: number; failed: number },
-  failedResults: Array<{ userId: number; error: string }>
+  failedResults: Array<{ userId: number; error: string }>,
+  gradeWithRubric: ReturnType<typeof createRubricGrader>
 ): Promise<void> {
   const results = await Promise.allSettled(
     submissions.map(async (submission) => {
@@ -171,6 +172,8 @@ export async function bulkGrade(
 
   const failedResults: Array<{ userId: number; error: string }> = [];
 
+  const gradeWithRubric = createRubricGrader();
+
   // Process in batches to respect rate limits
   for (let i = 0; i < submissions.length; i += maxConcurrent) {
     const batch = submissions.slice(i, i + maxConcurrent);
@@ -179,7 +182,7 @@ export async function bulkGrade(
 
     console.log(`\nProcessing batch ${batchNum}/${totalBatches} (${batch.length} submissions)...`);
 
-    await processBatch(batch, input, stats, failedResults);
+    await processBatch(batch, input, stats, failedResults, gradeWithRubric);
 
     // Rate limit between batches (except after the last batch)
     if (i + maxConcurrent < submissions.length) {

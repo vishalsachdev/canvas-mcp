@@ -2493,6 +2493,7 @@ class TestRound11Surfaces:
             "canvas_mcp.tools.assignments.get_course_id", new_callable=AsyncMock
         ) as mock_cid:
             mock_cid.return_value = "1"
+            mock_req.return_value = {"use_rubric_for_grading": True}
             tool = _get_tool(register_educator_assignment_tools, "bulk_grade_submissions")
             result = await tool(
                 "CS101", 5,

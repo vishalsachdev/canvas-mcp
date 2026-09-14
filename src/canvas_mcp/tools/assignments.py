@@ -23,7 +23,11 @@ from ..core.write_confirmation import (
     preview_with_token,
     redeem_confirmation,
 )
-from .rubrics import build_rubric_assessment_form_data
+from .rubrics import (
+    RUBRIC_GRADE_UNCONFIRMED,
+    build_rubric_assessment_form_data,
+    rubric_grade_is_confirmed,
+)
 
 _DELETE_ASSIGNMENT_GUARD = ConfirmationGuard(nothing_done="Nothing was deleted.")
 
@@ -1056,21 +1060,23 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             assignment_check = await make_canvas_request(
                 "get",
                 f"/courses/{course_id}/assignments/{assignment_id_str}",
-                params={"include[]": ["rubric_settings"]}
+                params={"include[]": ["rubric", "rubric_settings"]}
             )
 
-            if "error" not in assignment_check:
-                use_rubric_for_grading = assignment_check.get("use_rubric_for_grading", False)
-                if not use_rubric_for_grading and not dry_run:
-                    return (
-                        "⚠️  ERROR: Rubric is not configured for grading!\n\n"
-                        "The rubric exists but 'use_for_grading' is set to FALSE.\n"
-                        "Grades will NOT be saved to the gradebook.\n\n"
-                        "To fix this:\n"
-                        "1. Use get_rubric to verify rubric settings\n"
-                        "2. Use associate_rubric with use_for_grading=True\n"
-                        "3. Or set dry_run=True to test without submitting\n"
-                    )
+            if "error" in assignment_check:
+                return "Error: Could not verify rubric grading settings; no assessments were submitted."
+
+            use_rubric_for_grading = assignment_check.get("use_rubric_for_grading") is True
+            if not use_rubric_for_grading:
+                return (
+                    "⚠️  ERROR: Rubric is not configured for grading!\n\n"
+                    "The rubric exists but 'use_for_grading' is set to FALSE.\n"
+                    "Grades will NOT be saved to the gradebook.\n\n"
+                    "To fix this:\n"
+                    "1. Use get_rubric to verify rubric settings\n"
+                    "2. Use associate_rubric with use_for_grading=True\n"
+                    "3. Re-run dry_run=True after correcting the configuration\n"
+                )
 
         # Statistics tracking
         stats = {
@@ -1172,6 +1178,15 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
                         "status": "failed",
                         "user_id": user_id,
                         "error": response["error"]
+                    }
+
+                if grade_info.get("rubric_assessment") and not rubric_grade_is_confirmed(
+                    assignment_check, grade_info["rubric_assessment"], response
+                ):
+                    return {
+                        "status": "failed",
+                        "user_id": user_id,
+                        "error": RUBRIC_GRADE_UNCONFIRMED,
                     }
 
                 return {

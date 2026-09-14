@@ -4,6 +4,7 @@ import ast
 import asyncio
 import csv
 import json
+import math
 from io import StringIO
 from typing import Any
 
@@ -197,6 +198,44 @@ def format_rubric_response(response: dict[str, Any]) -> str:
         return result
 
 
+def rubric_grade_is_confirmed(
+    assignment: dict[str, Any], assessment: dict[str, Any], response: dict[str, Any]
+) -> bool:
+    """Confirm the returned score for a complete rubric, excluding outcome-only criteria.
+
+    Partial assessments or missing rubric metadata cannot establish the expected
+    score. A matching score confirms the outcome, not a change or publication.
+    """
+    criteria = assignment.get("rubric")
+    if not isinstance(criteria, list) or not criteria:
+        return False
+    try:
+        ids = {str(c["id"]) for c in criteria}
+        if ids != set(assessment):
+            return False
+        expected = sum(
+            float(assessment[str(c["id"])]["points"])
+            for c in criteria if not c.get("ignore_for_scoring", False)
+        )
+        score = response.get("score")
+        if isinstance(score, bool) or not isinstance(score, (int, float)):
+            return False
+        return (
+            response.get("grade") is not None
+            and math.isfinite(expected) and math.isfinite(score)
+            and math.isclose(score, expected, rel_tol=1e-9, abs_tol=1e-6)
+        )
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
+RUBRIC_GRADE_UNCONFIRMED = (
+    "Rubric grade unconfirmed: the assessment may have been saved, but Canvas's "
+    "returned grade/score could not be verified against the complete rubric. "
+    "Check the submission in Canvas before retrying. No explicit grade was forced."
+)
+
+
 def build_rubric_assessment_form_data(
     rubric_assessment: dict[str, Any],
     comment: str | None = None
@@ -256,8 +295,9 @@ def build_rubric_create_form_data(
 ) -> dict[str, str]:
     """Build bracket-notation form data for Canvas rubric creation API.
 
-    Canvas POST /courses/:id/rubrics requires bracket-notation form data
-    (not JSON body).  This function produces the flat key/value dict that
+    Canvas POST /courses/:id/rubrics expects indexed hashes for criteria and
+    nested ratings. This function encodes them as bracket-notation form data,
+    producing the flat key/value dict that
     ``make_canvas_request`` sends when ``use_form_data=True``.
 
     Args:
@@ -786,24 +826,26 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         assignment_check = await make_canvas_request(
             "get",
             f"/courses/{course_id}/assignments/{assignment_id_str}",
-            params={"include[]": ["rubric_settings"]}
+            params={"include[]": ["rubric", "rubric_settings"]}
         )
 
-        if "error" not in assignment_check:
-            use_rubric_for_grading = assignment_check.get("use_rubric_for_grading", False)
-            if not use_rubric_for_grading:
-                return (
-                    "⚠️  ERROR: Rubric is not configured for grading!\n\n"
-                    "The rubric exists but 'use_for_grading' is set to FALSE.\n"
-                    "Grades will NOT be saved to the gradebook.\n\n"
-                    "To fix this:\n"
-                    "1. Use get_rubric to verify rubric settings\n"
-                    "2. Use associate_rubric with use_for_grading=True\n"
-                    "3. Or configure the rubric in Canvas UI: Assignment Settings → Rubric → Use for Grading\n\n"
-                    f"Assignment: {fence_untrusted_inline(assignment_check.get('name', 'Unknown'), 'assignment name')}\n"
-                    f"Course ID: {course_id}\n"
-                    f"Assignment ID: {assignment_id}\n"
-                )
+        if "error" in assignment_check:
+            return "Error: Could not verify rubric grading settings; no assessment was submitted."
+
+        use_rubric_for_grading = assignment_check.get("use_rubric_for_grading") is True
+        if not use_rubric_for_grading:
+            return (
+                "⚠️  ERROR: Rubric is not configured for grading!\n\n"
+                "The rubric exists but 'use_for_grading' is set to FALSE.\n"
+                "Grades will NOT be saved to the gradebook.\n\n"
+                "To fix this:\n"
+                "1. Use get_rubric to verify rubric settings\n"
+                "2. Use associate_rubric with use_for_grading=True\n"
+                "3. Or configure the rubric in Canvas UI: Assignment Settings → Rubric → Use for Grading\n\n"
+                f"Assignment: {fence_untrusted_inline(assignment_check.get('name', 'Unknown'), 'assignment name')}\n"
+                f"Course ID: {course_id}\n"
+                f"Assignment ID: {assignment_id}\n"
+            )
 
         # Build form data in Canvas's expected format
         form_data = build_rubric_assessment_form_data(rubric_assessment, comment)
@@ -818,6 +860,9 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         if "error" in response:
             return f"Error submitting rubric grade: {response['error']}"
+
+        if not rubric_grade_is_confirmed(assignment_check, rubric_assessment, response):
+            return RUBRIC_GRADE_UNCONFIRMED
 
         # Get assignment details for confirmation
         assignment_response = await make_canvas_request(
@@ -1085,7 +1130,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
     ) -> str:
         """Create a new rubric in a course, optionally associating it with an assignment.
 
-        Uses bracket-notation form-data encoding required by the Canvas rubric API.
+        Encodes indexed criteria and ratings using bracket-notation form data.
 
         The ``criteria`` parameter is a JSON string mapping arbitrary criterion keys to
         objects with the following fields:

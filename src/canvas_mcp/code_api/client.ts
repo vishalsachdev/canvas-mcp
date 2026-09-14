@@ -82,7 +82,9 @@ async function makeCanvasRequest<T>(
   const url = new URL(`${cfg.apiUrl}${endpoint}`);
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null) {
-      url.searchParams.append(key, String(value));
+      for (const item of Array.isArray(value) ? value : [value]) {
+        url.searchParams.append(key, String(item));
+      }
     }
   });
 
