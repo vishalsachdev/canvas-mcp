@@ -306,7 +306,7 @@ The HTTP/streamable transport itself remains fully supported for **self-hosting 
 
 ### Supported MCP Clients
 
-Canvas MCP is designed for MCP-compatible clients, including [Claude Desktop](https://claude.ai/download), [Cursor](https://cursor.sh), [Zed](https://zed.dev), [Windsurf](https://codeium.com/windsurf), [Continue](https://continue.dev), [Replit](https://replit.com), and [Copilot Studio](https://www.microsoft.com/microsoft-copilot/microsoft-copilot-studio). Setup details and supported capabilities vary by client.
+Canvas MCP is designed for MCP-compatible clients, including [Claude Desktop](https://claude.ai/download), [Codex](https://developers.openai.com/codex), [Cursor](https://cursor.sh), [Zed](https://zed.dev), [Windsurf](https://codeium.com/windsurf), [Continue](https://continue.dev), [Replit](https://replit.com), and [Copilot Studio](https://www.microsoft.com/microsoft-copilot/microsoft-copilot-studio). Setup details and supported capabilities vary by client.
 
 Canvas MCP uses documented Canvas API patterns such as a User-Agent header and `per_page` pagination. It is intended for Canvas Cloud and compatible self-hosted instances.
 
@@ -391,6 +391,27 @@ Canvas MCP is designed for MCP-compatible clients. Below are configuration examp
 ```
 
 **Note**: Use the absolute path to your virtualenv binary to avoid issues with shell-specific PATH entries (e.g., pyenv shims).
+
+</details>
+
+<details>
+<summary><strong>Codex</strong></summary>
+
+Codex can launch the server as a local stdio MCP server. From the repository directory, after creating `.env` as described above, register the server with:
+
+```bash
+codex mcp add canvas-api -- /absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server
+```
+
+The server loads `CANVAS_API_URL` and `CANVAS_API_TOKEN` from the repository's `.env` file. If Codex starts the server from another working directory, add an entry to `~/.codex/config.toml` instead and set `cwd` to the Canvas MCP repository:
+
+```toml
+[mcp_servers.canvas-api]
+command = "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
+cwd = "/absolute/path/to/canvas-mcp"
+```
+
+Run `codex mcp list` to verify the registration, then restart Codex. In the Codex TUI, `/mcp` shows the active server and its tools.
 
 </details>
 
