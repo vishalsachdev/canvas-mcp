@@ -397,19 +397,21 @@ Canvas MCP is designed for MCP-compatible clients. Below are configuration examp
 <details>
 <summary><strong>Codex</strong></summary>
 
-Codex can launch the server as a local stdio MCP server. From the repository directory, after creating `.env` as described above, register the server with:
-
-```bash
-codex mcp add canvas-api -- /absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server
-```
-
-The server loads `CANVAS_API_URL` and `CANVAS_API_TOKEN` from the repository's `.env` file. If Codex starts the server from another working directory, add an entry to `~/.codex/config.toml` instead and set `cwd` to the Canvas MCP repository:
+Codex can launch the server as a local stdio MCP server. Add this entry to `~/.codex/config.toml`, replacing the example paths with absolute paths on your machine:
 
 ```toml
 [mcp_servers.canvas-api]
 command = "/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server"
 cwd = "/absolute/path/to/canvas-mcp"
 ```
+
+Setting `cwd` to the repository lets the server find the `.env` file created above even when you start Codex elsewhere. Alternatively, register the command with the Codex CLI:
+
+```bash
+codex mcp add canvas-api -- /absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server
+```
+
+The CLI command does not set a persistent working directory. After running it, add the `cwd` line to the existing `[mcp_servers.canvas-api]` table in `~/.codex/config.toml`; do not create a second table with the same name.
 
 Run `codex mcp list` to verify the registration, then restart Codex. In the Codex TUI, `/mcp` shows the active server and its tools.
 
