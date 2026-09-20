@@ -8,7 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![skills.sh](https://img.shields.io/badge/skills.sh-canvas--mcp-blue)](https://skills.sh)
 
-MCP server for Canvas LMS with **up to 101 tools** and **8 agent skills**. Designed for Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh); setup and capabilities vary by client.
+MCP server for Canvas LMS with **up to 103 tools** and **8 agent skills**. Designed for Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh); setup and capabilities vary by client.
 
 ## Quick Start
 
@@ -36,7 +36,7 @@ See [Agent Skills](#-agent-skills) for the list. If your agent is Claude Code, t
   See CLAUDE.md "Documentation Maintenance" for full guidelines.
 -->
 
-Canvas MCP provides **up to 101 tools** for interacting with Canvas LMS; the default profile registers fewer, and optional feature-gated tools can raise the total to 101. Tools are organized by user type:
+Canvas MCP provides **up to 103 tools** for interacting with Canvas LMS; the default profile registers fewer, and optional feature-gated tools can raise the total to 103. Tools are organized by user type:
 
 <details>
 <summary><strong>Student Tools</strong> (click to expand)</summary>
@@ -545,7 +545,7 @@ The Canvas MCP Server provides a set of tools for interacting with the Canvas LM
 
 **Educator Tools**
 4. **Assignment Tools** - Handle assignments, submissions, and peer reviews with analytics
-5. **Rubric Tools** - Create and list rubrics, associate them with assignments, and grade submissions (including `bulk_grade_submissions` for efficient batch grading). Rubric editing is not exposed as an MCP tool; use the Canvas web UI. See [rubric API behavior and grading caveats](docs/rubric-api-behavior.md).
+5. **Rubric Tools** - Create, safely update, and list rubrics; associate them with assignments; and grade submissions (including `bulk_grade_submissions` for efficient batch grading). `update_rubric` is a guarded full replacement: it preserves existing criterion/rating IDs, requires a preview and confirmation, and verifies the result. See [rubric API behavior and grading caveats](docs/rubric-api-behavior.md).
 6. **User & Enrollment Tools** - Manage enrollments, users, and groups
 7. **Analytics Tools** - View student analytics, assignment statistics, and progress tracking
 8. **Messaging Tools** - Send messages and announcements to students

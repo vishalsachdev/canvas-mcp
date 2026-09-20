@@ -578,6 +578,53 @@ Uses bracket-notation form-data encoding required by the Canvas rubric API.
 
 ---
 
+#### `update_rubric`
+Safely edit the title, descriptions, and points of an existing rubric without
+silently re-keying criteria or ratings.
+
+Canvas treats rubric updates as full replacement rather than PATCH. This tool
+therefore requires the complete existing structure and allows no criterion or
+rating additions/removals. Call it once to receive a no-write preview and
+single-use token, show the preview to the educator, then call it again with the
+same arguments and `confirmation_token`.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `rubric_id`: Existing rubric ID
+- `rubric_association_id`: Existing rubric-association **join-record** ID
+- `title`: Complete replacement title
+- `criteria`: Complete JSON object keyed by existing criterion IDs. Each
+  criterion and rating must repeat its ID inside the object.
+- `free_form_criterion_comments` (optional): Whether free-form criterion
+  comments are enabled; omit it to preserve the current setting
+- `confirmation_token` (optional): Token returned by the preview call
+
+**Criteria JSON format:**
+```json
+{
+  "_c1": {
+    "id": "_c1",
+    "description": "Evidence",
+    "points": 10,
+    "ratings": {
+      "_r1": {"id": "_r1", "description": "Strong", "points": 10},
+      "_r2": {"id": "_r2", "description": "Developing", "points": 5}
+    }
+  }
+}
+```
+
+The preview is invalidated if the rubric or association changes before
+confirmation. After the PUT, the tool verifies that Canvas returned the same
+rubric and association IDs, then reads the rubric back and compares the full
+requested state. If Canvas created a copy or normalized content unexpectedly,
+the result is **unconfirmed**; check Canvas before retrying. The tool never
+retries a rubric update automatically.
+
+Use the Canvas UI for structural additions or removals.
+
+---
+
 #### `create_rubric_from_csv`
 Create one or more rubrics in a course from a CSV string using Canvas's native rubric CSV import endpoint. Uploads the CSV, then polls the import job until it reaches a terminal state.
 
@@ -2206,14 +2253,16 @@ Some Canvas API endpoints have bugs or design issues that prevent certain operat
 
 | Tool | Status | Issue | Reference |
 |------|--------|-------|-----------|
-| `update_rubric` | Removed | API does full replacement instead of PATCH (causes data loss) | Internal testing |
+| `update_rubric` | Guarded full replacement | Requires complete existing criterion/rating IDs, explicit association ID, preview/confirmation, and read-back verification |
 
-**Workaround for Rubric Editing:**
-1. **Edit rubrics** in Canvas web UI: Assignments → Edit → Rubric
-2. **Copy rubrics** between courses: Use "Find a Rubric" in the rubric editor
+**Rubric Editing:**
+1. Use `update_rubric` for ID-preserving edits to existing text and points.
+2. Use the Canvas UI for criterion/rating additions or removals.
+3. Copy rubrics between courses with "Find a Rubric" in the rubric editor.
 
 **Working Rubric Tools:**
 - `create_rubric` - Create a new rubric with defined criteria and ratings
+- `update_rubric` - Safely edit an existing rubric without re-keying its criteria/ratings
 - `create_rubric_from_csv` - Create a rubric using a CSV file upload
 - `list_rubrics` - List rubrics in a course
 - `get_rubric` - View rubric criteria and points (by rubric_id or assignment_id)

@@ -17,10 +17,20 @@ from ..core.dates import format_date, truncate_text
 from ..core.untrusted_content import (
     FENCE_LEAK_ERROR,
     contains_fence_markers,
+    fence_untrusted,
     fence_untrusted_inline,
 )
 from ..core.validation import validate_params
-from ..core.write_confirmation import unconfirmed_write_warning
+from ..core.write_confirmation import (
+    ConfirmationGuard,
+    preview_with_token,
+    redeem_confirmation,
+    unconfirmed_write_warning,
+)
+
+_RUBRIC_UPDATE_GUARD = ConfirmationGuard(
+    nothing_done="Nothing was updated.",
+)
 
 
 def preprocess_criteria_string(criteria_string: str) -> str:
@@ -151,6 +161,380 @@ def validate_rubric_criteria(criteria_json: str) -> dict[str, Any]:
                 raise ValueError(f"Criterion {criterion_key} ratings must be an object or array")
 
     return criteria
+
+
+def validate_rubric_update_criteria(
+    criteria_json: str,
+    current_criteria: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Validate a full rubric replacement without permitting ID churn.
+
+    Canvas replaces the complete criteria array on update. Missing criterion or
+    rating IDs can silently mint new IDs and orphan existing assessment data, so
+    updates require an exact, ID-keyed copy of the current structure.
+    """
+    criteria = validate_rubric_criteria(criteria_json)
+    if not criteria:
+        raise ValueError("criteria must contain at least one criterion")
+
+    current_by_id: dict[str, dict[str, Any]] = {}
+    for criterion in current_criteria:
+        criterion_id = criterion.get("id")
+        if criterion_id is None:
+            raise ValueError("Canvas returned a criterion without an ID")
+        criterion_id_str = str(criterion_id)
+        if criterion_id_str in current_by_id:
+            raise ValueError(
+                f"Canvas returned duplicate criterion ID {criterion_id_str!r}"
+            )
+        current_by_id[criterion_id_str] = criterion
+
+    if set(criteria) != set(current_by_id):
+        raise ValueError(
+            "criteria must include the complete existing criterion ID set; "
+            "adding or removing criteria is not supported by this guarded tool"
+        )
+
+    for criterion_id, proposed in criteria.items():
+        if str(proposed.get("id", "")) != criterion_id:
+            raise ValueError(
+                f"criterion {criterion_id} must include id={criterion_id!r}"
+            )
+        if not isinstance(proposed.get("description"), str):
+            raise ValueError(
+                f"criterion {criterion_id} description must be a string"
+            )
+
+        # These Canvas flags affect scoring/range behavior but are not editable
+        # through this deliberately narrow tool. Carry them forward so a text
+        # or points edit cannot silently reset existing behavior.
+        for field in ("criterion_use_range", "ignore_for_scoring"):
+            if field in current_by_id[criterion_id]:
+                proposed[field] = current_by_id[criterion_id][field]
+        if "long_description" not in proposed:
+            proposed["long_description"] = (
+                current_by_id[criterion_id].get("long_description") or ""
+            )
+        if not isinstance(proposed["long_description"], str):
+            raise ValueError(
+                f"criterion {criterion_id} long_description must be a string"
+            )
+
+        ratings = proposed.get("ratings")
+        if not isinstance(ratings, dict):
+            raise ValueError(
+                f"criterion {criterion_id} ratings must be an ID-keyed object"
+            )
+
+        current_ratings = current_by_id[criterion_id].get("ratings", [])
+        current_rating_by_id: dict[str, dict[str, Any]] = {}
+        for rating in current_ratings:
+            rating_id = rating.get("id") if isinstance(rating, dict) else None
+            if rating_id is None:
+                raise ValueError(
+                    f"Canvas returned a rating without an ID in criterion {criterion_id}"
+                )
+            rating_id_str = str(rating_id)
+            if rating_id_str in current_rating_by_id:
+                raise ValueError(
+                    f"Canvas returned duplicate rating ID {rating_id_str!r} "
+                    f"in criterion {criterion_id}"
+                )
+            current_rating_by_id[rating_id_str] = rating
+
+        if set(ratings) != set(current_rating_by_id):
+            raise ValueError(
+                f"criterion {criterion_id} must include the complete existing "
+                "rating ID set; adding or removing ratings is not supported"
+            )
+        for rating_id, rating in ratings.items():
+            if str(rating.get("id", "")) != rating_id:
+                raise ValueError(
+                    f"rating {rating_id} in criterion {criterion_id} must include "
+                    f"id={rating_id!r}"
+                )
+            if not isinstance(rating.get("description"), str):
+                raise ValueError(
+                    f"rating {rating_id} in criterion {criterion_id} "
+                    "description must be a string"
+                )
+            if "long_description" not in rating:
+                rating["long_description"] = (
+                    current_rating_by_id[rating_id].get("long_description") or ""
+                )
+            if not isinstance(rating["long_description"], str):
+                raise ValueError(
+                    f"rating {rating_id} in criterion {criterion_id} "
+                    "long_description must be a string"
+                )
+
+    ordered_criteria: dict[str, Any] = {}
+    for current_criterion in current_criteria:
+        criterion_id = str(current_criterion["id"])
+        proposed = criteria[criterion_id]
+        proposed_ratings = proposed["ratings"]
+        proposed["ratings"] = {
+            str(current_rating["id"]): proposed_ratings[str(current_rating["id"])]
+            for current_rating in current_criterion.get("ratings", [])
+        }
+        ordered_criteria[criterion_id] = proposed
+
+    return ordered_criteria
+
+
+def _rubric_update_state(
+    response: Any,
+    rubric_id: str,
+    rubric_association_id: str,
+) -> dict[str, Any]:
+    """Return the current guarded state or raise when identity is ambiguous."""
+    if not isinstance(response, dict) or "error" in response:
+        detail = (
+            response.get("error") if isinstance(response, dict) else "invalid response"
+        )
+        raise ValueError(f"could not fetch the rubric: {detail}")
+    if str(response.get("id")) != rubric_id:
+        raise ValueError("Canvas returned a different rubric ID")
+    if response.get("read_only") is True:
+        raise ValueError("this rubric is read-only")
+
+    criteria = response.get("data")
+    if not isinstance(criteria, list) or not criteria:
+        raise ValueError("Canvas returned no complete rubric criteria")
+
+    associations = response.get("associations")
+    if not isinstance(associations, list):
+        raise ValueError("Canvas returned no association data")
+    matches = [
+        association
+        for association in associations
+        if isinstance(association, dict)
+        and str(association.get("id")) == rubric_association_id
+        and str(association.get("rubric_id")) == rubric_id
+    ]
+    if len(matches) != 1:
+        raise ValueError(
+            "the requested rubric association was not returned exactly once"
+        )
+
+    return {
+        "id": response.get("id"),
+        "title": response.get("title"),
+        "free_form_criterion_comments": response.get("free_form_criterion_comments"),
+        "data": criteria,
+        "association": matches[0],
+    }
+
+
+def _rubric_update_fingerprint(
+    current: dict[str, Any],
+    title: str,
+    criteria: dict[str, Any],
+    free_form_criterion_comments: bool,
+) -> str:
+    return _RUBRIC_UPDATE_GUARD.fingerprint(
+        json.dumps(current, sort_keys=True, separators=(",", ":"), default=str),
+        title,
+        json.dumps(criteria, sort_keys=True, separators=(",", ":"), default=str),
+        "1" if free_form_criterion_comments else "0",
+    )
+
+
+def _render_rubric_update_preview(
+    current: dict[str, Any],
+    title: str,
+    criteria: dict[str, Any],
+    free_form_criterion_comments: bool,
+) -> str:
+    lines = [
+        f"Rubric ID: {current['id']}",
+        f"Association ID: {current['association']['id']}",
+        f"Current title: {fence_untrusted_inline(str(current.get('title') or ''), 'rubric title')}",
+        f"New title: {title}",
+        "Replacement criteria (complete ID-preserving set):",
+    ]
+    current_criteria = {str(item["id"]): item for item in current["data"]}
+    for criterion_id, criterion in criteria.items():
+        lines.append(
+            f"- {criterion_id}: {criterion['description']} ({float(criterion['points']):g} pts)"
+        )
+        previous = current_criteria[criterion_id]
+        lines.append("  Current long description: " + fence_untrusted(
+            previous.get("long_description") or "(empty)", "criterion long description"
+        ))
+        lines.append("  New long description: " + fence_untrusted(
+            criterion.get("long_description") or "(empty)", "proposed criterion long description"
+        ) if criterion.get("long_description") else "  New long description: (empty)")
+        for field in ("criterion_use_range", "ignore_for_scoring"):
+            if field in criterion:
+                lines.append(f"  {field} (preserved): {criterion[field]}")
+        current_ratings = {str(item["id"]): item for item in previous["ratings"]}
+        for rating_id, rating in criterion["ratings"].items():
+            lines.append(
+                f"  - {rating_id}: {rating['description']} "
+                f"({float(rating['points']):g} pts)"
+            )
+            lines.append("    Current long description: " + fence_untrusted(
+                current_ratings[rating_id].get("long_description") or "(empty)",
+                "rating long description",
+            ))
+            lines.append("    New long description: " + fence_untrusted(
+                rating["long_description"], "proposed rating long description"
+            ) if rating.get("long_description") else "    New long description: (empty)")
+    lines.append("Assignment points possible: preserved")
+    lines.append(
+        "Free-form criterion comments: "
+        + ("enabled" if free_form_criterion_comments else "disabled")
+    )
+    return "\n".join(lines)
+
+
+def build_rubric_update_form_data(
+    title: str,
+    criteria: dict[str, Any],
+    rubric_association_id: str,
+    free_form_criterion_comments: bool,
+) -> dict[str, str]:
+    """Encode a full ID-preserving rubric replacement for Canvas."""
+    form_data = {
+        "rubric_association_id": rubric_association_id,
+        "rubric[skip_updating_points_possible]": "1",
+        "rubric[title]": title,
+        "rubric[free_form_criterion_comments]": (
+            "1" if free_form_criterion_comments else "0"
+        ),
+    }
+    for criterion_index, (criterion_id, criterion) in enumerate(criteria.items()):
+        prefix = f"rubric[criteria][{criterion_index}]"
+        form_data[f"{prefix}[id]"] = criterion_id
+        form_data[f"{prefix}[description]"] = str(criterion["description"])
+        form_data[f"{prefix}[long_description]"] = str(
+            criterion.get("long_description") or ""
+        )
+        form_data[f"{prefix}[points]"] = str(float(criterion["points"]))
+        for field in ("criterion_use_range", "ignore_for_scoring"):
+            if field in criterion:
+                form_data[f"{prefix}[{field}]"] = "1" if criterion[field] else "0"
+
+        for rating_index, (rating_id, rating) in enumerate(
+            criterion["ratings"].items()
+        ):
+            rating_prefix = f"{prefix}[ratings][{rating_index}]"
+            form_data[f"{rating_prefix}[id]"] = rating_id
+            form_data[f"{rating_prefix}[description]"] = str(rating["description"])
+            form_data[f"{rating_prefix}[long_description]"] = str(
+                rating.get("long_description") or ""
+            )
+            form_data[f"{rating_prefix}[points]"] = str(float(rating["points"]))
+    return form_data
+
+
+def _update_response_has_expected_identity(
+    response: Any,
+    rubric_id: str,
+    rubric_association_id: str,
+) -> bool:
+    if not isinstance(response, dict):
+        return False
+    rubric = response.get("rubric")
+    association = response.get("rubric_association")
+    return (
+        isinstance(rubric, dict)
+        and str(rubric.get("id")) == rubric_id
+        and isinstance(association, dict)
+        and str(association.get("id")) == rubric_association_id
+        and str(association.get("rubric_id")) == rubric_id
+    )
+
+
+def _rubric_matches_requested_update(
+    current: dict[str, Any],
+    title: str,
+    criteria: dict[str, Any],
+    free_form_criterion_comments: bool,
+) -> bool:
+    if current.get("title") != title:
+        return False
+    if (
+        bool(current.get("free_form_criterion_comments"))
+        != free_form_criterion_comments
+    ):
+        return False
+
+    returned = {
+        str(criterion.get("id")): criterion
+        for criterion in current["data"]
+        if isinstance(criterion, dict) and criterion.get("id") is not None
+    }
+    if len(returned) != len(current["data"]) or set(returned) != set(criteria):
+        return False
+    try:
+        for criterion_id, requested in criteria.items():
+            actual = returned[criterion_id]
+            if actual.get("description") != requested.get("description"):
+                return False
+            if (actual.get("long_description") or "") != (
+                requested.get("long_description") or ""
+            ):
+                return False
+            for field in ("criterion_use_range", "ignore_for_scoring"):
+                if field in requested and bool(actual.get(field)) != bool(
+                    requested[field]
+                ):
+                    return False
+            actual_points = actual.get("points")
+            requested_points = requested.get("points")
+            if (
+                actual_points is None
+                or requested_points is None
+                or not math.isclose(
+                    float(actual_points),
+                    float(requested_points),
+                    rel_tol=1e-9,
+                    abs_tol=1e-6,
+                )
+            ):
+                return False
+
+            raw_actual_ratings = actual.get("ratings")
+            if not isinstance(raw_actual_ratings, list):
+                return False
+            actual_ratings = {
+                str(rating.get("id")): rating
+                for rating in raw_actual_ratings
+                if isinstance(rating, dict) and rating.get("id") is not None
+            }
+            requested_ratings = requested["ratings"]
+            if len(actual_ratings) != len(raw_actual_ratings) or set(
+                actual_ratings
+            ) != set(requested_ratings):
+                return False
+            for rating_id, requested_rating in requested_ratings.items():
+                actual_rating = actual_ratings[rating_id]
+                if actual_rating.get("description") != requested_rating.get(
+                    "description"
+                ):
+                    return False
+                if (actual_rating.get("long_description") or "") != (
+                    requested_rating.get("long_description") or ""
+                ):
+                    return False
+                actual_rating_points = actual_rating.get("points")
+                requested_rating_points = requested_rating.get("points")
+                if (
+                    actual_rating_points is None
+                    or requested_rating_points is None
+                    or not math.isclose(
+                        float(actual_rating_points),
+                        float(requested_rating_points),
+                        rel_tol=1e-9,
+                        abs_tol=1e-6,
+                    )
+                ):
+                    return False
+    except (KeyError, TypeError, ValueError):
+        return False
+    return True
 
 
 def format_rubric_response(response: dict[str, Any]) -> str:
@@ -554,6 +938,32 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             result += f"Total Points: {points_possible}\n"
             result += f"Reusable: {'Yes' if reusable else 'No'}\n"
             result += f"Read Only: {'Yes' if read_only else 'No'}\n"
+
+            associations = response.get("associations", [])
+            if associations:
+                result += "Rubric Associations:\n"
+                for association in associations:
+                    if not isinstance(association, dict):
+                        continue
+                    result += (
+                        f"  Rubric Association ID: {association.get('id', 'N/A')}\n"
+                    )
+                    association_type = str(
+                        association.get("association_type", "Unknown")
+                    )
+                    association_label = (
+                        "Assignment ID"
+                        if association_type == "Assignment"
+                        else "Associated Object ID"
+                    )
+                    result += (
+                        f"  {association_label}: "
+                        f"{association.get('association_id', 'N/A')}\n"
+                    )
+                    result += (
+                        "  Association Type: "
+                        f"{fence_untrusted_inline(association_type, 'rubric association type')}\n"
+                    )
 
             if data:
                 result += f"Number of Criteria: {len(data)}\n\n"
@@ -1232,6 +1642,178 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                 result += warning
 
         return result
+
+    @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=True))
+    @validate_params
+    async def update_rubric(
+        course_identifier: str | int,
+        rubric_id: str | int,
+        rubric_association_id: str | int,
+        title: str,
+        criteria: str,
+        free_form_criterion_comments: bool | None = None,
+        confirmation_token: str | None = None,
+    ) -> str:
+        """Safely replace an existing rubric after preview and confirmation.
+
+        Canvas updates replace the full criteria set. ``criteria`` must
+        therefore be an ID-keyed JSON object containing every current criterion
+        and rating, with each object's ``id`` repeated inside it. This tool does
+        not add or remove criteria/ratings; it edits their text and points while
+        preserving IDs used by existing assessments.
+
+        Call once without ``confirmation_token`` to receive a preview, show it
+        to the educator, then call again with identical arguments and the token.
+        Any rubric or association drift invalidates the token.
+
+        Omit ``free_form_criterion_comments`` to preserve the rubric's current
+        setting, or pass a boolean to change it explicitly.
+        """
+        if contains_fence_markers(title) or contains_fence_markers(criteria):
+            return FENCE_LEAK_ERROR
+
+        course_id = await get_course_id(course_identifier)
+        rubric_id_str = str(rubric_id)
+        association_id_str = str(rubric_association_id)
+        response = await make_canvas_request(
+            "get",
+            f"/courses/{course_id}/rubrics/{rubric_id_str}",
+            params={"include[]": ["associations"]},
+        )
+        try:
+            current = _rubric_update_state(response, rubric_id_str, association_id_str)
+            parsed_criteria = validate_rubric_update_criteria(criteria, current["data"])
+        except ValueError as exc:
+            return f"Error: Cannot safely update rubric — {exc}. Nothing was updated."
+
+        # Inspect decoded and inherited text before issuing or redeeming a token.
+        decoded_records = [
+            record
+            for criterion in parsed_criteria.values()
+            for record in (criterion, *criterion["ratings"].values())
+        ]
+        if any(
+            contains_fence_markers(value)
+            for record in decoded_records
+            for value in record.values()
+            if isinstance(value, str)
+        ):
+            return FENCE_LEAK_ERROR
+
+        desired_free_form_comments = (
+            bool(current.get("free_form_criterion_comments"))
+            if free_form_criterion_comments is None
+            else free_form_criterion_comments
+        )
+
+        fingerprint = _rubric_update_fingerprint(
+            current, title, parsed_criteria, desired_free_form_comments
+        )
+        if not confirmation_token:
+            return preview_with_token(
+                _RUBRIC_UPDATE_GUARD,
+                fingerprint,
+                "update_rubric",
+                _render_rubric_update_preview(
+                    current,
+                    title,
+                    parsed_criteria,
+                    desired_free_form_comments,
+                ),
+                action="update",
+            )
+
+        confirmation_error = redeem_confirmation(
+            _RUBRIC_UPDATE_GUARD, confirmation_token, fingerprint
+        )
+        if confirmation_error:
+            return confirmation_error
+
+        form_data = build_rubric_update_form_data(
+            title,
+            parsed_criteria,
+            association_id_str,
+            desired_free_form_comments,
+        )
+        update_response = await make_canvas_request(
+            "put",
+            f"/courses/{course_id}/rubrics/{rubric_id_str}",
+            data=form_data,
+            use_form_data=True,
+        )
+        if isinstance(update_response, dict) and "error" in update_response:
+            return f"Error updating rubric: {update_response['error']}"
+        if not _update_response_has_expected_identity(
+            update_response, rubric_id_str, association_id_str
+        ):
+            returned_rubric = (
+                update_response.get("rubric", {}).get("id")
+                if isinstance(update_response, dict)
+                and isinstance(update_response.get("rubric"), dict)
+                else None
+            )
+            returned_association = (
+                update_response.get("rubric_association", {}).get("id")
+                if isinstance(update_response, dict)
+                and isinstance(update_response.get("rubric_association"), dict)
+                else None
+            )
+            return unconfirmed_write_warning(
+                "Canvas updated the requested rubric rather than creating or "
+                "returning a different copy",
+                {
+                    "Requested rubric ID": rubric_id_str,
+                    "Returned rubric ID": returned_rubric,
+                    "Requested association ID": association_id_str,
+                    "Returned association ID": returned_association,
+                },
+                "The write may already have happened. Check Canvas before "
+                "retrying; this tool will not retry automatically.",
+            )
+
+        readback_response = await make_canvas_request(
+            "get",
+            f"/courses/{course_id}/rubrics/{rubric_id_str}",
+            params={"include[]": ["associations"]},
+        )
+        try:
+            readback = _rubric_update_state(
+                readback_response, rubric_id_str, association_id_str
+            )
+        except ValueError as exc:
+            return unconfirmed_write_warning(
+                "the rubric update by reading it back",
+                {
+                    "Rubric ID": rubric_id_str,
+                    "Association ID": association_id_str,
+                    "Read-back error": str(exc),
+                },
+                "The write may already have happened. Check Canvas before "
+                "retrying; this tool will not retry automatically.",
+            )
+        if not _rubric_matches_requested_update(
+            readback, title, parsed_criteria, desired_free_form_comments
+        ):
+            return unconfirmed_write_warning(
+                "the rubric update matched the complete requested state",
+                {
+                    "Rubric ID": rubric_id_str,
+                    "Association ID": association_id_str,
+                },
+                "Canvas returned different rubric content after the write. "
+                "Check Canvas before retrying; this tool will not retry "
+                "automatically.",
+            )
+
+        course_display = await get_course_code(course_id) or course_identifier
+        return (
+            "Rubric updated and verified successfully!\n\n"
+            f"Course: {course_display}\n"
+            f"Rubric ID: {rubric_id_str}\n"
+            f"Association ID: {association_id_str}\n"
+            f"Title: {title}\n"
+            f"Criteria preserved: {len(parsed_criteria)}\n"
+        )
 
     # Replaces the assignment's existing rubric association, and overwrites
     # use_for_grading / purpose even when re-associating the same rubric (#204).

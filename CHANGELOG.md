@@ -14,7 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   results that cannot be confirmed count under bulk failures, even when the
   assessment may have been saved; check Canvas before retrying. TypeScript
   bulk grading shares one assignment lookup per run. Rubric creation remains
-  supported; editing still uses the Canvas UI (#374, #375).
+  supported; guarded ID-preserving edits are available through
+  `update_rubric`, while structural changes still use the Canvas UI (#374,
+  #375).
 
 - **Local file exports refuse HTTP callers.** On a shared (HTTP-transport)
   server, `generate_peer_review_report(save_to_file=True)` and
@@ -31,6 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (timestamped default filename, a new file per call).
 
 ### Added
+
+- **`update_rubric`** — guarded full-replacement editing for existing rubrics.
+  The tool requires the complete criterion/rating set and every existing ID,
+  an explicit rubric-association join-record ID, and a human-visible
+  preview → confirmation step. It rechecks state before writing, preserves
+  scoring/range flags, verifies the returned identities, and reads the rubric
+  back after the write. Unexpected copies or mismatched content are reported
+  as unconfirmed and are never retried automatically (#375).
 
 - **`update_syllabus`** — write the course Syllabus tab, which previously had a
   read tool (`get_syllabus`) and no way to write. Supports `replace` (default),
