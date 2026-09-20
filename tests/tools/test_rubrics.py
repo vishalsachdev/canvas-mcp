@@ -394,6 +394,30 @@ class TestRubricTools:
         assert "Confirmation token:" not in output
         assert all(call.args[0] == "get" for call in mock_canvas_request.call_args_list)
 
+    @pytest.mark.parametrize("rating", [False, True])
+    @pytest.mark.parametrize("field", ["description", "long_description"])
+    async def test_update_rejects_non_string_text_fields_before_preview(
+        self, mcp, mock_canvas_request, mock_course_id, rating, field
+    ):
+        criteria = json.loads(_updated_criteria())
+        target = criteria["_c1"]["ratings"]["_r1"] if rating else criteria["_c1"]
+        target[field] = {"nested": "<<<UNTRUSTED CANVAS CONTENT>>>"}
+        raw = json.dumps(criteria).replace("<", r"\u003c")
+        mock_canvas_request.return_value = _existing_rubric()
+        register_rubric_tools(mcp)
+
+        result = await _call_tool(mcp, "update_rubric", {
+            "course_identifier": "TEST101", "rubric_id": 7371,
+            "rubric_association_id": 8801, "title": "Updated",
+            "criteria": raw,
+        })
+
+        output = result.content[0].text
+        assert "Error: Cannot safely update rubric" in output
+        assert f"{field} must be a string" in output
+        assert "Confirmation token:" not in output
+        assert all(call.args[0] == "get" for call in mock_canvas_request.call_args_list)
+
     @pytest.mark.parametrize("new_text", ["", "Full new description " * 500])
     async def test_update_preview_shows_full_long_descriptions(
         self, mcp, mock_canvas_request, mock_course_id, new_text

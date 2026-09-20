@@ -200,6 +200,10 @@ def validate_rubric_update_criteria(
             raise ValueError(
                 f"criterion {criterion_id} must include id={criterion_id!r}"
             )
+        if not isinstance(proposed.get("description"), str):
+            raise ValueError(
+                f"criterion {criterion_id} description must be a string"
+            )
 
         # These Canvas flags affect scoring/range behavior but are not editable
         # through this deliberately narrow tool. Carry them forward so a text
@@ -210,6 +214,10 @@ def validate_rubric_update_criteria(
         if "long_description" not in proposed:
             proposed["long_description"] = (
                 current_by_id[criterion_id].get("long_description") or ""
+            )
+        if not isinstance(proposed["long_description"], str):
+            raise ValueError(
+                f"criterion {criterion_id} long_description must be a string"
             )
 
         ratings = proposed.get("ratings")
@@ -245,9 +253,19 @@ def validate_rubric_update_criteria(
                     f"rating {rating_id} in criterion {criterion_id} must include "
                     f"id={rating_id!r}"
                 )
+            if not isinstance(rating.get("description"), str):
+                raise ValueError(
+                    f"rating {rating_id} in criterion {criterion_id} "
+                    "description must be a string"
+                )
             if "long_description" not in rating:
                 rating["long_description"] = (
                     current_rating_by_id[rating_id].get("long_description") or ""
+                )
+            if not isinstance(rating["long_description"], str):
+                raise ValueError(
+                    f"rating {rating_id} in criterion {criterion_id} "
+                    "long_description must be a string"
                 )
 
     ordered_criteria: dict[str, Any] = {}
