@@ -34,10 +34,25 @@ for `free_form_criterion_comments` was observed on one instance. Current
 creation does not perform a strict false-versus-null read-back comparison,
 so it does not establish a reason to change the boolean payload.
 
-There is no registered `update_rubric` tool. The documented project concern
-is destructive criterion replacement during partial updates, not a missing
-REST endpoint. Continue editing through Canvas UI until a separately tested
-update tool preserves intended criteria, ratings, and their IDs.
+`update_rubric` exposes a deliberately narrow, guarded form of editing. Canvas
+still performs a full replacement, so the tool fetches the current rubric and
+requires an exact ID-keyed copy of every criterion and rating. It refuses
+missing, extra, or mismatched IDs and preserves non-editable scoring/range
+flags from the current rubric.
+
+Updating is always two-step: the first call returns a no-write preview and a
+single-use token bound to the caller, current rubric/association state, and
+complete requested replacement. Confirmation re-fetches the rubric, so any
+concurrent change invalidates the token before the PUT. The request includes
+the explicit `rubric_association_id`, and success requires both the update
+response and a fresh read-back to identify the original rubric and association
+and match the requested content. A different rubric ID (Canvas may create a
+copy in some permission/context cases), missing association, or content
+mismatch is reported as unconfirmed and is never retried automatically.
+
+The tool supports edits to existing text and points. Structural additions or
+removals remain a Canvas UI operation because preserving assessment-key
+integrity across those changes has not been established on a live instance.
 
 ## Assessments and grades
 

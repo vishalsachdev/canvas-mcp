@@ -1562,6 +1562,60 @@
       "notes": "Uses bracket-notation form-data encoding required by the Canvas rubric API. The ``criteria`` parameter is a JSON string mapping arbitrary criterion keys to objects with the following fields: - ``description`` (required): Short criterion label shown in the rubric grid - ``points`` (required): Maximum points for this criterion (non-negative number) - ``long_description`` (optional): Detailed criterion description - ``ratings`` (optional): List (or object) of rating levels, each with:     - ``description`` (required): Rating label (e.g. \"Excellent\")     - ``points`` (required): Points for this rating (non-negative number)     - ``long_description`` (optional): Detailed rating description Example ``criteria`` JSON:: {       \"c1\": {         \"description\": \"Content Quality\",         \"points\": 10,         \"ratings\": [           {\"description\": \"Excellent\", \"points\": 10},           {\"description\": \"Satisfactory\", \"points\": 7},           {\"description\": \"Needs Work\", \"points\": 3}         ]       },       \"c2\": {         \"description\": \"Grammar\",         \"points\": 5,         \"ratings\": [           {\"description\": \"No errors\", \"points\": 5},           {\"description\": \"Minor errors\", \"points\": 3}         ]       }     }"
     },
     {
+      "name": "update_rubric",
+      "category": "educator",
+      "description": "Safely replace an existing rubric after preview and confirmation.",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "rubric_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Existing Canvas rubric ID"
+        },
+        {
+          "name": "rubric_association_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Existing rubric-association join-record ID"
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "description": "Complete replacement rubric title"
+        },
+        {
+          "name": "criteria",
+          "type": "string",
+          "required": true,
+          "description": "Complete ID-keyed JSON criteria and ratings set; every existing ID must be preserved"
+        },
+        {
+          "name": "free_form_criterion_comments",
+          "type": "boolean",
+          "required": false,
+          "description": "Whether free-form criterion comments are enabled; omit to preserve the current setting"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Single-use token returned by the preview call"
+        }
+      ],
+      "returns": "A no-write preview with confirmation token, or a verified update result",
+      "examples": [
+        "Preview an ID-preserving update to rubric 7371 and association 8801"
+      ],
+      "notes": "Two-step destructive tool. It fetches the complete rubric and association, rejects missing or unknown criterion/rating IDs, preserves non-editable scoring flags, binds the preview token to current and requested state, and re-reads the rubric after the PUT. A different returned rubric ID or association ID is reported as unconfirmed and is never retried automatically."
+    },
+    {
       "name": "create_rubric_from_csv",
       "category": "educator",
       "description": "Create one or more rubrics in a course from a CSV string.",

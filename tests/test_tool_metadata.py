@@ -79,6 +79,7 @@ DESTRUCTIVE = {
     # allows one); assignment_id attaches a rubric over whatever was there.
     "create_page",
     "create_rubric",
+    "update_rubric",
     "associate_rubric",
     "create_content_migration",
     # Removals.
@@ -242,7 +243,7 @@ async def test_repeatable_tools_declare_idempotency_honestly():
     # extract_peer_review_dataset: fixed default filename + mode "w" means a repeat
     # overwrites the same file. Contrast generate_peer_review_report above.
     for name in ("update_assignment", "update_module", "update_discussion_topic",
-                 "edit_page_content", "delete_page", "bulk_delete_announcements",
+                 "update_rubric", "edit_page_content", "delete_page", "bulk_delete_announcements",
                  "delete_announcements_by_criteria", "delete_assignment_with_confirmation",
                  "extract_peer_review_dataset"):
         assert tools[name].annotations.idempotent_hint is True, (
