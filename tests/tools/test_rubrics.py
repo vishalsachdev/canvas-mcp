@@ -17,6 +17,7 @@ from canvas_mcp.tools.rubrics import (
     rubric_association_id,
     unconfirmed_write_warning,
     validate_rubric_criteria,
+    validate_rubric_update_criteria,
 )
 
 
@@ -189,6 +190,27 @@ class TestRubricValidation:
         # Should remove outer quotes and unescape
         assert result.startswith("{")
         assert result.endswith("}")
+
+    def test_update_criteria_preserves_canvas_criterion_and_rating_order(self):
+        """ID-keyed input order cannot silently reorder an existing rubric."""
+        proposed = json.loads(_updated_criteria())
+        reversed_input = {
+            "_c2": proposed["_c2"],
+            "_c1": {
+                **proposed["_c1"],
+                "ratings": {
+                    "_r2": proposed["_c1"]["ratings"]["_r2"],
+                    "_r1": proposed["_c1"]["ratings"]["_r1"],
+                },
+            },
+        }
+
+        result = validate_rubric_update_criteria(
+            json.dumps(reversed_input), _existing_rubric()["data"]
+        )
+
+        assert list(result) == ["_c1", "_c2"]
+        assert list(result["_c1"]["ratings"]) == ["_r1", "_r2"]
 
 
 class TestBuildRubricCreateFormData:
@@ -1167,6 +1189,15 @@ class TestRubricTools:
             "points_possible": 100,
             "reusable": True,
             "read_only": False,
+            "associations": [
+                {
+                    "id": 8801,
+                    "association_type": "Assignment",
+                    "association_id": 9901,
+                    "use_for_grading": True,
+                    "purpose": "grading",
+                }
+            ],
             "data": [
                 {
                     "id": "_crit1",
@@ -1194,6 +1225,8 @@ class TestRubricTools:
         assert "_r1" in output
         assert "Thesis Quality" in output
         assert "40 pts" in output
+        assert "Rubric Association ID: 8801" in output
+        assert "Assignment ID: 9901" in output
 
     @pytest.mark.asyncio
     async def test_get_rubric_by_assignment_id(self, mcp, mock_canvas_request, mock_course_id, mock_course_code):

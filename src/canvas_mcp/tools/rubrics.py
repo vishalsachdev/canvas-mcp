@@ -250,7 +250,18 @@ def validate_rubric_update_criteria(
                     current_rating_by_id[rating_id].get("long_description") or ""
                 )
 
-    return criteria
+    ordered_criteria: dict[str, Any] = {}
+    for current_criterion in current_criteria:
+        criterion_id = str(current_criterion["id"])
+        proposed = criteria[criterion_id]
+        proposed_ratings = proposed["ratings"]
+        proposed["ratings"] = {
+            str(current_rating["id"]): proposed_ratings[str(current_rating["id"])]
+            for current_rating in current_criterion.get("ratings", [])
+        }
+        ordered_criteria[criterion_id] = proposed
+
+    return ordered_criteria
 
 
 def _rubric_update_state(
@@ -909,6 +920,32 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             result += f"Total Points: {points_possible}\n"
             result += f"Reusable: {'Yes' if reusable else 'No'}\n"
             result += f"Read Only: {'Yes' if read_only else 'No'}\n"
+
+            associations = response.get("associations", [])
+            if associations:
+                result += "Rubric Associations:\n"
+                for association in associations:
+                    if not isinstance(association, dict):
+                        continue
+                    result += (
+                        f"  Rubric Association ID: {association.get('id', 'N/A')}\n"
+                    )
+                    association_type = str(
+                        association.get("association_type", "Unknown")
+                    )
+                    association_label = (
+                        "Assignment ID"
+                        if association_type == "Assignment"
+                        else "Associated Object ID"
+                    )
+                    result += (
+                        f"  {association_label}: "
+                        f"{association.get('association_id', 'N/A')}\n"
+                    )
+                    result += (
+                        "  Association Type: "
+                        f"{fence_untrusted_inline(association_type, 'rubric association type')}\n"
+                    )
 
             if data:
                 result += f"Number of Criteria: {len(data)}\n\n"

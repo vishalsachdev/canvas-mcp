@@ -60,6 +60,9 @@ mismatch is reported as unconfirmed and is never retried automatically.
 The tool supports edits to existing text and points. Structural additions or
 removals remain a Canvas UI operation because preserving assessment-key
 integrity across those changes has not been established on a live instance.
+Use `get_rubric` with a rubric ID to retrieve the rubric-association join-record
+IDs required by `update_rubric`. Replacement criteria and ratings are always
+sent in their existing Canvas order, regardless of JSON object key order.
 
 ## Assessments and grades
 
