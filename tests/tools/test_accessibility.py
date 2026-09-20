@@ -180,7 +180,20 @@ class TestFormatAccessibilitySummary:
         fn = get_tool_function('format_accessibility_summary')
         result = await fn("bad-json")
 
-        assert "Error" in result
+        assert json.loads(result) == {"error": "Invalid JSON input"}
+
+    @pytest.mark.asyncio
+    async def test_format_summary_preserves_upstream_error(self, mock_canvas_api):
+        """Test formatting preserves a structured upstream error."""
+        error = {
+            "error": "Report body is empty",
+            "suggestion": "Fetch the UFIXIT report again",
+        }
+
+        fn = get_tool_function('format_accessibility_summary')
+        result = await fn(json.dumps(error))
+
+        assert json.loads(result) == error
 
     @pytest.mark.asyncio
     async def test_format_summary_no_violations(self, mock_canvas_api):
