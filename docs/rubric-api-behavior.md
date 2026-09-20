@@ -40,6 +40,13 @@ requires an exact ID-keyed copy of every criterion and rating. It refuses
 missing, extra, or mismatched IDs and preserves non-editable scoring/range
 flags from the current rubric.
 
+The preview displays complete current and proposed long descriptions for every
+criterion and rating, including explicit clearing, plus preserved scoring/range
+flags. Decoded replacement text is checked for provenance fence markers before
+a confirmation token can be issued or used. Updates always send
+`rubric[skip_updating_points_possible]=1` to preserve assignment gradebook totals
+even when rubric criterion points change.
+
 Updating is always two-step: the first call returns a no-write preview and a
 single-use token bound to the caller, current rubric/association state, and
 complete requested replacement. Confirmation re-fetches the rubric, so any

@@ -17,6 +17,7 @@ from ..core.dates import format_date, truncate_text
 from ..core.untrusted_content import (
     FENCE_LEAK_ERROR,
     contains_fence_markers,
+    fence_untrusted,
     fence_untrusted_inline,
 )
 from ..core.validation import validate_params
@@ -323,15 +324,35 @@ def _render_rubric_update_preview(
         f"New title: {title}",
         "Replacement criteria (complete ID-preserving set):",
     ]
+    current_criteria = {str(item["id"]): item for item in current["data"]}
     for criterion_id, criterion in criteria.items():
         lines.append(
             f"- {criterion_id}: {criterion['description']} ({float(criterion['points']):g} pts)"
         )
+        previous = current_criteria[criterion_id]
+        lines.append("  Current long description: " + fence_untrusted(
+            previous.get("long_description") or "(empty)", "criterion long description"
+        ))
+        lines.append("  New long description: " + fence_untrusted(
+            criterion.get("long_description") or "(empty)", "proposed criterion long description"
+        ) if criterion.get("long_description") else "  New long description: (empty)")
+        for field in ("criterion_use_range", "ignore_for_scoring"):
+            if field in criterion:
+                lines.append(f"  {field} (preserved): {criterion[field]}")
+        current_ratings = {str(item["id"]): item for item in previous["ratings"]}
         for rating_id, rating in criterion["ratings"].items():
             lines.append(
                 f"  - {rating_id}: {rating['description']} "
                 f"({float(rating['points']):g} pts)"
             )
+            lines.append("    Current long description: " + fence_untrusted(
+                current_ratings[rating_id].get("long_description") or "(empty)",
+                "rating long description",
+            ))
+            lines.append("    New long description: " + fence_untrusted(
+                rating["long_description"], "proposed rating long description"
+            ) if rating.get("long_description") else "    New long description: (empty)")
+    lines.append("Assignment points possible: preserved")
     lines.append(
         "Free-form criterion comments: "
         + ("enabled" if free_form_criterion_comments else "disabled")
@@ -348,6 +369,7 @@ def build_rubric_update_form_data(
     """Encode a full ID-preserving rubric replacement for Canvas."""
     form_data = {
         "rubric_association_id": rubric_association_id,
+        "rubric[skip_updating_points_possible]": "1",
         "rubric[title]": title,
         "rubric[free_form_criterion_comments]": (
             "1" if free_form_criterion_comments else "0"
@@ -1608,6 +1630,20 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             parsed_criteria = validate_rubric_update_criteria(criteria, current["data"])
         except ValueError as exc:
             return f"Error: Cannot safely update rubric — {exc}. Nothing was updated."
+
+        # Inspect decoded and inherited text before issuing or redeeming a token.
+        decoded_records = [
+            record
+            for criterion in parsed_criteria.values()
+            for record in (criterion, *criterion["ratings"].values())
+        ]
+        if any(
+            contains_fence_markers(value)
+            for record in decoded_records
+            for value in record.values()
+            if isinstance(value, str)
+        ):
+            return FENCE_LEAK_ERROR
 
         desired_free_form_comments = (
             bool(current.get("free_form_criterion_comments"))

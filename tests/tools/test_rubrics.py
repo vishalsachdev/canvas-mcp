@@ -348,6 +348,55 @@ class TestRubricTools:
         register_rubric_tools(mcp)
         assert "update_rubric" in {t.name for t in await mcp.list_tools()}
 
+    @pytest.mark.parametrize("encoding", ["json", "python"])
+    @pytest.mark.parametrize("separator", [" ", "\n"])
+    @pytest.mark.parametrize("rating", [False, True])
+    @pytest.mark.parametrize("field", ["description", "long_description"])
+    async def test_update_rejects_decoded_markers(
+        self, mcp, mock_canvas_request, mock_course_id, encoding, rating, field, separator
+    ):
+        criteria = json.loads(_updated_criteria())
+        target = criteria["_c1"]["ratings"]["_r1"] if rating else criteria["_c1"]
+        target[field] = f"<<<UNTRUSTED{separator}CANVAS CONTENT>>>"
+        raw = json.dumps(criteria) if encoding == "json" else repr(criteria)
+        raw = raw.replace("<", r"\u003c")
+        mock_canvas_request.return_value = _existing_rubric()
+        register_rubric_tools(mcp)
+        result = await _call_tool(mcp, "update_rubric", {
+            "course_identifier": "TEST101", "rubric_id": 7371,
+            "rubric_association_id": 8801, "title": "Updated", "criteria": raw,
+        })
+        output = result.content[0].text
+        assert "Error:" in output
+        assert "fence markers" in output
+        assert "Confirmation token:" not in output
+        assert all(call.args[0] == "get" for call in mock_canvas_request.call_args_list)
+
+    @pytest.mark.parametrize("new_text", ["", "Full new description " * 500])
+    async def test_update_preview_shows_full_long_descriptions(
+        self, mcp, mock_canvas_request, mock_course_id, new_text
+    ):
+        before = _existing_rubric()
+        before["data"][0]["ratings"][0]["long_description"] = "Original rating detail"
+        criteria = json.loads(_updated_criteria())
+        criteria["_c1"]["long_description"] = new_text
+        criteria["_c1"]["ratings"]["_r1"]["long_description"] = new_text
+        mock_canvas_request.return_value = before
+        register_rubric_tools(mcp)
+        result = await _call_tool(mcp, "update_rubric", {
+            "course_identifier": "TEST101", "rubric_id": 7371,
+            "rubric_association_id": 8801, "title": "Updated",
+            "criteria": json.dumps(criteria),
+        })
+        output = result.content[0].text
+        assert "Original content description" in output
+        assert "Original rating detail" in output
+        assert output.count("New long description:") == 5
+        assert new_text in output
+        if not new_text:
+            assert "New long description: (empty)" in output
+        assert "Assignment points possible: preserved" in output
+
     @pytest.mark.asyncio
     async def test_update_rubric_previews_complete_id_preserving_replacement(
         self, mcp, mock_canvas_request, mock_course_id, mock_course_code
@@ -395,18 +444,21 @@ class TestRubricTools:
         )
         after["data"][0]["ratings"][0]["description"] = "Strong"
         after["data"][0]["ratings"][1]["description"] = "Developing"
+        after["data"][0]["points"] = 20
         write_response = {
             "rubric": after,
             "rubric_association": after["associations"][0],
         }
         mock_canvas_request.side_effect = [before, before, write_response, after]
         register_rubric_tools(mcp)
+        criteria = json.loads(_updated_criteria())
+        criteria["_c1"]["points"] = 20
         arguments = {
             "course_identifier": "TEST101",
             "rubric_id": 7371,
             "rubric_association_id": 8801,
             "title": "Essay Rubric 2026",
-            "criteria": _updated_criteria(),
+            "criteria": json.dumps(criteria),
         }
 
         preview = await _call_tool(mcp, "update_rubric", arguments)
@@ -424,6 +476,8 @@ class TestRubricTools:
         assert put_calls[0].args[1] == "/courses/12345/rubrics/7371"
         sent = put_calls[0].kwargs["data"]
         assert sent["rubric_association_id"] == "8801"
+        assert sent["rubric[criteria][0][points]"] == "20.0"
+        assert sent["rubric[skip_updating_points_possible]"] == "1"
         assert sent["rubric[criteria][0][id]"] == "_c1"
         assert sent["rubric[criteria][0][ratings][0][id]"] == "_r1"
         assert put_calls[0].kwargs["use_form_data"] is True

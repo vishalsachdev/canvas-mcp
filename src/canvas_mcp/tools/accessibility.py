@@ -156,10 +156,10 @@ def _register_ufixit_tools(mcp: FastMCP) -> None:
         try:
             data = json.loads(violations_json)
         except json.JSONDecodeError:
-            return "Error: Invalid JSON input"
+            return json.dumps({"error": "Invalid JSON input"})
 
         if "error" in data:
-            return f"Error: {data['error']}"
+            return json.dumps(data)
 
         summary = data.get("summary", {})
         violations = data.get("violations", [])
