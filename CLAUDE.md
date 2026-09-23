@@ -137,8 +137,9 @@ Scrutinize mocks that remove the interaction being tested or return only the
 shape the implementation happens to expect. A passing success substring or a
 mock assertion alone rarely establishes the whole behavior.
 
-For example, the form-encoding regression in
-`tests/tools/test_messaging.py` checks the actual tool's outgoing contract:
+For example, this is adapted from `TestMarkConversationsRead.test_sends_form_data`
+in `tests/tools/test_messaging.py`, the form-encoding regression for #208. It checks
+the actual tool's outgoing contract:
 
 ```python
 # get_tool_function is the registration helper in that test module.
