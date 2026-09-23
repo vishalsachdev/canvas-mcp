@@ -10,6 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from canvas_mcp.core.write_confirmation import ConfirmationGuard, redeem_confirmation
+from canvas_mcp.core.write_outcome import RequestFailure, WriteOutcome
 
 
 def test_expiry_crossing_during_reserve_cannot_redeem_twice():
@@ -60,7 +61,7 @@ async def test_mismatch_during_inflight_send_survives_rejection_release():
         writes.append((args, kwargs))
         entered.set()
         await finish.wait()
-        return {"error": "HTTP error: 400, Details: rejected"}
+        return RequestFailure("HTTP error: 400, Details: rejected", WriteOutcome.REJECTED)
 
     with (
         patch.object(messaging, "_SEND_CONVERSATION_GUARD", ConfirmationGuard()),
