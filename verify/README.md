@@ -4,12 +4,14 @@ The subsequent Python client analysis is in [CLIENT.md](CLIENT.md).
 TypeScript grading retry/scheduling analysis is in [TYPESCRIPT.md](TYPESCRIPT.md).
 Its pagination follow-up is in [TYPESCRIPT_PAGINATION.md](TYPESCRIPT_PAGINATION.md).
 Student submission attachment is in [STUDENT_CONFIRMATION.md](STUDENT_CONFIRMATION.md).
+Delete and peer-review attachments are in [CONFIRMATION_WORKFLOWS.md](CONFIRMATION_WORKFLOWS.md).
 
 Baseline: `710aa3a` (upstream main, 2026-09-23). Scope is
 `core/write_confirmation.py`, with one real messaging caller used to replay a
-race. No verification claim is made for HTTP retries, the TS client, delete
-callers' fingerprint construction, student_write, or peer-review workflows.
-Those remain the next ordered stages requested by the maintainer.
+race. This first-machine proof alone does not cover HTTP retries, the TS
+client, caller fingerprint construction, student_write, or peer-review
+workflows. The linked follow-up reports above now cover those scoped stages,
+with their own counterexamples, repairs and explicit assumptions.
 
 ## Findings and patches
 

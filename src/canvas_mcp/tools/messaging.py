@@ -17,7 +17,7 @@ from ..core.untrusted_content import (
     fence_untrusted_fields,
 )
 from ..core.validation import validate_params
-from ..core.write_confirmation import ConfirmationGuard
+from ..core.write_confirmation import ConfirmationGuard, redeem_confirmation
 
 # One guard per destructive tool: each has its own signing secret and redeemed
 # set, so a token minted for one tool can never be replayed against another.
@@ -659,6 +659,7 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
         if custom_message and contains_fence_markers(custom_message):
             return {"error": FENCE_LEAK_ERROR}
 
+        dispatch_started = False
         try:
             from ..core.cache import get_course_id
 
@@ -746,18 +747,11 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                     ),
                 }
 
-            token_error = _REMINDER_GUARD.check(confirmation_token, fingerprint)
+            token_error = redeem_confirmation(_REMINDER_GUARD, confirmation_token, fingerprint)
             if token_error:
-                # Burn the nonce so a revert within the TTL cannot replay it.
-                _REMINDER_GUARD.reserve(confirmation_token)
                 return {"error": token_error, "nothing_sent": True}
-            if not _REMINDER_GUARD.reserve(confirmation_token):
-                return {
-                    "error": "❌ That confirmation was already used. Nothing was "
-                             "sent. Run the preview again.",
-                    "nothing_sent": True,
-                }
 
+            dispatch_started = True
             result = await _post_conversation(
                 course_id,
                 recipient_ids,
@@ -780,9 +774,13 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
 
         except Exception as e:
             print(f"Error sending peer review Inbox messages: {str(e)}", file=sys.stderr)
+            detail = f"Failed to send Canvas Inbox messages: {str(e)}"
+            if dispatch_started:
+                detail += " Delivery is uncertain. Check Canvas Inbox before retrying."
             return {
-                "error": f"Failed to send Canvas Inbox messages: {str(e)}",
-                "nothing_sent": True,
+                "error": detail,
+                "nothing_sent": not dispatch_started,
+                "delivery_uncertain": dispatch_started,
             }
 
     @mcp.tool(annotations=ToolAnnotations(destructive_hint=False, idempotent_hint=False))
@@ -1128,21 +1126,9 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                             "changed."
                         ),
                     }
-                token_error = _CAMPAIGN_GUARD.check(confirmation_token, fingerprint)
+                token_error = redeem_confirmation(_CAMPAIGN_GUARD, confirmation_token, fingerprint)
                 if token_error:
-                    # A mismatch means the plan or composed text changed since
-                    # the preview. Burn the nonce so a revert within the TTL
-                    # (analytics bouncing back, assignment renamed and renamed
-                    # again) cannot let this same token pass and send — exactly
-                    # as the empty-plan branch above already does.
-                    _CAMPAIGN_GUARD.reserve(confirmation_token)
                     return {"error": token_error, "nothing_sent": True}
-                if not _CAMPAIGN_GUARD.reserve(confirmation_token):
-                    return {
-                        "error": "❌ That confirmation was already used. Nothing "
-                                 "was sent. Run the preview again.",
-                        "nothing_sent": True,
-                    }
 
             # Send using the EXACT text just fingerprinted — no recomposition
             # between the token check and the POST.
@@ -1161,9 +1147,18 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                 )
                 results["messaging_results"][batch["label"]] = batch_result
 
-            # Summary
-            urgent_sent = len(results["messaging_results"].get("urgent", {}).get("sent", []))
-            partial_sent = len(results["messaging_results"].get("partial", {}).get("sent", []))
+            # _post_conversation acknowledges a whole recipient batch; it does
+            # not return the per-recipient "sent" list used by the bulk tool.
+            confirmed_counts = {
+                batch["label"]: len(batch["recipient_ids"])
+                if results["messaging_results"][batch["label"]].get("success") is True else 0
+                for batch in composed_batches
+            }
+            urgent_sent = confirmed_counts.get("urgent", 0)
+            partial_sent = confirmed_counts.get("partial", 0)
+            results["success"] = all(
+                result.get("success") is True for result in results["messaging_results"].values()
+            )
 
             results["summary"] = {
                 "students_needing_urgent_reminders": len(no_reviews),

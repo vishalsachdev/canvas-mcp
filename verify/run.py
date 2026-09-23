@@ -72,6 +72,10 @@ def main() -> None:
         ("StudentClaims", "student-claims-original", "OneActive"),
         ("StudentClaims", "student-claims-fixed", None),
     ]
+    cases += [
+        ("ReminderReceipt", "reminder-receipt-original", "NoFalseUnsent"),
+        ("ReminderReceipt", "reminder-receipt-fixed", None),
+    ]
     for module, config, failure in cases:
         with tempfile.TemporaryDirectory(prefix="confirmation-tlc-") as states:
             run([
