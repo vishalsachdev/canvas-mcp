@@ -100,10 +100,14 @@ a mechanically proved compiler/refinement from Python to Lean. Specifically:
 ## Reproduction
 
 Install Lean **4.19.0** (the pinned `lean/lean-toolchain`), Java 17+, and TLC from
-`https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar`.
-The downloaded jar reports `2026.09.22.222048`, revision `35d40c9`; the runner
-pins its SHA-256 to
-`9732eea90bdc7432e618184e4bee78700460e83e988238a80151dfd6507cfa0c`.
+`https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar`.
+This stable release reports TLC 2.19 of 08 August 2024; the runner pins its
+SHA-256 to `936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88`.
+The earlier v1.8.0 prerelease asset was replaced upstream on 2026-09-23,
+invalidating its checksum. The stable toolchain passes all existing positive
+and negative controls. The v1.7.4 release leaves trace-spec generation disabled by default;
+the runner therefore omits the newer `-noGenerateSpecTE` option. Historical
+evidence files retain the versions used when they were collected.
 The CI job pins the Lean binary archive digest too. Lean warnings are errors,
 so unfinished proofs fail `lake build`, including unprinted theorem roots.
 
