@@ -49,8 +49,9 @@ def test_clock_rollback_does_not_freeze_token_lifetime():
 
 @pytest.mark.asyncio
 async def test_mismatch_during_inflight_send_survives_rejection_release():
+    from fastmcp import FastMCP
+
     from canvas_mcp.tools import messaging
-    from tests.tools.test_messaging import get_educator_tool_function
 
     entered, finish = asyncio.Event(), asyncio.Event()
     writes = []
@@ -65,7 +66,11 @@ async def test_mismatch_during_inflight_send_survives_rejection_release():
         patch.object(messaging, "_SEND_CONVERSATION_GUARD", ConfirmationGuard()),
         patch.object(messaging, "_post_conversation", rejected_transport),
     ):
-        tool = get_educator_tool_function("send_conversation")
+        mcp = FastMCP("confirmation-replay")
+        messaging.register_educator_messaging_tools(mcp)
+        registered = await mcp.get_tool("send_conversation")
+        assert registered is not None
+        tool = registered.fn
         args = ("123", ["101", "102"], "Hi", "Body")
         preview = await tool(*args)
         token = preview["confirmation_token"]
@@ -78,7 +83,8 @@ async def test_mismatch_during_inflight_send_survives_rejection_release():
             assert len(writes) == 1  # mismatching caller never reaches transport
         finally:
             finish.set()
-            await first
+            first_result = await first
+        assert "HTTP error: 400" in first_result["error"]
         replay = await tool(*args, confirmation_token=token)
         assert "already used" in replay["error"]
         assert len(writes) == 1
