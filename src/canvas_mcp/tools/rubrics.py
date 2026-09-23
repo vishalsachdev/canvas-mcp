@@ -1201,8 +1201,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                               comment: str | None = None) -> str:
         """Submit grades using rubric criteria.
 
-        IMPORTANT: Criterion IDs often start with underscore (e.g., "_8027").
-        Use get_rubric to find criterion/rating IDs.
+        Criterion IDs often start with an underscore (e.g., "_8027"); look
+        up criterion and rating IDs with get_rubric rather than guessing them.
         The rubric must be attached to the assignment and configured for grading (use_for_grading=true).
 
         Args:
@@ -1578,7 +1578,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         Args:
             course_identifier: Course code or Canvas ID
             title: Rubric title
-            criteria: JSON string defining rubric criteria (see docstring above)
+            criteria: JSON string defining rubric criteria (schema and example in the tool description)
             assignment_id: Optional assignment ID to immediately associate the rubric with
             use_for_grading: When associating with an assignment, use rubric for grade
                              calculation (default: False)
@@ -1668,6 +1668,21 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         Omit ``free_form_criterion_comments`` to preserve the rubric's current
         setting, or pass a boolean to change it explicitly.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            rubric_id: Canvas rubric ID
+            rubric_association_id: The rubric's association ID for the course
+                or assignment, shown as "Rubric Association ID" by get_rubric
+            title: Rubric title (pass the current title to keep it)
+            criteria: JSON object keyed by existing criterion ID; each value
+                repeats its "id" and carries description, points, optional
+                long_description, and a ratings object keyed by existing rating
+                ID in the same shape. Every current criterion and rating must be
+                present
+            free_form_criterion_comments: True/False to change the setting;
+                omit to keep the current one
+            confirmation_token: Token from the preview call; omit to preview
         """
         if contains_fence_markers(title) or contains_fence_markers(criteria):
             return FENCE_LEAK_ERROR

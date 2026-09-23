@@ -52,8 +52,8 @@ def register_enrollment_tools(mcp: FastMCP) -> None:
             course_identifier: Course code, numeric ID, or SIS ID.
             net_id: The person's campus login ID — NetID, uniqname, campus ID, or
                   the full email-style Canvas login. Matched against Canvas
-                  `login_id` then `sis_user_id`; `zqian` and `zqian@umich.edu`
-                  are treated as the same identifier. NOT a display name.
+                  `login_id` then `sis_user_id`; `jdoe` and `jdoe@example.edu`
+                  are treated as the same identifier. Not a display name.
             role: Enrollment type that satisfies the check — "student" (default),
                   "teacher", "ta", "observer", "designer", or "any".
             active_only: Only count active enrollments (default True).
