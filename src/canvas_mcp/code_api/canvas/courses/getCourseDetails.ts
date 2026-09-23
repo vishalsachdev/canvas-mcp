@@ -19,8 +19,8 @@ export interface CourseDetails {
 /**
  * Get detailed information about a specific course.
  *
- * @param input - Course identifier (code or ID)
- * @returns Detailed course information including syllabus and timezone
+ * @param input - Numeric Canvas course ID (or "sis_course_id:<id>"); course codes are not resolved
+ * @returns Course metadata including time_zone; syllabus_body is not requested
  */
 export async function getCourseDetails(
   input: GetCourseDetailsInput

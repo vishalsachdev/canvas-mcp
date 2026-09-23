@@ -360,22 +360,35 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
         code: str,
         timeout: int = 120
     ) -> str:
-        """Execute TypeScript code in a Node.js environment with access to Canvas API.
+        """Run TypeScript (Node.js, ESM, top-level await) with Canvas API access.
 
-        Process bulk operations locally without loading every item into the
-        model's context. Actual token use depends on the code and output.
-        Code runs in a sandboxed Node.js environment with Canvas API credentials,
-        all TypeScript modules in src/canvas_mcp/code_api/, and standard Node.js modules.
+        For bulk work whose per-item data should not pass through the
+        conversation. Imports, relative to the script: './canvas/<area>/<module>.js'
+        (find them with list_code_api_modules or search_canvas_tools),
+        './client.js' (canvasGet, canvasPost, canvasPut, canvasDelete,
+        canvasPutForm, fetchAllPaginated for any Canvas endpoint), and Node
+        built-ins. The client authenticates automatically.
 
-        IMPORTANT: Security is best-effort unless container sandboxing is available.
-        In local mode code runs from a temp file (deleted after); in container
-        mode it is streamed to the sandboxed process and never written to
-        host disk. Optional network allowlist, timeout, memory, and CPU
-        limits apply.
+        Only what the script prints (console.log / console.error) is returned,
+        under "=== Output ===" and "=== Errors/Warnings ===" with a success or
+        exit-code header. Return values are discarded and output is not
+        truncated, so print summaries rather than full records.
+
+        Writes (grades, comments, messages, posts) happen immediately: there is
+        no preview or confirmation_token step, and failed writes are not
+        retried. Canvas data read here is not anonymized and not marked as
+        untrusted, unlike this server's other tools.
+
+        Security is best-effort unless container sandboxing is available. In
+        local mode the code runs on the host from a temp file that is deleted
+        afterwards; in container mode it is streamed to the sandboxed process
+        and never written to host disk. An outbound network allowlist, timeout,
+        memory, and CPU limits may apply; when sandboxing is enabled the output
+        ends with a "=== Sandbox ===" section listing the mode and limits.
 
         Args:
-            code: TypeScript code to execute; can import from './canvas/*' modules.
-            timeout: Max execution time in seconds (default: 120).
+            code: TypeScript source; see imports above.
+            timeout: Max execution time in seconds (default: 120; may be capped by the server).
         """
         config = get_config()
         warnings: list[str] = []
@@ -785,13 +798,13 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
 
         # Module descriptions mapping
         module_descriptions = {
-            "bulkGrade": "Grade multiple submissions with local processing function - most token-efficient method",
+            "bulkGrade": "Run a local grading function over one assignment's submissions and write the grades it returns (skips null results; supports dryRun)",
             "gradeWithRubric": "Grade a single submission with rubric criteria and optional comments",
             "bulkGradeDiscussion": "Grade discussion posts in bulk with local processing function",
             "listSubmissions": "Retrieve all submissions for an assignment (supports includeUser for names/emails)",
             "listCourses": "List all courses accessible to the current user",
             "getCourseDetails": "Get detailed information about a specific course",
-            "sendMessage": "Send a message/announcement to course participants",
+            "sendMessage": "Send a Canvas Inbox conversation to user IDs or a group code such as course_123_students; sends immediately, no preview",
             "listDiscussions": "List discussion topics in a course",
             "postEntry": "Post an entry to a discussion topic",
         }

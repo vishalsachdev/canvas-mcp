@@ -20,7 +20,8 @@ export interface Discussion {
 /**
  * List all discussion topics in a course.
  *
- * Returns discussion topics including announcements and regular discussions.
+ * Returns the course's discussion topics, not announcements (Canvas lists those only with
+ * only_announcements=true).
  * Use this to discover discussion IDs before reading entries or posting.
  */
 export async function listDiscussions(

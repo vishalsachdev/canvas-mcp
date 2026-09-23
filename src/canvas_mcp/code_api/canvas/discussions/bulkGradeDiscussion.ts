@@ -412,7 +412,11 @@ async function gradeDiscussionSubmission(
 /**
  * Grade a discussion topic based on initial posts and peer reviews.
  *
- * THIS IS THE MOST TOKEN-EFFICIENT WAY TO GRADE DISCUSSION BOARDS.
+ * Side effects when dryRun is false and assignmentId is set: posts each participant's grade and a
+ * student-visible submission comment listing the score breakdown. Only users who posted at least one
+ * entry are graded; students with no entries receive no grade (not 0). Instructor/TA entries are
+ * treated as participants. The returned gradingResults holds only the first 10 results; use the
+ * summary counts for totals.
  *
  * Fetches all discussion entries and replies, analyzes participation locally,
  * and applies grading logic without loading all data into Claude's context.

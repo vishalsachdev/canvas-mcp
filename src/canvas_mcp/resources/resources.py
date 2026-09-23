@@ -21,7 +21,9 @@ def register_resources_and_prompts(mcp: FastMCP) -> None:
         """Get the syllabus for a specific course."""
         course_id = await get_course_id(course_identifier)
 
-        response = await make_canvas_request("get", f"/courses/{course_id}")
+        response = await make_canvas_request(
+            "get", f"/courses/{course_id}", params={"include[]": "syllabus_body"}
+        )
 
         if "error" in response:
             return f"Error fetching syllabus: {response['error']}"
