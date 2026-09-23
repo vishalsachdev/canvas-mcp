@@ -48,6 +48,22 @@ def main() -> None:
         ("ClientPageBudget", "client-budget-original", "Temporal property Termination was violated"),
         ("ClientPageBudget", "client-budget-fixed", None),
     ]
+    cases += [
+        ("GradingRedirect", "grading-redirect-original", "OneWrite"),
+        ("GradingRedirect", "grading-redirect-fixed", None),
+        ("GradingStride", "grading-stride-original", "CapRespected"),
+        ("GradingStride", "grading-stride-fixed", None),
+        ("GradingRetry", "grading-retry-original", "OneWrite"),
+        ("GradingRetry", "grading-retry-fixed", None),
+        ("GradingRetry", "grading-retry-read", None),
+        ("GradingBatch", "grading-batch-duplicate-original", "NoDoubleGrade"),
+        ("GradingBatch", "grading-batch-duplicate-fixed", None),
+        ("GradingBatch", "grading-batch-fixed", None),
+        ("GradingBatch", "grading-batch-mutation-original", "NoDoubleGrade"),
+        ("GradingBatch", "grading-batch-mutation-fixed", None),
+        ("GradingBatch", "grading-batch-zero-original", "ZeroDelay"),
+        ("GradingBatch", "grading-batch-zero-fixed", None),
+    ]
     for module, config, failure in cases:
         with tempfile.TemporaryDirectory(prefix="confirmation-tlc-") as states:
             run([

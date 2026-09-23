@@ -1,6 +1,7 @@
 # ConfirmationGuard verification — first-machine report
 
 The subsequent Python client analysis is in [CLIENT.md](CLIENT.md).
+TypeScript grading retry/scheduling analysis is in [TYPESCRIPT.md](TYPESCRIPT.md).
 
 Baseline: `710aa3a` (upstream main, 2026-09-23). Scope is
 `core/write_confirmation.py`, with one real messaging caller used to replay a
