@@ -18,6 +18,7 @@ from ..core.untrusted_content import (
 )
 from ..core.validation import validate_params
 from ..core.write_confirmation import ConfirmationGuard, redeem_confirmation
+from ..core.write_outcome import NO_WRITE_STATUSES, RequestFailure, WriteOutcome
 
 # One guard per destructive tool: each has its own signing secret and redeemed
 # set, so a token minted for one tool can never be replayed against another.
@@ -166,7 +167,7 @@ def _render_bulk_messages(
 # validation/auth failures. Deliberately excludes 408 (timeout — the server
 # may have processed it), 409, 429, and every 5xx (the failure can occur
 # after the write, or a proxy can emit it while Canvas succeeded).
-_NO_WRITE_STATUSES = frozenset({400, 401, 403, 404, 422})
+_NO_WRITE_STATUSES = NO_WRITE_STATUSES
 _HTTP_ERROR_STATUS = re.compile(r"^HTTP error: (\d+)")
 
 
@@ -539,6 +540,7 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
         # fan-out could ride along on a swapped-to-one-recipient call, be
         # silently ignored, and the message would send to the NEW recipient
         # with no check at all.
+        claim = None
         if confirmation_token or not _is_single_direct_recipient(recipient_ids):
             fingerprint = _SEND_CONVERSATION_GUARD.fingerprint(
                 str(course_identifier),
@@ -577,18 +579,10 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                         "shortly."
                     ),
                 }
-            token_error = _SEND_CONVERSATION_GUARD.check(confirmation_token, fingerprint)
-            if token_error:
-                # Burn the nonce so a swapped-then-reverted argument set cannot
-                # replay this token within its TTL.
-                _SEND_CONVERSATION_GUARD.reserve(confirmation_token)
-                return {"error": token_error, "nothing_sent": True}
-            if not _SEND_CONVERSATION_GUARD.reserve(confirmation_token):
-                return {
-                    "error": "❌ That confirmation was already used. Nothing was "
-                             "sent. Run the preview again.",
-                    "nothing_sent": True,
-                }
+            claimed = _SEND_CONVERSATION_GUARD.claim(confirmation_token, fingerprint)
+            if isinstance(claimed, str):
+                return {"error": claimed, "nothing_sent": True}
+            claim = claimed
 
         try:
             result = await _post_conversation(
@@ -603,18 +597,9 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                 force_new,
                 attachment_ids,
             )
-            if (
-                "error" in result
-                and confirmation_token
-                and not _is_single_direct_recipient(recipient_ids)
-                and _definitely_not_sent(result["error"])
-            ):
-                # Canvas provably rejected the POST, so nothing was sent —
-                # hand the claim back rather than forcing a fresh preview to
-                # retry. Ambiguous transport failures (a timeout can land
-                # AFTER Canvas accepted the send) keep the claim so a retry
-                # cannot double-send.
-                _SEND_CONVERSATION_GUARD.release(confirmation_token)
+            if claim is not None:
+                claim.finish(result.outcome if isinstance(result, RequestFailure)
+                             else WriteOutcome.MAY_HAVE_WRITTEN)
             return result
         except Exception as e:
             print(f"Error sending conversation: {str(e)}", file=sys.stderr)

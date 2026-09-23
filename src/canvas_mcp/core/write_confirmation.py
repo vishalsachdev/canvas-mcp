@@ -22,9 +22,11 @@ import hashlib
 import hmac
 import secrets
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from .credentials import get_request_credentials
+from .write_outcome import WriteOutcome
 
 
 def unconfirmed_write_warning(what: str, facts: dict[str, Any], remedy: str) -> str:
@@ -33,6 +35,18 @@ def unconfirmed_write_warning(what: str, facts: dict[str, Any], remedy: str) -> 
     lines += [f"{label}: {value}\n" for label, value in facts.items() if value is not None]
     lines.append(f"{remedy}\n")
     return "".join(lines)
+
+
+@dataclass(frozen=True, eq=False)
+class ConfirmationClaim:
+    """One reservation's identity; finishing it cannot release a later owner."""
+
+    _guard: "ConfirmationGuard"
+    _nonce: str
+
+    def finish(self, outcome: WriteOutcome) -> bool:
+        """Consume this handle; return whether a proven no-write claim was freed."""
+        return self._guard._finish_claim(self, outcome)
 
 
 class ConfirmationGuard:
@@ -69,6 +83,8 @@ class ConfirmationGuard:
         # A mismatch is terminal, including when another request owns the
         # reservation and later releases it after a definite rejection.
         self._burned: set[str] = set()
+        # None marks a finished, spent owning claim; legacy release cannot free it.
+        self._claims: dict[str, ConfirmationClaim | None] = {}
         self._last_now = float("-inf")
         self._last_monotonic = time.monotonic()
 
@@ -76,6 +92,7 @@ class ConfirmationGuard:
         """Discard redeemed-token state (used by tests)."""
         self._redeemed.clear()
         self._burned.clear()
+        self._claims.clear()
 
     def _now(self) -> float:
         """An epoch clock that cannot roll back or freeze token lifetimes."""
@@ -224,10 +241,36 @@ class ConfirmationGuard:
         self._redeemed[nonce] = float(expiry)
         return True
 
+    def claim(self, token: str, fingerprint: str) -> ConfirmationClaim | str:
+        """Validate binding and reserve synchronously, with no intervening await."""
+        error = self.check(token, fingerprint)
+        if error:
+            return error
+        if not self.reserve(token):
+            return (f"❌ That confirmation was already used. {self.nothing_done} "
+                    "Run the preview again.")
+        parsed = self._parse(token)
+        assert parsed is not None  # reserve authenticated this same token
+        claim = ConfirmationClaim(self, parsed[1])
+        self._claims[parsed[1]] = claim
+        return claim
+
+    def _finish_claim(self, claim: ConfirmationClaim, outcome: WriteOutcome) -> bool:
+        if self._claims.get(claim._nonce) is not claim:
+            return False
+        # Finishing is single-use even when the outcome is uncertain or burned.
+        self._claims[claim._nonce] = None
+        if (claim._nonce in self._burned or
+                outcome not in (WriteOutcome.NOT_DISPATCHED, WriteOutcome.REJECTED)):
+            return False
+        del self._claims[claim._nonce]
+        return self._redeemed.pop(claim._nonce, None) is not None
+
     def release(self, token: str) -> None:
         """Owner-only: release after proven no write, unless a mismatch burned it."""
         parsed = self._parse(token)
-        if parsed is not None and parsed[1] not in self._burned:
+        if (parsed is not None and parsed[1] not in self._burned
+                and parsed[1] not in self._claims):
             self._redeemed.pop(parsed[1], None)
 
     def _purge(self, now: float | None = None) -> None:
@@ -237,6 +280,7 @@ class ConfirmationGuard:
         for nonce in [n for n, expiry in self._redeemed.items() if expiry < now]:
             self._redeemed.pop(nonce, None)
             self._burned.discard(nonce)
+            self._claims.pop(nonce, None)
 
 
 def preview_with_token(

@@ -149,3 +149,46 @@ and protocol attachment are deferred until client stages 2 and 3 are clean.
 
 Human review should focus on the three traces, the release contract, and the
 small Python patch. No Lean/TLA+ syntax review is required to assess those bugs.
+
+## Owning claim API (issue #401)
+
+`ConfirmationGuard.claim(token, fingerprint)` now packages synchronous check and
+reserve for `send_conversation`. Its `ConfirmationClaim` object is the owner
+identity. `finish(outcome)` consumes that handle exactly once; only an owning,
+unburned claim with `NOT_DISPATCHED` or `REJECTED` evidence can free the nonce.
+Stale/foreign handles do nothing. Uncertain finishes retain a spent tombstone
+until expiry, and the legacy token-only `release` cannot free an owning claim.
+Mismatch burns, clock behavior, token format and destructive no-release callers
+are unchanged. Other messaging workflows still use their existing protocol.
+
+`lean/ConfirmationClaim.lean` supplements the existing confirmation model with
+owner generations (abstracting Python object identity). It proves that stale
+or foreign completion is inert, uncertainty and burns retain spent state,
+release requires the owner and no-write evidence, and reacquisition cannot be
+released by an older generation. The existing TLC release transition still
+models a valid owner's proven rejection; unauthorized completion is stuttering,
+so its state-machine guarantees are unchanged. All existing TLC configurations,
+including negative controls, are rerun by `verify/run.py`.
+
+Transport `RequestFailure` remains an error dictionary on the wire; its internal
+`outcome` attribute carries evidence instead of encoding it in prose. The
+classification preserves messaging's existing 400/401/403/404/422 rejection
+policy. Invalid endpoints are marked not dispatched. Exceptions, other status
+codes, and ordinary untyped dictionaries remain uncertain. Other pre-dispatch
+failures are conservatively uncertain unless explicitly classified. Only the
+migrated path uses this metadata for release; other callers keep their existing
+string-based policy pending separate migration.
+
+This is not proof that a server/proxy always honors the rejection classification,
+that Python callers cannot tamper with private state, or that HTTP retries are
+safe. Existing transport retry behavior is unchanged. The abstraction assumes
+fresh claim identities, one event-loop thread, and honest transport evidence.
+Legacy raw reserve/release callers retain the original owner-only contract;
+the new API does not automatically prove their correct use.
+
+`tests/security/test_confirmation_claims.py` exercises ownership, stale finishes,
+legacy-release exclusion, concurrent acquisition, and real httpx request handling
+through registered `send_conversation` with controlled HTTP responses. Existing
+burn/rejection, clock rollback, expiry, messaging and deletion regressions remain
+in the verification suite. JSON assertions check the unchanged external error
+shape. No live Canvas writes are used.
