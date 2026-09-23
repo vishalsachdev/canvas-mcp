@@ -1,3 +1,4 @@
+import { createBatchRunner } from "../../batching.js";
 import { canvasGet, canvasPut, canvasPutForm, fetchAllPaginated } from "../../client.js";
 
 export interface DiscussionEntry {
@@ -161,7 +162,7 @@ async function fetchAllDiscussionEntries(
     return allEntries;
   } catch (error: any) {
     throw new Error(
-      `Failed to fetch discussion entries for topic ${topicId}: ${error.message || error}`
+      `Failed to fetch discussion entries for topic ${topicId}: ${error?.message || String(error)}`
     );
   }
 }
@@ -473,6 +474,8 @@ export async function bulkGradeDiscussion(
   console.log(`Starting bulk discussion grading for topic ${input.topicId}...`);
   console.log(`Criteria:`, JSON.stringify(input.criteria, null, 2));
 
+  const runBatches = createBatchRunner(input);
+
   // Validate criteria before processing
   validateCriteria(input.criteria);
 
@@ -509,54 +512,34 @@ export async function bulkGradeDiscussion(
   if (!input.dryRun && input.assignmentId) {
     console.log(`\nApplying grades to Canvas...`);
 
-    const maxConcurrent = input.maxConcurrent || 5;
-    const rateLimitDelay = input.rateLimitDelay || 1000;
-
-    // Process in batches
-    for (let i = 0; i < gradingResults.length; i += maxConcurrent) {
-      const batch = gradingResults.slice(i, i + maxConcurrent);
-      const batchNum = Math.floor(i / maxConcurrent) + 1;
-      const totalBatches = Math.ceil(gradingResults.length / maxConcurrent);
-
-      console.log(`Processing batch ${batchNum}/${totalBatches}...`);
-
-      const results = await Promise.allSettled(
-        batch.map(async (result) => {
-          try {
-            await gradeDiscussionSubmission(
-              input.courseIdentifier,
-              input.assignmentId!,
-              result.userId,
-              result.score,
-              result.notes.join('\n')
-            );
-            console.log(`✓ Graded ${result.userName}: ${result.score} points`);
-            return { status: 'success' as const };
-          } catch (error: any) {
-            const errorResult = {
-              userId: result.userId,
-              userName: result.userName,
-              error: error.message || String(error)
-            };
-            failedResults.push(errorResult);
-            console.error(`✗ Failed to grade ${result.userName}: ${error.message || error}`);
-            return { status: 'failed' as const, error: errorResult };
-          }
-        })
-      );
-
-      // Count results after batch completes (no race condition)
-      for (const result of results) {
-        if (result.status === 'fulfilled' && result.value.status === 'success') {
-          stats.graded++;
-        } else {
-          stats.failed++;
-        }
+    const results = await runBatches(gradingResults, async (result) => {
+      try {
+        await gradeDiscussionSubmission(
+          input.courseIdentifier,
+          input.assignmentId!,
+          result.userId,
+          result.score,
+          result.notes.join('\n')
+        );
+        console.log(`✓ Graded ${result.userName}: ${result.score} points`);
+        return { status: 'success' as const };
+      } catch (error: any) {
+        const errorResult = {
+          userId: result.userId,
+          userName: result.userName,
+          error: error?.message || String(error)
+        };
+        failedResults.push(errorResult);
+        console.error(`✗ Failed to grade ${result.userName}: ${error?.message || String(error)}`);
+        return { status: 'failed' as const, error: errorResult };
       }
+    });
 
-      // Rate limit between batches
-      if (i + maxConcurrent < gradingResults.length) {
-        await new Promise(resolve => setTimeout(resolve, rateLimitDelay));
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value.status === 'success') {
+        stats.graded++;
+      } else {
+        stats.failed++;
       }
     }
   } else {
