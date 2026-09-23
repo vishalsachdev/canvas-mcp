@@ -92,6 +92,10 @@ private state, hostile callback network calls, and process restarts are outside
 the proof. A callback may edit its own submission object without redirecting
 the bulk writer, which is covered explicitly.
 
+Pagination follow-up: [TYPESCRIPT_PAGINATION.md](TYPESCRIPT_PAGINATION.md) records
+the subsequent repair and verification. The historical scope below describes
+the grading-only baseline of this report.
+
 ## Remaining scope and operational limits
 
 - No global/durable exactly-once guarantee across calls, users, processes or
