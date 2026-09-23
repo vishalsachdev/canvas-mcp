@@ -142,3 +142,28 @@ Runtime references: [Node timer bounds](https://nodejs.org/api/timers.html) and
 [Fetch redirect behavior](https://fetch.spec.whatwg.org/#http-redirect-fetch).
 The reported replay failures were executed locally, not inferred only from
 these specifications.
+
+## Shared batch executor (issue #400)
+
+`code_api/batching.ts:createBatchRunner` now owns control validation, positive
+integer slicing, `Promise.allSettled`, and inter-batch delays for both
+`bulkGrade` and `bulkGradeDiscussion`. Both construct the runner before reads,
+including previews; settings are captured for the invocation. `Scheduler.Step`,
+`slice_partition`, `batch_size_bound`, `sleep_requires_settlement`, and
+`zero_delay_no_sleep` map to this shared implementation. The unchanged
+`GradingBatch` and `GradingStride` TLC models still describe admission and the
+batch barrier. This extraction does not introduce a replacement-job scheduler.
+
+Target uniqueness remains a caller obligation: ordinary grading validates
+submission IDs and captures each target before its callback; discussion grading
+builds one result per user in its participation Map and exposes no callback.
+The discussion attachment covers scheduling and accounting, not the correctness
+of participation scoring, remote data completeness, or a global write cap.
+The model assumes finite well-formed work lists and eventual job settlement.
+These are reviewed source mappings, not compiler-checked TypeScript proofs.
+
+`tests/code_api/shared-batching.test.ts` exercises both exported workflows with
+controlled transport: invalid controls before reads, zero/positive delay,
+settlement before the next batch, concurrency caps, and failed-write accounting.
+Existing ordinary-grading tests retain duplicate-target, callback mutation,
+dry-run and non-Error failure regressions. No live Canvas requests are used.

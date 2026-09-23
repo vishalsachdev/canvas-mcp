@@ -1,3 +1,4 @@
+import { createBatchRunner } from "../../batching.js";
 import { listSubmissions, Submission } from "../assignments/listSubmissions.js";
 import { createRubricGrader } from "./gradeWithRubric.js";
 
@@ -33,60 +34,54 @@ export interface BulkGradeResult {
 }
 
 /**
- * Process submissions in concurrent batches
+ * Process one submission; scheduling belongs to the shared batch runner
  */
-async function processBatch(
-  submissions: Submission[],
+async function processSubmission(
+  submission: Submission,
   input: BulkGradeInput,
   stats: { graded: number; skipped: number; failed: number },
   failedResults: Array<{ userId: number; error: string }>,
   gradeWithRubric: ReturnType<typeof createRubricGrader>
 ): Promise<void> {
-  await Promise.allSettled(
-    submissions.map(async (submission) => {
-      // The grading callback may edit its input; keep the validated target.
-      const userId = submission.user_id;
-      try {
-        // Run grading function (may be async)
-        const gradeResult = await Promise.resolve(input.gradingFunction(submission));
+  // The grading callback may edit its input; keep the validated target.
+  const userId = submission.user_id;
+  try {
+    // Run grading function (may be async)
+    const gradeResult = await Promise.resolve(input.gradingFunction(submission));
 
-        if (!gradeResult) {
-          // Skip this submission
-          stats.skipped++;
-          console.log(`Skipped submission for user ${userId}`);
-          return { status: 'skipped' as const, userId };
-        }
+    if (!gradeResult) {
+      // Skip this submission
+      stats.skipped++;
+      console.log(`Skipped submission for user ${userId}`);
+      return;
+    }
 
-        if (!input.dryRun) {
-          // Actually grade the submission
-          await gradeWithRubric({
-            courseIdentifier: input.courseIdentifier,
-            assignmentId: input.assignmentId,
-            userId,
-            rubricAssessment: gradeResult.rubricAssessment,
-            grade: gradeResult.grade,
-            comment: gradeResult.comment
-          });
-        }
+    if (!input.dryRun) {
+      // Actually grade the submission
+      await gradeWithRubric({
+        courseIdentifier: input.courseIdentifier,
+        assignmentId: input.assignmentId,
+        userId,
+        rubricAssessment: gradeResult.rubricAssessment,
+        grade: gradeResult.grade,
+        comment: gradeResult.comment
+      });
+    }
 
-        stats.graded++;
-        console.log(`✓ Graded submission for user ${userId}`);
-        return { status: 'success' as const, userId };
+    stats.graded++;
+    console.log(`✓ Graded submission for user ${userId}`);
+    return;
 
-      } catch (error: any) {
-        stats.failed++;
-        const errorMsg = error?.message || String(error);
-        failedResults.push({
-          userId,
-          error: errorMsg
-        });
-        console.error(`✗ Failed to grade user ${userId}: ${errorMsg}`);
-        return { status: 'failed' as const, userId, error: errorMsg };
-      }
-    })
-  );
-
-  return;
+  } catch (error: any) {
+    stats.failed++;
+    const errorMsg = error?.message || String(error);
+    failedResults.push({
+      userId,
+      error: errorMsg
+    });
+    console.error(`✗ Failed to grade user ${userId}: ${errorMsg}`);
+    return;
+  }
 }
 
 /**
@@ -152,18 +147,7 @@ async function processBatch(
 export async function bulkGrade(
   input: BulkGradeInput
 ): Promise<BulkGradeResult> {
-  const maxConcurrent = input.maxConcurrent ?? 5;
-  const rateLimitDelay = input.rateLimitDelay ?? 1000;
-  if (!Number.isSafeInteger(maxConcurrent) || maxConcurrent < 1) {
-    throw new Error('maxConcurrent must be a positive safe integer');
-  }
-  // Node clamps overflowing/negative timers to roughly 1ms; reject them.
-  if (!Number.isInteger(rateLimitDelay) || rateLimitDelay < 0 || rateLimitDelay > 2147483647) {
-    throw new Error('rateLimitDelay must be an integer from 0 to 2147483647 milliseconds');
-  }
-
-  console.log(`Starting bulk grading for assignment ${input.assignmentId}...`);
-  console.log(`Concurrent processing: ${maxConcurrent} submissions per batch`);
+  const runBatches = createBatchRunner(input);
 
   // Fetch all submissions (stays in execution environment)
   const submissions = await listSubmissions({
@@ -196,22 +180,8 @@ export async function bulkGrade(
 
   const gradeWithRubric = createRubricGrader();
 
-  // Process in batches to respect rate limits
-  for (let i = 0; i < submissions.length; i += maxConcurrent) {
-    const batch = submissions.slice(i, i + maxConcurrent);
-    const batchNum = Math.floor(i / maxConcurrent) + 1;
-    const totalBatches = Math.ceil(submissions.length / maxConcurrent);
-
-    console.log(`\nProcessing batch ${batchNum}/${totalBatches} (${batch.length} submissions)...`);
-
-    await processBatch(batch, input, stats, failedResults, gradeWithRubric);
-
-    // Rate limit between batches (except after the last batch)
-    if (rateLimitDelay > 0 && i + maxConcurrent < submissions.length) {
-      console.log(`Waiting ${rateLimitDelay}ms before next batch...`);
-      await new Promise(resolve => setTimeout(resolve, rateLimitDelay));
-    }
-  }
+  await runBatches(submissions, submission =>
+    processSubmission(submission, input, stats, failedResults, gradeWithRubric));
 
   const summary: BulkGradeResult = {
     total: submissions.length,
