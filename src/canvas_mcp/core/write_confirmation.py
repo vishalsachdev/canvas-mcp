@@ -66,10 +66,24 @@ class ConfirmationGuard:
         # fingerprint, so redeeming one token does not block a *fresh* preview
         # of identical content — each preview mints its own single-use token.
         self._redeemed: dict[str, float] = {}
+        # A mismatch is terminal, including when another request owns the
+        # reservation and later releases it after a definite rejection.
+        self._burned: set[str] = set()
+        self._last_now = float("-inf")
+        self._last_monotonic = time.monotonic()
 
     def reset(self) -> None:
         """Discard redeemed-token state (used by tests)."""
         self._redeemed.clear()
+        self._burned.clear()
+
+    def _now(self) -> float:
+        """An epoch clock that cannot roll back or freeze token lifetimes."""
+        monotonic = time.monotonic()
+        elapsed = max(0.0, monotonic - self._last_monotonic)
+        self._last_monotonic = monotonic
+        self._last_now = max(self._last_now + elapsed, time.time())
+        return self._last_now
 
     def caller_identity(self) -> str:
         """A stable, non-reversible handle for whoever is calling.
@@ -114,7 +128,7 @@ class ConfirmationGuard:
 
     def issue(self, fingerprint: str, now: float | None = None) -> str:
         """Mint a token committing to ``fingerprint`` until it expires."""
-        expiry = int((now if now is not None else time.time()) + self._ttl)
+        expiry = int((now if now is not None else self._now()) + self._ttl)
         nonce = secrets.token_hex(8)
         return (
             f"{expiry}.{nonce}."
@@ -133,7 +147,7 @@ class ConfirmationGuard:
             return None
         return expiry, parts[1], parts[2], parts[3]
 
-    def _authenticate(self, token: object) -> tuple[int, str] | None:
+    def _authenticate(self, token: object, now: float) -> tuple[int, str] | None:
         """Return (expiry, nonce) if the token was genuinely issued by THIS
         process and has not expired; else None. Never touches the fingerprint,
         so it works on the burn-on-mismatch path — but a forged/unsigned token
@@ -144,12 +158,12 @@ class ConfirmationGuard:
         expiry, nonce, authmac, _ = parsed
         if not hmac.compare_digest(authmac, self._auth_mac(expiry, nonce)):
             return None
-        if expiry < time.time():
+        if expiry < now:
             return None
         return expiry, nonce
 
     def check(self, token: str, fingerprint: str) -> str | None:
-        """Verify a token against the current request. Returns an error, or None."""
+        """Verify a token; burn authentic mismatches. Return an error, or None."""
         parsed = self._parse(token)
         if parsed is None:
             return "❌ That confirmation token is malformed. Run the preview again."
@@ -158,17 +172,22 @@ class ConfirmationGuard:
         # Authenticator first: proves we issued it (and is what reserve checks).
         if not hmac.compare_digest(authmac, self._auth_mac(expiry, nonce)):
             return "❌ That confirmation token is malformed. Run the preview again."
+        now = self._now()
         if not hmac.compare_digest(fpmac, self._fp_mac(expiry, nonce, fingerprint)):
+            if expiry >= now:
+                self._purge(now)
+                self._redeemed[nonce] = float(expiry)
+                self._burned.add(nonce)
             return (
                 "❌ This confirmation does not match. Either the request changed "
                 "since the preview, or the preview was handled by a different "
                 f"server process. {self.nothing_done} Preview again and confirm "
                 "the new token."
             )
-        if expiry < time.time():
+        if expiry < now:
             return "❌ That confirmation expired. Run the preview again."
 
-        self._purge()
+        self._purge(now)
         if nonce in self._redeemed:
             return (
                 f"❌ That confirmation was already used. {self.nothing_done} "
@@ -177,47 +196,47 @@ class ConfirmationGuard:
         return None
 
     def reserve(self, token: str) -> bool:
-        """Mark an authenticated token's nonce spent. Serves BOTH callers:
+        """Claim an authenticated, unexpired nonce if not already spent.
 
-        - a fresh confirmation claiming its nonce (prevents double-submit), and
-        - the burn-on-mismatch path invalidating a genuine token whose
-          fingerprint no longer matches (prevents revert-replay).
+        This is fingerprint-independent; callers must first ``check`` the
+        request binding. ``check`` makes genuine mismatches terminal even if
+        another request already holds the nonce. Legacy error paths may still
+        call ``reserve`` to consume an otherwise unused token.
 
-        Both must ALWAYS record for an authenticated, unexpired token — a burn
-        that failed to record would let the mismatched token become reusable
-        once an unrelated older claim expired, reopening revert-replay. There
-        is therefore NO capacity cap and NO eviction here (either would drop a
-        burn or resurrect a used nonce). It is safe because only authenticated,
-        unexpired tokens reach this point (round-9): forged/unsigned/expired
-        tokens are rejected by ``_authenticate`` and never recorded, so the map
-        holds at most the genuinely-issued unexpired tokens — itself bounded by
-        issuance-rate × TTL, and each entry self-drains on its own expiry.
+        There is no capacity eviction: dropping an unexpired claim would
+        resurrect the token. Only authenticated tokens enter the map; expired
+        entries are removed on subsequent guard activity, not by a timer.
 
         The nonce is retained until the token's OWN signed expiry (not now+TTL),
         which is exactly its remaining valid lifetime. No ``await`` between the
         membership test and the write keeps it atomic on the event loop.
         """
-        authed = self._authenticate(token)
+        # Authentication and cleanup must use one sample: a second sample
+        # could expire and remove an existing claim AFTER authentication.
+        now = self._now()
+        authed = self._authenticate(token, now)
         if authed is None:
             return False
         expiry, nonce = authed
-        self._purge()
+        self._purge(now)
         if nonce in self._redeemed:
             return False
         self._redeemed[nonce] = float(expiry)
         return True
 
     def release(self, token: str) -> None:
-        """Give a claim back after a path that ended without writing."""
+        """Owner-only: release after proven no write, unless a mismatch burned it."""
         parsed = self._parse(token)
-        if parsed is not None:
+        if parsed is not None and parsed[1] not in self._burned:
             self._redeemed.pop(parsed[1], None)
 
-    def _purge(self) -> None:
+    def _purge(self, now: float | None = None) -> None:
         """Forget claims whose tokens have expired anyway."""
-        now = time.time()
+        if now is None:
+            now = self._now()
         for nonce in [n for n, expiry in self._redeemed.items() if expiry < now]:
             self._redeemed.pop(nonce, None)
+            self._burned.discard(nonce)
 
 
 def preview_with_token(
@@ -266,7 +285,6 @@ def redeem_confirmation(guard: ConfirmationGuard, token: str, fingerprint: str) 
     """
     error = guard.check(token, fingerprint)
     if error:
-        guard.reserve(token)
         return error
     if not guard.reserve(token):
         return (
