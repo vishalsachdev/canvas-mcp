@@ -1,7 +1,15 @@
-import { test, type TestContext } from 'node:test';
+import { beforeEach, test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { initializeCanvasClient, canvasGet, canvasPost, canvasPut, canvasDelete } from '../../src/canvas_mcp/code_api/client.ts';
 import { bulkGrade } from '../../src/canvas_mcp/code_api/canvas/grading/bulkGrade.ts';
+
+// Tests inspect behavior and transport, not progress output. Keep synchronous
+// console writes out of the worker IPC stream while global timers are mocked.
+beforeEach(t => {
+  t.mock.method(console, 'log', () => {});
+  t.mock.method(console, 'warn', () => {});
+  t.mock.method(console, 'error', () => {});
+});
 
 function fastTimers(t: TestContext): number[] {
   const delays: number[] = [];

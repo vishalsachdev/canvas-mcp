@@ -69,7 +69,7 @@ jobs:
         echo "6fe3ce97a58f44e2b3567d455b994eacec5bfe9ae7774f2a573444480ba813fe  $RUNNER_TEMP/lean.tar.zst" | sha256sum --check
         tar --no-same-owner --zstd -xf "$RUNNER_TEMP/lean.tar.zst" -C "$RUNNER_TEMP"
         echo "$RUNNER_TEMP/lean-4.19.0-linux/bin" >> "$GITHUB_PATH"
-        curl --fail --location --retry 3 -o "$RUNNER_TEMP/tla2tools.jar" https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar
+        curl --fail --location --retry 3 -o "$RUNNER_TEMP/tla2tools.jar" https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar
         # verify/run.py checks the pinned jar digest before execution.
     - name: Prove the repaired machine and reproduce original counterexamples
       run: TLA_JAR="$RUNNER_TEMP/tla2tools.jar" python verify/run.py

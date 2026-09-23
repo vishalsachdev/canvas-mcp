@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-TLA_SHA256 = "9732eea90bdc7432e618184e4bee78700460e83e988238a80151dfd6507cfa0c"
+TLA_SHA256 = "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
 
 
 def run(command: list[str], expected_failure: str | None = None) -> None:
@@ -45,7 +45,7 @@ def main() -> None:
         ("ClientPagination", "client-pagination-original", "NoSkippedSuccessor"),
         ("ClientPagination", "client-pagination-fixed", None),
         ("ClientPagination", "client-pagination-cycle", None),
-        ("ClientPageBudget", "client-budget-original", "Temporal property Termination was violated"),
+        ("ClientPageBudget", "client-budget-original", "Temporal properties were violated."),
         ("ClientPageBudget", "client-budget-fixed", None),
     ]
     cases += [
@@ -80,7 +80,7 @@ def main() -> None:
         with tempfile.TemporaryDirectory(prefix="confirmation-tlc-") as states:
             run([
                 "java", "-XX:+UseParallelGC", "-cp", str(jar), "tlc2.TLC",
-                "-workers", "1", "-noGenerateSpecTE", "-metadir", states,
+                "-workers", "1", "-metadir", states,
                 "-config", f"{config}.cfg", f"tla/{module}.tla",
             ], failure)
 
