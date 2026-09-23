@@ -1,9 +1,12 @@
 name = "confirmation-verification"
 version = "0.1.0"
-defaultTargets = ["Confirmation", "Client"]
+defaultTargets = ["Confirmation", "Client", "Grading"]
 moreLeanArgs = ["-DwarningAsError=true"]
 [[lean_lib]]
 name = "Confirmation"
 
 [[lean_lib]]
 name = "Client"
+
+[[lean_lib]]
+name = "Grading"

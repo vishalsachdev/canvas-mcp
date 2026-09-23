@@ -63,7 +63,7 @@ function getConfig(): CanvasConfig {
 }
 
 /**
- * Make a request to the Canvas API with retry logic
+ * Make a request to the Canvas API; only reads may be retried.
  */
 async function makeCanvasRequest<T>(
   method: 'GET' | 'POST' | 'PUT' | 'DELETE',
@@ -121,6 +121,8 @@ async function makeCanvasRequest<T>(
         method,
         headers,
         body: requestBody,
+        // A 307/308 redirect can resend an already-applied write inside fetch.
+        redirect: method === 'GET' ? 'follow' : 'error',
         signal: AbortSignal.timeout(cfg.timeout)
       });
 
@@ -141,7 +143,16 @@ async function makeCanvasRequest<T>(
         throw error;
       }
 
-      // Retry on network errors and 5xx errors
+      // A write may commit before a 5xx, lost connection, or invalid JSON.
+      // Replaying even PUT can duplicate comments and other side effects.
+      if (method !== 'GET') {
+        throw new Error(
+          `Canvas write may have been applied. Check Canvas before retrying; ` +
+          `no automatic retry was made. ${error.message || String(error)}`
+        );
+      }
+
+      // Retry reads on network errors and 5xx errors.
       if (attempt < retries) {
         const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
         console.warn(`Request failed (attempt ${attempt + 1}/${retries + 1}), retrying in ${delay}ms...`);
