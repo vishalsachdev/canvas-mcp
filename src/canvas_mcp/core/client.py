@@ -14,6 +14,7 @@ import httpx
 from .anonymization import anonymize_response_data, scrub_identity
 from .credentials import get_request_credentials, is_http_request_active
 from .logging import log_debug, log_error, log_warning, sanitize_url
+from .write_outcome import NO_WRITE_STATUSES, RequestFailure, WriteOutcome
 
 # Rate limit retry configuration
 MAX_RETRIES = 3
@@ -450,13 +451,13 @@ async def make_canvas_request(
             "Blocked Canvas API request with a delimiter in the endpoint path",
             endpoint=sanitize_url(endpoint),
         )
-        return {"error": f"Invalid endpoint: '{bad_delimiter}' is not allowed in a request path"}
+        return RequestFailure(f"Invalid endpoint: '{bad_delimiter}' is not allowed in a request path", WriteOutcome.NOT_DISPATCHED)
     if any(seg == ".." for seg in endpoint.split("/")):
         log_warning(
             "Blocked Canvas API request with a traversal segment in the endpoint path",
             endpoint=sanitize_url(endpoint),
         )
-        return {"error": "Invalid endpoint: '..' is not allowed in a request path"}
+        return RequestFailure("Invalid endpoint: '..' is not allowed in a request path", WriteOutcome.NOT_DISPATCHED)
 
     if api_root not in (API_ROOT_REST, API_ROOT_QUIZ):
         return {"error": f"Unsupported api_root: {api_root}"}
@@ -614,7 +615,9 @@ async def make_canvas_request(
                     # Audit: log HTTP error (status code only — response body may contain PII)
                     log_data_access(method, endpoint, "error", f"HTTP {e.response.status_code}")
 
-                    return {"error": error_message}
+                    outcome = (WriteOutcome.REJECTED if e.response.status_code in NO_WRITE_STATUSES
+                               else WriteOutcome.MAY_HAVE_WRITTEN)
+                    return RequestFailure(error_message, outcome)
 
                 except Exception as e:
                     log_error(f"Request failed for {sanitize_url(endpoint)}", error_type=type(e).__name__)
@@ -622,7 +625,7 @@ async def make_canvas_request(
                     # Audit: log request exception (type only — message may contain PII)
                     log_data_access(method, endpoint, "error", type(e).__name__)
 
-                    return {"error": f"Request failed: {str(e)}"}
+                    return RequestFailure(f"Request failed: {str(e)}", WriteOutcome.MAY_HAVE_WRITTEN)
 
             # Should never reach here, but just in case
             return {"error": "Max retries exceeded"}

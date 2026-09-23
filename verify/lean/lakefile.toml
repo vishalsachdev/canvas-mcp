@@ -1,6 +1,6 @@
 name = "confirmation-verification"
 version = "0.1.0"
-defaultTargets = ["Confirmation", "Client", "Grading", "TypeScriptPagination", "StudentConfirmation", "ConfirmedWorkflow"]
+defaultTargets = ["Confirmation", "Client", "Grading", "TypeScriptPagination", "StudentConfirmation", "ConfirmedWorkflow", "ConfirmationClaim"]
 moreLeanArgs = ["-DwarningAsError=true"]
 [[lean_lib]]
 name = "Confirmation"
@@ -19,3 +19,6 @@ name = "StudentConfirmation"
 
 [[lean_lib]]
 name = "ConfirmedWorkflow"
+
+[[lean_lib]]
+name = "ConfirmationClaim"
