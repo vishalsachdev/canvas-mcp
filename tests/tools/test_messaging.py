@@ -311,3 +311,112 @@ class TestAnnouncementTools:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+@pytest.mark.asyncio
+async def test_peer_review_post_exception_reports_uncertain_delivery_and_keeps_token():
+    """A accepted POST with a malformed reply must not be described as unsent."""
+    calls = []
+
+    async def responder(method, endpoint, **kwargs):
+        if endpoint.endswith('/permissions'):
+            return {'manage_grades': True}
+        if method == 'get':
+            return {'name': 'Peer review', 'html_url': 'https://canvas.example/assignment'}
+        calls.append(kwargs['data'])
+        # Canvas accepted the message, but the JSON response is unexpectedly null.
+        return None
+
+    with patch('canvas_mcp.core.cache.get_course_id', new=AsyncMock(return_value='123')), \
+         patch('canvas_mcp.tools.messaging.make_canvas_request', new=responder):
+        tool = get_educator_tool_function('send_peer_review_inbox_messages')
+        preview = await tool('123', 42, ['101'])
+        token = preview['confirmation_token']
+        result = await tool('123', 42, ['101'], confirmation_token=token)
+        replay = await tool('123', 42, ['101'], confirmation_token=token)
+    assert len(calls) == 1
+    assert 'already used' in replay['error']
+    assert result.get('nothing_sent') is not True
+    assert result.get('delivery_uncertain') is True
+    assert 'check' in result['error'].lower()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('first_error', [False, True])
+async def test_peer_review_campaign_counts_confirmed_batches_without_replay(first_error):
+    import asyncio
+
+    entered, finish = asyncio.Event(), asyncio.Event()
+    calls = []
+    analytics = {'completion_groups': {
+        'none_complete': [{'student_id': 101}],
+        'partial_complete': [{'student_id': 102}],
+    }}
+
+    async def responder(method, endpoint, **kwargs):
+        if method == 'get':
+            return {'name': 'Essay', 'html_url': ''}
+        calls.append(kwargs['data'])
+        if len(calls) == 1:
+            entered.set()
+            await finish.wait()
+            if first_error:
+                return {'error': 'HTTP error: 500'}
+        return [{'id': len(calls)}]
+
+    with patch('canvas_mcp.core.cache.get_course_id', new=AsyncMock(return_value='123')), \
+         patch('canvas_mcp.core.peer_reviews.PeerReviewAnalyzer.get_completion_analytics', new=AsyncMock(return_value=analytics)), \
+         patch('canvas_mcp.tools.messaging.make_canvas_request', new=responder):
+        tool = get_educator_tool_function('send_peer_review_followup_campaign')
+        preview = await tool('123', 42)
+        token = preview['confirmation_token']
+        owner = asyncio.create_task(tool('123', 42, confirmation_token=token))
+        await entered.wait()
+        try:
+            blocked = await tool('123', 42, confirmation_token=token)
+            assert 'already used' in blocked['error']
+        finally:
+            finish.set()
+            result = await owner
+        assert 'already used' in (await tool('123', 42, confirmation_token=token))['error']
+    assert [c['recipients[]'] for c in calls] == [['101'], ['102']]
+    assert result['summary']['urgent_reminders_sent'] == (0 if first_error else 1)
+    assert result['summary']['partial_reminders_sent'] == 1
+    assert result['summary']['total_reminders_sent'] == (1 if first_error else 2)
+    assert result['success'] is (not first_error)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('error', ['HTTP error: 400', 'HTTP error: 500'])
+async def test_peer_review_mismatch_burn_survives_inflight_outcome(error):
+    import asyncio
+
+    entered, finish = asyncio.Event(), asyncio.Event()
+    posts = []
+
+    async def responder(method, endpoint, **kwargs):
+        if endpoint.endswith('/permissions'):
+            return {'manage_grades': True}
+        if method == 'get':
+            return {'name': 'Essay', 'html_url': ''}
+        posts.append(kwargs['data'])
+        entered.set()
+        await finish.wait()
+        return {'error': error}
+
+    with patch('canvas_mcp.core.cache.get_course_id', new=AsyncMock(return_value='123')), \
+         patch('canvas_mcp.tools.messaging.make_canvas_request', new=responder):
+        tool = get_educator_tool_function('send_peer_review_inbox_messages')
+        preview = await tool('123', 42, ['101'], custom_message='approved')
+        token = preview['confirmation_token']
+        owner = asyncio.create_task(tool('123', 42, ['101'], custom_message='approved', confirmation_token=token))
+        await entered.wait()
+        try:
+            mismatch = await tool('123', 42, ['102'], custom_message='changed', confirmation_token=token)
+            assert 'does not match' in mismatch['error']
+        finally:
+            finish.set()
+            await owner
+        assert 'already used' in (await tool('123', 42, ['101'], custom_message='approved', confirmation_token=token))['error']
+    assert len(posts) == 1
+    assert posts[0]['recipients[]'] == ['101']

@@ -1,0 +1,27 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0
+rootdir: /workspace/scratch/5655cab44c80/canvas-mcp-confirmation-workflows
+configfile: pyproject.toml
+plugins: asyncio-1.4.0, anyio-4.14.2
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 16 items / 14 deselected / 2 selected
+
+tests/tools/test_messaging.py FF                                         [100%]
+
+=================================== FAILURES ===================================
+___ test_peer_review_campaign_counts_confirmed_batches_without_replay[False] ___
+tests/tools/test_messaging.py:383: in test_peer_review_campaign_counts_confirmed_batches_without_replay
+    assert result['summary']['urgent_reminders_sent'] == (0 if first_error else 1)
+E   assert 0 == 1
+----------------------------- Captured stderr call -----------------------------
+Canvas educator messaging tools registered successfully!
+___ test_peer_review_campaign_counts_confirmed_batches_without_replay[True] ____
+tests/tools/test_messaging.py:384: in test_peer_review_campaign_counts_confirmed_batches_without_replay
+    assert result['summary']['partial_reminders_sent'] == 1
+E   assert 0 == 1
+----------------------------- Captured stderr call -----------------------------
+Canvas educator messaging tools registered successfully!
+=========================== short test summary info ============================
+FAILED tests/tools/test_messaging.py::test_peer_review_campaign_counts_confirmed_batches_without_replay[False]
+FAILED tests/tools/test_messaging.py::test_peer_review_campaign_counts_confirmed_batches_without_replay[True]
+======================= 2 failed, 14 deselected in 0.16s =======================
