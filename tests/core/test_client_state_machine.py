@@ -72,7 +72,7 @@ async def test_cancelled_semaphore_wait_closes_request_owned_client():
         await asyncio.sleep(0)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
-            await task
+            await asyncio.gather(task)
     try:
         assert client.is_closed
     finally:
@@ -99,11 +99,11 @@ async def test_cleanup_cannot_discard_replacement_client():
         with patch.object(cm.httpx, "AsyncClient", return_value=replacement):
             assert cm._get_http_client() is replacement
         finish.set()
-        await task
+        assert await task is None
         assert cm.http_client is replacement
     finally:
         finish.set()
-        await task
+        assert await task is None
         await replacement.aclose()
 
 
