@@ -101,48 +101,82 @@ Version-bump procedure (files to update) + publish-race gotchas: **[internal/rel
 - **Privacy**: Student IDs preserved, names anonymized in `_should_anonymize_endpoint()`
 - **Optional params**: Use `Optional[T]` type hints for parameters that can be `None`
 
-## Test-Driven Development (TDD) - ENFORCED
+## Testing and behavioral evidence
 
-**All new MCP tools MUST have tests before the feature is considered complete.**
+Choose verification by the behavior at risk, not a per-tool test quota. New tools
+must have meaningful automated coverage before they are complete. Cover relevant
+success, failure, boundary, and safety behavior; several scenarios may fit one
+parameterized test, while a consequential invariant may need several kinds of
+evidence. Preserve existing regression coverage and required CI checks.
 
-### TDD Workflow
-1. **Write tests first** (or alongside) for new tools
-2. **Minimum 3 tests per tool**: success path, error handling, edge case
-3. **Run tests** before committing: `uv run python -m pytest tests/ -v`
-4. **No merging** without passing tests
+### TDD and refactoring
 
-### Test Structure
-```
-tests/
-├── tools/           # Unit tests for MCP tools
-│   ├── test_modules.py    # Reference implementation
-│   ├── test_pages.py      # Page tools tests
-│   └── ...
-└── security/        # Security-focused tests
-```
+- For a reproducible bug or a clear behavior change, write a focused failing
+  regression first. Observe it fail for the intended reason, then repair the
+  implementation and verify it passes.
+- Before refactoring, characterize behavior where the existing tests leave a
+  meaningful uncertainty. Preserve the public contract and separate intentional
+  behavior changes from structural cleanup.
+- When expected behavior is still being discovered, exploration is appropriate.
+  Establish the intended contract and meaningful verification before claiming
+  completion; do not turn exploratory output into its own test oracle.
 
-### Test Patterns (from test_modules.py)
+### Choose the test boundary
+
+Use unit tests for local rules, integration tests for collaboration and transport
+contracts, and end-to-end tests for complete user workflows when that is the
+uncertainty. There is no universal ratio or preferred layer simply because an AI
+agent writes the code. Keep the real components involved in the risk, replacing
+external services with controlled responses where useful. End-to-end coverage
+can expose integration failures; focused tests make edge cases and failures
+cheaper to reproduce. Do not send live Canvas writes merely to verify a patch.
+
+Derive assertions from an independent requirement or hand-checked example.
+Assert observable outputs, outgoing request contracts, and forbidden side effects.
+Scrutinize mocks that remove the interaction being tested or return only the
+shape the implementation happens to expect. A passing success substring or a
+mock assertion alone rarely establishes the whole behavior.
+
+For example, the form-encoding regression in
+`tests/tools/test_messaging.py` checks the actual tool's outgoing contract:
+
 ```python
-@pytest.fixture
-def mock_canvas_request():
-    with patch('canvas_mcp.tools.modules.make_canvas_request') as mock:
-        yield mock
-
+# get_tool_function is the registration helper in that test module.
 @pytest.mark.asyncio
-async def test_tool_success(mock_canvas_request, mock_course_id):
-    mock_canvas_request.return_value = {"id": 123, "name": "Test"}
-    result = await tool_function(course_identifier="test", ...)
-    assert "success" in result.lower() or "123" in result
+async def test_marks_conversations_read_with_canvas_form_fields():
+    with patch(
+        "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
+    ) as request:
+        request.return_value = [{"id": 319, "workflow_state": "read"}]
+        tool = get_tool_function("mark_conversations_read")
+        result = await tool(conversation_ids=["319"])
+
+    assert result["success"] is True
+    assert request.call_count == 1
+    assert request.call_args.kwargs["use_form_data"] is True
+    assert request.call_args.kwargs["data"] == {
+        "conversation_ids[]": ["319"], "event": "mark_as_read"
+    }
 ```
 
-### What to Test
-- ✅ Successful API responses
-- ✅ API error handling (404, 401, 500)
-- ✅ Parameter validation (missing required params, invalid types)
-- ✅ Edge cases (empty lists, None values, special characters)
-- ✅ Canvas API quirks (form data requirements, pagination)
+This checks the tool-to-client boundary. Use a real client with controlled HTTP
+transport when the uncertainty is serialization, retries, pagination, or error
+classification; this mocked example does not establish those properties.
 
-See: [Issue #56](https://github.com/vishalsachdev/canvas-mcp/issues/56) for comprehensive test coverage plan.
+### Formal methods and completion gates
+
+Use Lean/TLA+ selectively for consequential state, ownership, concurrency, or
+termination invariants. Keep the source-to-model mapping and assumptions explicit,
+and pair model proofs with implementation regressions. A proved model does not
+prove the HTTP service, compiler, or every caller follows it. See `verify/` for
+scoped examples and pinned toolchain instructions.
+
+Run focused checks during iteration and the full Python suite before committing:
+`uv run python -m pytest tests/ -v -rf`. Run `npm test` and `npm run build` for
+TypeScript changes, and relevant formal checks when their implementation mapping
+changes. Keep required lint, type-checking, and CI gates; do not merge with failing
+required checks. Report what was verified and any failures, skipped coverage, or
+environment limitations. Do not weaken assertions to obtain a green run.
 
 ## Canvas API Specifics
 - Base URL from `CANVAS_API_URL` environment variable
