@@ -8,12 +8,6 @@ from typing import Any
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from canvas_mcp.core.write_outcome import (
-    NO_WRITE_STATUSES,
-    RequestFailure,
-    WriteOutcome,
-)
-
 from ..core.client import make_canvas_request
 from ..core.untrusted_content import (
     FENCE_LEAK_ERROR,
@@ -24,6 +18,7 @@ from ..core.untrusted_content import (
 )
 from ..core.validation import validate_params
 from ..core.write_confirmation import ConfirmationGuard, redeem_confirmation
+from ..core.write_outcome import NO_WRITE_STATUSES, RequestFailure, WriteOutcome
 
 # One guard per destructive tool: each has its own signing secret and redeemed
 # set, so a token minted for one tool can never be replayed against another.
