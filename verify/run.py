@@ -15,7 +15,9 @@ def run(command: list[str], expected_failure: str | None = None) -> None:
     output = result.stdout + result.stderr
     print(output, end="", flush=True)
     if expected_failure:
-        if result.returncode == 0 or f"Invariant {expected_failure} is violated" not in output:
+        marker = (expected_failure if expected_failure.startswith("Temporal")
+                  else f"Invariant {expected_failure} is violated")
+        if result.returncode == 0 or marker not in output:
             raise SystemExit("Expected counterexample was not reproduced")
     elif result.returncode != 0:
         raise SystemExit(result.returncode)
@@ -34,6 +36,17 @@ def main() -> None:
         ("Clock", "clock-crossing", "NoDoubleRedeem"),
         ("Clock", "clock-rollback", "NoDoubleRedeem"),
         ("Clock", "clock-fixed", None),
+        ("ClientRequests", "client-requests-original", "OwnedClientClosed"),
+        ("ClientRequests", "client-requests-fixed", None),
+        ("ClientCleanup", "client-cleanup-original", "ReplacementPreserved"),
+        ("ClientCleanup", "client-cleanup-fixed", None),
+        ("ClientDispatch", "client-dispatch-original", "DispatchOpen"),
+        ("ClientDispatch", "client-dispatch-fixed", None),
+        ("ClientPagination", "client-pagination-original", "NoSkippedSuccessor"),
+        ("ClientPagination", "client-pagination-fixed", None),
+        ("ClientPagination", "client-pagination-cycle", None),
+        ("ClientPageBudget", "client-budget-original", "Temporal property Termination was violated"),
+        ("ClientPageBudget", "client-budget-fixed", None),
     ]
     for module, config, failure in cases:
         with tempfile.TemporaryDirectory(prefix="confirmation-tlc-") as states:

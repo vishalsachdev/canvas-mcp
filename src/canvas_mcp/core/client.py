@@ -5,6 +5,7 @@ import re
 import weakref
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from copy import deepcopy
 from typing import Any, Final, Literal, cast
 from urllib.parse import urlencode
 
@@ -20,6 +21,8 @@ INITIAL_BACKOFF_SECONDS = 2
 
 # Default number of results per page for paginated requests
 DEFAULT_PAGE_SIZE = 100
+# Fail explicitly rather than looping forever on a broken pagination chain.
+MAX_PAGINATION_PAGES = 10000
 API_ROOT_REST: Final = "rest"
 API_ROOT_QUIZ: Final = "quiz"
 
@@ -359,10 +362,12 @@ def _get_http_client() -> httpx.AsyncClient:
 
 async def cleanup_http_client() -> None:
     """Close the HTTP client and release resources."""
-    global http_client
-    if http_client is not None:
-        await http_client.aclose()
-        http_client = None
+    global http_client, _http_client_loop_ref
+    client = http_client
+    http_client = None
+    _http_client_loop_ref = None
+    if client is not None:
+        await client.aclose()
 
 
 @asynccontextmanager
@@ -403,6 +408,7 @@ async def make_canvas_request(
     skip_anonymization: bool = False,
     files: dict[str, tuple[str, bytes, str]] | None = None,
     api_root: Literal["rest", "quiz"] = API_ROOT_REST,
+    _pagination: dict[str, str | None] | None = None,
 ) -> Any:
     """Make a request to the Canvas API with proper error handling.
 
@@ -477,8 +483,7 @@ async def make_canvas_request(
         )
         return {"error": "Canvas token required for HTTP request"}
     else:
-        # Global client (stdio mode)
-        client = _get_http_client()
+        # Shared client is selected immediately before dispatch (stdio mode).
         try:
             base_url = _resolve_canvas_api_root(config.canvas_api_url.rstrip('/'), api_root)
         except ValueError as exc:
@@ -486,13 +491,29 @@ async def make_canvas_request(
         url = f"{base_url}{endpoint}"
         _close_client = False
 
-    # Gate outbound calls with concurrency semaphore (uses MAX_CONCURRENT_REQUESTS)
-    semaphore = _get_request_semaphore()
-    async with semaphore:
-        # Retry loop for rate limiting
-        try:
+    # Own the client before awaiting the semaphore: cancellation while queued
+    # must close request-local clients too.
+    try:
+        if _pagination is not None and _pagination.get("url"):
+            # Canvas next links are opaque. Preserve their exact query while
+            # refusing to forward credentials to another origin or endpoint.
+            try:
+                target = httpx.URL(cast(str, _pagination["url"]))
+            except httpx.InvalidURL:
+                return {"error": "Invalid pagination link"}
+            expected = httpx.URL(url)
+            if target.copy_with(query=None) != expected.copy_with(query=None):
+                return {"error": "Invalid pagination link: origin or endpoint changed"}
+            url = str(target)
+            params = None
+        semaphore = _get_request_semaphore()
+        async with semaphore:
             for attempt in range(MAX_RETRIES + 1):
                 try:
+                    # A semaphore wait or 429 backoff may span a cleanup.
+                    # Select the shared client at dispatch, not before waiting.
+                    if not _close_client:
+                        client = _get_http_client()
                     # Log the request for debugging (if enabled)
                     if config.log_api_requests:
                         retry_info = f" (retry {attempt}/{MAX_RETRIES})" if attempt > 0 else ""
@@ -544,6 +565,9 @@ async def make_canvas_request(
 
                     response.raise_for_status()
                     result = response.json()
+                    if _pagination is not None:
+                        _pagination["current"] = str(response.request.url)
+                        _pagination["next"] = response.links.get("next", {}).get("url")
 
                     # Apply anonymization if enabled and this endpoint contains student data
                     # Skip if explicitly requested (e.g., from paginated fetcher that will anonymize the full result)
@@ -602,9 +626,9 @@ async def make_canvas_request(
 
             # Should never reach here, but just in case
             return {"error": "Max retries exceeded"}
-        finally:
-            if _close_client:
-                await client.aclose()
+    finally:
+        if _close_client:
+            await client.aclose()
 
 
 async def upload_file_to_storage(
@@ -739,37 +763,40 @@ async def fetch_all_paginated_results(
             lose the single-anonymization-pass-over-the-complete-dataset
             property this function exists to provide.
     """
-    if params is None:
-        params = {}
-
-    # Ensure we get a reasonable number per page
-    if "per_page" not in params:
-        params["per_page"] = 100
-
+    # Each caller owns its query and cursor, even if callers share input params.
+    current_params = deepcopy(params) if params is not None else {}
+    current_params.setdefault("per_page", DEFAULT_PAGE_SIZE)
+    current_params["page"] = 1
+    pagination: dict[str, str | None] = {}
+    seen: set[str] = set()
     all_results: list[Any] = []
-    page = 1
 
-    while True:
-        current_params = {**params, "page": page}
-        # Skip anonymization on individual pages - we'll anonymize the complete dataset
+    for _ in range(MAX_PAGINATION_PAGES):
         response = await make_canvas_request(
-            "get", endpoint, params=current_params, skip_anonymization=True, api_root=api_root
+            "get", endpoint, params=current_params, skip_anonymization=True,
+            api_root=api_root, _pagination=pagination,
         )
-
         if isinstance(response, dict) and "error" in response:
-            log_error(f"Error fetching page {page}", error=response['error'])
             return response
-
-        if not response or not isinstance(response, list) or len(response) == 0:
-            break
-
+        if not isinstance(response, list):
+            return {"error": "Invalid paginated response: expected a list"}
         all_results.extend(response)
-
-        # If we got fewer results than requested per page, we're done
-        if len(response) < params.get("per_page", 100):
+        current = pagination.get("current")
+        if current is not None:
+            seen.add(str(httpx.URL(current)))
+        next_url = pagination.get("next")
+        if not next_url:
             break
-
-        page += 1
+        try:
+            next_identity = str(httpx.URL(next_url))
+        except httpx.InvalidURL:
+            return {"error": "Invalid pagination link"}
+        if next_identity in seen:
+            return {"error": "Pagination cycle detected; no partial result returned"}
+        pagination["url"] = next_url
+        current_params = {}  # The opaque next URL contains the complete query.
+    else:
+        return {"error": f"Pagination exceeded {MAX_PAGINATION_PAGES} pages; no partial result returned"}
 
     # Apply anonymization to the complete result set if needed
     from .config import get_config
