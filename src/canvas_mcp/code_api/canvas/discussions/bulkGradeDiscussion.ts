@@ -150,12 +150,11 @@ async function fetchAllDiscussionEntries(
           { per_page: 100 }
         );
 
-        if (replies && Array.isArray(replies)) {
-          allEntries.push(...replies);
-        }
+        allEntries.push(...replies);
       } catch (error: any) {
-        console.warn(`Failed to fetch replies for entry ${entry.id}:`, error);
-        // Continue processing other entries
+        // Missing replies are unknown participation, never zero participation.
+        // Finish every required read before either previewing or writing grades.
+        throw new Error(`Incomplete discussion data: failed to fetch replies for entry ${entry.id}: ${error?.message || String(error)}`);
       }
     }
 
