@@ -167,9 +167,9 @@ class TestConfirmationIsCallerBound:
             def __init__(self, token):
                 self.api_token = token
 
-        with patch.object(sw, "get_request_credentials", return_value=_Creds("aaa")):
+        with patch("canvas_mcp.core.write_confirmation.get_request_credentials", return_value=_Creds("aaa")):
             first = sw._fingerprint("1", "2", "online_text_entry", "digest", 0)
-        with patch.object(sw, "get_request_credentials", return_value=_Creds("bbb")):
+        with patch("canvas_mcp.core.write_confirmation.get_request_credentials", return_value=_Creds("bbb")):
             second = sw._fingerprint("1", "2", "online_text_entry", "digest", 0)
 
         assert first != second
@@ -181,10 +181,10 @@ class TestConfirmationIsCallerBound:
             def __init__(self, token):
                 self.api_token = token
 
-        with patch.object(sw, "get_request_credentials", return_value=_Creds("aaa")):
+        with patch("canvas_mcp.core.write_confirmation.get_request_credentials", return_value=_Creds("aaa")):
             fingerprint = sw._fingerprint("1", "2", "online_text_entry", "d", 0)
             token = sw._issue_token(fingerprint)
-        with patch.object(sw, "get_request_credentials", return_value=_Creds("bbb")):
+        with patch("canvas_mcp.core.write_confirmation.get_request_credentials", return_value=_Creds("bbb")):
             other = sw._fingerprint("1", "2", "online_text_entry", "d", 0)
 
         assert sw._check_token(token, fingerprint) is None
@@ -197,7 +197,7 @@ class TestConfirmationIsCallerBound:
         class _Creds:
             api_token = "super-secret-canvas-token"
 
-        with patch.object(sw, "get_request_credentials", return_value=_Creds()):
+        with patch("canvas_mcp.core.write_confirmation.get_request_credentials", return_value=_Creds()):
             identity = sw._caller_identity()
 
         assert "super-secret-canvas-token" not in identity

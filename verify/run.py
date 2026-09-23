@@ -68,6 +68,10 @@ def main() -> None:
         ("TypeScriptConfig", "ts-config-original", "CredentialBound"),
         ("TypeScriptConfig", "ts-config-fixed", None),
     ]
+    cases += [
+        ("StudentClaims", "student-claims-original", "OneActive"),
+        ("StudentClaims", "student-claims-fixed", None),
+    ]
     for module, config, failure in cases:
         with tempfile.TemporaryDirectory(prefix="confirmation-tlc-") as states:
             run([

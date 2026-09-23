@@ -1,0 +1,43 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0
+rootdir: /workspace/scratch/5655cab44c80/student-confirmation-before
+configfile: pyproject.toml
+plugins: asyncio-1.4.0, anyio-4.14.2
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 48 items / 44 deselected / 4 selected
+
+../student-confirmation-before/test_student_write.py FFFF                [100%]
+
+=================================== FAILURES ===================================
+___ TestStudentConfirmationProtocol.test_mismatch_then_revert_cannot_submit ____
+../student-confirmation-before/test_student_write.py:1214: in test_mismatch_then_revert_cannot_submit
+    assert not posts, f'mismatch failed to burn token: {reverted}'
+E   AssertionError: mismatch failed to burn token: ✅ Submitted.
+E     Assignment: Essay 1
+E     Attempt: 2
+E   assert not ['/courses/123/assignments/42/submissions']
+_ TestStudentConfirmationProtocol.test_expired_student_token_cannot_revive_after_wall_rollback _
+../student-confirmation-before/test_student_write.py:1227: in test_expired_student_token_cannot_revive_after_wall_rollback
+    assert sw._check_token(token, 'fp') is not None
+E   AssertionError: assert None is not None
+E    +  where None = <function _check_token at 0x7fa80cd90b80>('1790164732.390d55e4b6ee53cfc8bb233109bd82a5', 'fp')
+E    +    where <function _check_token at 0x7fa80cd90b80> = <module 'canvas_mcp.tools.student_write' from '/workspace/scratch/5655cab44c80/student-confirmation-before/src/canvas_mcp/tools/student_write.py'>._check_token
+_ TestStudentConfirmationProtocol.test_fresh_preview_cannot_overlap_an_expired_inflight_claim _
+../student-confirmation-before/test_student_write.py:1266: in test_fresh_preview_cannot_overlap_an_expired_inflight_claim
+    assert len(posts) == 1, 'fresh preview overlapped a still-running submit after TTL'
+E   AssertionError: fresh preview overlapped a still-running submit after TTL
+E   assert 2 == 1
+E    +  where 2 = len(['/courses/123/assignments/42/submissions', '/courses/123/assignments/42/submissions'])
+_ TestStudentConfirmationProtocol.test_mismatch_burn_survives_owner_policy_rejection _
+../student-confirmation-before/test_student_write.py:1310: in test_mismatch_burn_survives_owner_policy_rejection
+    assert not posts, f'owner release revived burned token: {reverted}'
+E   AssertionError: owner release revived burned token: ✅ Submitted.
+E     Assignment: Essay 1
+E     Attempt: 2
+E   assert not ['/courses/123/assignments/42/submissions']
+=========================== short test summary info ============================
+FAILED ../student-confirmation-before/test_student_write.py::TestStudentConfirmationProtocol::test_mismatch_then_revert_cannot_submit
+FAILED ../student-confirmation-before/test_student_write.py::TestStudentConfirmationProtocol::test_expired_student_token_cannot_revive_after_wall_rollback
+FAILED ../student-confirmation-before/test_student_write.py::TestStudentConfirmationProtocol::test_fresh_preview_cannot_overlap_an_expired_inflight_claim
+FAILED ../student-confirmation-before/test_student_write.py::TestStudentConfirmationProtocol::test_mismatch_burn_survives_owner_policy_rejection
+======================= 4 failed, 44 deselected in 1.65s =======================
