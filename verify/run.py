@@ -64,6 +64,10 @@ def main() -> None:
         ("GradingBatch", "grading-batch-zero-original", "ZeroDelay"),
         ("GradingBatch", "grading-batch-zero-fixed", None),
     ]
+    cases += [
+        ("TypeScriptConfig", "ts-config-original", "CredentialBound"),
+        ("TypeScriptConfig", "ts-config-fixed", None),
+    ]
     for module, config, failure in cases:
         with tempfile.TemporaryDirectory(prefix="confirmation-tlc-") as states:
             run([
