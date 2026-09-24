@@ -434,6 +434,7 @@ environment limitations. Do not weaken assertions to obtain a green run.
 - [ ] Page templates
 - [ ] Bulk page creation from markdown files
 - [ ] Page content versioning/history tools
+- [ ] **2026-09-06 security review follow-ups** (Codex xhigh, branch `codex/review-2026-09-06` unmerged; 1 High fixed, 3 Medium + 2 Low open, 4 perf recs): plan in `docs/superpowers/plans/2026-09-06-security-review-followups.md`. First step is a PR of the branch; S1 changes HTTP-mode behaviour.
 
 ## Hosted Deployment (Azure — #115)
 
@@ -464,29 +465,12 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
 > institutional affiliation, evaluation status, deployment timeline, or which competing
 > products they are weighing. Name the person and the technical issue, nothing else.
 
-### 2026-09-01 — routine maintenance completed; impact metrics refreshed and published
+### 2026-09-24 — prompt audit shipped as PR #411 + #412; injection write-gating advisory drafted (GHSA-hmr8-mvr2-mvw5)
 
-- **Repository maintenance:** merged the ready dependency updates, closed the superseded update,
-  clarified the FastMCP 4 migration issue, added missing maintenance labels, and requested a safety
-  correction on the remaining contributor pull request.
-- **Impact metrics:** refreshed `docs/data/impact.json`, pushed commit `587d512`, deployed the site
-  to Cloudflare Pages, and verified the public page renders 209 stars, 73 forks, 20 contributors,
-  and 2,418 monthly installs.
-- **Website health:** removed a dead third-party display-font reference discovered during the live
-  check; the existing local fallback preserves the rendered typography without the failed request.
-- **Next:** complete the Grok/xAI integration research and pilot above; revisit the remaining
-  contributor pull request after its author addresses the requested correction.
-
-### 2026-08-30 — v1.12.0 RELEASED; #317 merged (with a regression caught first); #336 shipped; README leads with the server install
-
-- **Release (Sun, CDT):** tag `v1.12.0` on `332fd05`, both tag workflows green first run. Verified: GitHub Release + `.mcpb` + SLSA (`gh attestation verify` exit 0), PyPI 200 / latest 1.12.0, MCP Registry `isLatest=True`, site wrangler-deployed (custom domain flipped 1.11.0 → 1.12.0), hosted Azure already at the bump commit. **Fourth clean publish run** (no PyPI race, no null-tag failure). CHANGELOG date 08-30 matched the tag day.
-- **PR #317 (AmirF194) MERGED as `b4f21b4`; #157 verified OPEN after** (squash message used `Refs`). Contributor pushed the stdin change (`c60453e`) overnight; **it broke the tool's own import contract**: the script moved from `code_api/` to `$HOME`, so the documented `./canvas/*` (and `./client`, `./index`) imports failed with `Cannot find module`. Their e2e script had no imports. Measured locally with tsx, no container needed (control inside `code_api/` → `function`; HOME-like dir → `Cannot find module`; symlinked → `function`). Fix pushed to their branch (`877a3a1` links `canvas/`; Codex r1 P2 widened it to the whole `code_api/` root, `69bb044`); Codex r2 clean; suite 1456. CodeQL 145 dismissed (guard `.cjs`, allowlist only; 146 was already dismissed). Codex's other P2 (fixed uid vs `umask 077` checkouts) → **#338** filed, not folded in.
-- **#336 `--read-only`: PR #339 MERGED as `5bed8d5`, #336 closed.** One flag + `test_root_filesystem_is_read_only`; suite 1457. Codex r1 + r2 clean; worktree removed. **Not measured on a Linux Docker host** (none here); every write path enumerated in the PR body, failure mode is a loud EROFS.
-- **README/site (`b154243`):** hero opened with `npx skills add`, which installs recipes that need the server; the server install sat at line 298. Added a Quick Start (`.mcpb` → local install → verify → optional skills) and a "server first" line in both skills sections; site got a step 0 for the `.mcpb`. Redeployed.
-- **#142:** posted the #335 finding (fastmcp 4.0 beta is on MCP SDK v2; stable 3.4.7 still pins `mcp<2`; scope grows to the MCPServer rename, `mcp-types` split, ServerRunner rewrite, WebSocket removal). #335 otherwise informational.
-- **Gotcha recorded:** `codex review --base X` refuses a prompt argument (exit 2); run it bare.
-- **Unidentified flake:** one post-merge run on `5bed8d5` reported `1 failed, 1456 passed`; the run had no `-rf`, so the test name was not captured, and four further runs (with `-rf`) were 1457/21 clean. Next time a run fails: `pytest -rf` is already on the rule list, this is why.
-- **Next:** (1) Hosted Azure auto-deployed `b4f21b4`; `5bed8d5` deploy should follow (both sandbox-only; `execute_typescript` is disabled on hosted anyway). (2) #325 / #318 close on reporter confirmation. (3) #338 when someone hits it. (4) Ask AmirF194 for one container-mode run with a `./canvas/` import on their Linux host (offered on the PR, not blocking).
+- **Prompt audit (Opus 5.5 as client model), requested via control.** `docs/audits/2026-09-23-prompt-audit.md`: 74 findings (30 High / 25 Medium / 19 Low). Not over-prompting: the defects were confident text that no longer matched the code (a seconds-vs-ms unit, publish defaults that flipped, a renamed tool, 16 parameters with no description, 2 docstring lines FastMCP drops after `Args:`). Codex (gpt-6-astra low, read-only) second-reviewed all 58 High/Medium findings: 54 confirmed, 2 dropped (T-M3, S-M7), 1 downgraded (S-M6), 13 hunks corrected; verdicts in `docs/audits/2026-09-23-codex-review.md`. `docs/audits/` is excluded from the Cloudflare upload (`docs/.assetsignore`).
+- **PR #411** (`audit/prompt-surface-2026-09-23`, worktree `../canvas-mcp-prompt-audit`): 5 commits. Four applied by Codex in a visible pane (one commit per finding group), the fifth (`ad505d5`, T-M10) makes all 14 two-call previews say "only after they approve". CI green. Registry check: 103 tools, 0 undescribed params, no schema/annotation changes. **PR #412** (`audit/untrusted-notice-wording`, worktree `../canvas-mcp-untrusted-notice`): T-M5, the inbox `UNTRUSTED_NOTICE` wording; the audit's rationale was corrected (the notice reaches only the two inbox tools). 20-run Opus 5.5 probe: 0/10 followed a planted roster-exfil injection with either wording, 5/5 quoted own text; accuracy fix only. Neither merged.
+- **Security advisory GHSA-hmr8-mvr2-mvw5 (draft, private, severity high).** A student-planted instruction can drive first-call writes: 45 write tools, 15 token-gated, 28 first-call (measured). Codex (astra high) architecture review corrected two of my claims: the confirmation token binds a request, it does not prove human approval (the assistant redeems its own token, `tests/security/test_untrusted_content.py:1054`), and blast radius is every course the token reaches. Recommended control: operator write allowlist (`core/tool_policy.py`), messaging exemption removal as second layer. Five side weaknesses (syllabus append ignores tokens; syllabus preview hides the new body; `download_course_file` mis-annotated read-only; fencing gate checks presence not coverage; token state process-local) are listed in the advisory and mirrored in gitignored `internal/security/2026-09-24-injection-write-gating.md`. Older advisory GHSA-7pp5-29mw-9jq3 (sandbox escape, high) still in triage. Classifier rejected as the wrong layer.
+- **Next:** (1) Vishal: merge #411/#412 or request changes; stdio default for the allowlist (keep behaviour vs default-deny in a major); decide GHSA-7pp5. (2) Build the advisory fix in its private fork, visible Codex pane: allowlist + `_is_single_direct_recipient` removal + side items 1 and 3, then release and publish. (3) #390 (EastArctica) still held on control's instruction. (4) Out-of-diff audit items: code-API gating on `execute_typescript` (schema-version decision), `.claude/skills` SKILL.md symlinks (local), CLAUDE.md history move. (5) `../canvas-mcp-review` (09-06 security review, 9 commits) still has no PR.
 
 ## ⚠️ Adoption numbers: what is safe to publish (2026-08-21)
 
