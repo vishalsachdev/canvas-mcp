@@ -322,8 +322,9 @@ def register_content_migration_tools(mcp: FastMCP) -> None:
                 "target_current_contents": occupancy,
                 "confirmation_token": _CONTENT_MIGRATION_GUARD.issue(fingerprint),
                 "instructions": (
-                    "Show this preview to the educator. To request the course "
-                    "copy, call create_content_migration again with this "
+                    "Show this preview to the educator. Only after they "
+                    "approve it, request the course copy by calling "
+                    "create_content_migration again with this "
                     "confirmation_token and identical arguments. The token is "
                     "single-use and expires shortly."
                 ),

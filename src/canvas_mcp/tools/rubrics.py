@@ -1663,7 +1663,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         preserving IDs used by existing assessments.
 
         Call once without ``confirmation_token`` to receive a preview, show it
-        to the educator, then call again with identical arguments and the token.
+        to the educator, and only after they approve it call again with
+        identical arguments and the token.
         Any rubric or association drift invalidates the token.
 
         Omit ``free_form_criterion_comments`` to preserve the rubric's current
