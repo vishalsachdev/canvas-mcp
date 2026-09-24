@@ -17,7 +17,8 @@ from ..core.untrusted_content import (
     fence_untrusted_fields,
 )
 from ..core.validation import validate_params
-from ..core.write_confirmation import ConfirmationGuard
+from ..core.write_confirmation import ConfirmationGuard, redeem_confirmation
+from ..core.write_outcome import NO_WRITE_STATUSES, RequestFailure, WriteOutcome
 
 # One guard per destructive tool: each has its own signing secret and redeemed
 # set, so a token minted for one tool can never be replayed against another.
@@ -166,7 +167,7 @@ def _render_bulk_messages(
 # validation/auth failures. Deliberately excludes 408 (timeout — the server
 # may have processed it), 409, 429, and every 5xx (the failure can occur
 # after the write, or a proxy can emit it while Canvas succeeded).
-_NO_WRITE_STATUSES = frozenset({400, 401, 403, 404, 422})
+_NO_WRITE_STATUSES = NO_WRITE_STATUSES
 _HTTP_ERROR_STATUS = re.compile(r"^HTTP error: (\d+)")
 
 
@@ -539,6 +540,7 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
         # fan-out could ride along on a swapped-to-one-recipient call, be
         # silently ignored, and the message would send to the NEW recipient
         # with no check at all.
+        claim = None
         if confirmation_token or not _is_single_direct_recipient(recipient_ids):
             fingerprint = _SEND_CONVERSATION_GUARD.fingerprint(
                 str(course_identifier),
@@ -577,18 +579,10 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                         "shortly."
                     ),
                 }
-            token_error = _SEND_CONVERSATION_GUARD.check(confirmation_token, fingerprint)
-            if token_error:
-                # Burn the nonce so a swapped-then-reverted argument set cannot
-                # replay this token within its TTL.
-                _SEND_CONVERSATION_GUARD.reserve(confirmation_token)
-                return {"error": token_error, "nothing_sent": True}
-            if not _SEND_CONVERSATION_GUARD.reserve(confirmation_token):
-                return {
-                    "error": "❌ That confirmation was already used. Nothing was "
-                             "sent. Run the preview again.",
-                    "nothing_sent": True,
-                }
+            claimed = _SEND_CONVERSATION_GUARD.claim(confirmation_token, fingerprint)
+            if isinstance(claimed, str):
+                return {"error": claimed, "nothing_sent": True}
+            claim = claimed
 
         try:
             result = await _post_conversation(
@@ -603,18 +597,9 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                 force_new,
                 attachment_ids,
             )
-            if (
-                "error" in result
-                and confirmation_token
-                and not _is_single_direct_recipient(recipient_ids)
-                and _definitely_not_sent(result["error"])
-            ):
-                # Canvas provably rejected the POST, so nothing was sent —
-                # hand the claim back rather than forcing a fresh preview to
-                # retry. Ambiguous transport failures (a timeout can land
-                # AFTER Canvas accepted the send) keep the claim so a retry
-                # cannot double-send.
-                _SEND_CONVERSATION_GUARD.release(confirmation_token)
+            if claim is not None:
+                claim.finish(result.outcome if isinstance(result, RequestFailure)
+                             else WriteOutcome.MAY_HAVE_WRITTEN)
             return result
         except Exception as e:
             print(f"Error sending conversation: {str(e)}", file=sys.stderr)
@@ -659,6 +644,7 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
         if custom_message and contains_fence_markers(custom_message):
             return {"error": FENCE_LEAK_ERROR}
 
+        dispatch_started = False
         try:
             from ..core.cache import get_course_id
 
@@ -746,18 +732,11 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                     ),
                 }
 
-            token_error = _REMINDER_GUARD.check(confirmation_token, fingerprint)
+            token_error = redeem_confirmation(_REMINDER_GUARD, confirmation_token, fingerprint)
             if token_error:
-                # Burn the nonce so a revert within the TTL cannot replay it.
-                _REMINDER_GUARD.reserve(confirmation_token)
                 return {"error": token_error, "nothing_sent": True}
-            if not _REMINDER_GUARD.reserve(confirmation_token):
-                return {
-                    "error": "❌ That confirmation was already used. Nothing was "
-                             "sent. Run the preview again.",
-                    "nothing_sent": True,
-                }
 
+            dispatch_started = True
             result = await _post_conversation(
                 course_id,
                 recipient_ids,
@@ -780,9 +759,13 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
 
         except Exception as e:
             print(f"Error sending peer review Inbox messages: {str(e)}", file=sys.stderr)
+            detail = f"Failed to send Canvas Inbox messages: {str(e)}"
+            if dispatch_started:
+                detail += " Delivery is uncertain. Check Canvas Inbox before retrying."
             return {
-                "error": f"Failed to send Canvas Inbox messages: {str(e)}",
-                "nothing_sent": True,
+                "error": detail,
+                "nothing_sent": not dispatch_started,
+                "delivery_uncertain": dispatch_started,
             }
 
     @mcp.tool(annotations=ToolAnnotations(destructive_hint=False, idempotent_hint=False))
@@ -1128,21 +1111,9 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                             "changed."
                         ),
                     }
-                token_error = _CAMPAIGN_GUARD.check(confirmation_token, fingerprint)
+                token_error = redeem_confirmation(_CAMPAIGN_GUARD, confirmation_token, fingerprint)
                 if token_error:
-                    # A mismatch means the plan or composed text changed since
-                    # the preview. Burn the nonce so a revert within the TTL
-                    # (analytics bouncing back, assignment renamed and renamed
-                    # again) cannot let this same token pass and send — exactly
-                    # as the empty-plan branch above already does.
-                    _CAMPAIGN_GUARD.reserve(confirmation_token)
                     return {"error": token_error, "nothing_sent": True}
-                if not _CAMPAIGN_GUARD.reserve(confirmation_token):
-                    return {
-                        "error": "❌ That confirmation was already used. Nothing "
-                                 "was sent. Run the preview again.",
-                        "nothing_sent": True,
-                    }
 
             # Send using the EXACT text just fingerprinted — no recomposition
             # between the token check and the POST.
@@ -1161,9 +1132,18 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                 )
                 results["messaging_results"][batch["label"]] = batch_result
 
-            # Summary
-            urgent_sent = len(results["messaging_results"].get("urgent", {}).get("sent", []))
-            partial_sent = len(results["messaging_results"].get("partial", {}).get("sent", []))
+            # _post_conversation acknowledges a whole recipient batch; it does
+            # not return the per-recipient "sent" list used by the bulk tool.
+            confirmed_counts = {
+                batch["label"]: len(batch["recipient_ids"])
+                if results["messaging_results"][batch["label"]].get("success") is True else 0
+                for batch in composed_batches
+            }
+            urgent_sent = confirmed_counts.get("urgent", 0)
+            partial_sent = confirmed_counts.get("partial", 0)
+            results["success"] = all(
+                result.get("success") is True for result in results["messaging_results"].values()
+            )
 
             results["summary"] = {
                 "students_needing_urgent_reminders": len(no_reviews),

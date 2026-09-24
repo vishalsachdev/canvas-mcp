@@ -1,0 +1,33 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0
+rootdir: /workspace/scratch/5655cab44c80/canvas-mcp
+configfile: pyproject.toml
+plugins: asyncio-1.4.0, anyio-4.14.2
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 8 items
+
+tests/security/test_confirmation_state_machine.py FF.F....               [100%]
+
+=================================== FAILURES ===================================
+___________ test_expiry_crossing_during_reserve_cannot_redeem_twice ____________
+tests/security/test_confirmation_state_machine.py:22: in test_expiry_crossing_during_reserve_cannot_redeem_twice
+    assert guard.reserve(token) is False
+E   AssertionError: assert True is False
+E    +  where True = reserve('101.2b904818c0d7a4e8.fb49a01a243661a792fc7934d41b47e7.a1aa83d20ff9215df10fc05426fe75c6')
+E    +    where reserve = <canvas_mcp.core.write_confirmation.ConfirmationGuard object at 0x7f3f4644c5f0>.reserve
+______________ test_clock_rollback_cannot_resurrect_purged_token _______________
+tests/security/test_confirmation_state_machine.py:33: in test_clock_rollback_cannot_resurrect_purged_token
+    assert redeem_confirmation(guard, token, "A") is not None
+E   AssertionError: assert None is not None
+E    +  where None = redeem_confirmation(<canvas_mcp.core.write_confirmation.ConfirmationGuard object at 0x7f3f464a5eb0>, '101.060f245b4fef3611.4dd914373ab6673d8ca705d2b1cdb32d.df6ac68e45b5563b5aa2cb0da341174e', 'A')
+________ test_mismatch_during_inflight_send_survives_rejection_release _________
+tests/security/test_confirmation_state_machine.py:83: in test_mismatch_during_inflight_send_survives_rejection_release
+    assert "already used" in replay["error"]
+E   AssertionError: assert 'already used' in 'HTTP error: 400, Details: rejected'
+----------------------------- Captured stderr call -----------------------------
+Canvas educator messaging tools registered successfully!
+=========================== short test summary info ============================
+FAILED tests/security/test_confirmation_state_machine.py::test_expiry_crossing_during_reserve_cannot_redeem_twice
+FAILED tests/security/test_confirmation_state_machine.py::test_clock_rollback_cannot_resurrect_purged_token
+FAILED tests/security/test_confirmation_state_machine.py::test_mismatch_during_inflight_send_survives_rejection_release
+========================= 3 failed, 5 passed in 0.13s ==========================

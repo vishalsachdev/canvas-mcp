@@ -122,7 +122,9 @@ class TestPaginatedFetchApiRoot:
         pages = [[{"id": i} for i in range(100)], [{"id": 100}]]
 
         async def fake_request(method, endpoint, **kwargs):
-            return pages.pop(0) if pages else []
+            page = pages.pop(0) if pages else []
+            kwargs["_pagination"]["next"] = "https://canvas.school.edu/api/quiz/v1/courses/42/quizzes?cursor=next" if pages else None
+            return page
 
         with patch.object(
             client_module, "make_canvas_request", side_effect=fake_request
@@ -160,7 +162,9 @@ class TestPaginatedFetchApiRoot:
         ]
 
         async def fake_request(method, endpoint, **kwargs):
-            return pages.pop(0) if pages else []
+            page = pages.pop(0) if pages else []
+            kwargs["_pagination"]["next"] = "https://canvas.school.edu/api/quiz/v1/courses/42/quizzes?cursor=next" if pages else None
+            return page
 
         with (
             patch.object(client_module, "make_canvas_request", side_effect=fake_request),

@@ -84,18 +84,18 @@ class TestClientRefusesDelimiters:
     async def test_ordinary_endpoint_is_not_refused(self):
         """The guard must not reject legitimate paths.
 
-        Proven by letting the endpoint reach the network layer: a sentinel raised
-        from the HTTP client can only escape if the guard already let the request
-        through, whereas a refused endpoint returns an error dict before that point.
+        A client-construction sentinel proves the path guard let the request
+        through. Dispatch reports that sentinel as a request error.
         """
         from canvas_mcp.core.client import make_canvas_request
 
         with patch("canvas_mcp.core.client.httpx.AsyncClient") as client:
             client.side_effect = RuntimeError("reached the network layer")
-            with pytest.raises(RuntimeError, match="reached the network layer"):
-                await make_canvas_request(
-                    "get", "/courses/1/assignments/123/submissions/self"
-                )
+            result = await make_canvas_request(
+                "get", "/courses/1/assignments/123/submissions/self"
+            )
+            client.assert_called_once()
+            assert result == {"error": "Request failed: reached the network layer"}
 
 
 class TestCoerceCanvasId:

@@ -31,9 +31,7 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
-import hmac
 import os
-import secrets
 import tempfile
 import time
 from typing import Any
@@ -48,7 +46,7 @@ from ..core.course_policy import (
     assert_no_identity_override,
     check_student_write_allowed,
 )
-from ..core.credentials import get_request_credentials, is_http_request_active
+from ..core.credentials import is_http_request_active
 from ..core.dates import format_date
 from ..core.file_validation import (
     DEFAULT_MAX_FILE_SIZE_BYTES,
@@ -62,7 +60,7 @@ from ..core.untrusted_content import (
     fence_untrusted_inline,
 )
 from ..core.validation import coerce_canvas_id, validate_params
-from ..core.write_confirmation import unconfirmed_write_warning
+from ..core.write_confirmation import ConfirmationGuard, unconfirmed_write_warning
 
 # Submission types this tool supports. Quiz and discussion types are absent by
 # design: quiz-taking is a separate academic-integrity decision behind its own
@@ -96,110 +94,67 @@ def _too_large_message() -> str:
 # preview and answer, short enough that course state cannot drift far.
 _CONFIRM_TTL_SECONDS = 300
 
-# Signing key for confirmation tokens, generated per process and deliberately
-# NOT shareable between workers.
-#
-# A shared key would let the same token verify on every replica, and since the
-# claim that makes a confirmation single-use is process-local, two workers could
-# then accept the same token concurrently and both submit, spending two of the
-# student's attempts. Enforcing single-use across replicas would require shared
-# atomic state (Redis or a database), which this library should not require.
-#
-# So a token is redeemable only on the process that issued it. A hosted
-# deployment should use session affinity to keep a student's preview and confirm
-# on one worker; without affinity, a confirmation may be rejected and the
-# student simply previews again. That is an inconvenience. Silently spending a
-# second attempt is not.
-_TOKEN_SECRET = secrets.token_bytes(32)
-
-# Replay guard: fingerprint -> the time its claim can be forgotten. Entries only
-# need to outlive the token that created them, so they expire rather than
-# accumulating for the lifetime of the process.
-#
-# This is per-process. Single-use cannot be enforced across replicas without
-# shared state, but replay is separately defeated by the attempt number inside
-# the fingerprint: once a submission succeeds the attempt increments and the old
-# token matches nothing.
-_redeemed: dict[str, float] = {}
+# Reuse the shared per-process nonce, mismatch-burn and monotonic token clock.
+# A second guard below deduplicates identical payload/attempt fingerprints even
+# across fresh preview tokens. Neither guard is shared across workers.
+_SUBMISSION_GUARD = ConfirmationGuard(
+    ttl_seconds=_CONFIRM_TTL_SECONDS, nothing_done="Nothing was submitted."
+)
+_redeemed: dict[str, float] = {}  # fingerprint -> monotonic retention deadline
+_active: set[str] = set()  # claims cannot expire while their owner is awaiting I/O
 
 
 def reset_pending_confirmations() -> None:
-    """Discard redeemed-token state (used by tests)."""
+    """Discard confirmation state (used by tests with no active submissions)."""
+    _SUBMISSION_GUARD.reset()
     _redeemed.clear()
+    _active.clear()
 
 
 def _purge_redeemed() -> None:
-    """Forget claims whose tokens have expired anyway."""
-    now = time.time()
-    for fingerprint in [f for f, expiry in _redeemed.items() if expiry < now]:
+    now = time.monotonic()
+    for fingerprint in [
+        f for f, expiry in _redeemed.items() if expiry < now and f not in _active
+    ]:
         _redeemed.pop(fingerprint, None)
 
 
-def _reserve_confirmation(fingerprint: str) -> bool:
-    """Atomically claim a confirmation. False if it was already claimed.
+def _reserve_confirmation(fingerprint: str, token: str) -> bool:
+    """Claim both nonce and fingerprint, without yielding to the event loop.
 
-    There is deliberately no ``await`` between the membership test and the
-    write, which is what makes this atomic on the event loop. Without that,
-    two overlapping confirmations could both pass and both submit.
+    Caller must check the content binding first. A live fingerprint owner is
+    retained even beyond the preview TTL, so a fresh token cannot overlap it.
     """
     _purge_redeemed()
-    if fingerprint in _redeemed:
+    if fingerprint in _redeemed or not _SUBMISSION_GUARD.reserve(token):
         return False
-    _redeemed[fingerprint] = time.time() + _CONFIRM_TTL_SECONDS
+    _redeemed[fingerprint] = time.monotonic() + _CONFIRM_TTL_SECONDS
+    _active.add(fingerprint)
     return True
 
 
-def _release_confirmation(fingerprint: str) -> None:
-    """Give a claim back after a path that ended without submitting."""
+def _release_confirmation(fingerprint: str, token: str) -> None:
+    """Owner-only: no submission was attempted. A nonce burn remains terminal."""
+    _active.discard(fingerprint)
     _redeemed.pop(fingerprint, None)
+    _SUBMISSION_GUARD.release(token)
+
+
+def _finish_confirmation(fingerprint: str) -> None:
+    """Retire the active owner; retain uncertain/completed attempts for one TTL."""
+    _active.discard(fingerprint)
+    if fingerprint in _redeemed:
+        _redeemed[fingerprint] = time.monotonic() + _CONFIRM_TTL_SECONDS
 
 
 def _issue_token(fingerprint: str, now: float | None = None) -> str:
-    """Mint a confirmation token committing to ``fingerprint`` until it expires."""
-    expiry = int((now if now is not None else time.time()) + _CONFIRM_TTL_SECONDS)
-    mac = hmac.new(
-        _TOKEN_SECRET, f"{expiry}|{fingerprint}".encode(), hashlib.sha256
-    ).hexdigest()[:32]
-    return f"{expiry}.{mac}"
+    return _SUBMISSION_GUARD.issue(fingerprint, now=now)
 
 
 def _check_token(token: str, fingerprint: str) -> str | None:
-    """Verify a token against the current request. Returns an error, or None.
-
-    The signature covers the fingerprint, which in turn covers the caller's own
-    credential, the target, the exact payload and the observed attempt count. So
-    a token cannot be moved to another student, another assignment, or different
-    content: any of those changes the fingerprint and the signature stops
-    matching.
-    """
-    expiry_text, _, mac = token.partition(".")
-    if not mac:
-        return (
-            "❌ That confirmation token is malformed. Run the preview again."
-        )
-    try:
-        expiry = int(expiry_text)
-    except ValueError:
-        return "❌ That confirmation token is malformed. Run the preview again."
-
-    expected = hmac.new(
-        _TOKEN_SECRET, f"{expiry}|{fingerprint}".encode(), hashlib.sha256
-    ).hexdigest()[:32]
-    if not hmac.compare_digest(mac, expected):
-        return (
-            "❌ This confirmation does not match. Either the submission changed "
-            "since the preview (content or attempt count differs), or the "
-            "preview was handled by a different server process. Nothing was "
-            "submitted. Preview again and confirm the new token."
-        )
-    if expiry < time.time():
-        return "❌ That confirmation expired. Run the preview again."
-
-    # Purge before the membership test, not only inside the reservation. An
-    # uncertain submission error deliberately keeps its claim, and a later
-    # preview of unchanged content at an unchanged attempt count produces the
-    # same fingerprint — so without purging here, a quiet process would keep
-    # rejecting that retry long after the claim should have lapsed.
+    error = _SUBMISSION_GUARD.check(token, fingerprint)
+    if error:
+        return error
     _purge_redeemed()
     if fingerprint in _redeemed:
         return (
@@ -210,24 +165,7 @@ def _check_token(token: str, fingerprint: str) -> str | None:
 
 
 def _caller_identity() -> str:
-    """A stable, non-reversible handle for whoever is calling.
-
-    Hosted deployments pass a per-user Canvas token on every request, so this
-    distinguishes students without ever storing or logging the credential. In
-    stdio mode there is a single user and the constant is fine.
-    """
-    credentials = get_request_credentials()
-    if credentials is None:
-        return "stdio"
-    # Keyed with the per-process token secret rather than bare SHA-256. Canvas
-    # tokens are high-entropy (this is not password hashing, whatever a scanner
-    # pattern-matches it as), but keying costs nothing and means a leaked
-    # fingerprint is not even a digest-of-the-token oracle. Stability within
-    # the process is all the confirmation flow needs, and _TOKEN_SECRET is
-    # per-process by design.
-    return hmac.new(
-        _TOKEN_SECRET, credentials.api_token.encode(), hashlib.sha256
-    ).hexdigest()
+    return _SUBMISSION_GUARD.caller_identity()
 
 
 class _PreparedFile:
@@ -884,82 +822,85 @@ def register_student_write_tools(mcp: FastMCP) -> None:
             # submit, spending two attempts. Reserving first makes that
             # impossible; every path that ends without submitting releases it
             # again, so a failed upload still does not cost a fresh preview.
-            if not _reserve_confirmation(fingerprint):
+            if not _reserve_confirmation(fingerprint, confirmation_token):
                 return (
                     "❌ That confirmation was already used. Nothing was "
                     "submitted. Run the preview again."
                 )
 
-            # Re-check policy at the moment of the write, so an instructor's
-            # change between preview and confirm takes effect.
-            allowed, reason = await check_student_write_allowed(
-                course_id, "submit_assignment"
-            )
-            if not allowed:
-                _release_confirmation(fingerprint)
-                return f"❌ Submission blocked. {reason}"
-
-            data: dict[str, Any] = {"submission[submission_type]": submission_type}
-            if submission_type == "online_text_entry":
-                data["submission[body]"] = body
-            elif submission_type == "online_url":
-                data["submission[url]"] = url
-            else:
-                file_ids = []
-                for item in prepared:
-                    file_id, upload_error = await _upload_one(
-                        course_id, str(assignment_id), item
-                    )
-                    if upload_error:
-                        # Release the claim: nothing was submitted, so the
-                        # student can retry without re-previewing.
-                        _release_confirmation(fingerprint)
-                        return f"{upload_error}\nNothing was submitted."
-                    file_ids.append(file_id)
-                data["submission[file_ids][]"] = file_ids
-
-            if comment:
-                data["comment[text_comment]"] = comment
-
-            assert_no_identity_override(data)
-
-            # Re-verify every precondition immediately before the write. See
-            # _final_preflight: arbitrary time has passed since the earlier
-            # checks, so policy, group status and attempt state are all rechecked
-            # rather than trusted.
-            preflight_error = await _final_preflight(
-                course_id, str(assignment_id), submission_type, digest, fingerprint
-            )
-            if preflight_error:
-                _release_confirmation(fingerprint)
-                return preflight_error
-
-            # The claim taken above stands from here on. Even if this call
-            # errors, the token is not released: Canvas may have accepted the
-            # submission and only lost the reply, and a blind retry would spend
-            # a second attempt.
-            response = await make_canvas_request(
-                "post",
-                f"/courses/{course_id}/assignments/{assignment_id}/submissions",
-                data=data,
-                use_form_data=True,
-            )
-            if isinstance(response, dict) and "error" in response:
-                return (
-                    f"❌ Submission failed: {response['error']}\n"
-                    "Check get_my_submission before retrying — if Canvas accepted "
-                    "it and only the reply was lost, retrying would spend another "
-                    "attempt."
+            try:
+                # Re-check policy at the moment of the write, so an instructor's
+                # change between preview and confirm takes effect.
+                allowed, reason = await check_student_write_allowed(
+                    course_id, "submit_assignment"
                 )
+                if not allowed:
+                    _release_confirmation(fingerprint, confirmation_token)
+                    return f"❌ Submission blocked. {reason}"
 
-            lines = ["✅ Submitted.", f"Assignment: {assignment.get('name', assignment_id)}"]
-            if response.get("submitted_at"):
-                lines.append(f"Submitted at: {format_date(response['submitted_at'])}")
-            if response.get("attempt"):
-                lines.append(f"Attempt: {response['attempt']}")
-            if response.get("late"):
-                lines.append("⚠️  Canvas marked this submission LATE.")
-            return "\n".join(lines)
+                data: dict[str, Any] = {"submission[submission_type]": submission_type}
+                if submission_type == "online_text_entry":
+                    data["submission[body]"] = body
+                elif submission_type == "online_url":
+                    data["submission[url]"] = url
+                else:
+                    file_ids = []
+                    for item in prepared:
+                        file_id, upload_error = await _upload_one(
+                            course_id, str(assignment_id), item
+                        )
+                        if upload_error:
+                            # Release the claim: nothing was submitted, so the
+                            # student can retry without re-previewing.
+                            _release_confirmation(fingerprint, confirmation_token)
+                            return f"{upload_error}\nNothing was submitted."
+                        file_ids.append(file_id)
+                    data["submission[file_ids][]"] = file_ids
+
+                if comment:
+                    data["comment[text_comment]"] = comment
+
+                assert_no_identity_override(data)
+
+                # Re-verify every precondition immediately before the write. See
+                # _final_preflight: arbitrary time has passed since the earlier
+                # checks, so policy, group status and attempt state are all rechecked
+                # rather than trusted.
+                preflight_error = await _final_preflight(
+                    course_id, str(assignment_id), submission_type, digest, fingerprint
+                )
+                if preflight_error:
+                    _release_confirmation(fingerprint, confirmation_token)
+                    return preflight_error
+
+                # The claim taken above stands from here on. Even if this call
+                # errors, the token is not released: Canvas may have accepted the
+                # submission and only lost the reply, and a blind retry would spend
+                # a second attempt.
+                response = await make_canvas_request(
+                    "post",
+                    f"/courses/{course_id}/assignments/{assignment_id}/submissions",
+                    data=data,
+                    use_form_data=True,
+                )
+                if isinstance(response, dict) and "error" in response:
+                    return (
+                        f"❌ Submission failed: {response['error']}\n"
+                        "Check get_my_submission before retrying — if Canvas accepted "
+                        "it and only the reply was lost, retrying would spend another "
+                        "attempt."
+                    )
+
+                lines = ["✅ Submitted.", f"Assignment: {assignment.get('name', assignment_id)}"]
+                if response.get("submitted_at"):
+                    lines.append(f"Submitted at: {format_date(response['submitted_at'])}")
+                if response.get("attempt"):
+                    lines.append(f"Attempt: {response['attempt']}")
+                if response.get("late"):
+                    lines.append("⚠️  Canvas marked this submission LATE.")
+                return "\n".join(lines)
+            finally:
+                _finish_confirmation(fingerprint)
 
     if "comment_on_my_submission" in enabled:
 

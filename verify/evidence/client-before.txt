@@ -1,0 +1,72 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0
+rootdir: /workspace/scratch/5655cab44c80/canvas-mcp-client
+configfile: pyproject.toml
+plugins: asyncio-1.4.0, anyio-4.14.2
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 12 items / 4 deselected / 8 selected
+
+tests/core/test_client_state_machine.py FFFF..FF                         [100%]
+
+=================================== FAILURES ===================================
+_______________ test_short_page_with_next_link_is_not_truncated ________________
+tests/core/test_client_state_machine.py:42: in test_short_page_with_next_link_is_not_truncated
+    assert result == [{"id": 1}, {"id": 2}]
+E   AssertionError: assert [{'id': 1}] == [{'id': 1}, {'id': 2}]
+E
+E     Right contains one more item: {'id': 2}
+E     Use -v to get more diff
+______________ test_cyclic_next_link_fails_without_repeating_page ______________
+tests/core/test_client_state_machine.py:59: in test_cyclic_next_link_fails_without_repeating_page
+    assert "cycle" in result.get("error", "").lower()
+E   assert 'cycle' in "http error: 500, details: {'error': 'test sentinel: pagination did not terminate'}"
+E    +  where "http error: 500, details: {'error': 'test sentinel: pagination did not terminate'}" = <built-in method lower of str object at 0x7f63a0a26730>()
+E    +    where <built-in method lower of str object at 0x7f63a0a26730> = "HTTP error: 500, Details: {'error': 'test sentinel: pagination did not terminate'}".lower
+E    +      where "HTTP error: 500, Details: {'error': 'test sentinel: pagination did not terminate'}" = <built-in method get of dict object at 0x7f63a0a8d500>('error', '')
+E    +        where <built-in method get of dict object at 0x7f63a0a8d500> = {'error': "HTTP error: 500, Details: {'error': 'test sentinel: pagination did not terminate'}"}.get
+----------------------------- Captured stderr call -----------------------------
+2026-09-23 19:06:29 - canvas_mcp - ERROR - API error on /courses | Context: {'status_code': 500}
+2026-09-23 19:06:29 - canvas_mcp - ERROR - Error fetching page 4 | Context: {'error': "HTTP error: 500, Details: {'error': 'test sentinel: pagination did not terminate'}"}
+------------------------------ Captured log call -------------------------------
+ERROR    canvas_mcp:logging.py:101 API error on /courses | Context: {'status_code': 500}
+ERROR    canvas_mcp:logging.py:101 Error fetching page 4 | Context: {'error': "HTTP error: 500, Details: {'error': 'test sentinel: pagination did not terminate'}"}
+__________ test_cancelled_semaphore_wait_closes_request_owned_client ___________
+tests/core/test_client_state_machine.py:77: in test_cancelled_semaphore_wait_closes_request_owned_client
+    assert client.is_closed
+E   assert False
+E    +  where False = <httpx.AsyncClient object at 0x7f63a0af1430>.is_closed
+________________ test_cleanup_cannot_discard_replacement_client ________________
+tests/core/test_client_state_machine.py:103: in test_cleanup_cannot_discard_replacement_client
+    assert cm.http_client is replacement
+E   assert None is <httpx.AsyncClient object at 0x7f63a0aa9760>
+E    +  where None = cm.http_client
+______________ test_queued_request_reselects_client_after_cleanup ______________
+tests/core/test_client_state_machine.py:224: in test_queued_request_reselects_client_after_cleanup
+    assert result == [{"id": 1}]
+E   AssertionError: assert {'error': 'Re...been closed.'} == [{'id': 1}]
+E
+E     Use -v to get more diff
+----------------------------- Captured stderr call -----------------------------
+2026-09-23 19:06:29 - canvas_mcp - ERROR - Request failed for /courses | Context: {'error_type': 'RuntimeError'}
+------------------------------ Captured log call -------------------------------
+ERROR    canvas_mcp:logging.py:101 Request failed for /courses | Context: {'error_type': 'RuntimeError'}
+___________ test_retry_reselects_client_after_cleanup_during_backoff ___________
+tests/core/test_client_state_machine.py:243: in test_retry_reselects_client_after_cleanup_during_backoff
+    assert result == []
+E   AssertionError: assert {'error': 'Re...been closed.'} == []
+E
+E     Use -v to get more diff
+----------------------------- Captured stderr call -----------------------------
+2026-09-23 19:06:29 - canvas_mcp - WARNING - Rate limited (429). Retrying in 2s... | Context: {'attempt': 1, 'max_retries': 3}
+2026-09-23 19:06:29 - canvas_mcp - ERROR - Request failed for /courses | Context: {'error_type': 'RuntimeError'}
+------------------------------ Captured log call -------------------------------
+WARNING  canvas_mcp:logging.py:114 Rate limited (429). Retrying in 2s... | Context: {'attempt': 1, 'max_retries': 3}
+ERROR    canvas_mcp:logging.py:101 Request failed for /courses | Context: {'error_type': 'RuntimeError'}
+=========================== short test summary info ============================
+FAILED tests/core/test_client_state_machine.py::test_short_page_with_next_link_is_not_truncated
+FAILED tests/core/test_client_state_machine.py::test_cyclic_next_link_fails_without_repeating_page
+FAILED tests/core/test_client_state_machine.py::test_cancelled_semaphore_wait_closes_request_owned_client
+FAILED tests/core/test_client_state_machine.py::test_cleanup_cannot_discard_replacement_client
+FAILED tests/core/test_client_state_machine.py::test_queued_request_reselects_client_after_cleanup
+FAILED tests/core/test_client_state_machine.py::test_retry_reselects_client_after_cleanup_during_backoff
+================== 6 failed, 2 passed, 4 deselected in 0.14s ===================

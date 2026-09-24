@@ -1,0 +1,4 @@
+lean/.lake/
+tla/states/
+tla/*_TTrace_*
+__pycache__/
