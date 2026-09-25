@@ -306,7 +306,12 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def list_submissions(course_identifier: str | int, assignment_id: str | int) -> str:
-        """List submissions for a specific assignment.
+        """List every submission record for one assignment.
+
+        Returns one record per student (user ID, submitted-at time, score,
+        grade), including students who have not submitted. Does not return
+        submission content, attachments, or comments; use
+        get_rubric_assessment for a student's rubric scores.
 
         Args:
             course_identifier: Course code or Canvas ID

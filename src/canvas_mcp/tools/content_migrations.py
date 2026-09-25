@@ -270,6 +270,17 @@ def register_content_migration_tools(mcp: FastMCP) -> None:
         token. A second call with the token and identical arguments requests
         the migration. Date shifting accepts either all four date fields or
         none.
+
+        Args:
+            target_course_identifier: Course code or Canvas ID of the course
+                that receives the copied content
+            source_course_identifier: Course code or Canvas ID of the course to
+                copy from; must differ from the target
+            old_start_date: Source course start date (ISO 8601), for date shifting
+            old_end_date: Source course end date (ISO 8601), for date shifting
+            new_start_date: Target course start date (ISO 8601), for date shifting
+            new_end_date: Target course end date (ISO 8601), for date shifting
+            confirmation_token: Token from the preview call; omit to preview
         """
         target_id, _target, target_error = await _resolve_course(
             target_course_identifier, "target"
@@ -311,8 +322,9 @@ def register_content_migration_tools(mcp: FastMCP) -> None:
                 "target_current_contents": occupancy,
                 "confirmation_token": _CONTENT_MIGRATION_GUARD.issue(fingerprint),
                 "instructions": (
-                    "Show this preview to the educator. To request the course "
-                    "copy, call create_content_migration again with this "
+                    "Show this preview to the educator. Only after they "
+                    "approve it, request the course copy by calling "
+                    "create_content_migration again with this "
                     "confirmation_token and identical arguments. The token is "
                     "single-use and expires shortly."
                 ),
@@ -392,6 +404,11 @@ def register_content_migration_tools(mcp: FastMCP) -> None:
         Each call reads progress once. Call again only when ``poll_again`` is
         true. Terminal results include migration issues when Canvas makes them
         available.
+
+        Args:
+            course_identifier: Course code or Canvas ID of the target course
+                (the course the migration was created in)
+            migration_id: The migration_id returned by create_content_migration
         """
         canonical_migration_id = coerce_canvas_id(migration_id)
         if canonical_migration_id is None:

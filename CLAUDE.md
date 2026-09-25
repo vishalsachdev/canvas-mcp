@@ -90,16 +90,15 @@ Version-bump procedure (files to update) + publish-race gotchas: **[internal/rel
 ---
 
 ## Coding Standards
-- **Type hints**: Mandatory for all functions, use Union/Optional appropriately
+- **Type hints**: Mandatory for all functions; use PEP 604 unions (`X | Y`, `T | None`), which ruff UP enforces
 - **MCP tools**: Use `@mcp.tool()` decorator with `@validate_params`
 - **Async functions**: All API interactions must be async
-- **Course identifiers**: Use `Union[str, int]` and `get_course_id()` for flexibility
+- **Course identifiers**: Use `str | int` and `get_course_id()` for flexibility
 - **Date handling**: Use `format_date()` for all date outputs
 - **Error responses**: dict-returning tools include an `"error"` key; string-returning tools return a human-readable `"Error ..."` message (match the module you're editing)
 - **Legacy `-> str` tools**: a few modules (notably `modules.py` and `accessibility.py`) still return JSON-stringified error objects instead of plain `"Error ..."` text; preserve the local convention when editing them
 - **Form data**: Use `use_form_data=True` for Canvas POST/PUT endpoints
 - **Privacy**: Student IDs preserved, names anonymized in `_should_anonymize_endpoint()`
-- **Optional params**: Use `Optional[T]` type hints for parameters that can be `None`
 
 ## Testing and behavioral evidence
 
