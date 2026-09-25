@@ -6,6 +6,7 @@ from fastmcp import FastMCP
 
 from ..core.cache import get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
+from ..core.untrusted_content import fence_untrusted
 from ..core.validation import validate_params
 
 
@@ -33,7 +34,7 @@ def register_resources_and_prompts(mcp: FastMCP) -> None:
         if not syllabus_body:
             return "No syllabus available for this course."
 
-        return syllabus_body
+        return fence_untrusted(syllabus_body, "course syllabus")
 
     @mcp.resource(
         name="assignment-description",
@@ -60,7 +61,7 @@ def register_resources_and_prompts(mcp: FastMCP) -> None:
         if not description:
             return "No description available for this assignment."
 
-        return description
+        return fence_untrusted(description, "assignment description")
 
     @mcp.prompt(
         name="summarize-course",
