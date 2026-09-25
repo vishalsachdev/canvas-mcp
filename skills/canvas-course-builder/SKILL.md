@@ -92,8 +92,8 @@ Wait for explicit approval. The user may:
 
 Create items in dependency order:
 
-1. **Modules first:** Call `create_module` for each module (unpublished by default for safety)
-2. **Pages:** Call `create_page` for each overview page
+1. **Modules first:** Call `create_module` with `published=false` for each module (modules default to published)
+2. **Pages:** Call `create_page` with `published=false` for each overview page (pages default to published)
 3. **Assignments:** Call `create_assignment` for each assignment (unpublished)
 4. **Discussions:** Call `create_discussion_topic` for each forum
 5. **Module items:** Call `add_module_item` to link each created item to its module
@@ -189,7 +189,7 @@ Templates are JSON files with this structure:
 
 ## Notes
 
-- All items are created **unpublished by default** for safety.
+- Modules and pages are unpublished only when `published=false` is passed (both default to published). `create_assignment` defaults to unpublished. `create_discussion_topic` always publishes on creation; if students must not see a discussion yet, schedule it with `delayed_post_at` instead of creating it now.
 - Content is **not** copied when cloning -- only structure (module names, item types, organization).
-- For content migration, copy page bodies using `get_page_content` + `create_page` with the body.
+- To copy content (not just structure) between courses, use `create_content_migration` (preview + confirmation token) and poll `get_content_migration_status`; per-page copy via `get_page_content` + `create_page` suits a few pages.
 - Run `canvas-course-qc` after building to verify the structure is complete and consistent.

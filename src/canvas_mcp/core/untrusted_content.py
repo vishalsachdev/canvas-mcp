@@ -12,13 +12,13 @@ markers stating that it is data, not instructions. It does not alter the
 content itself (no sanitization, no information loss) and does not make
 injection impossible — it makes the trust boundary visible to the model.
 
-WHERE THIS MAY BE APPLIED — the tool output-formatting boundary ONLY.
+WHERE THIS MAY BE APPLIED — the MCP tool/resource output boundary ONLY.
 
 Never call these helpers from ``core/anonymization.py``, ``core/client.py``,
 or any code whose output can flow back INTO Canvas. ``fix_accessibility_issues``
 reads page bodies through the client/anonymization path and PUTs them back;
 a fence inserted there would be written into the customer's live course
-content. Tool functions that format a string (or dict) for the model to read,
+content. Tool/resource functions that format a string (or dict) for the model to read,
 and nothing else, are the only legitimate call sites.
 """
 
@@ -140,6 +140,16 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "scan_course_content_accessibility": _fenced("fence_untrusted_fields"),
     "search_canvas_tools": _safe(
         "Returns registered tool and bundled source metadata, not Canvas content."
+    ),
+}
+
+# MCP resources and templates are not returned by list_tools. Keep their
+# policy inventory separate so the registry gate covers both output surfaces.
+RESOURCE_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
+    "course-syllabus": _fenced("fence_untrusted"),
+    "assignment-description": _fenced("fence_untrusted"),
+    "code-api-file": _safe(
+        "Returns bundled local TypeScript/JavaScript source, not Canvas-authored content."
     ),
 }
 

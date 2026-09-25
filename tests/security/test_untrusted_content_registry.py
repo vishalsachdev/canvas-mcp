@@ -62,3 +62,31 @@ async def test_every_read_tool_declares_and_keeps_its_untrusted_content_policy()
             assert policy.rationale.strip(), (
                 f"{name}: {policy.category} policies require a reviewable rationale"
             )
+
+
+@pytest.mark.asyncio
+async def test_every_resource_declares_and_keeps_its_untrusted_content_policy():
+    """Resource templates are a separate MCP surface from read-only tools."""
+    from canvas_mcp.resources import register_resources_and_prompts
+
+    mcp = FastMCP("untrusted-resource-registry")
+    register_resources_and_prompts(mcp)
+    registered = [
+        *await mcp.list_resources(run_middleware=False),
+        *await mcp.list_resource_templates(run_middleware=False),
+    ]
+    all_resources = {resource.name: resource for resource in registered}
+    policies = getattr(untrusted_content, "RESOURCE_CONTENT_POLICIES", {})
+    assert set(all_resources) == set(policies), (
+        "every resource and resource template needs a reviewed content policy; "
+        f"unclassified: {sorted(set(all_resources) - set(policies))}; "
+        f"stale: {sorted(set(policies) - set(all_resources))}"
+    )
+    for name, policy in policies.items():
+        assert policy.category in {"fenced", "safe", "deferred"}, name
+        if policy.category == "fenced":
+            assert policy.guards, name
+            source = inspect.getsource(all_resources[name].fn)
+            assert any(guard in source for guard in policy.guards), name
+        else:
+            assert policy.rationale.strip(), name

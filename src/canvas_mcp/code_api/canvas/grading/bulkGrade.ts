@@ -3,7 +3,9 @@ import { listSubmissions, Submission } from "../assignments/listSubmissions.js";
 import { createRubricGrader } from "./gradeWithRubric.js";
 
 export interface GradeResult {
+  /** @deprecated Ignored: never sent to Canvas. Use grade (or rubricAssessment) instead. */
   points?: number;
+  /** Rubric scores keyed by criterion id (e.g. "_8027"). When non-empty, grade is ignored. */
   rubricAssessment?: Record<string, {
     points: number;
     ratingId?: string;
@@ -87,8 +89,6 @@ async function processSubmission(
 /**
  * Grade multiple submissions efficiently with concurrent processing.
  *
- * THIS IS THE MOST TOKEN-EFFICIENT WAY TO GRADE BULK SUBMISSIONS.
- *
  * The grading function runs locally in the execution environment,
  * processing submissions in parallel batches without loading all data into Claude's context.
  * Only the summary results flow back to Claude.
@@ -104,7 +104,9 @@ async function processSubmission(
  *
  * @param input - Configuration for bulk grading
  * @param input.gradingFunction - Function that analyzes each submission locally (can be async)
- * @param input.dryRun - If true, analyze but don't actually grade (for testing)
+ * @param input.dryRun - If true, runs gradingFunction and writes nothing. "graded" then counts results that
+ *   WOULD be submitted; payloads are not validated against Canvas or the rubric, so a clean dry run does not
+ *   guarantee a clean real run.
  * @param input.maxConcurrent - Positive integer cap per run (default: 5)
  * @param input.rateLimitDelay - Integer delay between batches, 0..2147483647ms (default: 1000; 0 disables)
  *
@@ -129,14 +131,12 @@ async function processSubmission(
  *
  *     if (hasErrors) {
  *       return {
- *         points: 50,
  *         rubricAssessment: { "_8027": { points: 50 } },
  *         comment: "Notebook has errors. Please fix and resubmit."
  *       };
  *     }
  *
  *     return {
- *       points: 100,
  *       rubricAssessment: { "_8027": { points: 100 } },
  *       comment: "Excellent! Notebook runs without errors."
  *     };

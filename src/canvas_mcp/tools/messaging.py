@@ -503,8 +503,8 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
         Sending to ONE recipient is a single call. Sending to MULTIPLE
         recipients is two-step: call without a confirmation_token to get a
         preview (recipients, subject, body) plus a token; show that preview to
-        the educator, then call again with the token and identical arguments
-        to actually send. The token expires, is single-use, and is void if any
+        the educator, and only after they approve it call again with the token
+        and identical arguments to actually send. The token expires, is single-use, and is void if any
         argument changed since the preview.
 
         Args:
@@ -573,9 +573,10 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                     "confirmation_token": _SEND_CONVERSATION_GUARD.issue(fingerprint),
                     "instructions": (
                         "Show this preview to the educator, including any "
-                        "attachments listed. To send, call send_conversation "
-                        "again with this confirmation_token and identical "
-                        "arguments. The token is single-use and expires "
+                        "attachments listed. Only after they approve it, send "
+                        "by calling send_conversation again with this "
+                        "confirmation_token and identical arguments. The "
+                        "token is single-use and expires "
                         "shortly."
                     ),
                 }
@@ -624,8 +625,8 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
 
         Two-step by design. Call it without a confirmation_token to get a
         preview (recipients, composed subject and body) plus a token; show
-        that preview to the educator, then call again with the token and
-        identical arguments to actually send.
+        that preview to the educator, and only after they approve it call again
+        with the token and identical arguments to actually send.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -725,7 +726,7 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                     "confirmation_token": _REMINDER_GUARD.issue(fingerprint),
                     "instructions": (
                         "Show this direct Canvas Inbox message preview to the "
-                        "educator. To send, call "
+                        "educator. Only after they approve it, send by calling "
                         "send_peer_review_inbox_messages again with this "
                         "confirmation_token and identical arguments. The token "
                         "is single-use and expires shortly."
@@ -784,8 +785,8 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
 
         Two-step by design. Call it without a confirmation_token to get a
         preview (recipient count, rendered sample message) plus a token; show
-        that preview to the educator, then call again with the token AND
-        identical arguments to actually send. The token expires, is
+        that preview to the educator, and only after they approve it call again
+        with the token AND identical arguments to actually send. The token expires, is
         single-use, and is void if any argument changed since the preview.
 
         Args:
@@ -844,8 +845,9 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                 "messages": rendered,
                 "confirmation_token": token,
                 "instructions": (
-                    "Show ALL of these rendered messages to the educator. To "
-                    "send, call send_bulk_messages_from_list again with this "
+                    "Show ALL of these rendered messages to the educator. "
+                    "Only after they approve them, send by calling "
+                    "send_bulk_messages_from_list again with this "
                     "confirmation_token and identical arguments. The token is "
                     "single-use and expires shortly."
                 ),
@@ -944,8 +946,8 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
 
         Two-step by design. Call it without a confirmation_token to get the
         analytics plus a preview of who would receive urgent vs gentle
-        reminders and a token; show that to the educator, then call again
-        with the token to actually send. The token is void if the completion
+        reminders and a token; show that to the educator, and only after they
+        approve it call again with the token to actually send. The token is void if the completion
         analytics shifted in between.
 
         Args:
@@ -1103,8 +1105,9 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
                         "confirmation_token": _CAMPAIGN_GUARD.issue(fingerprint),
                         "instructions": (
                             "Show this plan — recipients AND the rendered "
-                            "message of every batch — to the educator. To "
-                            "send, call send_peer_review_followup_campaign "
+                            "message of every batch — to the educator. Only "
+                            "after they approve it, send by calling "
+                            "send_peer_review_followup_campaign "
                             "again with this confirmation_token. The token is "
                             "single-use, expires shortly, and is void if the "
                             "completion analytics or the composed messages "

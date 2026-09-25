@@ -11,3 +11,6 @@ compliance/
 
 # Session triage logs (working notes, not site content)
 triage/
+
+# Prompt/code audit reports (internal working documents, not site content)
+audits/
