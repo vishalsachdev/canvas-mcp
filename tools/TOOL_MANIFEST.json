@@ -3655,7 +3655,7 @@
   "constraints": {
     "rate_limits": {
       "canvas_api": "~700 requests per 10 minutes (varies by institution)",
-      "recommendation": "Use max_concurrent=5 and rate_limit_delay=1000ms for bulk ops"
+      "recommendation": "Use max_concurrent=5 and rate_limit_delay=1.0 (seconds) for bulk ops"
     },
     "permissions": {
       "student": "Own data only via /self endpoints",
