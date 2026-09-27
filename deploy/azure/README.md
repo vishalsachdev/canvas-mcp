@@ -310,7 +310,7 @@ retire it — get an Owner to grant `AcrPull`, switch to MI pull, then disable t
   "command": "npx",
   "args": [
     "-y", "mcp-remote", "https://<hostname>/mcp",
-    "--header", "X-Canvas-Token:<the user's Canvas token>",
+    "--header-file", "<absolute path to a headers file>",
     "--static-oauth-client-info", "{\"client_id\":\"<client-app-id>\"}",
     "--static-oauth-client-metadata",
     "{\"scope\":\"api://<api-app-id>/access_as_user offline_access\"}"
@@ -318,8 +318,21 @@ retire it — get an Owner to grant `AcrPull`, switch to MI pull, then disable t
 }
 ```
 
-Two non-obvious requirements:
+The headers file holds one `Name: value` per line:
 
+```text
+X-Canvas-Token: <the user's Canvas token>
+```
+
+Three non-obvious requirements:
+
+- **Keep the Canvas token out of `args`.** Other processes on the machine can read every argument
+  from the process list, so a token passed with `--header` is exposed there. With `--header-file`
+  only the file's path appears. Make the file readable only by its owner (`chmod 600` on macOS or
+  Linux). A `${VAR}` placeholder inside a `--header` argument does not help: `mcp-remote` does not
+  expand it, and any substitution happens in the MCP client before launch, so the token still ends
+  up in the arguments. Checked against `mcp-remote` 0.14.3, whose README documents `--header-file`
+  for this purpose.
 - **`offline_access` is mandatory.** Without it Entra mints no refresh token, the session dies about
   hourly, and the forced re-auth then tends to wedge. Entra honours the scope request directly — no
   app-registration change needed.
