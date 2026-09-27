@@ -27,6 +27,7 @@ from canvas_mcp.core.untrusted_content import (
     neutralize_marker_spoofing,
 )
 from canvas_mcp.core.write_confirmation import ConfirmationGuard
+from canvas_mcp.core.write_outcome import RequestFailure, WriteOutcome
 
 
 def _get_tool(register_fn, tool_name: str):
@@ -1214,7 +1215,7 @@ class TestMultiRecipientSendGating:
             preview = await tool("CS101", ["101", "102"], "Hi", "Body")
             token = preview["confirmation_token"]
 
-            mock_request.return_value = {"error": "HTTP error: 400, Details: bad"}
+            mock_request.return_value = RequestFailure("HTTP error: 400, Details: bad", WriteOutcome.REJECTED)
             first = await tool("CS101", ["101", "102"], "Hi", "Body",
                                confirmation_token=token)
 

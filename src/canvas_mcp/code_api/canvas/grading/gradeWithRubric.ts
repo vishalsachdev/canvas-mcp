@@ -88,8 +88,11 @@ function buildRubricAssessmentFormData(
 /**
  * Grade a single submission using a rubric.
  *
- * Makes direct Canvas API calls with form-encoded data.
- * The rubric must already be associated with the assignment.
+ * Makes direct Canvas API calls with form-encoded data. Provide rubricAssessment OR grade; if
+ * rubricAssessment is non-empty, grade is ignored. The assignment's rubric must be set to be used for
+ * grading, and rubricAssessment must cover every criterion: a partial assessment is sent anyway, may
+ * have been saved, and throws "Rubric grade unconfirmed". comment is posted as a student-visible submission comment.
+ * Any error after the request was sent may mean the write landed; check the submission before retrying.
  * Criterion IDs in Canvas often start with underscore (e.g., "_8027").
  *
  * @param input - Grading parameters

@@ -479,23 +479,26 @@ class TestConfirmationIntegrity:
     def test_reservation_is_exclusive(self):
         import canvas_mcp.tools.student_write as sw
 
-        assert sw._reserve_confirmation("fp") is True
-        assert sw._reserve_confirmation("fp") is False
+        token = sw._issue_token("fp")
+        assert sw._reserve_confirmation("fp", token) is True
+        assert sw._reserve_confirmation("fp", token) is False
 
     def test_released_reservation_can_be_reclaimed(self):
         import canvas_mcp.tools.student_write as sw
 
-        assert sw._reserve_confirmation("fp") is True
-        sw._release_confirmation("fp")
-        assert sw._reserve_confirmation("fp") is True
+        token = sw._issue_token("fp")
+        assert sw._reserve_confirmation("fp", token) is True
+        sw._release_confirmation("fp", token)
+        assert sw._reserve_confirmation("fp", token) is True
 
     def test_redeemed_claims_expire(self):
         """Otherwise memory grows with the lifetime submission count."""
         import canvas_mcp.tools.student_write as sw
 
-        sw._reserve_confirmation("old")
+        sw._reserve_confirmation("old", sw._issue_token("old"))
+        sw._finish_confirmation("old")
         sw._redeemed["old"] = 0.0  # already past
-        sw._reserve_confirmation("new")
+        sw._reserve_confirmation("new", sw._issue_token("new"))
         assert "old" not in sw._redeemed
         assert "new" in sw._redeemed
 
@@ -1176,3 +1179,168 @@ class TestMarkModuleItemDone:
 
         assert "already" in result
         assert not [c for c in responder.calls if c[0] == "put"]
+
+
+class TestStudentConfirmationProtocol:
+    @pytest.fixture(autouse=True)
+    def fresh_clock(self, monkeypatch):
+        import canvas_mcp.tools.student_write as sw
+        from canvas_mcp.core.write_confirmation import ConfirmationGuard
+
+        if hasattr(sw, "_SUBMISSION_GUARD"):
+            monkeypatch.setattr(sw, "_SUBMISSION_GUARD", ConfirmationGuard(nothing_done="Nothing was submitted."))
+
+    @pytest.mark.asyncio
+    async def test_mismatch_then_revert_cannot_submit(self):
+        tools = get_tools(STUDENT_WRITE_TOOLS="submit_assignment", COURSE_AGENT_POLICY_ENABLED="false")
+        posts = []
+
+        async def responder(method, endpoint, **kwargs):
+            if method == "get":
+                return {"attempt": 1} if endpoint.endswith('/self') else _mock_assignment()
+            posts.append(endpoint)
+            return {"attempt": 2}
+
+        args = {"course_identifier": "123", "assignment_id": 42,
+                "submission_type": "online_text_entry", "body": "approved"}
+        with patch('canvas_mcp.tools.student_write.get_course_id', new=AsyncMock(return_value="123")), \
+             patch('canvas_mcp.tools.student_write.make_canvas_request', new=responder):
+            submit = tools['submit_assignment']
+            token = (await submit(**args)).split("confirmation_token='")[1].split("'")[0]
+            mismatch = await submit(**{**args, 'body': 'changed'}, confirmation_token=token)
+            assert 'does not match' in mismatch
+            assert not posts
+            reverted = await submit(**args, confirmation_token=token)
+        assert not posts, f'mismatch failed to burn token: {reverted}'
+        assert 'already used' in reverted
+
+    def test_expired_student_token_cannot_revive_after_wall_rollback(self):
+        import time
+
+        import canvas_mcp.tools.student_write as sw
+
+        start = time.time()
+        with patch('time.time', return_value=start), patch('time.monotonic', return_value=0):
+            token = sw._issue_token('fp')
+            with patch('time.time', return_value=start + 301):
+                assert 'expired' in sw._check_token(token, 'fp')
+            assert sw._check_token(token, 'fp') is not None
+
+    @pytest.mark.asyncio
+    async def test_fresh_preview_cannot_overlap_an_expired_inflight_claim(self):
+        import asyncio
+        import time
+
+        tools = get_tools(STUDENT_WRITE_TOOLS="submit_assignment", COURSE_AGENT_POLICY_ENABLED="false")
+        entered, finish = asyncio.Event(), asyncio.Event()
+        posts = []
+
+        async def responder(method, endpoint, **kwargs):
+            if method == "get":
+                return {"attempt": 1} if endpoint.endswith('/self') else _mock_assignment()
+            posts.append(endpoint)
+            if len(posts) == 1:
+                entered.set()
+                await finish.wait()
+            return {"attempt": 2}
+
+        args = {"course_identifier": "123", "assignment_id": 42,
+                "submission_type": "online_text_entry", "body": "approved"}
+        start = time.time()
+        with patch('canvas_mcp.tools.student_write.get_course_id', new=AsyncMock(return_value="123")), \
+             patch('canvas_mcp.tools.student_write.make_canvas_request', new=responder), \
+             patch('time.time', return_value=start) as wall, \
+             patch('time.monotonic', return_value=0) as monotonic:
+            submit = tools['submit_assignment']
+            token = (await submit(**args)).split("confirmation_token='")[1].split("'")[0]
+            first = asyncio.create_task(submit(**args, confirmation_token=token))
+            await entered.wait()
+            try:
+                wall.return_value = start + 301
+                monotonic.return_value = 301
+                fresh = (await submit(**args)).split("confirmation_token='")[1].split("'")[0]
+                second = await submit(**args, confirmation_token=fresh)
+            finally:
+                finish.set()
+                await first
+        assert len(posts) == 1, 'fresh preview overlapped a still-running submit after TTL'
+        assert 'already used' in second
+
+    @pytest.mark.asyncio
+    async def test_mismatch_burn_survives_owner_policy_rejection(self):
+        import asyncio
+
+        tools = get_tools(STUDENT_WRITE_TOOLS="submit_assignment", COURSE_AGENT_POLICY_ENABLED="false")
+        entered, finish = asyncio.Event(), asyncio.Event()
+        posts = []
+        policy_calls = 0
+
+        async def policy(*args):
+            nonlocal policy_calls
+            policy_calls += 1
+            # Preview = 1; confirm initial check = 2; reserved owner = 3.
+            if policy_calls == 3:
+                entered.set()
+                await finish.wait()
+                return False, "Instructor disabled submissions"
+            return True, ""
+
+        async def responder(method, endpoint, **kwargs):
+            if method == "get":
+                return {"attempt": 1} if endpoint.endswith('/self') else _mock_assignment()
+            posts.append(endpoint)
+            return {"attempt": 2}
+
+        args = {"course_identifier": "123", "assignment_id": 42,
+                "submission_type": "online_text_entry", "body": "approved"}
+        with patch('canvas_mcp.tools.student_write.get_course_id', new=AsyncMock(return_value="123")), \
+             patch('canvas_mcp.tools.student_write.make_canvas_request', new=responder), \
+             patch('canvas_mcp.tools.student_write.check_student_write_allowed', new=policy):
+            submit = tools['submit_assignment']
+            token = (await submit(**args)).split("confirmation_token='")[1].split("'")[0]
+            owner = asyncio.create_task(submit(**args, confirmation_token=token))
+            await entered.wait()
+            try:
+                mismatch = await submit(**{**args, 'body': 'changed'}, confirmation_token=token)
+                assert 'does not match' in mismatch
+            finally:
+                finish.set()
+                assert 'blocked' in await owner
+            reverted = await submit(**args, confirmation_token=token)
+        assert not posts, f'owner release revived burned token: {reverted}'
+        assert 'already used' in reverted
+
+    @pytest.mark.asyncio
+    async def test_cancellation_retires_active_owner_but_keeps_uncertain_claim(self):
+        import asyncio
+
+        import canvas_mcp.tools.student_write as sw
+
+        tools = get_tools(STUDENT_WRITE_TOOLS="submit_assignment", COURSE_AGENT_POLICY_ENABLED="false")
+        entered = asyncio.Event()
+
+        async def responder(method, endpoint, **kwargs):
+            if method == "get":
+                return {"attempt": 1} if endpoint.endswith('/self') else _mock_assignment()
+            entered.set()
+            await asyncio.Event().wait()
+
+        args = {"course_identifier": "123", "assignment_id": 42,
+                "submission_type": "online_text_entry", "body": "approved"}
+        with patch('canvas_mcp.tools.student_write.get_course_id', new=AsyncMock(return_value="123")), \
+             patch('canvas_mcp.tools.student_write.make_canvas_request', new=responder):
+            submit = tools['submit_assignment']
+            token = (await submit(**args)).split("confirmation_token='")[1].split("'")[0]
+            owner = asyncio.create_task(submit(**args, confirmation_token=token))
+            await entered.wait()
+            owner.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await owner
+            assert not sw._active
+            assert sw._redeemed
+            fresh = (await submit(**args)).split("confirmation_token='")[1].split("'")[0]
+            assert 'already used' in await submit(**args, confirmation_token=fresh)
+        # Completed/cancelled claims remain bounded, rather than leaking forever.
+        with patch('time.monotonic', return_value=max(sw._redeemed.values()) + 1):
+            sw._purge_redeemed()
+        assert not sw._redeemed

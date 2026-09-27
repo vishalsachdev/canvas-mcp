@@ -12,7 +12,7 @@ Grade Canvas LMS assignments efficiently using rubric-based workflows. This skil
 - Canvas MCP server running and connected
 - Authenticated with an **educator** (instructor/TA) Canvas API token
 - Assignment must exist and have submissions to grade
-- Rubric must be created and associated with the assignment with `use_for_grading=true`. Use `create_rubric` for creation and `associate_rubric` for an existing rubric; use the Canvas web UI for editing.
+- Rubric must be created and associated with the assignment with `use_for_grading=true`. Use `create_rubric` for creation and `associate_rubric` for an existing rubric; use `update_rubric` (two-call preview + token) for text/point edits; add or remove criteria in the Canvas UI.
 
 ## Workflow
 
@@ -57,12 +57,12 @@ How many submissions need grading?
 +-- 10-29 submissions
 |   Use bulk_grade_submissions (concurrent batch processing)
 |   Set max_concurrent: 5, rate_limit_delay: 1.0
-|   ALWAYS run with dry_run: true first
+|   Run with dry_run: true first (Safety Rule 1)
 |
 +-- 30+ submissions OR custom grading logic needed
     Use execute_typescript with bulkGrade function
     Grading logic runs locally; only selected output returns to the model
-    ALWAYS run with dry_run: true first
+    Pass dryRun: true on the first run
 ```
 
 ### Strategy A: Single Grading (1-9 submissions)
@@ -124,6 +124,7 @@ execute_typescript(code: `
   await bulkGrade({
     courseIdentifier: "COURSE_ID",
     assignmentId: "ASSIGNMENT_ID",
+    dryRun: true,  // preview first; re-run with false after review
     gradingFunction: (submission) => {
       // Custom grading logic runs locally -- no token cost
       const notebook = submission.attachments?.find(

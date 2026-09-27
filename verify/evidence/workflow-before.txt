@@ -1,0 +1,23 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0
+rootdir: /workspace/scratch/5655cab44c80/canvas-mcp-confirmation-workflows
+configfile: pyproject.toml
+plugins: asyncio-1.4.0, anyio-4.14.2
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 14 items / 13 deselected / 1 selected
+
+tests/tools/test_messaging.py F                                          [100%]
+
+=================================== FAILURES ===================================
+__ test_peer_review_post_exception_reports_uncertain_delivery_and_keeps_token __
+tests/tools/test_messaging.py:339: in test_peer_review_post_exception_reports_uncertain_delivery_and_keeps_token
+    assert result.get('nothing_sent') is not True
+E   assert True is not True
+E    +  where True = <built-in method get of dict object at 0x7f979d396940>('nothing_sent')
+E    +    where <built-in method get of dict object at 0x7f979d396940> = {'error': "Failed to send Canvas Inbox messages: argument of type 'NoneType' is not iterable", 'nothing_sent': True}.get
+----------------------------- Captured stderr call -----------------------------
+Canvas educator messaging tools registered successfully!
+Error sending peer review Inbox messages: argument of type 'NoneType' is not iterable
+=========================== short test summary info ============================
+FAILED tests/tools/test_messaging.py::test_peer_review_post_exception_reports_uncertain_delivery_and_keeps_token
+======================= 1 failed, 13 deselected in 0.16s =======================

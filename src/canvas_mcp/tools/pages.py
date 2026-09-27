@@ -96,7 +96,8 @@ def register_page_tools(mcp: FastMCP) -> None:
         Args:
             course_identifier: Course code or Canvas ID
             page_url_or_id: Page URL slug or page ID
-            published: True to publish, False to unpublish
+            published: True to publish, False to unpublish. The course front
+                page cannot be unpublished; make another page the front page first
             front_page: True to make this the course front page
             editing_roles: One of: teachers, students, members, public
             notify_of_update: Save-time action, NOT a persisted setting. Asks
@@ -105,8 +106,6 @@ def register_page_tools(mcp: FastMCP) -> None:
                 notification was sent and the Canvas UI checkbox will always
                 look unchecked afterward. Has no effect on an unpublished page
                 or a page under a minute old.
-
-        IMPORTANT: The front page cannot be unpublished. First set another page as front page.
         """
         course_id = await get_course_id(course_identifier)
 
@@ -189,8 +188,6 @@ def register_page_tools(mcp: FastMCP) -> None:
                 Canvas to notify course participants about these edits. Canvas
                 never returns the flag, so this tool cannot confirm any
                 notification was sent. Has no effect on unpublished pages.
-
-        IMPORTANT: front_page is not supported in bulk updates.
         """
         course_id = await get_course_id(course_identifier)
 
@@ -296,7 +293,11 @@ def register_educator_page_crud_tools(mcp: FastMCP) -> None:
                          published: bool = True,
                          front_page: bool = False,
                          editing_roles: str = "teachers") -> str:
-        """Create a new page in a Canvas course.
+        """Create a page in a Canvas course.
+
+        Pages are published by default, so the page is visible to students on
+        creation (subject to any module or access restrictions); pass
+        published=False to create a draft.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -353,12 +354,18 @@ def register_educator_page_crud_tools(mcp: FastMCP) -> None:
                                page_url_or_id: str,
                                new_content: str,
                                title: str | None = None) -> str:
-        """Edit the content of a specific page.
+        """Replace the entire HTML body of a page (and optionally its title).
+
+        new_content becomes the whole body: it is not merged or appended, so
+        pass the complete page, not a fragment. To change one section, read the
+        current body with get_page_content, edit it, and send the full result.
+        Publishing state, editing roles, and front-page status
+        are unchanged; use update_page_settings for those.
 
         Args:
             course_identifier: Course code or Canvas ID
             page_url_or_id: Page URL slug or page ID
-            new_content: New HTML content for the page
+            new_content: Complete new HTML body for the page (replaces the old body)
             title: Optional new title for the page
         """
         # Backstop for issue 239: refuse to write our own provenance fence

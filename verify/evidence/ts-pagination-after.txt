@@ -1,0 +1,254 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> canvas-mcp-code-api@1.0.6 test
+> node --import tsx --test tests/code_api/*.test.ts
+
+✔ committed grade followed by 503 is not sent twice (59.742628ms)
+✔ committed grade followed by disconnect is not sent twice (11.092603ms)
+✔ committed grade followed by invalid-json is not sent twice (3.702376ms)
+✔ committed grade followed by redirect is not sent twice (4.393005ms)
+Starting bulk grading for assignment 2...
+Concurrent processing: 5 submissions per batch
+Starting bulk grading for assignment 2...
+Concurrent processing: 1 submissions per batch
+Found 2 submissions to process
+
+Processing batch 1/2 (1 submissions)...
+✓ Graded submission for user 1
+
+Processing batch 2/2 (1 submissions)...
+✓ Graded submission for user 2
+
+==================================================
+Bulk grading complete!
+==================================================
+  Total:   2
+  Graded:  2
+  Skipped: 0
+  Failed:  0
+Starting bulk grading for assignment 2...
+Concurrent processing: 2 submissions per batch
+Found 5 submissions to process
+
+Processing batch 1/3 (2 submissions)...
+✔ duplicate submission targets reject before callbacks or writes (7.822711ms)
+✔ invalid maxConcurrent 0 rejects before fetching (0.609533ms)
+✔ invalid maxConcurrent -1 rejects before fetching (0.598292ms)
+✔ invalid maxConcurrent 1.5 rejects before fetching (0.2156ms)
+✔ invalid maxConcurrent NaN rejects before fetching (0.177393ms)
+✔ invalid maxConcurrent Infinity rejects before fetching (0.220558ms)
+✔ invalid rateLimitDelay -1 rejects before fetching (0.231315ms)
+✔ invalid rateLimitDelay NaN rejects before fetching (0.190399ms)
+✔ invalid rateLimitDelay Infinity rejects before fetching (0.991246ms)
+✔ invalid rateLimitDelay 2147483648 rejects before fetching (0.918817ms)
+✔ invalid rateLimitDelay 0.5 rejects before fetching (0.243785ms)
+✔ explicit zero delay schedules no inter-batch timer (4.154226ms)
+✓ Graded submission for user 1
+✓ Graded submission for user 2
+Waiting 17ms before next batch...
+
+Processing batch 2/3 (2 submissions)...
+✓ Graded submission for user 3
+✓ Graded submission for user 4
+Waiting 17ms before next batch...
+
+Processing batch 3/3 (1 submissions)...
+✓ Graded submission for user 5
+
+==================================================
+Bulk grading complete!
+==================================================
+  Total:   5
+  Graded:  5
+  Skipped: 0
+  Failed:  0
+Request failed (attempt 1/4), retrying in 1000ms...
+✔ batch cap includes asynchronous writes and delay follows settlement (21.188103ms)
+Request failed (attempt 2/4), retrying in 2000ms...
+Request failed (attempt 3/4), retrying in 4000ms...
+Starting bulk grading for assignment 2...
+Concurrent processing: 5 submissions per batch
+Found 3 submissions to process
+
+Processing batch 1/1 (3 submissions)...
+Skipped submission for user 1
+✓ Graded submission for user 3
+
+==================================================
+Bulk grading complete!
+==================================================
+  Total:   3
+  Graded:  1
+  Skipped: 1
+  Failed:  1
+
+Failed submissions:
+  User 2: callback failed
+✗ Failed to grade user 2: callback failed
+Starting bulk grading for assignment 2...
+Concurrent processing: 5 submissions per batch
+Starting bulk grading for assignment 2...
+Concurrent processing: 5 submissions per batch
+Starting bulk grading for assignment 2...
+Concurrent processing: 5 submissions per batch
+Starting bulk grading for assignment 2...
+Concurrent processing: 5 submissions per batch
+Starting bulk grading for assignment 2...
+Concurrent processing: 5 submissions per batch
+Starting bulk grading for assignment 2...
+Concurrent processing: 5 submissions per batch
+Found 2 submissions to process
+
+Processing batch 1/1 (2 submissions)...
+✓ Graded submission for user 1
+✓ Graded submission for user 2
+
+==================================================
+Bulk grading complete!
+==================================================
+  Total:   2
+  Graded:  2
+  Skipped: 0
+  Failed:  0
+Starting bulk grading for assignment 2...
+Concurrent processing: 5 submissions per batch
+Found 1 submissions to process
+
+Processing batch 1/1 (1 submissions)...
+
+==================================================
+Bulk grading complete!
+==================================================
+  Total:   1
+  Graded:  0
+  Skipped: 0
+  Failed:  1
+✗ Failed to grade user 1: null
+
+Failed submissions:
+  User 1: null
+Starting bulk grading for assignment 2...
+Concurrent processing: 5 submissions per batch
+Found 1 submissions to process
+
+Processing batch 1/1 (1 submissions)...
+
+==================================================
+Bulk grading complete!
+==================================================
+  Total:   1
+  Graded:  0
+  Skipped: 0
+  Failed:  1
+
+Failed submissions:
+  User 1: undefined
+✗ Failed to grade user 1: undefined
+✔ GET retries terminate after four attempts with 1,2,4 second backoff (6.210826ms)
+✔ write operation ()=>canvasPost("/courses",{}) is not automatically replayed (1.272554ms)
+✔ write operation ()=>canvasPut("/courses/1",{}) is not automatically replayed (0.312034ms)
+✔ write operation ()=>canvasDelete("/courses/1") is not automatically replayed (0.248536ms)
+✔ dry run never writes and accounts for skip, callback failure and grade (1.008319ms)
+✔ fractional batch stride cannot exceed its requested cap (0.594827ms)
+✔ invalid submission user undefined fails before grading (0.651036ms)
+✔ invalid submission user 0 fails before grading (0.400863ms)
+✔ invalid submission user -1 fails before grading (0.403058ms)
+✔ invalid submission user 1.5 fails before grading (0.34525ms)
+✔ invalid submission user 7 fails before grading (0.356434ms)
+✔ callback mutation cannot redirect two jobs to the same submission (0.946577ms)
+✔ callback throwing null keeps the failed target in the summary (1.830524ms)
+✔ callback throwing undefined keeps the failed target in the summary (0.953025ms)
+✔ short/empty page 1 follows opaque next query (14.182291ms)
+✔ short/empty page 0 follows opaque next query (2.288118ms)
+✔ full final page without next does not guess another page (1.100203ms)
+✔ self cycle fails before fetching or appending the repeated page (3.553975ms)
+✔ unending unique next chain stops at explicit budget without partial success (616.148343ms)
+✔ unsafe next link rejected before another dispatch: https://other.example/api/v1/courses?p=2 (0.614649ms)
+✔ unsafe next link rejected before another dispatch: https://canvas.example/api/v1/users?p=2 (0.270137ms)
+✔ unsafe next link rejected before another dispatch: https://user:pass@canvas.example/api/v1/courses?p=2 (0.278995ms)
+✔ unsafe next link rejected before another dispatch: https://canvas.example/api/v1/courses?p=2#fragment (0.224635ms)
+✔ unsafe next link rejected before another dispatch: https://canvas.example/api/v1/courses?p=2# (0.80769ms)
+✔ unsafe next link rejected before another dispatch: http://canvas.example/api/v1/courses?p=2 (0.201962ms)
+✔ malformed/ambiguous/context-changing next Link fails: <broken; rel="next" (0.494075ms)
+✔ malformed/ambiguous/context-changing next Link fails: <https://canvas.example/api/v1/courses?p=2>; rel="next", <https://canvas.example/api/v1/courses?p=3>; rel="next" (0.219996ms)
+✔ malformed/ambiguous/context-changing next Link fails: <https://canvas.example/api/v1/courses?p=2>; rel="next"; anchor="/other" (0.149939ms)
+✔ malformed/ambiguous/context-changing next Link fails: <https://canvas.example/api/v1/courses?p=2> (0.122738ms)
+✔ malformed/ambiguous/context-changing next Link fails: <https://canvas.example/api/v1/courses?p=2>; rel (0.194294ms)
+✔ malformed/ambiguous/context-changing next Link fails: <https://canvas.example/api/v1/courses?p=2>; rel="" (0.523767ms)
+✔ malformed/ambiguous/context-changing next Link fails: <https://canvas.example/api/v1/courses?p=2>; rel="next,prev" (0.199937ms)
+✔ quoted attributes and relation lists preserve relative opaque next (0.537129ms)
+✔ non-array response null is an error, not partial success (0.403354ms)
+✔ non-array response {"unexpected":[]} is an error, not partial success (0.309904ms)
+✔ later HTTP error rejects instead of returning collected partial data (0.777283ms)
+Starting bulk grading for assignment 2...
+Concurrent processing: 5 submissions per batch
+Found 2 submissions to process
+
+Processing batch 1/1 (2 submissions)...
+✓ Graded submission for user 1
+✓ Graded submission for user 2
+
+==================================================
+Bulk grading complete!
+==================================================
+  Total:   2
+  Graded:  2
+  Skipped: 0
+  Failed:  0
+Request failed (attempt 1/4), retrying in 1000ms...
+✔ concurrent callers have private cursors and preserve shared input (31.64981ms)
+✔ pagination keeps its credential/config snapshot across awaits (1.52623ms)
+✔ bulk grading receives every linked page and writes each target once (28.209545ms)
+✔ paginated read retries do not append the same page twice (1.915936ms)
+Request failed (attempt 1/4), retrying in 1000ms...
+Request failed (attempt 2/4), retrying in 2000ms...
+Request failed (attempt 3/4), retrying in 4000ms...
+✔ HTTP redirect cannot bypass pagination endpoint validation (7061.537792ms)
+Starting bulk grading for assignment 2...
+Concurrent processing: 2 submissions per batch
+Found 2 submissions to process
+
+Processing batch 1/1 (2 submissions)...
+✓ Graded submission for user 3
+✓ Graded submission for user 4
+
+==================================================
+Bulk grading complete!
+==================================================
+  Total:   2
+  Graded:  2
+  Skipped: 0
+  Failed:  0
+Starting bulk grading for assignment 2...
+Concurrent processing: 2 submissions per batch
+Found 2 submissions to process
+
+Processing batch 1/1 (2 submissions)...
+✓ Graded submission for user 3
+✓ Graded submission for user 4
+
+==================================================
+Bulk grading complete!
+==================================================
+  Total:   2
+  Graded:  2
+  Skipped: 0
+  Failed:  0
+✔ rubric precheck flag false (6.178448ms)
+✔ rubric precheck flag undefined (0.612721ms)
+✔ rubric precheck flag true (1.256547ms)
+✔ unconfirmed score null is not success (2.7043ms)
+✔ unconfirmed score 99 is not success (1.028196ms)
+✔ lookup failure never writes (1.326286ms)
+✔ simple zero grade stays explicit without a rubric lookup (0.766472ms)
+✔ missing or incomplete rubric metadata is unconfirmed: undefined (1.632184ms)
+✔ missing or incomplete rubric metadata is unconfirmed: [{"id":"a"}] (1.293468ms)
+✔ bulk rubric grading fetches metadata once per run with repeated include params (6.772684ms)
+ℹ tests 68
+ℹ suites 0
+ℹ pass 68
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7445.75098

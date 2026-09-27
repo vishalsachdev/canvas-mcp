@@ -1,0 +1,516 @@
+✖ short/empty page 1 follows opaque next query (9.578899ms)
+✖ short/empty page 0 follows opaque next query (1.576863ms)
+✖ full final page without next does not guess another page (1.631453ms)
+✖ self cycle fails before fetching or appending the repeated page (4.542909ms)
+✖ unending unique next chain stops at explicit budget without partial success (689.337473ms)
+✖ unsafe next link rejected before another dispatch: https://other.example/api/v1/courses?p=2 (1.677002ms)
+✖ unsafe next link rejected before another dispatch: https://canvas.example/api/v1/users?p=2 (1.134304ms)
+✖ unsafe next link rejected before another dispatch: https://user:pass@canvas.example/api/v1/courses?p=2 (0.582956ms)
+✖ unsafe next link rejected before another dispatch: https://canvas.example/api/v1/courses?p=2#fragment (0.531656ms)
+✖ unsafe next link rejected before another dispatch: https://canvas.example/api/v1/courses?p=2# (0.480467ms)
+✖ unsafe next link rejected before another dispatch: http://canvas.example/api/v1/courses?p=2 (0.868055ms)
+✖ malformed/ambiguous/context-changing next Link fails: <broken; rel="next" (0.765162ms)
+✖ malformed/ambiguous/context-changing next Link fails: <https://canvas.example/api/v1/courses?p=2>; rel="next", <https://canvas.example/api/v1/courses?p=3>; rel="next" (0.251905ms)
+✖ malformed/ambiguous/context-changing next Link fails: <https://canvas.example/api/v1/courses?p=2>; rel="next"; anchor="/other" (0.196213ms)
+✖ malformed/ambiguous/context-changing next Link fails: <https://canvas.example/api/v1/courses?p=2> (0.360348ms)
+✖ malformed/ambiguous/context-changing next Link fails: <https://canvas.example/api/v1/courses?p=2>; rel (0.332711ms)
+✖ malformed/ambiguous/context-changing next Link fails: <https://canvas.example/api/v1/courses?p=2>; rel="" (0.229959ms)
+✖ malformed/ambiguous/context-changing next Link fails: <https://canvas.example/api/v1/courses?p=2>; rel="next,prev" (0.171046ms)
+✖ quoted attributes and relation lists preserve relative opaque next (0.921601ms)
+✖ non-array response null is an error, not partial success (0.41314ms)
+✖ non-array response {"unexpected":[]} is an error, not partial success (0.73884ms)
+✖ later HTTP error rejects instead of returning collected partial data (0.588915ms)
+Starting bulk grading for assignment 2...
+Concurrent processing: 5 submissions per batch
+Found 1 submissions to process
+
+Processing batch 1/1 (1 submissions)...
+✓ Graded submission for user 1
+
+==================================================
+Bulk grading complete!
+==================================================
+  Total:   1
+  Graded:  1
+  Skipped: 0
+  Failed:  0
+Request failed (attempt 1/4), retrying in 1000ms...
+✖ concurrent callers have private cursors and preserve shared input (22.32144ms)
+✖ pagination keeps its credential/config snapshot across awaits (1.789473ms)
+✖ bulk grading receives every linked page and writes each target once (8.334062ms)
+✖ paginated read retries do not append the same page twice (3.043158ms)
+✖ HTTP redirect cannot bypass pagination endpoint validation (45.516699ms)
+ℹ tests 27
+ℹ suites 0
+ℹ pass 0
+ℹ fail 27
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1114.651807
+
+✖ failing tests:
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:585
+✖ short/empty page 1 follows opaque next query (9.578899ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      {
+        id: 1
+      },
+  -   {
+  -     id: 2
+  -   }
+    ]
+
+      at TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:19:12)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ { id: 1 } ],
+    expected: [ { id: 1 }, { id: 2 } ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:585
+✖ short/empty page 0 follows opaque next query (1.576863ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + []
+  - [
+  -   {
+  -     id: 2
+  -   }
+  - ]
+
+      at TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:19:12)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ { id: 2 } ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:960
+✖ full final page without next does not guess another page (1.631453ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  2 !== 1
+
+      at TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:28:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:1231
+✖ self cycle fails before fetching or appending the repeated page (4.542909ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /cycle/i. Input:
+
+  'Error: Canvas API error (400): finite test sentinel'
+
+      at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:38:3)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: Error: Canvas API error (400): finite test sentinel
+        at makeCanvasRequest (/workspace/scratch/5655cab44c80/ts-pagination-before/src/canvas_mcp/code_api/client.ts:131:15)
+        at async fetchAllPaginated (/workspace/scratch/5655cab44c80/ts-pagination-before/src/canvas_mcp/code_api/client.ts:179:25)
+        at async waitForActual (node:assert:646:5)
+        at async strict.rejects (node:assert:769:25)
+        at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:38:3)
+        at async Test.run (node:internal/test_runner/test:1389:7)
+        at async Test.processPendingSubtests (node:internal/test_runner/test:960:7),
+    expected: /cycle/i,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:1573
+✖ unending unique next chain stops at explicit budget without partial success (689.337473ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /10000.*pages/i. Input:
+
+  'Error: Canvas API error (400): finite test sentinel'
+
+      at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:49:3)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: Error: Canvas API error (400): finite test sentinel
+        at makeCanvasRequest (/workspace/scratch/5655cab44c80/ts-pagination-before/src/canvas_mcp/code_api/client.ts:131:15)
+        at async fetchAllPaginated (/workspace/scratch/5655cab44c80/ts-pagination-before/src/canvas_mcp/code_api/client.ts:179:25)
+        at async waitForActual (node:assert:646:5)
+        at async strict.rejects (node:assert:769:25)
+        at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:49:3)
+        at async Test.run (node:internal/test_runner/test:1389:7)
+        at async Test.processPendingSubtests (node:internal/test_runner/test:960:7),
+    expected: /10000.*pages/i,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:2204
+✖ unsafe next link rejected before another dispatch: https://other.example/api/v1/courses?p=2 (1.677002ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:59:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /pagination link/i,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:2204
+✖ unsafe next link rejected before another dispatch: https://canvas.example/api/v1/users?p=2 (1.134304ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:59:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /pagination link/i,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:2204
+✖ unsafe next link rejected before another dispatch: https://user:pass@canvas.example/api/v1/courses?p=2 (0.582956ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:59:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /pagination link/i,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:2204
+✖ unsafe next link rejected before another dispatch: https://canvas.example/api/v1/courses?p=2#fragment (0.531656ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:59:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /pagination link/i,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:2204
+✖ unsafe next link rejected before another dispatch: https://canvas.example/api/v1/courses?p=2# (0.480467ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:59:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /pagination link/i,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:2204
+✖ unsafe next link rejected before another dispatch: http://canvas.example/api/v1/courses?p=2 (0.868055ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:59:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /pagination link/i,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:2705
+✖ malformed/ambiguous/context-changing next Link fails: <broken; rel="next" (0.765162ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:71:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /pagination link/i,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:2705
+✖ malformed/ambiguous/context-changing next Link fails: <https://canvas.example/api/v1/courses?p=2>; rel="next", <https://canvas.example/api/v1/courses?p=3>; rel="next" (0.251905ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:71:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /pagination link/i,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:2705
+✖ malformed/ambiguous/context-changing next Link fails: <https://canvas.example/api/v1/courses?p=2>; rel="next"; anchor="/other" (0.196213ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:71:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /pagination link/i,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:2705
+✖ malformed/ambiguous/context-changing next Link fails: <https://canvas.example/api/v1/courses?p=2> (0.360348ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:71:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /pagination link/i,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:2705
+✖ malformed/ambiguous/context-changing next Link fails: <https://canvas.example/api/v1/courses?p=2>; rel (0.332711ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:71:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /pagination link/i,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:2705
+✖ malformed/ambiguous/context-changing next Link fails: <https://canvas.example/api/v1/courses?p=2>; rel="" (0.229959ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:71:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /pagination link/i,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:2705
+✖ malformed/ambiguous/context-changing next Link fails: <https://canvas.example/api/v1/courses?p=2>; rel="next,prev" (0.171046ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:71:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /pagination link/i,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:2999
+✖ quoted attributes and relation lists preserve relative opaque next (0.921601ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      1,
+  -   2
+    ]
+
+      at TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:83:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 1 ],
+    expected: [ 1, 2 ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:3501
+✖ non-array response null is an error, not partial success (0.41314ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:90:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /expected an array/i,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:3501
+✖ non-array response {"unexpected":[]} is an error, not partial success (0.73884ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /expected an array/i. Input:
+
+  'TypeError: Spread syntax requires ...iterable[Symbol.iterator] to be a function'
+
+      at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:90:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: TypeError: Spread syntax requires ...iterable[Symbol.iterator] to be a function
+        at fetchAllPaginated (/workspace/scratch/5655cab44c80/ts-pagination-before/src/canvas_mcp/code_api/client.ts:187:13)
+        at async waitForActual (node:assert:646:5)
+        at async strict.rejects (node:assert:769:25)
+        at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:90:5)
+        at async Test.run (node:internal/test_runner/test:1389:7)
+        at async Test.processPendingSubtests (node:internal/test_runner/test:960:7),
+    expected: /expected an array/i,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:3730
+✖ later HTTP error rejects instead of returning collected partial data (0.588915ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:97:3)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /403/,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:4035
+✖ concurrent callers have private cursors and preserve shared input (22.32144ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      '/api/v1/courses/1/submissions:first',
+  -   '/api/v1/courses/1/submissions:second'
+    ]
+
+      at TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:113:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ '/api/v1/courses/1/submissions:first' ],
+    expected: [ '/api/v1/courses/1/submissions:first', '/api/v1/courses/1/submissions:second' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:4950
+✖ pagination keeps its credential/config snapshot across awaits (1.789473ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   'https://other.example/api/v1/courses?per_page=1&page=2',
+  +   'Bearer other-token'
+  -   'https://canvas.example/api/v1/courses?cursor=next',
+  -   'Bearer synthetic'
+    ]
+
+      at TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:129:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'https://other.example/api/v1/courses?per_page=1&page=2', 'Bearer other-token' ],
+    expected: [ 'https://canvas.example/api/v1/courses?cursor=next', 'Bearer synthetic' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:5481
+✖ bulk grading receives every linked page and writes each target once (8.334062ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  1 !== 2
+
+      at TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:141:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:1:6291
+✖ paginated read retries do not append the same page twice (3.043158ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      1,
+  -   2
+    ]
+
+      at TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-control-plane.test.ts:154:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 1 ],
+    expected: [ 1, 2 ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at ../ts-pagination-before/tests/code_api/pagination-redirect.test.ts:1:228
+✖ HTTP redirect cannot bypass pagination endpoint validation (45.516699ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (/workspace/scratch/5655cab44c80/ts-pagination-before/tests/code_api/pagination-redirect.test.ts:18:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: undefined,
+    operator: 'rejects',
+    diff: 'simple'
+  }

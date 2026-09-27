@@ -231,15 +231,13 @@ def extract_function_signature(content: str) -> str:
 
 
 def extract_doc_comment(content: str) -> str:
-    """Extract JSDoc comment from TypeScript file"""
-    # Look for /** ... */ style comments
-    pattern = r'/\*\*\s*(.*?)\s*\*/'
-    match = re.search(pattern, content, re.DOTALL)
-
-    if match:
-        # Clean up the comment
-        doc = match.group(1)
-        doc = re.sub(r'^\s*\*\s*', '', doc, flags=re.MULTILINE)
-        return doc.strip()
-
-    return ""
+    """Extract the JSDoc attached to the file's main exported function."""
+    # Prefer the /** ... */ block immediately before `export async function`;
+    # the first block in a file is often a private helper's comment.
+    match = re.search(
+        r'/\*\*((?:(?!\*/).)*?)\*/\s*export\s+async\s+function', content, re.DOTALL
+    ) or re.search(r'/\*\*(.*?)\*/', content, re.DOTALL)
+    if not match:
+        return ""
+    lines = [re.sub(r'^\s*\*\s?', '', line) for line in match.group(1).splitlines()]
+    return "\n".join(lines).strip()

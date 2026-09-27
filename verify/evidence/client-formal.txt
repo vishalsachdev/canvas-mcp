@@ -1,0 +1,504 @@
+ℹ [2/8] Replayed Confirmation
+info: verify/lean/./././Confirmation.lean:195:0: 'Confirmation.authorized_target_is_bound' depends on axioms: [propext]
+info: verify/lean/./././Confirmation.lean:196:0: 'Confirmation.confirm_refines_step' does not depend on any axioms
+info: verify/lean/./././Confirmation.lean:197:0: 'Confirmation.reachable_safe' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: verify/lean/./././Confirmation.lean:198:0: 'Confirmation.at_most_one_write' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: verify/lean/./././Confirmation.lean:199:0: 'Confirmation.burn_blocks_future_reserve' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [4/8] Replayed Client.Requests
+info: verify/lean/./././Client/Requests.lean:38:0: 'Client.Requests.semaphore_bound' depends on axioms: [propext, Quot.sound]
+info: verify/lean/./././Client/Requests.lean:39:0: 'Client.Requests.retry_variant_decreases' depends on axioms: [propext, Quot.sound]
+ℹ [5/8] Replayed Client.Lifecycle
+info: verify/lean/./././Client/Lifecycle.lean:40:0: 'Client.Lifecycle.selected_owner_is_running' depends on axioms: [propext, Quot.sound]
+ℹ [6/8] Replayed Client.Pagination
+info: verify/lean/./././Client/Pagination.lean:54:0: 'Client.Pagination.no_duplicate_page' depends on axioms: [propext]
+info: verify/lean/./././Client/Pagination.lean:55:0: 'Client.Pagination.budget_conserved' depends on axioms: [propext, Quot.sound]
+info: verify/lean/./././Client/Pagination.lean:56:0: 'Client.Pagination.follows_server_successor' depends on axioms: [propext]
+Build completed successfully.
+TLC2 Version 2026.09.22.222048 (rev: 35d40c9)
+Running breadth-first search Model-Checking with fp 76 and seed 2040573700825709948 with 1 worker on 8 cores with 4551MB heap and 64MB offheap memory [pid: 17] (Linux 6.18.44 amd64, Ubuntu 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/scratch/5655cab44c80/canvas-mcp-client/verify/tla/Confirmation.tla
+Parsing file /tmp/tlc-11883846944348506179/Naturals.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /tmp/tlc-11883846944348506179/FiniteSets.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /tmp/tlc-11883846944348506179/Sequences.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module Confirmation
+Linting of module Confirmation
+Starting... (2026-09-23 19:09:20)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-09-23 19:09:20.
+Error: Invariant NoBurnReplay is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ replay = FALSE
+/\ burned = FALSE
+/\ held = FALSE
+/\ burnedEver = FALSE
+/\ pc = (a :> "idle" @@ b :> "idle" @@ c :> "idle")
+/\ writes = 0
+
+State 2: <Check(a) line 9, col 13 to line 11, col 69 of module Confirmation>
+/\ replay = FALSE
+/\ burned = FALSE
+/\ held = FALSE
+/\ burnedEver = FALSE
+/\ pc = (a :> "checked" @@ b :> "idle" @@ c :> "idle")
+/\ writes = 0
+
+State 3: <Reserve(a) line 12, col 15 to line 15, col 57 of module Confirmation>
+/\ replay = FALSE
+/\ burned = FALSE
+/\ held = TRUE
+/\ burnedEver = FALSE
+/\ pc = (a :> "inflight" @@ b :> "idle" @@ c :> "idle")
+/\ writes = 0
+
+State 4: <Mismatch(b) line 19, col 16 to line 21, col 50 of module Confirmation>
+/\ replay = FALSE
+/\ burned = FALSE
+/\ held = TRUE
+/\ burnedEver = TRUE
+/\ pc = (a :> "inflight" @@ b :> "idle" @@ c :> "idle")
+/\ writes = 0
+
+State 5: <Release(a) line 22, col 15 to line 25, col 65 of module Confirmation>
+/\ replay = FALSE
+/\ burned = FALSE
+/\ held = FALSE
+/\ burnedEver = TRUE
+/\ pc = (a :> "idle" @@ b :> "idle" @@ c :> "idle")
+/\ writes = 0
+
+State 6: <Check(a) line 9, col 13 to line 11, col 69 of module Confirmation>
+/\ replay = FALSE
+/\ burned = FALSE
+/\ held = FALSE
+/\ burnedEver = TRUE
+/\ pc = (a :> "checked" @@ b :> "idle" @@ c :> "idle")
+/\ writes = 0
+
+State 7: <Reserve(a) line 12, col 15 to line 15, col 57 of module Confirmation>
+/\ replay = TRUE
+/\ burned = FALSE
+/\ held = TRUE
+/\ burnedEver = TRUE
+/\ pc = (a :> "inflight" @@ b :> "idle" @@ c :> "idle")
+/\ writes = 0
+
+173 states generated, 62 distinct states found, 11 states left on queue.
+The depth of the complete state graph search is 7.
+Finished in 00s at (2026-09-23 19:09:20)
+TLC2 Version 2026.09.22.222048 (rev: 35d40c9)
+Running breadth-first search Model-Checking with fp 21 and seed 7768639995912714761 with 1 worker on 8 cores with 4551MB heap and 64MB offheap memory [pid: 40] (Linux 6.18.44 amd64, Ubuntu 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/scratch/5655cab44c80/canvas-mcp-client/verify/tla/Confirmation.tla
+Parsing file /tmp/tlc-14080633566608638151/Naturals.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /tmp/tlc-14080633566608638151/FiniteSets.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /tmp/tlc-14080633566608638151/Sequences.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module Confirmation
+Linting of module Confirmation
+Starting... (2026-09-23 19:09:20)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-09-23 19:09:20.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 3.9E-16
+184 states generated, 57 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 6.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 4 and the 95th percentile is 4).
+Finished in 00s at (2026-09-23 19:09:20)
+TLC2 Version 2026.09.22.222048 (rev: 35d40c9)
+Running breadth-first search Model-Checking with fp 47 and seed 4611827041021121038 with 1 worker on 8 cores with 4551MB heap and 64MB offheap memory [pid: 63] (Linux 6.18.44 amd64, Ubuntu 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/scratch/5655cab44c80/canvas-mcp-client/verify/tla/Clock.tla
+Parsing file /tmp/tlc-10087996932400304277/Naturals.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Clock
+Linting of module Clock
+Starting... (2026-09-23 19:09:21)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-09-23 19:09:21.
+Error: Invariant NoDoubleRedeem is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ now = 0
+/\ spent = FALSE
+/\ redemptions = 0
+/\ expiredSuccess = FALSE
+
+State 2: <Reserve(0) line 16, col 5 to line 22, col 65 of module Clock>
+/\ now = 0
+/\ spent = TRUE
+/\ redemptions = 1
+/\ expiredSuccess = FALSE
+
+State 3: <Reserve(2) line 16, col 5 to line 22, col 65 of module Clock>
+/\ now = 2
+/\ spent = TRUE
+/\ redemptions = 2
+/\ expiredSuccess = TRUE
+
+18 states generated, 8 distinct states found, 3 states left on queue.
+The depth of the complete state graph search is 3.
+Finished in 00s at (2026-09-23 19:09:21)
+TLC2 Version 2026.09.22.222048 (rev: 35d40c9)
+Running breadth-first search Model-Checking with fp 26 and seed 989379222815267131 with 1 worker on 8 cores with 4551MB heap and 64MB offheap memory [pid: 86] (Linux 6.18.44 amd64, Ubuntu 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/scratch/5655cab44c80/canvas-mcp-client/verify/tla/Clock.tla
+Parsing file /tmp/tlc-11765148992220879058/Naturals.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Clock
+Linting of module Clock
+Starting... (2026-09-23 19:09:21)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-09-23 19:09:22.
+Error: Invariant NoDoubleRedeem is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ now = 0
+/\ spent = FALSE
+/\ redemptions = 0
+/\ expiredSuccess = FALSE
+
+State 2: <Reserve(0) line 16, col 5 to line 22, col 65 of module Clock>
+/\ now = 0
+/\ spent = TRUE
+/\ redemptions = 1
+/\ expiredSuccess = FALSE
+
+State 3: <Observe(2) line 10, col 17 to line 13, col 60 of module Clock>
+/\ now = 2
+/\ spent = FALSE
+/\ redemptions = 1
+/\ expiredSuccess = FALSE
+
+State 4: <Observe(0) line 10, col 17 to line 13, col 60 of module Clock>
+/\ now = 0
+/\ spent = FALSE
+/\ redemptions = 1
+/\ expiredSuccess = FALSE
+
+State 5: <Reserve(0) line 16, col 5 to line 22, col 65 of module Clock>
+/\ now = 0
+/\ spent = TRUE
+/\ redemptions = 2
+/\ expiredSuccess = FALSE
+
+40 states generated, 9 distinct states found, 1 states left on queue.
+The depth of the complete state graph search is 5.
+Finished in 00s at (2026-09-23 19:09:22)
+TLC2 Version 2026.09.22.222048 (rev: 35d40c9)
+Running breadth-first search Model-Checking with fp 43 and seed 7820576767882923810 with 1 worker on 8 cores with 4551MB heap and 64MB offheap memory [pid: 108] (Linux 6.18.44 amd64, Ubuntu 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/scratch/5655cab44c80/canvas-mcp-client/verify/tla/Clock.tla
+Parsing file /tmp/tlc-16943885484136276527/Naturals.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module Clock
+Linting of module Clock
+Starting... (2026-09-23 19:09:22)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-09-23 19:09:23.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 8.8E-18
+33 states generated, 6 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 3.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 3 and the 95th percentile is 3).
+Finished in 00s at (2026-09-23 19:09:23)
+TLC2 Version 2026.09.22.222048 (rev: 35d40c9)
+Running breadth-first search Model-Checking with fp 117 and seed -7726754597334998641 with 1 worker on 8 cores with 4551MB heap and 64MB offheap memory [pid: 131] (Linux 6.18.44 amd64, Ubuntu 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/scratch/5655cab44c80/canvas-mcp-client/verify/tla/ClientRequests.tla
+Parsing file /tmp/tlc-14922366409255432037/Naturals.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /tmp/tlc-14922366409255432037/FiniteSets.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /tmp/tlc-14922366409255432037/Sequences.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module ClientRequests
+Linting of module ClientRequests
+Starting... (2026-09-23 19:09:23)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-09-23 19:09:23.
+Error: Invariant OwnedClientClosed is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ attempts = (a :> 0 @@ b :> 0 @@ c :> 0)
+/\ closed = (a :> FALSE @@ b :> FALSE @@ c :> FALSE)
+/\ pc = (a :> "queued" @@ b :> "queued" @@ c :> "queued")
+
+State 2: <Cancel(a) line 24, col 14 to line 27, col 34 of module ClientRequests>
+/\ attempts = (a :> 0 @@ b :> 0 @@ c :> 0)
+/\ closed = (a :> FALSE @@ b :> FALSE @@ c :> FALSE)
+/\ pc = (a :> "done" @@ b :> "queued" @@ c :> "queued")
+
+3 states generated, 3 distinct states found, 1 states left on queue.
+The depth of the complete state graph search is 2.
+Finished in 00s at (2026-09-23 19:09:23)
+TLC2 Version 2026.09.22.222048 (rev: 35d40c9)
+Running breadth-first search Model-Checking with fp 71 and seed 525937445076618406 with 1 worker on 8 cores with 4551MB heap and 64MB offheap memory [pid: 154] (Linux 6.18.44 amd64, Ubuntu 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/scratch/5655cab44c80/canvas-mcp-client/verify/tla/ClientRequests.tla
+Parsing file /tmp/tlc-6816133576499173584/Naturals.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /tmp/tlc-6816133576499173584/FiniteSets.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /tmp/tlc-6816133576499173584/Sequences.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module ClientRequests
+Linting of module ClientRequests
+Starting... (2026-09-23 19:09:24)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-09-23 19:09:25.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 6.2E-13
+7321 states generated, 2232 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 28.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 6 and the 95th percentile is 2).
+Finished in 00s at (2026-09-23 19:09:25)
+TLC2 Version 2026.09.22.222048 (rev: 35d40c9)
+Running breadth-first search Model-Checking with fp 72 and seed 6287824268582212381 with 1 worker on 8 cores with 4551MB heap and 64MB offheap memory [pid: 179] (Linux 6.18.44 amd64, Ubuntu 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/scratch/5655cab44c80/canvas-mcp-client/verify/tla/ClientCleanup.tla
+Parsing file /tmp/tlc-4493699003484472066/Naturals.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module ClientCleanup
+Linting of module ClientCleanup
+Starting... (2026-09-23 19:09:25)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-09-23 19:09:26.
+Error: Invariant ReplacementPreserved is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ replaced = FALSE
+/\ phase = "idle"
+/\ cache = 1
+
+State 2: <Start line 7, col 10 to line 9, col 30 of module ClientCleanup>
+/\ replaced = FALSE
+/\ phase = "waiting"
+/\ cache = 1
+
+State 3: <Replace line 10, col 12 to line 11, col 63 of module ClientCleanup>
+/\ replaced = TRUE
+/\ phase = "waiting"
+/\ cache = 2
+
+State 4: <Finish line 12, col 11 to line 14, col 31 of module ClientCleanup>
+/\ replaced = TRUE
+/\ phase = "done"
+/\ cache = 0
+
+5 states generated, 5 distinct states found, 1 states left on queue.
+The depth of the complete state graph search is 4.
+Finished in 00s at (2026-09-23 19:09:26)
+TLC2 Version 2026.09.22.222048 (rev: 35d40c9)
+Running breadth-first search Model-Checking with fp 47 and seed -3908429266803168074 with 1 worker on 8 cores with 4551MB heap and 64MB offheap memory [pid: 201] (Linux 6.18.44 amd64, Ubuntu 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/scratch/5655cab44c80/canvas-mcp-client/verify/tla/ClientCleanup.tla
+Parsing file /tmp/tlc-16663254807294090123/Naturals.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module ClientCleanup
+Linting of module ClientCleanup
+Starting... (2026-09-23 19:09:26)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-09-23 19:09:26.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 0.0
+5 states generated, 5 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 4.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 2 and the 95th percentile is 2).
+Finished in 00s at (2026-09-23 19:09:26)
+TLC2 Version 2026.09.22.222048 (rev: 35d40c9)
+Running breadth-first search Model-Checking with fp 125 and seed -6829734507897997672 with 1 worker on 8 cores with 4551MB heap and 64MB offheap memory [pid: 224] (Linux 6.18.44 amd64, Ubuntu 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/scratch/5655cab44c80/canvas-mcp-client/verify/tla/ClientDispatch.tla
+Parsing file /tmp/tlc-1520411670933768666/Naturals.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module ClientDispatch
+Linting of module ClientDispatch
+Starting... (2026-09-23 19:09:27)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-09-23 19:09:27.
+Error: Invariant DispatchOpen is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ bad = FALSE
+/\ closed = {}
+/\ dispatched = FALSE
+/\ cache = 1
+/\ cleaned = FALSE
+
+State 2: <Cleanup line 9, col 12 to line 11, col 43 of module ClientDispatch>
+/\ bad = FALSE
+/\ closed = {1}
+/\ dispatched = FALSE
+/\ cache = 0
+/\ cleaned = TRUE
+
+State 3: <Dispatch line 12, col 13 to line 16, col 44 of module ClientDispatch>
+/\ bad = TRUE
+/\ closed = {1}
+/\ dispatched = TRUE
+/\ cache = 0
+/\ cleaned = TRUE
+
+4 states generated, 4 distinct states found, 1 states left on queue.
+The depth of the complete state graph search is 3.
+Finished in 00s at (2026-09-23 19:09:27)
+TLC2 Version 2026.09.22.222048 (rev: 35d40c9)
+Running breadth-first search Model-Checking with fp 64 and seed 9022038720640888796 with 1 worker on 8 cores with 4551MB heap and 64MB offheap memory [pid: 247] (Linux 6.18.44 amd64, Ubuntu 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/scratch/5655cab44c80/canvas-mcp-client/verify/tla/ClientDispatch.tla
+Parsing file /tmp/tlc-17211814644779718947/Naturals.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module ClientDispatch
+Linting of module ClientDispatch
+Starting... (2026-09-23 19:09:27)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-09-23 19:09:28.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 0.0
+5 states generated, 5 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 3.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 2 and the 95th percentile is 2).
+Finished in 00s at (2026-09-23 19:09:28)
+TLC2 Version 2026.09.22.222048 (rev: 35d40c9)
+Running breadth-first search Model-Checking with fp 37 and seed -8823283740209037437 with 1 worker on 8 cores with 4551MB heap and 64MB offheap memory [pid: 270] (Linux 6.18.44 amd64, Ubuntu 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/scratch/5655cab44c80/canvas-mcp-client/verify/tla/ClientPagination.tla
+Parsing file /tmp/tlc-4836610781020983005/Naturals.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /tmp/tlc-4836610781020983005/Sequences.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /tmp/tlc-4836610781020983005/FiniteSets.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module ClientPagination
+Linting of module ClientPagination
+Starting... (2026-09-23 19:09:28)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-09-23 19:09:28.
+Error: Invariant NoSkippedSuccessor is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ phase = (a :> "active" @@ b :> "active")
+/\ pages = (a :> <<>> @@ b :> <<>>)
+/\ cursor = (a :> 1 @@ b :> 1)
+
+State 2: <Fetch(a) line 11, col 13 to line 18, col 99 of module ClientPagination>
+/\ phase = (a :> "done" @@ b :> "active")
+/\ pages = (a :> <<1>> @@ b :> <<>>)
+/\ cursor = (a :> 2 @@ b :> 1)
+
+2 states generated, 2 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 2.
+Finished in 00s at (2026-09-23 19:09:28)
+TLC2 Version 2026.09.22.222048 (rev: 35d40c9)
+Running breadth-first search Model-Checking with fp 111 and seed 8196196208652155211 with 1 worker on 8 cores with 4551MB heap and 64MB offheap memory [pid: 293] (Linux 6.18.44 amd64, Ubuntu 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/scratch/5655cab44c80/canvas-mcp-client/verify/tla/ClientPagination.tla
+Parsing file /tmp/tlc-13052790144991023793/Naturals.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /tmp/tlc-13052790144991023793/Sequences.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /tmp/tlc-13052790144991023793/FiniteSets.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module ClientPagination
+Linting of module ClientPagination
+Starting... (2026-09-23 19:09:29)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-09-23 19:09:29.
+Progress(5) at 2026-09-23 19:09:29: 13 states generated, 9 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 9 total distinct states at (2026-09-23 19:09:29)
+Finished checking temporal properties in 00s at 2026-09-23 19:09:29
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 2.0E-18
+13 states generated, 9 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 5.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 2 and the 95th percentile is 2).
+Finished in 00s at (2026-09-23 19:09:29)
+TLC2 Version 2026.09.22.222048 (rev: 35d40c9)
+Running breadth-first search Model-Checking with fp 13 and seed 5991509860445868745 with 1 worker on 8 cores with 4551MB heap and 64MB offheap memory [pid: 317] (Linux 6.18.44 amd64, Ubuntu 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/scratch/5655cab44c80/canvas-mcp-client/verify/tla/ClientPagination.tla
+Parsing file /tmp/tlc-1897106022104354856/Naturals.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /tmp/tlc-1897106022104354856/Sequences.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /tmp/tlc-1897106022104354856/FiniteSets.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module ClientPagination
+Linting of module ClientPagination
+Starting... (2026-09-23 19:09:30)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-09-23 19:09:30.
+Progress(5) at 2026-09-23 19:09:30: 13 states generated, 9 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 9 total distinct states at (2026-09-23 19:09:30)
+Finished checking temporal properties in 00s at 2026-09-23 19:09:30
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 2.0E-18
+13 states generated, 9 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 5.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 2 and the 95th percentile is 2).
+Finished in 00s at (2026-09-23 19:09:30)
+TLC2 Version 2026.09.22.222048 (rev: 35d40c9)
+Running breadth-first search Model-Checking with fp 61 and seed 3177472449368447745 with 1 worker on 8 cores with 4551MB heap and 64MB offheap memory [pid: 341] (Linux 6.18.44 amd64, Ubuntu 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/scratch/5655cab44c80/canvas-mcp-client/verify/tla/ClientPageBudget.tla
+Parsing file /tmp/tlc-11614609089744376245/Naturals.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module ClientPageBudget
+Linting of module ClientPageBudget
+Starting... (2026-09-23 19:09:30)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-09-23 19:09:31.
+Progress(2) at 2026-09-23 19:09:31: 3 states generated, 2 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 2 total distinct states at (2026-09-23 19:09:31)
+Error: Temporal property Termination was violated.
+
+Error: The following behavior constitutes a counter-example:
+
+State 1: <Initial predicate>
+/\ done = FALSE
+/\ remaining = 3
+/\ tick = FALSE
+
+State 2: <More line 9, col 9 to line 11, col 43 of module ClientPageBudget>
+/\ done = FALSE
+/\ remaining = 3
+/\ tick = TRUE
+
+Back to state 1: <More line 9, col 9 to line 11, col 43 of module ClientPageBudget>
+
+Finished checking temporal properties in 00s at 2026-09-23 19:09:31
+3 states generated, 2 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 2.
+Finished in 00s at (2026-09-23 19:09:31)
+TLC2 Version 2026.09.22.222048 (rev: 35d40c9)
+Running breadth-first search Model-Checking with fp 64 and seed -7294227079978247774 with 1 worker on 8 cores with 4551MB heap and 64MB offheap memory [pid: 366] (Linux 6.18.44 amd64, Ubuntu 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/scratch/5655cab44c80/canvas-mcp-client/verify/tla/ClientPageBudget.tla
+Parsing file /tmp/tlc-6979264620335960079/Naturals.tla (jar:file:/workspace/scratch/5655cab44c80/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Semantic processing of module Naturals
+Semantic processing of module ClientPageBudget
+Linting of module ClientPageBudget
+Starting... (2026-09-23 19:09:31)
+Implied-temporal checking--satisfiability problem has 1 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-09-23 19:09:31.
+Progress(4) at 2026-09-23 19:09:31: 4 states generated, 4 distinct states found, 0 states left on queue.
+Checking temporal properties for the complete state space with 4 total distinct states at (2026-09-23 19:09:31)
+Finished checking temporal properties in 00s at 2026-09-23 19:09:32
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 0.0
+4 states generated, 4 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 4.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
+Finished in 00s at (2026-09-23 19:09:32)

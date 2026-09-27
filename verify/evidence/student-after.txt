@@ -1,0 +1,14 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0
+rootdir: /workspace/scratch/5655cab44c80/canvas-mcp-student-confirmation
+configfile: pyproject.toml
+plugins: asyncio-1.4.0, anyio-4.14.2
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 100 items
+
+tests/tools/test_student_write.py ...................................... [ 38%]
+..........                                                               [ 48%]
+tests/security/test_student_write_invariants.py ........................ [ 72%]
+............................                                             [100%]
+
+============================= 100 passed in 0.97s ==============================

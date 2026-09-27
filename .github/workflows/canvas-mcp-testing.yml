@@ -59,6 +59,21 @@ jobs:
     - name: Build and test code API
       run: npm run build && npm test
 
+  verify-confirmation:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - name: Install pinned formal-verification tools
+      run: |
+        curl --fail --location --retry 3 -o "$RUNNER_TEMP/lean.tar.zst" https://github.com/leanprover/lean4/releases/download/v4.19.0/lean-4.19.0-linux.tar.zst
+        echo "6fe3ce97a58f44e2b3567d455b994eacec5bfe9ae7774f2a573444480ba813fe  $RUNNER_TEMP/lean.tar.zst" | sha256sum --check
+        tar --no-same-owner --zstd -xf "$RUNNER_TEMP/lean.tar.zst" -C "$RUNNER_TEMP"
+        echo "$RUNNER_TEMP/lean-4.19.0-linux/bin" >> "$GITHUB_PATH"
+        curl --fail --location --retry 3 -o "$RUNNER_TEMP/tla2tools.jar" https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar
+        # verify/run.py checks the pinned jar digest before execution.
+    - name: Prove the repaired machine and reproduce original counterexamples
+      run: TLA_JAR="$RUNNER_TEMP/tla2tools.jar" python verify/run.py
+
   # Runs the WHOLE suite on every supported interpreter. pyproject declares
   # requires-python = ">=3.11" (3.10 dropped ahead of its 2026-10-31 EOL, #315),
   # so every version in the matrix is a supported target and a version-specific
@@ -109,15 +124,15 @@ jobs:
   # "the full suite passed on every supported Python and the code API passed".
   test-enhancements:
     runs-on: ubuntu-latest
-    needs: [test, test-code-api]
+    needs: [test, test-code-api, verify-confirmation]
     if: always()
 
     steps:
-    - name: Require Python and code API tests to have succeeded
+    - name: Require Python, code API, and confirmation proofs to have succeeded
       run: |
         echo "matrix result: ${{ needs.test.result }}"
-        if [ "${{ needs.test.result }}" != "success" ] || [ "${{ needs.test-code-api.result }}" != "success" ]; then
-          echo "::error::Python or code API checks did not succeed."
+        if [ "${{ needs.test.result }}" != "success" ] || [ "${{ needs.test-code-api.result }}" != "success" ] || [ "${{ needs.verify-confirmation.result }}" != "success" ]; then
+          echo "::error::Python, code API, or confirmation verification did not succeed."
           exit 1
         fi
         echo "## Canvas MCP test results" >> $GITHUB_STEP_SUMMARY

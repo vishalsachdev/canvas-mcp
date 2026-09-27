@@ -422,3 +422,103 @@ async def test_criteria_token_bound_to_displayed_posted_at(discussions):
     result = await tool("60366", {"title_contains": "recap"}, confirmation_token=token)
     assert "does not match" in result
     assert _calls(discussions["req"], "delete") == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fixture_name,tool_name,args,payload,title,renamed", SINGLE_TARGET)
+async def test_delete_confirm_is_exclusive_while_dispatch_is_pending(
+    request, fixture_name, tool_name, args, payload, title, renamed
+):
+    import asyncio
+
+    env = request.getfixturevalue(fixture_name)
+    entered, finish = asyncio.Event(), asyncio.Event()
+    deletes = []
+
+    async def responder(method, endpoint, **kwargs):
+        if method == 'get':
+            return payload
+        deletes.append(endpoint)
+        entered.set()
+        await finish.wait()
+        return {'error': 'lost reply after dispatch'}
+
+    env['req'].side_effect = responder
+    tool = env['tools'][tool_name]
+    token = token_from(await tool(*args))
+    owner = asyncio.create_task(tool(*args, confirmation_token=token))
+    await entered.wait()
+    try:
+        assert 'already used' in await tool(*args, confirmation_token=token)
+    finally:
+        finish.set()
+        await owner
+    assert 'already used' in await tool(*args, confirmation_token=token)
+    assert len(deletes) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fixture_name,tool_name,args,payload,title,renamed", SINGLE_TARGET)
+async def test_delete_changed_then_reverted_preview_stays_burned(
+    request, fixture_name, tool_name, args, payload, title, renamed
+):
+    env = request.getfixturevalue(fixture_name)
+    tool = env['tools'][tool_name]
+    env['req'].side_effect = _by_method(payload)
+    token = token_from(await tool(*args))
+    env['req'].side_effect = _by_method(renamed)
+    assert 'does not match' in await tool(*args, confirmation_token=token)
+    env['req'].side_effect = _by_method(payload)
+    assert 'already used' in await tool(*args, confirmation_token=token)
+    assert not _calls(env['req'], 'delete')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('criteria', [False, True])
+async def test_delete_plan_cannot_be_reentered_mid_batch(discussions, criteria):
+    import asyncio
+
+    entered, finish = asyncio.Event(), asyncio.Event()
+    deletes = []
+    discussions['fetch'].return_value = LISTING
+
+    async def responder(method, endpoint, **kwargs):
+        if method == 'get':
+            return _announcements({1: 'A', 2: 'B'})(endpoint)
+        deletes.append(endpoint.rsplit('/', 1)[-1])
+        if len(deletes) == 1:
+            entered.set()
+            await finish.wait()
+        return {'id': 1}
+
+    discussions['req'].side_effect = responder
+    name = 'delete_announcements_by_criteria' if criteria else 'bulk_delete_announcements'
+    args = ('60366', {'title_contains': 'recap'} if criteria else [1, 2])
+    tool = discussions['tools'][name]
+    token = token_from(await tool(*args))
+    owner = asyncio.create_task(tool(*args, confirmation_token=token))
+    await entered.wait()
+    try:
+        assert 'already used' in await tool(*args, confirmation_token=token)
+    finally:
+        finish.set()
+        await owner
+    assert deletes == (['10', '11'] if criteria else ['1', '2'])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fixture_name,tool_name,args,payload,title,renamed", SINGLE_TARGET)
+async def test_delete_token_cannot_move_to_an_identically_named_target(
+    request, fixture_name, tool_name, args, payload, title, renamed
+):
+    env = request.getfixturevalue(fixture_name)
+    tool = env['tools'][tool_name]
+    env['req'].side_effect = _by_method(payload)
+    token = token_from(await tool(*args))
+    other_args = (*args[:-1], 'other-page' if fixture_name == 'pages' else int(args[-1]) + 1)
+    other = {**payload, 'id': other_args[-1]}
+    if fixture_name == 'pages':
+        other['url'] = other_args[-1]
+    env['req'].side_effect = _by_method(other)
+    assert 'does not match' in await tool(*other_args, confirmation_token=token)
+    assert not _calls(env['req'], 'delete')

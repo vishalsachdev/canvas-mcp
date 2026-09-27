@@ -161,6 +161,16 @@ Four changes need action when upgrading. Each has its migration inline.
 
 ### Fixed
 
+- Student submission confirmations now share the verified nonce guard: changed
+  content burns the token, clock rollback cannot revive expiration, and active
+  submissions retain their fingerprint claims beyond the preview TTL (#404).
+- Peer-review Inbox errors after dispatch report uncertain delivery instead of
+  claiming nothing was sent. Follow-up campaign summaries count acknowledged
+  recipient batches correctly and report partial failure as unsuccessful.
+- Lean/TLA+ models and real-code regressions now cover the scoped confirmation,
+  request, grading, pagination, delete and peer-review control planes. See
+  `verify/README.md` for the proof boundaries and reproducible evidence.
+
 - Tool failures now set MCP `isError: true` while preserving their existing
   text or structured payload ([issue 270](https://github.com/vishalsachdev/canvas-mcp/issues/270)).
 - String-returning tools no longer duplicate the same value in text content
