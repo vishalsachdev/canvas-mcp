@@ -1,6 +1,7 @@
-# Sample: auto-deploy every push to main (i.e. every merged PR) — builds the
+# Sample: deploy production deliberately. A release tag (v*) builds the
 # container image, pushes it to your Azure Container Registry, and deploys it
-# to the Production slot. No manual gate: a merge to main IS the deploy trigger.
+# to the Production slot; a manual run from main does the same between
+# releases. A merged PR does not reach production until one of those happens.
 #
 # To use: copy to .github/workflows/deploy-prod.yml and replace <registry-name>
 # and <app-name>. Requires repo secrets ACR_USERNAME / ACR_PASSWORD (or switch
@@ -11,11 +12,7 @@ name: Deploy to Azure — production
 
 on:
   push:
-    branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-      - 'tools/**'
+    tags: ['v*']
   workflow_dispatch: {}
 
 concurrency:
@@ -29,6 +26,8 @@ env:
 
 jobs:
   build-and-deploy:
+    # A manual run started from any other branch must not reach production.
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

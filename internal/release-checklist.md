@@ -9,6 +9,7 @@ When bumping the version in `pyproject.toml`, also update:
 - [ ] `docs/index.html` - Update version badge, tool count, and meta descriptions (GitHub Pages site)
 - [ ] `uv.lock` - Run `uv lock` after bumping `pyproject.toml`; the lock records the project version and drifts otherwise
 - [ ] Create git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
+- [ ] Confirm the production deploy ran: the tag push also triggers `deploy-prod.yml`. Merges to `main` do not deploy production; between releases, ship `main` with a manual `deploy-prod.yml` run from `main`.
 
 > `manifest.json` (Desktop Extension) does **not** need a manual bump — `create-release.yml` stamps the tag version into it and attaches `canvas-mcp.mcpb` to the GitHub Release automatically. The committed `manifest.json` version is just a default.
 
