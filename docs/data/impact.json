@@ -1,74 +1,74 @@
 {
-  "collected_at": "2026-08-31T03:30:18Z",
+  "collected_at": "2026-09-21T14:07:37Z",
   "github": {
-    "stars": 209,
-    "forks": 73,
-    "contributors": 20,
-    "open_issues": 13,
-    "views_14d": 2288,
-    "views_14d_unique": 947,
-    "clones_14d": 3592,
-    "clones_14d_unique": 785,
+    "stars": 257,
+    "forks": 86,
+    "contributors": 23,
+    "open_issues": 10,
+    "views_14d": 2036,
+    "views_14d_unique": 980,
+    "clones_14d": 3683,
+    "clones_14d_unique": 838,
     "referrers": [
       {
         "referrer": "Google",
-        "count": 907,
-        "uniques": 522
+        "count": 780,
+        "uniques": 540
       },
       {
         "referrer": "github.com",
-        "count": 244,
-        "uniques": 68
+        "count": 129,
+        "uniques": 76
       },
       {
         "referrer": "canvas-mcp.illinihunt.org",
-        "count": 92,
-        "uniques": 30
+        "count": 44,
+        "uniques": 31
       },
       {
         "referrer": "Bing",
-        "count": 73,
-        "uniques": 36
-      },
-      {
-        "referrer": "reddit.com",
-        "count": 27,
-        "uniques": 24
-      },
-      {
-        "referrer": "chatgpt.com",
-        "count": 26,
-        "uniques": 14
+        "count": 34,
+        "uniques": 27
       },
       {
         "referrer": "search.brave.com",
-        "count": 20,
-        "uniques": 9
+        "count": 31,
+        "uniques": 16
       },
       {
-        "referrer": "teams.public.onecdn.static.microsoft",
-        "count": 13,
-        "uniques": 8
+        "referrer": "linkedin.com",
+        "count": 29,
+        "uniques": 10
+      },
+      {
+        "referrer": "reddit.com",
+        "count": 24,
+        "uniques": 17
       },
       {
         "referrer": "DuckDuckGo",
-        "count": 12,
-        "uniques": 8
+        "count": 20,
+        "uniques": 10
       },
       {
-        "referrer": "creati.ai",
-        "count": 10,
-        "uniques": 1
+        "referrer": "teams.public.onecdn.static.microsoft",
+        "count": 15,
+        "uniques": 5
+      },
+      {
+        "referrer": "chatgpt.com",
+        "count": 11,
+        "uniques": 7
       }
     ]
   },
   "pypi": {
-    "last_day": 192,
-    "last_week": 467,
-    "last_month": 2308
+    "last_day": 15,
+    "last_week": 239,
+    "last_month": 1254
   },
   "npm": {
-    "last_month": 110
+    "last_month": 56
   },
   "history": [
     {
@@ -304,6 +304,33 @@
       "npm_month": 110,
       "views_unique": 947,
       "clones_unique": 785
+    },
+    {
+      "date": "2026-09-07",
+      "stars": 231,
+      "forks": 80,
+      "pypi_month": 2218,
+      "npm_month": 114,
+      "views_unique": 1051,
+      "clones_unique": 861
+    },
+    {
+      "date": "2026-09-14",
+      "stars": 244,
+      "forks": 82,
+      "pypi_month": 1735,
+      "npm_month": 65,
+      "views_unique": 1000,
+      "clones_unique": 861
+    },
+    {
+      "date": "2026-09-21",
+      "stars": 257,
+      "forks": 86,
+      "pypi_month": 1254,
+      "npm_month": 56,
+      "views_unique": 980,
+      "clones_unique": 838
     }
   ]
 }

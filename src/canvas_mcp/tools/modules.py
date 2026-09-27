@@ -228,7 +228,11 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
         prerequisite_module_ids: str | None = None,
         published: bool = True
     ) -> str:
-        """Create a new module in a course.
+        """Create a module in a course.
+
+        Modules are published by default, so the module (and any published
+        items later added to it) is visible to students on creation, subject to
+        unlock_at and prerequisites; pass published=False to build it as a draft.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -410,7 +414,8 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
     ) -> str:
         """Delete a module. Two-step: preview first, then confirm with the token.
 
-        IMPORTANT: Permanently removes the module and its item associations. The actual content (pages, assignments, etc.) is NOT deleted, only the module organization.
+        Permanently removes the module and its item links. The linked content
+        (pages, assignments, files, etc.) is not deleted and stays in the course.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -474,7 +479,9 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
     ) -> str:
         """Add an item to a module.
 
-        IMPORTANT: content_id required for File, Discussion, Assignment, Quiz, ExternalTool. page_url required for Page. title required for SubHeader, ExternalUrl.
+        Required fields depend on item_type: content_id for File, Discussion,
+        Assignment, Quiz, and ExternalTool; page_url for Page; title for
+        SubHeader and ExternalUrl.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -731,7 +738,8 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
     ) -> str:
         """Remove an item from a module. Two-step: preview first, then confirm with the token.
 
-        IMPORTANT: Only unlinks the item from the module. The actual content (page, assignment, etc.) is NOT deleted.
+        Only unlinks the item from the module; the linked content (page,
+        assignment, etc.) is not deleted.
 
         Args:
             course_identifier: Course code or Canvas ID

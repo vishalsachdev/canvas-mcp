@@ -828,8 +828,8 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
         Canvas keeps no revision history for the syllabus, so replacing a
         syllabus that already has content is a two-step call: call without
         confirmation_token to get a preview plus a single-use token, show the
-        preview to the educator, then call again with the token and identical
-        arguments. Writing into an empty syllabus, or appending/prepending,
+        preview to the educator, and only after they approve it call again with
+        the token and identical arguments. Writing into an empty syllabus, or appending/prepending,
         destroys nothing and takes a single call.
 
         Args:

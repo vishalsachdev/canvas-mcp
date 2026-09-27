@@ -96,7 +96,7 @@ Call `get_peer_review_followup_list` to get a prioritized list of students requi
 
 ### 8. Send Reminders
 
-**Always use a dry run or review step before sending messages.**
+Both send tools are two-call: the first call returns a preview and a `confirmation_token` and sends nothing; show the preview to the instructor, then call again with the token (and identical arguments) to send.
 
 For targeted direct Inbox messages, call `send_peer_review_inbox_messages` with:
 
@@ -111,11 +111,11 @@ Example flow:
 3. Review the recipient list with the user
 4. Send reminders after confirmation
 
-For a fully automated pipeline, call `send_peer_review_followup_campaign` with just the course identifier and assignment ID. This tool:
+For an automated pipeline, call `send_peer_review_followup_campaign` with the course identifier and assignment ID; the first call returns analytics plus a preview of urgent vs. gentle recipients and a token. This tool:
 
 1. Runs completion analytics automatically
 2. Segments students into "urgent" (none complete) and "partial" groups
-3. Sends appropriately toned reminders to each group
+3. Sends the reminders only on the confirming call with the token
 4. Returns combined analytics and messaging results
 
 **Warning:** The campaign tool sends real messages. Always confirm with the instructor before running it.
@@ -214,7 +214,6 @@ Run step 9 with `output_format="csv"` and `anonymize_data=true` for a privacy-co
 ## Safety Guidelines
 
 - **Confirm before sending** -- Always present the recipient list and message content to the instructor before calling any messaging tool.
-- **Use dry runs** -- When testing workflows, start with a single recipient or confirm the output of analytics tools before acting on the data.
 - **Anonymize by default** -- Use `anonymize_students=true` or `anonymize_data=true` when reviewing data in shared contexts.
 - **Respect rate limits** -- The Canvas API allows roughly 700 requests per 10 minutes. For large courses, the messaging tools send messages sequentially with built-in delays.
 - **FERPA-conscious handling** -- Never display student names in logs, shared screens, or exported files unless the instructor has explicitly confirmed the context is appropriate.
@@ -222,6 +221,6 @@ Run step 9 with `output_format="csv"` and `anonymize_data=true` for a privacy-co
 ## Notes
 
 - Peer reviews must be enabled on the assignment in Canvas before any of these tools return data.
-- The `send_peer_review_followup_campaign` tool combines analytics and messaging into one call -- powerful but sends real messages. Use it only after confirming intent with the instructor.
+- The `send_peer_review_followup_campaign` tool combines analytics and messaging: the first call previews recipients and returns a token, and the second call (with the token) sends real messages. Make the second call only after the instructor approves the preview.
 - Quality analysis uses heuristics (word count, keyword matching, sentiment). It identifies likely low-quality reviews but is not a substitute for instructor judgment.
 - This skill pairs well with `canvas-morning-check` for a full course health overview that includes peer review status alongside submission rates and grade distribution.

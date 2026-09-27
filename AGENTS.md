@@ -325,7 +325,7 @@ usual cause).
 - Submit grades with or without rubrics
 - Send Canvas messages and announcements
 - Create rubrics programmatically with defined criteria and ratings
-- Use existing rubrics for grading (edit rubrics via Canvas UI if needed)
+- Edit rubric text and points with `update_rubric` (structural changes via Canvas UI)
 - Analyze peer review completion
 - Execute TypeScript for bulk operations
 - Access student data (with optional identity anonymization controls)
@@ -365,9 +365,9 @@ Some Canvas API endpoints have bugs or limitations that prevent certain operatio
 
 ### Recommendations
 - Use `bulk_grade_submissions` with `max_concurrent: 5` for grading
-- Add `rate_limit_delay: 1000` (1 second) between batches
-- Use `execute_typescript` for operations on 30+ items
-- Always use `dry_run: true` first for bulk operations
+- `rate_limit_delay` is seconds between batches (default `1.0`)
+- `execute_typescript` (only if the operator enabled it) suits 30+ items needing custom per-item logic; it has no preview/confirm step, so get explicit approval first
+- `bulk_grade_submissions` and `fix_accessibility_issues` take `dry_run`; bulk deletes and multi-recipient sends preview on the first call and act only on a second call with the returned `confirmation_token`
 
 ## Error Handling
 

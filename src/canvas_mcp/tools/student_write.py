@@ -664,7 +664,8 @@ def register_student_write_tools(mcp: FastMCP) -> None:
 
             Two-step by design. Call it without a confirmation_token to get a
             preview of exactly what would be sent plus a token; show that preview
-            to the student, then call again passing the token to actually submit.
+            to the student, and only after they approve it call again passing the
+            token to actually submit.
             The token expires, is single-use, and is void if the content or the
             attempt count changed since the preview.
 
@@ -806,8 +807,9 @@ def register_student_write_tools(mcp: FastMCP) -> None:
                     preview.append(f"\nComment: {comment}")
 
                 preview.append(
-                    "\n➡️  Show this to the student. To submit, call again with "
-                    f"confirmation_token='{token}' and identical content.\n"
+                    "\n➡️  Show this to the student. Only after they approve it, "
+                    f"submit by calling again with confirmation_token='{token}' "
+                    "and identical content.\n"
                     "This consumes an attempt and cannot be undone."
                 )
                 return "\n".join(preview)

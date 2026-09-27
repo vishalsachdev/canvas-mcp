@@ -307,8 +307,9 @@ def preview_with_token(
         f"PREVIEW — {nothing_done}\n\n"
         f"{preview.rstrip()}\n\n"
         f"Confirmation token: {guard.issue(fingerprint)}\n"
-        f"Show this preview to the user. To {action}, call {tool_name} again "
-        "with this confirmation_token and identical arguments. The token is "
+        f"Show this preview to the user. Only after they approve it, {action} "
+        f"by calling {tool_name} again with this confirmation_token and "
+        "identical arguments. The token is "
         "single-use, expires in 5 minutes, and stops matching if the target "
         "changes in the meantime."
     )
