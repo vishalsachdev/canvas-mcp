@@ -1,15 +1,13 @@
 name: Deploy to Azure — production
 
-# Auto-deploy: every push to main (i.e. every merged PR) builds the container
-# image, pushes it to ACR, and deploys it to the production slot of
-# gies-canvas-mcp. No manual gate — a merge to main IS the deploy trigger.
+# Deliberate deploys only. A release tag (v*) builds the container image,
+# pushes it to ACR, and deploys it to the production slot of gies-canvas-mcp.
+# To ship an unreleased main, run this workflow by hand from main. A merged PR
+# (including an automated dependency bump) does not reach production until one
+# of those two things happens.
 on:
   push:
-    branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-      - 'tools/**'
+    tags: ['v*']
   workflow_dispatch: {}
 
 permissions:
@@ -26,6 +24,8 @@ env:
 
 jobs:
   build-and-deploy:
+    # A manual run started from any other branch must not reach production.
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

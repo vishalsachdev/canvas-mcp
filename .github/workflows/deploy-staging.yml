@@ -3,8 +3,8 @@ name: Deploy to Azure — staging slot
 # Push to the `staging` branch builds + ships to the staging deployment slot of
 # gies-canvas-mcp (host: gies-canvas-mcp-staging9b87.azurewebsites.net). Use this
 # to validate a build against real Entra/Azure config before it reaches main/prod.
-# Promote by merging `staging` -> `main` (which fires deploy-prod), or via an
-# Azure slot swap.
+# Promote by merging `staging` -> `main` and then releasing (a v* tag, or a
+# manual deploy-prod run from main), or via an Azure slot swap.
 on:
   push:
     branches: [staging]

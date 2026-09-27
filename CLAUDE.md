@@ -448,7 +448,9 @@ these local-only files publicly; `docs/.assetsignore` is now a backstop).
   mode (Entra platform auth, RFC 9728 PRM + `401` challenge). The app reads the trusted
   `X-MS-CLIENT-PRINCIPAL-ID`; each caller passes their own `X-Canvas-Token`; the Canvas URL is
   server-pinned; `CANVAS_API_TOKEN` must never be set in HTTP mode (startup guard). Deploy is
-  branch→slot GitHub Actions (`deploy-prod.yml` / `deploy-staging.yml`).
+  GitHub Actions: `deploy-staging.yml` on push to `staging`; `deploy-prod.yml` only on a `v*`
+  release tag or a manual run from `main`. **Merging to `main` does not deploy production**
+  (since 2026-09-27); ship unreleased `main` with `gh workflow run deploy-prod.yml --ref main`.
 - The open-source **self-hosted (stdio)** path is the public product — see `README.md` / `AGENTS.md`.
   HTTP-transport env-var *names* live in `env.template` / `core/config.py`; the hosted *instance*
   is operator-only.

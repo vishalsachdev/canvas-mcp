@@ -15,7 +15,7 @@ none of this document. Read this only if you intend to run one server that many 
 | File | Purpose |
 |---|---|
 | `README.md` | This specification |
-| `deploy-prod.yml.sample` | GitHub Actions workflow: `main` → Production slot (copy to `.github/workflows/`, fill placeholders) |
+| `deploy-prod.yml.sample` | GitHub Actions workflow: release tag (or manual run from `main`) → Production slot (copy to `.github/workflows/`, fill placeholders) |
 | `deploy-staging.yml.sample` | GitHub Actions workflow: `staging` branch → staging slot |
 | `appsettings.example.json` | App Service app settings for HTTP mode (`az webapp config appsettings set --settings @appsettings.example.json`) |
 | `authsettingsv2.example.json` | Easy Auth `authsettingsV2` config for API/bearer mode (§4.5) |
@@ -78,7 +78,7 @@ flowchart LR
     B -- "HTTPS + Bearer + X-Canvas-Token" --> EA
     MCP -- "per-request caller token" --> CV
 
-    GH["GitHub Actions<br/>main to Production slot<br/>staging branch to staging slot"] -- "build and push" --> ACR
+    GH["GitHub Actions<br/>release tag to Production slot<br/>staging branch to staging slot"] -- "build and push" --> ACR
 ```
 
 **Components**
@@ -429,31 +429,37 @@ with an explanatory message rather than silently ignored.
 
 ### 7.1 Branch-to-slot pattern
 
-Two workflows, identical except for branch and slot:
+Two workflows with the same build and deploy steps and different triggers:
 
 | Workflow | Trigger | Target |
 |---|---|---|
 | `deploy-staging.yml` | push to `staging` | `staging` slot |
-| `deploy-prod.yml` | push to `main` (i.e. every merged PR) | `Production` slot |
+| `deploy-prod.yml` | release tag `v*`, or a manual run from `main` | `Production` slot |
+
+Production deploys deliberately rather than on every merge, so a merged pull request (including an
+automated dependency bump) reaches production only through a release or a manual run. A job-level
+`if:` refuses a manual run started from any branch other than `main`.
 
 Both: checkout → compute an image tag from the short commit SHA → `docker/login-action` to the
 registry → `docker/build-push-action` → `azure/webapps-deploy@v3` with a per-slot publish profile.
-Both use `paths-ignore` for `docs/**`, `**.md`, `tools/**` so documentation commits do not trigger a
-deploy, and a `concurrency` group per environment (prod `cancel-in-progress: false`, staging `true`).
+Staging uses `paths-ignore` for `docs/**`, `**.md`, `tools/**` so documentation commits do not
+trigger a deploy. Each environment has its own `concurrency` group (prod `cancel-in-progress: false`,
+staging `true`).
 
 Secrets required: registry username/password (or a service principal if you have the rights), and
 `AZURE_WEBAPP_PUBLISH_PROFILE_PROD` / `_STAGING`.
 
-Promotion: merge `staging` → `main` (fires the prod deploy), or perform an Azure slot swap.
+Promotion: merge `staging` → `main`, then release (push a `v*` tag, or run `deploy-prod.yml` by hand
+from `main`); or perform an Azure slot swap.
 
-Sample workflow (production; the staging variant swaps `main`→`staging` and `Production`→`staging`):
+Sample workflow (production; the staging variant triggers on `push: branches: [staging]` with the
+`paths-ignore` list above, drops the `if:`, and swaps `Production`→`staging`):
 
 ```yaml
 name: Deploy to Azure — production
 on:
   push:
-    branches: [main]
-    paths-ignore: ['docs/**', '**.md', 'tools/**']
+    tags: ['v*']
   workflow_dispatch: {}
 
 concurrency:
@@ -467,6 +473,7 @@ env:
 
 jobs:
   build-and-deploy:
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
