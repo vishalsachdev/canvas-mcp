@@ -665,7 +665,14 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
     async def get_discussion_with_replies(course_identifier: str | int,
                                         topic_id: str | int,
                                         include_replies: bool = False) -> str:
-        """Enhanced function to get discussion entries with optional reply fetching.
+        """Read a discussion topic's title and a preview of every entry.
+
+        Returns the topic title (not its body) and each top-level entry's author,
+        post time, and a text preview cut to 200 characters; with
+        include_replies=True each entry's replies are fetched too, also as
+        previews. For full entry text use list_discussion_entries with
+        include_full_content=True, and get_discussion_entry_details for a single
+        entry.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -804,10 +811,11 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                                   message: str) -> str:
         """Post a new top-level entry to a discussion topic.
 
-        IMPORTANT: Never use this tool to post or work around a failed course
-        announcement. If create_announcement failed (e.g. insufficient
-        permissions), report the failure to the user — do NOT post the
-        content as a discussion instead.
+        Posts immediately as the token owner and is visible to everyone who can
+        see the topic. Not idempotent: calling twice creates two entries. If
+        create_announcement failed, do not post that content here instead:
+        report the failure, because re-posting it publishes the message
+        somewhere the user did not choose.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -919,12 +927,16 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                                     lock_at: str | None = None,
                                     require_initial_post: bool = False,
                                     pinned: bool = False) -> str:
-        """Create a new discussion topic for a course.
+        """Create and publish a discussion topic in a course.
 
-        IMPORTANT: Never use this tool to post or work around a failed course
-        announcement. If create_announcement failed (e.g. insufficient
-        permissions), report the failure to the user — do NOT post the
-        content as a discussion instead.
+        The topic is always created published (there is no draft option here),
+        so students can see it on creation unless delayed_post_at schedules it
+        for later. Unpublishing afterwards with update_discussion_topic does not
+        undo that initial visibility; if the topic must not be seen yet, use
+        delayed_post_at or confirm with the user first.
+        If create_announcement failed, do not post that content here instead:
+        report the failure, because re-posting it publishes the message
+        somewhere the user did not choose.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -1088,7 +1100,16 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                                 message: str,
                                 delayed_post_at: str | None = None,
                                 lock_at: str | None = None) -> str:
-        """Create a new announcement for a course with optional scheduling.
+        """Create and publish a course announcement.
+
+        The announcement is published on creation: without delayed_post_at it
+        posts immediately, and Canvas may notify enrolled users depending on
+        their notification settings. Deleting the announcement afterwards does
+        not recall notifications already delivered. Requires Canvas permission
+        to post announcements in the course. If
+        Canvas refuses, the tool reports the failure; announcement content is
+        not re-posted through the discussion tools, because that would publish
+        it somewhere the user did not choose.
 
         Args:
             course_identifier: Course code or Canvas ID

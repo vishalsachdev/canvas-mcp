@@ -129,7 +129,7 @@ For auto-fix, use `update_module` or `bulk_update_pages` with user confirmation 
 | `get_assignment_details` | Deep-dive on flagged assignments |
 | `list_pages` | Check for front page |
 | `get_page_content` | Verify pages have content |
-| `list_all_rubrics` | Check rubric coverage |
+| `list_rubrics` | Check rubric coverage |
 | `update_module` | Auto-fix: publish modules |
 | `bulk_update_pages` | Auto-fix: publish pages |
 

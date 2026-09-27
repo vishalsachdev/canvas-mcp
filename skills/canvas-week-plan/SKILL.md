@@ -17,7 +17,7 @@ Generate a comprehensive weekly plan for a student, showing all upcoming assignm
 
 ### 1. Get Upcoming Assignments
 
-Call the MCP tool `get_my_upcoming_assignments` with `days_ahead=7` to retrieve all assignments due in the next week.
+Call the MCP tool `get_my_upcoming_assignments` with `days=7` to retrieve all assignments due in the next week.
 
 **Data to collect per assignment:**
 - Assignment name
