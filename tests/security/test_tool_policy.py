@@ -225,8 +225,12 @@ async def test_an_unclassified_tool_is_treated_as_a_side_effect(all_flags_on):
 
 def _served_registry(monkeypatch, argv, env) -> set[str]:
     """Run main() up to the point of serving and return the tools it would serve."""
+    # CANVAS_API_TOKEN too: a developer's .env sets it, and the HTTP startup
+    # guard rightly refuses to start with a server token. Cases that need it
+    # (stdio) set it through ``env``.
     for key in ("ALLOWED_WRITE_TOOLS", "MCP_ACCESS_KEYS", "ENTRA_AUTH_ENABLED",
-                "EXECUTE_TYPESCRIPT_ENABLED", "STUDENT_WRITE_TOOLS", "CANVAS_ROLE"):
+                "EXECUTE_TYPESCRIPT_ENABLED", "STUDENT_WRITE_TOOLS", "CANVAS_ROLE",
+                "CANVAS_API_TOKEN"):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("CANVAS_API_URL", "https://canvas.example.edu/api/v1")
     for key, value in env.items():
