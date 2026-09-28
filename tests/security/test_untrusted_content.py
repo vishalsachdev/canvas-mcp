@@ -1027,16 +1027,21 @@ class TestMultiRecipientSendGating:
         return _get_tool(register_educator_messaging_tools, name)
 
     @pytest.mark.asyncio
-    async def test_single_recipient_send_conversation_is_friction_free(self):
+    async def test_single_recipient_send_conversation_requires_token(self):
+        """GHSA-hmr8: a one-to-one message was sent on the first call, so an
+        injected instruction could exfiltrate course data to a single student
+        with no preview step. Every send now previews first."""
         with patch(
             "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
         ) as mock_request:
-            mock_request.return_value = {"id": 1, "subject": "Hi"}
             tool = self._tool("send_conversation")
-            result = await tool("CS101", ["101"], "Hi", "Body")
+            preview = await tool("CS101", ["101"], "Hi", "Body")
 
-        assert result.get("success") is True
-        mock_request.assert_awaited_once()
+        mock_request.assert_not_called()
+        assert preview["preview"] is True
+        assert preview["nothing_sent"] is True
+        assert preview["recipient_ids"] == ["101"]
+        assert preview["confirmation_token"]
 
     @pytest.mark.asyncio
     async def test_multi_recipient_send_conversation_requires_token(self):
@@ -1246,14 +1251,19 @@ class TestMultiRecipientSendGating:
         assert result["nothing_sent"] is True
 
     @pytest.mark.asyncio
-    async def test_tokenless_single_recipient_still_friction_free(self):
-        """The single-recipient exemption applies only to token-less calls."""
+    async def test_single_recipient_sends_with_the_previewed_token(self):
+        """The one-to-one path still works; it just takes the confirm step."""
         with patch(
             "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
         ) as mock_request:
             mock_request.return_value = {"id": 1}
             tool = self._tool("send_conversation")
-            result = await tool("CS101", ["101"], "Hi", "Body")
+            preview = await tool("CS101", ["101"], "Hi", "Body")
+            mock_request.assert_not_called()
+            result = await tool(
+                "CS101", ["101"], "Hi", "Body",
+                confirmation_token=preview["confirmation_token"],
+            )
 
         assert result.get("success") is True
         mock_request.assert_awaited_once()

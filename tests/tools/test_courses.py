@@ -749,6 +749,87 @@ class TestUpdateSyllabus:
         assert sent["body"] == "<p>Original</p>\n<p>Added</p>"
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("mode", ["append", "prepend"])
+    async def test_a_supplied_token_is_validated_in_every_mode(self, mock_api, mode):
+        """A call carrying a token is a confirmation attempt, whatever the mode.
+
+        append/prepend need no token, but one that is supplied must still be
+        checked: an invalid token used to be ignored here and the write went
+        through anyway (GHSA-hmr8 side finding).
+        """
+        fake, sent = self._canvas(existing="<p>Original</p>")
+        mock_api['make_canvas_request'].side_effect = fake
+
+        update_syllabus = get_tool_function('update_syllabus')
+        result = await update_syllabus(
+            "CS101", "<p>Added</p>", mode=mode, confirmation_token="not-a-real-token"
+        )
+
+        assert "body" not in sent, "an invalid token must not reach the PUT"
+        assert "✅" not in result
+
+    @pytest.mark.asyncio
+    async def test_replace_preview_shows_the_replacement(self, mock_api):
+        """The person approving must see what will land, not just its length."""
+        fake, sent = self._canvas(existing="<p>Original syllabus</p>")
+        mock_api['make_canvas_request'].side_effect = fake
+
+        update_syllabus = get_tool_function('update_syllabus')
+        preview = await update_syllabus("CS101", "<p>Distinctive replacement 7431</p>")
+
+        assert "body" not in sent
+        assert "Distinctive replacement 7431" in preview
+
+    @pytest.mark.asyncio
+    async def test_replace_preview_reveals_link_and_embed_destinations(self, mock_api):
+        """Plain text hides where a link points. Two replacements that differ
+        only in a destination must not produce the same preview."""
+        fake, sent = self._canvas(existing="<p>Original syllabus</p>")
+        mock_api['make_canvas_request'].side_effect = fake
+
+        update_syllabus = get_tool_function('update_syllabus')
+        preview = await update_syllabus(
+            "CS101",
+            '<p><a href="https://evil.example/login">Course portal</a></p>'
+            '<img src="https://tracker.example/pixel.png" alt="">',
+        )
+
+        assert "body" not in sent
+        assert "https://evil.example/login" in preview
+        assert "https://tracker.example/pixel.png" in preview
+
+    @pytest.mark.asyncio
+    async def test_a_replace_token_cannot_be_redeemed_as_an_append(self, mock_api):
+        """The token binds the arguments that were previewed, not just the
+        resulting body: replacing OLD with OLD+NEW and appending NEW produce the
+        same body, but the append was never previewed."""
+        fake, sent = self._canvas(existing="OLD")
+        mock_api['make_canvas_request'].side_effect = fake
+
+        update_syllabus = get_tool_function('update_syllabus')
+        preview = await update_syllabus("CS101", "OLD\nNEW")
+        token = preview.split("Confirmation token: ", 1)[1].split("\n", 1)[0].strip()
+        result = await update_syllabus(
+            "CS101", "NEW", mode="append", confirmation_token=token
+        )
+
+        assert "body" not in sent, result
+        assert "✅" not in result
+
+    @pytest.mark.asyncio
+    async def test_an_empty_token_is_still_a_confirmation_attempt(self, mock_api):
+        fake, sent = self._canvas(existing="<p>Original</p>")
+        mock_api['make_canvas_request'].side_effect = fake
+
+        update_syllabus = get_tool_function('update_syllabus')
+        result = await update_syllabus(
+            "CS101", "<p>Added</p>", mode="append", confirmation_token=""
+        )
+
+        assert "body" not in sent, result
+        assert "✅" not in result
+
+    @pytest.mark.asyncio
     async def test_prepend_puts_new_content_first(self, mock_api):
         fake, sent = self._canvas(existing="<p>Original</p>")
         mock_api['make_canvas_request'].side_effect = fake

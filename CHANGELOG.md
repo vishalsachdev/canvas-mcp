@@ -7,7 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Operator allowlist for tools that change anything (GHSA-hmr8-mvr2-mvw5).**
+  New `ALLOWED_WRITE_TOOLS` setting decides which side-effect tools (Canvas
+  writes, messages, local file writes, code execution) exist at all; a tool that
+  is not allowed is removed at startup and cannot be listed or called. Read tools
+  are unaffected. An assistant steered by instructions planted in student-written
+  content could otherwise send course data out or change grades, and
+  confirmation tokens do not stop that because the assistant can redeem its own
+  token. See `env.template` and `tools/README.md`.
+- `update_syllabus` now checks a supplied `confirmation_token` in every mode.
+  An invalid token on `append`/`prepend` was ignored and the write went through.
+- `download_course_file` is now annotated as a write (it creates a local file);
+  it was marked read-only.
+
 ### Breaking
+
+- **HTTP transport is read-only unless configured.** With `ALLOWED_WRITE_TOOLS`
+  unset, a hosted (`streamable-http`) server registers no side-effect tools.
+  Set it to the tools your deployment needs (for example
+  `update_page_settings,create_announcement`), or `all` for every Canvas-write
+  and local-write tool (`execute_typescript` must be named separately). stdio
+  behaviour is unchanged when the setting is unset; `none` makes it read-only.
+  Unknown names, read tools, or `none` combined with names stop startup.
+- **`send_conversation` always previews first**, including for a single
+  recipient. Call it once to get the preview and token, then again with the
+  token and identical arguments. One-to-one messages used to send on the first
+  call.
+- **`get_conversation_details` no longer marks a conversation read**, and its
+  `auto_mark_read` parameter is removed. Viewing is now strictly read-only; use
+  `mark_conversations_read` to change read state. Canvas marks a conversation
+  read on GET by default, so this read tool was changing inbox state.
+- **`ALLOWED_WRITE_TOOLS` set but empty means `none`.** Only an unset variable
+  gets the transport default, so an allowlist that becomes empty fails closed.
 
 - Rubric grading now stops when grading settings cannot be verified. Python
   bulk dry runs also reject false/missing grading flags. Post-write rubric

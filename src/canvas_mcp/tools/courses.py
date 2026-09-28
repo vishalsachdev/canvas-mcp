@@ -839,7 +839,8 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
             mode: "replace" (default) swaps the whole body, "append" adds to
                 the end of the existing body, "prepend" adds to the start.
             confirmation_token: Token from the preview call. Only needed when
-                replacing a syllabus that already has content.
+                replacing a syllabus that already has content; a token that is
+                supplied is always checked, in every mode.
         """
         normalized_mode = (mode or "replace").lower()
         if normalized_mode not in ("replace", "append", "prepend"):
@@ -884,17 +885,30 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
             new_body = syllabus_body
 
         # Only a replace over existing content is unrecoverable, so only that
-        # path demands the token.
-        if normalized_mode == "replace" and has_existing:
+        # path demands a token. But ANY call that bears a token is a
+        # confirmation attempt and is checked, whatever the mode: an invalid
+        # token used to be ignored on append/prepend and the write went through
+        # anyway (GHSA-hmr8 side finding).
+        if confirmation_token is not None or (normalized_mode == "replace" and has_existing):
             # existing_body is bound too, not just the replacement: the
             # preview shows the content about to be destroyed, and the token
             # promises it "stops matching if the target changes in the
             # meantime". Without it, a co-teacher editing the syllabus between
-            # preview and confirm loses work the confirmer never saw.
+            # preview and confirm loses work the confirmer never saw. The mode
+            # and the supplied body are bound as well, so a token previewed
+            # for one call cannot be redeemed by a different call that happens
+            # to produce the same result.
             fingerprint = _UPDATE_SYLLABUS_GUARD.fingerprint(
-                "update_syllabus", str(course_id), existing_body, new_body
+                "update_syllabus",
+                str(course_id),
+                normalized_mode,
+                syllabus_body,
+                existing_body,
+                new_body,
             )
-            if not confirmation_token:
+            if confirmation_token is None:
+                # Show what will land, not just its length: the person
+                # approving has to be able to read the change (GHSA-hmr8).
                 preview = (
                     f"Would REPLACE the entire syllabus of course {course_display}.\n"
                     f"  Replacing {len(existing_body)} characters of existing "
@@ -902,7 +916,12 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
                     f"  Canvas keeps no revision history for the syllabus, so "
                     f"the current content cannot be recovered.\n\n"
                     f"  Current syllabus (plain text):\n"
-                    f"{fence_untrusted(strip_html_tags(existing_body), 'course syllabus')}"
+                    f"{fence_untrusted(strip_html_tags(existing_body), 'course syllabus')}\n\n"
+                    f"  Proposed replacement (plain text):\n"
+                    f"{fence_untrusted(strip_html_tags(new_body), 'proposed syllabus')}\n\n"
+                    f"  Exact HTML that will be written (plain text hides link "
+                    f"and embed destinations):\n"
+                    f"{fence_untrusted(new_body, 'proposed syllabus HTML')}"
                 )
                 return preview_with_token(
                     _UPDATE_SYLLABUS_GUARD,

@@ -554,10 +554,10 @@
           "name": "confirmation_token",
           "type": "string",
           "required": false,
-          "description": "Single-use token from the preview call (multi-recipient sends only)"
+          "description": "Single-use token from the preview call"
         }
       ],
-      "returns": "Single recipient: confirmation of message sent. Multiple recipients without a token: a preview plus confirmation_token (nothing sent); with a valid token: confirmation of message sent",
+      "returns": "Without a token: a preview plus confirmation_token (nothing sent), for any number of recipients; with a valid token: confirmation of message sent",
       "examples": [
         "Message students who haven't submitted Assignment 3"
       ]
@@ -3072,13 +3072,6 @@
           "type": "string | integer",
           "required": true,
           "description": "Conversation ID"
-        },
-        {
-          "name": "auto_mark_read",
-          "type": "boolean",
-          "required": false,
-          "default": true,
-          "description": "Mark as read when viewed"
         },
         {
           "name": "include_messages",

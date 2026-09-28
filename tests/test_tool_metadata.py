@@ -108,6 +108,9 @@ ADDITIVE = {
     "send_peer_review_followup_campaign",
     "send_peer_review_inbox_messages",
     "mark_conversations_read",
+    # Writes a new local file and refuses an existing path (O_EXCL), so it
+    # never replaces anything; a repeat fails without writing.
+    "download_course_file",
 }
 
 # Repeating the call with the same arguments produces a duplicate.

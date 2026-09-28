@@ -103,7 +103,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `associate_rubric` | Associate existing rubric with an assignment |
 | `grade_with_rubric` | Grade single submission with rubric |
 | `bulk_grade_submissions` | Grade multiple submissions efficiently |
-| `send_conversation` | Message students. Exactly one plain numeric user ID sends immediately; **multiple recipients or any `course_*`/`group_*` alias are two calls** — preview + confirmation token first, then confirm with identical arguments |
+| `send_conversation` | Message students. **Always two calls, even for one recipient:** preview + confirmation token first, then confirm with identical arguments |
 | `send_bulk_messages_from_list` | Templated bulk messaging. **Two calls:** the first returns a preview + confirmation token and sends nothing; show the preview to the educator, then call again with the token and identical arguments. The token is single-use and dies if any argument changed |
 | `send_peer_review_inbox_messages` | Send direct Canvas Inbox messages about incomplete peer reviews; this is not Canvas's native reminder action. Requires `manage_grades` permission and uses **two calls** (preview + confirm) |
 | `create_announcement` | Post course announcements. Pre-checks Canvas's announcement permission; if Canvas silently creates a discussion instead, the tool deletes that unintended topic and reports failure (or warns if cleanup cannot be confirmed) |
@@ -367,7 +367,8 @@ Some Canvas API endpoints have bugs or limitations that prevent certain operatio
 - Use `bulk_grade_submissions` with `max_concurrent: 5` for grading
 - `rate_limit_delay` is seconds between batches (default `1.0`)
 - `execute_typescript` (only if the operator enabled it) suits 30+ items needing custom per-item logic; it has no preview/confirm step, so get explicit approval first
-- `bulk_grade_submissions` and `fix_accessibility_issues` take `dry_run`; bulk deletes and multi-recipient sends preview on the first call and act only on a second call with the returned `confirmation_token`
+- `bulk_grade_submissions` and `fix_accessibility_issues` take `dry_run`; bulk deletes and every `send_conversation` preview on the first call and act only on a second call with the returned `confirmation_token`
+- Write tools may be absent: the operator's `ALLOWED_WRITE_TOOLS` decides which tools that change anything exist, and a hosted (HTTP) server allows none unless configured. Treat a missing write tool as the deployment's policy, tell the user, and do not look for a workaround
 
 ## Error Handling
 
