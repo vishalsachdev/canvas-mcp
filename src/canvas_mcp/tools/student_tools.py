@@ -288,17 +288,12 @@ def register_student_tools(mcp: FastMCP) -> None:
                 submitted.append(assignment)
             elif is_external_tool:
                 external_tools.append(assignment)
+            elif submission and submission.get("missing"):
+                # Canvas's own flag: false for on_paper/none types, graded or
+                # excused work; true when a teacher marks the work missing.
+                missing.append((assignment, "OVERDUE"))
             else:
-                # Check if past due (use timezone-aware datetime)
-                due_at = assignment.get("due_at")
-                if due_at:
-                    due_date = parse_date(due_at)
-                    if due_date and due_date < datetime.now(UTC):
-                        missing.append((assignment, "OVERDUE"))
-                    else:
-                        missing.append((assignment, "NOT SUBMITTED"))
-                else:
-                    missing.append((assignment, "NOT SUBMITTED"))
+                missing.append((assignment, "NOT SUBMITTED"))
 
         # Format output
         if missing:
