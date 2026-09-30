@@ -4,6 +4,11 @@ Long-form guidance that used to load in every session. CLAUDE.md keeps the one-l
 rule for each section; this file keeps the reasoning, examples and incident detail.
 Sections are verbatim as of the move.
 
+Verified 2026-09-30: every file path, script, workflow, test name, symbol and commit hash named below
+exists; `main` requires a PR with one approval plus `test-enhancements` and `lint` (ruleset "Main Branch
+Protection"); `deploy-prod.yml` triggers on `v*` tags and manual runs only. The adoption figures are
+dated snapshots and were not re-pulled.
+
 ## Git Workflow - ASK FIRST
 
 **Before starting any new feature or significant change, ASK:**

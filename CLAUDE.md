@@ -2,6 +2,7 @@
 
 Guidance for developing the Canvas MCP server. Agents *using* the server: see [AGENTS.md](./AGENTS.md).
 Design: [internal/architecture.md](internal/architecture.md). Long-form rules and the reasons behind them: [internal/dev-reference.md](internal/dev-reference.md). Completed work: [internal/project-history.md](internal/project-history.md), `CHANGELOG.md`.
+Codex reads `AGENTS.md`, not this file; its "Developing this server" section points here, so keep development rules in this file only. Paths, flags, symbols and issue states below were checked on 2026-09-30.
 
 ## Commands
 - Install `uv pip install -e .`; run `canvas-mcp-server` (`--test`, `--config`); `.env` holds `CANVAS_API_TOKEN` and `CANVAS_API_URL`.
@@ -52,7 +53,7 @@ Design: [internal/architecture.md](internal/architecture.md). Long-form rules an
 - Do not imply a campus security review: the only Illinois artifact is Adam King's LRA, and the public hosted server is retired.
 
 ## Current Focus
-- [ ] **#157** sandbox egress is mitigated, not closed (self-hosted only; `execute_typescript` is disabled on hosted). Needs an egress proxy or network namespace; also #338 (configurable sandbox uid).
+- [ ] **#157** sandbox egress is mitigated, not closed (self-hosted only; `execute_typescript` is disabled on hosted). Needs an egress proxy or network namespace.
 - [ ] **#236** OAuth2 developer-key flow: additive only, blocked on admin access to pilot a scoped key.
 - [ ] **#172** Canvas Quizzes tools: blocked on a New-Quizzes-enabled sandbox (PR #191 was closed as unverifiable).
 - [ ] **#418 to #421** (raw dates, guarded edits, honest pagination, anonymous discussions); #420 includes an `assign_peer_review` placeholder write past 100 submissions.

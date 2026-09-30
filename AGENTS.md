@@ -447,6 +447,18 @@ No anonymization needed - students only access their own data via Canvas "self" 
 - **Educator Guide:** https://canvas-mcp.illinihunt.org/educator-guide.html
 - **Development Guide:** `/CLAUDE.md`
 
+## Developing this server
+
+Everything above is for agents *using* the server. If you are changing this repository, note that
+Codex and most other coding agents load this file and not `CLAUDE.md`, so read these before editing:
+
+- [`CLAUDE.md`](CLAUDE.md): the development rules (git workflow, coding standards, testing, documentation maintenance, hosted-deployment posture, adoption numbers) and the open work.
+- [`internal/dev-reference.md`](internal/dev-reference.md): the reasoning and examples behind those rules.
+- [`internal/architecture.md`](internal/architecture.md): design reference.
+- [`internal/release-checklist.md`](internal/release-checklist.md): version bump and publish steps.
+
+The rules live in those files only; they are not repeated here. The two sections below also apply to development work.
+
 ## Claude Memory Lookup
 
 When prior context may matter, search Claude memories at runtime instead of copying memory content into this repo. Use this as a nudge, not a mandatory step for every tiny edit.
