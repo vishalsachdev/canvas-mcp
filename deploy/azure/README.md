@@ -286,6 +286,7 @@ ENTRA_AUTH_ENABLED=true
 MCP_ALLOW_UNAUTHENTICATED=true      # the app-level key gate is off; Entra is the gate
 MCP_ENTRA_ALLOWED_OIDS=<oid>,<oid>
 EXECUTE_TYPESCRIPT_ENABLED=false
+ALLOWED_WRITE_TOOLS=none          # read-only; list tools to allow writes (see §6)
 # CANVAS_API_TOKEN must NOT be set — startup guard enforces this
 ```
 
@@ -414,6 +415,7 @@ and is worth planning for up front.
 | `MCP_ENTRA_ALLOWED_OIDS` | empty | explicit list | Empty = any platform-authenticated identity |
 | `MCP_ACCESS_KEYS` | empty | empty (v1 only) | Legacy per-person static keys |
 | `EXECUTE_TYPESCRIPT_ENABLED` | `false` | `false` | Opt-in since v1.6.0; still set explicitly on **every slot** |
+| `ALLOWED_WRITE_TOOLS` | unset (HTTP: read-only) | `none`, then only the writes you need | Which tools that change anything exist at all. Unset on HTTP means no Canvas writes, messages, local writes or code execution. `all` allows every Canvas-write and local-write tool but not `execute_typescript`; a comma list allows exactly those. Unknown names stop startup. Set it explicitly on **every slot** |
 | `ENABLE_DATA_ANONYMIZATION` | `true` | policy choice | See §8.3 |
 | `ANONYMIZATION_DEBUG` | `false` | `false` | |
 | `LOG_REDACT_PII` | `true` | `true` | Keep on |
@@ -621,6 +623,7 @@ Two caveats for reviewers:
 - Entra platform auth with an explicit OID allowlist (not empty, not access keys)
 - `CANVAS_API_TOKEN` unset; per-user tokens only
 - `EXECUTE_TYPESCRIPT_ENABLED=false` on all slots
+- `ALLOWED_WRITE_TOOLS` set explicitly on all slots: `none` to start, then only the writes a workflow needs
 - `LOG_REDACT_PII=true`; audit logging on and forwarded
 - Custom institutional hostname with a managed certificate; `httpsOnly=true`
 - Staging slot validated before every production change

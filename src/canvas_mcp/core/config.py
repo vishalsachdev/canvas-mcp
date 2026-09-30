@@ -348,6 +348,12 @@ class Config:
         # Role-based tool filtering
         self.canvas_role = os.getenv("CANVAS_ROLE", "all").lower()
 
+        # Operator allowlist for tools with side effects (GHSA-hmr8). Kept raw:
+        # its meaning depends on the transport, so core/tool_policy.py resolves
+        # it at startup. Unset on HTTP means read-only; unset on stdio means
+        # unrestricted.
+        self.allowed_write_tools: str | None = os.getenv("ALLOWED_WRITE_TOOLS")
+
         # --- Student write tools (#170) ---
         # Campus-wide operator ceiling. Empty (the default) means NO student write
         # tool is registered, so an unlisted tool never enters the MCP tool list at

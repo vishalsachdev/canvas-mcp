@@ -7,7 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.0] — 2026-09-27
+
+### Security
+
+- **Operator allowlist for tools that change anything (GHSA-hmr8-mvr2-mvw5).**
+  New `ALLOWED_WRITE_TOOLS` setting decides which side-effect tools (Canvas
+  writes, messages, local file writes, code execution) exist at all; a tool that
+  is not allowed is removed at startup and cannot be listed or called. Read tools
+  are unaffected. An assistant steered by instructions planted in student-written
+  content could otherwise send course data out or change grades, and
+  confirmation tokens do not stop that because the assistant can redeem its own
+  token. See `env.template` and `tools/README.md`.
+- `update_syllabus` now checks a supplied `confirmation_token` in every mode.
+  An invalid token on `append`/`prepend` was ignored and the write went through.
+- `download_course_file` is now annotated as a write (it creates a local file);
+  it was marked read-only.
+- `ALLOWED_WRITE_TOOLS` set but empty means `none`. Only an unset variable gets
+  the transport default, so an allowlist that becomes empty fails closed.
+- The `execute_typescript` sandbox runs as a non-root user (#317) with a
+  read-only container root filesystem (#339), and a configured sandbox `uid:gid`
+  is validated numerically (#353).
+
 ### Breaking
+
+- **HTTP transport is read-only unless configured.** With `ALLOWED_WRITE_TOOLS`
+  unset, a hosted (`streamable-http`) server registers no side-effect tools.
+  Set it to the tools your deployment needs (for example
+  `update_page_settings,create_announcement`), or `all` for every Canvas-write
+  and local-write tool (`execute_typescript` must be named separately). stdio
+  behaviour is unchanged when the setting is unset; `none` makes it read-only.
+  Unknown names, read tools, or `none` combined with names stop startup.
+- **`send_conversation` always previews first**, including for a single
+  recipient. Call it once to get the preview and token, then again with the
+  token and identical arguments. One-to-one messages used to send on the first
+  call.
+- **`get_conversation_details` no longer marks a conversation read**, and its
+  `auto_mark_read` parameter is removed. Viewing is now strictly read-only; use
+  `mark_conversations_read` to change read state. Canvas marks a conversation
+  read on GET by default, so this read tool was changing inbox state.
 
 - Rubric grading now stops when grading settings cannot be verified. Python
   bulk dry runs also reject false/missing grading flags. Post-write rubric
@@ -79,6 +117,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   camelCase compatibility bridge to prevent regressions. Canvas API clients
   continue to use `httpx`; they are independent of FastMCP's `httpx2` transport
   stack ([issue 142](https://github.com/vishalsachdev/canvas-mcp/issues/142)).
+- The Azure deployment spec (`deploy/azure/`) deploys production on a `v*`
+  release tag or a manual run instead of every merge (#417), and its client
+  example keeps the Canvas token out of `mcp-remote` arguments with
+  `--header-file` (#422).
+- Model-facing tool, skill and guidance text corrected after a prompt audit
+  (#411, #412); Codex MCP setup instructions added (#381).
+
+### Fixed
+
+- Assignments submitted through external tools such as Gradescope are listed
+  separately instead of being reported missing or overdue (#390, thanks
+  @EastArctica).
+- TypeScript code-API pagination follows `Link` headers and stops within a page
+  budget (#403, #396).
+- Confirmation tokens: burn and expiry replay gaps closed (#394); student
+  submission confirmations verified (#404); confirmation workflows verified and
+  peer-review outcomes corrected (#405); confirmation claims carry structured
+  write outcomes (#408).
+- Grading: incomplete discussion grading fixed (#406); TypeScript grading replay
+  prevented (#397); batch scheduling shared across grading workflows (#407);
+  rubric grading settings and returned scores verified (#378).
+- Accessibility formatters return structured errors (#385).
+- `search_canvas_tools` decodes code-API TypeScript files as UTF-8 (#351).
 
 ## [1.12.0] — 2026-08-30
 

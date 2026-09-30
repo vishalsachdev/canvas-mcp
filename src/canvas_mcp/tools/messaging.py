@@ -97,17 +97,6 @@ def _fence_attachments(container: Any) -> None:
 _DIRECT_USER_ID = re.compile(r"^[0-9]+$")
 
 
-def _is_single_direct_recipient(recipient_ids: list[str]) -> bool:
-    """True only for exactly one plain numeric Canvas user ID.
-
-    The Conversations API also accepts expandable aliases (``course_123``,
-    ``group_45``, section variants) that fan out to many users, so a
-    one-element list is NOT evidence of a one-person send. Anything that is
-    not a bare user ID gets the multi-recipient confirmation flow.
-    """
-    return len(recipient_ids) == 1 and bool(_DIRECT_USER_ID.match(str(recipient_ids[0])))
-
-
 def _render_bulk_messages(
     recipient_data: list[dict[str, Any]],
     subject_template: str,
@@ -375,21 +364,26 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
     @validate_params
     async def get_conversation_details(
         conversation_id: str | int,
-        auto_mark_read: bool = True,
         include_messages: bool = True
     ) -> dict[str, Any]:
         """
         Get detailed conversation information with messages.
 
+        Viewing never marks the conversation read; use mark_conversations_read
+        for that.
+
         Args:
             conversation_id: Conversation ID
-            auto_mark_read: Mark as read when viewed
             include_messages: Include all messages
         """
 
         try:
+            # Canvas marks a conversation read on GET unless told not to. A
+            # read tool must change nothing (GHSA-hmr8): otherwise an injected
+            # assistant could clear unread markers, for instance on its own
+            # planted message, while mark_conversations_read is disallowed.
             params = {
-                "auto_mark_as_read": auto_mark_read,
+                "auto_mark_as_read": False,
                 "include_all_conversation_ids": True
             }
 
@@ -500,12 +494,12 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
         """
         Send messages to students via Canvas conversations.
 
-        Sending to ONE recipient is a single call. Sending to MULTIPLE
-        recipients is two-step: call without a confirmation_token to get a
-        preview (recipients, subject, body) plus a token; show that preview to
-        the educator, and only after they approve it call again with the token
-        and identical arguments to actually send. The token expires, is single-use, and is void if any
-        argument changed since the preview.
+        Every send is two-step, including to one recipient: call without a
+        confirmation_token to get a preview (recipients, subject, body) plus a
+        token; show that preview to the educator, and only after they approve
+        it call again with the token and identical arguments to actually send.
+        The token expires, is single-use, and is void if any argument changed
+        since the preview.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -518,7 +512,7 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
             mode: "sync" or "async" (use async for >100 recipients)
             force_new: Force new conversation even if one exists
             attachment_ids: Optional attachment IDs
-            confirmation_token: Token from the preview call (multi-recipient only)
+            confirmation_token: Token from the preview call
         """
 
         # Validate parameters
@@ -528,62 +522,56 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
         if validation_error:
             return {"error": validation_error}
 
-        # Fan-out sends require the preview→confirm two-step (issue 239): a
-        # prompt-injected model must not be able to message a list without a
-        # human-visible preview. "Fan-out" means anything except exactly one
-        # plain numeric user ID — a single course_/group_ alias expands
-        # server-side to many users.
-        #
-        # ANY call bearing a confirmation_token is a confirmation attempt and
-        # must be validated against it — the single-recipient exemption
-        # applies only to token-less calls. Otherwise a token issued for a
-        # fan-out could ride along on a swapped-to-one-recipient call, be
-        # silently ignored, and the message would send to the NEW recipient
-        # with no check at all.
-        claim = None
-        if confirmation_token or not _is_single_direct_recipient(recipient_ids):
-            fingerprint = _SEND_CONVERSATION_GUARD.fingerprint(
-                str(course_identifier),
-                json.dumps(recipient_ids),
-                subject,
-                body,
-                str(group_conversation),
-                str(bulk_message),
-                context_code or "",
-                mode,
-                str(force_new),
-                json.dumps(attachment_ids or []),
-            )
-            if not confirmation_token:
-                # The preview must show EVERYTHING the token authorizes —
-                # attachments disclose files, and the delivery flags change
-                # who sees what.
-                return {
-                    "preview": True,
-                    "nothing_sent": True,
-                    "recipient_ids": recipient_ids,
-                    "subject": subject,
-                    "body": body,
-                    "attachment_ids": attachment_ids or [],
-                    "context_code": context_code or f"course_{course_identifier}",
-                    "group_conversation": group_conversation,
-                    "bulk_message": bulk_message,
-                    "mode": mode,
-                    "force_new": force_new,
-                    "confirmation_token": _SEND_CONVERSATION_GUARD.issue(fingerprint),
-                    "instructions": (
-                        "Show this preview to the educator, including any "
-                        "attachments listed. Only after they approve it, send "
-                        "by calling send_conversation again with this "
-                        "confirmation_token and identical arguments. The "
-                        "token is single-use and expires "
-                        "shortly."
-                    ),
-                }
-            claimed = _SEND_CONVERSATION_GUARD.claim(confirmation_token, fingerprint)
-            if isinstance(claimed, str):
-                return {"error": claimed, "nothing_sent": True}
-            claim = claimed
+        # EVERY send takes the preview→confirm two-step (issue 239,
+        # GHSA-hmr8). One-to-one messages used to go out on the first call,
+        # which let a prompt-injected model send course data to a single
+        # student with no preview at all. The token binds this exact message
+        # (recipients, content, attachments, delivery flags) to the preview;
+        # it does not prove a person approved it. That approval comes from the
+        # client's own tool-approval step, and ALLOWED_WRITE_TOOLS decides
+        # whether this tool exists at all.
+        fingerprint = _SEND_CONVERSATION_GUARD.fingerprint(
+            str(course_identifier),
+            json.dumps(recipient_ids),
+            subject,
+            body,
+            str(group_conversation),
+            str(bulk_message),
+            context_code or "",
+            mode,
+            str(force_new),
+            json.dumps(attachment_ids or []),
+        )
+        if not confirmation_token:
+            # The preview must show EVERYTHING the token authorizes —
+            # attachments disclose files, and the delivery flags change
+            # who sees what.
+            return {
+                "preview": True,
+                "nothing_sent": True,
+                "recipient_ids": recipient_ids,
+                "subject": subject,
+                "body": body,
+                "attachment_ids": attachment_ids or [],
+                "context_code": context_code or f"course_{course_identifier}",
+                "group_conversation": group_conversation,
+                "bulk_message": bulk_message,
+                "mode": mode,
+                "force_new": force_new,
+                "confirmation_token": _SEND_CONVERSATION_GUARD.issue(fingerprint),
+                "instructions": (
+                    "Show this preview to the educator, including any "
+                    "attachments listed. Only after they approve it, send "
+                    "by calling send_conversation again with this "
+                    "confirmation_token and identical arguments. The "
+                    "token is single-use and expires "
+                    "shortly."
+                ),
+            }
+        claimed = _SEND_CONVERSATION_GUARD.claim(confirmation_token, fingerprint)
+        if isinstance(claimed, str):
+            return {"error": claimed, "nothing_sent": True}
+        claim = claimed
 
         try:
             result = await _post_conversation(

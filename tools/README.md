@@ -190,6 +190,33 @@ requirements.
 
 ---
 
+#### Tools that change anything: `ALLOWED_WRITE_TOOLS`
+
+Read tools are always available. Every tool that changes something (a Canvas
+write, a message, a local file write, or code execution) exists only if the
+operator allows it. A tool that is not allowed is removed at startup, so it is
+neither listed nor callable by name.
+
+| Value | Effect |
+|---|---|
+| unset | HTTP transport: no side-effect tools (read-only). stdio: every registered tool, as before |
+| set but empty (blank, spaces, only commas) | Same as `none` |
+| `none` | No side-effect tools on either transport |
+| `all` | Every Canvas-write and local-write tool, but not `execute_typescript` |
+| `a,b,c` | Exactly those tools; add `execute_typescript` to allow code execution (it also needs `EXECUTE_TYPESCRIPT_ENABLED`) |
+
+An unknown name, a read tool, or `none` combined with names stops the server at
+startup. The allowlist only removes tools; it never registers one that
+`CANVAS_ROLE` or `STUDENT_WRITE_TOOLS` left out.
+
+Why it exists: an assistant can be steered by instructions planted in
+student-written content. Previews and confirmation tokens bind a write to the
+request that was previewed, but the assistant receives its own token and can
+redeem it, so they do not prove a person approved anything. A tool that does
+not exist cannot be misused.
+
+---
+
 #### Student write configuration
 
 Two independent gates, and the second can only ever narrow the first.
@@ -1034,19 +1061,20 @@ Export all peer review data for external analysis.
 #### `send_conversation`
 Send messages to students.
 
-**Sending to exactly one plain numeric user ID is a single call. Anything else
-is two-step** — multiple recipients, or any expandable alias like `course_123`
-or `group_45` (which fans out server-side): call without a `confirmation_token`
-to get a preview (recipients, subject, body, attachments, delivery flags) plus
-a single-use token, then call again with the token and identical arguments to
-send.
+**Every send is two-step, including to a single recipient:** call without a
+`confirmation_token` to get a preview (recipients, subject, body, attachments,
+delivery flags) plus a single-use token, then call again with the token and
+identical arguments to send. The token binds the message to the preview; it does
+not show that a person approved it, so the client's own tool-approval prompt is
+what puts a human in the loop. On a hosted (HTTP) server this tool exists only if
+the operator lists it in `ALLOWED_WRITE_TOOLS`.
 
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `recipients`: User IDs (array)
 - `subject`: Message subject
 - `body`: Message content
-- `confirmation_token` (optional): Token from the preview call (multi-recipient only)
+- `confirmation_token` (optional): Token from the preview call
 
 **Example:**
 ```
@@ -1930,11 +1958,11 @@ List Canvas inbox conversations for the current user.
 ---
 
 #### `get_conversation_details`
-Get a full conversation thread with its messages.
+Get a full conversation thread with its messages. Viewing never marks the
+conversation read; use `mark_conversations_read` for that.
 
 **Parameters:**
 - `conversation_id`: Conversation ID
-- `auto_mark_read` (optional): Mark as read when viewed (default: true)
 - `include_messages` (optional): Include all messages (default: true)
 
 **Example:**

@@ -41,7 +41,12 @@ from ..core.validation import validate_params
 def register_shared_file_tools(mcp: FastMCP) -> None:
     """Register file tools accessible to both students and educators."""
 
-    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
+    # Writes a new file on the server's filesystem, so it is not read-only. It
+    # opens with O_EXCL and never replaces an existing path (additive), and a
+    # repeat fails without writing (idempotent).
+    @mcp.tool(annotations=ToolAnnotations(
+        read_only_hint=False, destructive_hint=False, idempotent_hint=True
+    ))
     @validate_params
     async def download_course_file(
         course_identifier: str | int,

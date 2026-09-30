@@ -14,8 +14,16 @@ identical across tools instead of drifting per call site.
 educator-side destructive tools can require the same explicit two-step. The
 threat it addresses (issue 239) is a prompt-injected model chaining a read of
 student-authored content straight into a write: a required, single-use,
-content-bound token forces a human-visible preview between "decided to send"
-and "sent".
+content-bound token puts a preview step between "decided to send" and "sent".
+
+What the token does and does not prove (GHSA-hmr8): it binds a write to the
+exact request that was previewed, so a changed recipient, body or target voids
+it. It does NOT prove that a person saw or approved the preview. The model
+receives the token and can redeem it itself, and ``caller_identity`` below
+binds it to a Canvas credential, not to a human. Human authorization comes from
+the MCP client's own tool-approval step. The boundary a prompt injection cannot
+cross is ``ALLOWED_WRITE_TOOLS`` (core/tool_policy.py), which decides whether a
+write tool exists at all.
 """
 
 import hashlib

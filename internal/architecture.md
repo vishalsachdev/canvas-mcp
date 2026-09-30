@@ -104,6 +104,26 @@ retrying a timed-out call cannot know which arguments were used. Concretely:
 A retry that silently duplicates feedback to every student in a course, or notifies
 a class twice, is exactly the harm this hint exists to prevent.
 
+### Write policy: which side-effect tools exist (GHSA-hmr8)
+
+`core/tool_policy.py` classifies every registered tool as `read`, `canvas_write`,
+`local_write` or `code_exec`, and `server.main()` removes every side-effect tool the
+operator has not allowed through `ALLOWED_WRITE_TOOLS` before the server starts
+serving. A removed tool is gone from the registry, so it is neither listed nor
+callable by name. Unset means read-only on HTTP and unchanged on stdio; `all`
+excludes code execution; unknown names stop startup. The policy runs after the
+registration gates (`CANVAS_ROLE`, `STUDENT_WRITE_TOOLS`,
+`EXECUTE_TYPESCRIPT_ENABLED`), so it can only narrow them.
+
+This is the boundary for prompt injection, not the confirmation tokens. A token
+binds a write to the exact request that was previewed; it does not prove a person
+saw the preview, because the model receives the token and can redeem it itself.
+Human authorization comes from the client's tool-approval step. The classification
+is explicit rather than read from `read_only_hint` (`download_course_file` was
+annotated read-only while writing files), and
+`tests/security/test_tool_policy.py` requires it to cover every tool, agree with
+the annotations, and fail closed for a tool it does not know.
+
 ### Parameter Validation System
 - `validate_parameter()`: Runtime type coercion supporting complex types
 - `@validate_params`: Automatic validation decorator for all MCP tools
