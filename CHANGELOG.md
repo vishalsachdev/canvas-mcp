@@ -33,8 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of resending the whole body) and `require` (strings that must already be
   present). Discussion topics and the syllabus have no `updated_at`, so
   `update_discussion_topic` and `update_syllabus` take `expect_body_sha256`
-  instead, plus the same `find`/`replace`/`require`; `get_syllabus` now prints
-  the hash, and the syllabus confirmation token is unchanged and independent.
+  instead, plus the same `find`/`replace`/`require`; `get_syllabus` and
+  `get_discussion_topic_details` now print that hash, and the syllabus
+  confirmation token is unchanged and independent.
   A guarded write is read back and reported as confirmed only when the
   read-back proves it (timestamp advanced where there is one, `find` gone and
   `replace` present in whitespace-normalized HTML, every other requested field
