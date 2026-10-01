@@ -101,6 +101,7 @@ TOOL_EFFECTS: dict[str, Effect] = {
     "list_courses": Effect.READ,
     "list_discussion_entries": Effect.READ,
     "list_discussion_topics": Effect.READ,
+    "list_group_discussion_topics": Effect.READ,
     "list_groups": Effect.READ,
     "list_module_items": Effect.READ,
     "list_modules": Effect.READ,

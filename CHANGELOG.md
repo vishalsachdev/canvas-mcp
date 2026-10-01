@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Discussions inside group spaces.** The discussion read tools
+  (`list_discussion_topics`, `get_discussion_topic_details`,
+  `list_discussion_entries`, `get_discussion_entry_details`,
+  `get_discussion_with_replies`) take an optional `group_id`. Topics that
+  students start inside a group live only under `/groups/{id}/discussion_topics`
+  and have no course-level parent, so the course-scoped tools never returned
+  them. The group must belong to the named course.
+- `list_group_discussion_topics` lists the topics in every group of a course
+  (optionally one group set) in one call, with entry counts, and marks each
+  topic as a group copy of a course topic or as started in the group.
+
 ### Fixed
 
 - `assign_peer_review` no longer creates a placeholder submission. It scanned
@@ -24,6 +37,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`Modules Analyzed for Items: 10 of N`) and any module it could not read (#420).
 - New guard test fails CI when a tool adds a single-request GET on a Canvas
   collection endpoint (#420).
+- **Anonymous discussion topics no longer read as missing** (issue 421, part 1).
+  Canvas's REST API answers 404 for fully anonymous topics that its topic list
+  still includes. `list_discussion_topics` and `list_group_discussion_topics`
+  now show `Anonymity:` when Canvas reports an `anonymous_state`. On a 404,
+  `get_discussion_topic_details`, `list_discussion_entries` and
+  `get_discussion_with_replies` check the course's (or group's) topic list; a
+  listed topic gets a message that it exists, REST does not serve it, and it
+  can be opened in the Canvas UI. A 404 for an unlisted topic is still not found.
 
 ## [1.13.0] — 2026-09-27
 

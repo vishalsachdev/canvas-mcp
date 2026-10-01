@@ -2034,11 +2034,48 @@ are a separate Canvas collection and are excluded unless you opt in.
   announcements alongside its discussion topics. Each entry is labelled
   `Type: Announcement` or `Type: Discussion`. To list announcements on their
   own, use [`list_announcements`](#list_announcements) instead.
+- `group_id` (optional): Canvas group ID, to read a discussion inside a group
+  space instead of the course. Discussions that students start in a group exist
+  only there. The group must belong to the course.
+
+Without `group_id` this lists course-level topics only. Topics that students
+start inside a group space are missing; use
+[`list_group_discussion_topics`](#list_group_discussion_topics) to find them.
+
+When Canvas reports a non-null `anonymous_state` for a topic
+(`partial_anonymity` or `full_anonymity`), the entry shows an `Anonymity:` line.
+`list_group_discussion_topics` does the same.
+
+**Anonymous topics:** Canvas's REST API answers 404 for topics created with
+full anonymity, although the topic list includes them. When
+`get_discussion_topic_details`, `list_discussion_entries` or
+`get_discussion_with_replies` gets a 404, the tool checks the topic list of the
+same course (or group). If the topic is listed, it says the topic exists, that
+REST does not serve it (most likely because it is anonymous), and to open it in
+the Canvas UI. A 404 for a topic that is not listed is reported as not found.
 
 **Example:**
 ```
 "What discussions are active in my course?"
 "Show me discussion topics for ENGL 101"
+```
+
+---
+
+#### `list_group_discussion_topics`
+List the discussion topics inside every group space of a course in one call.
+Each topic is marked either as a group copy of a course topic or as started in
+the group itself, with its entry count. Read a topic's posts with
+`list_discussion_entries` or `get_discussion_with_replies`, passing its `group_id`.
+
+**Parameters:**
+- `course_identifier`: Course code or ID
+- `group_category_id` (optional): Only include groups in this group set
+  (default: all groups in the course)
+
+**Example:**
+```
+"Which project groups started their own discussions?"
 ```
 
 ---
@@ -2049,6 +2086,9 @@ Get details about a specific discussion.
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `topic_id`: Discussion topic ID
+- `group_id` (optional): Canvas group ID, to read a discussion inside a group
+  space instead of the course. Discussions that students start in a group exist
+  only there. The group must belong to the course.
 
 ---
 
@@ -2058,6 +2098,9 @@ View posts in a discussion.
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `topic_id`: Discussion topic ID
+- `group_id` (optional): Canvas group ID, to read a discussion inside a group
+  space instead of the course. Discussions that students start in a group exist
+  only there. The group must belong to the course.
 
 **Example:**
 ```
@@ -2073,6 +2116,9 @@ Get all discussion entries with nested replies in one call.
 - `course_identifier`: Course code or ID
 - `topic_id`: Discussion topic ID
 - `include_replies` (optional): Fetch detailed replies for all entries (default: false)
+- `group_id` (optional): Canvas group ID, to read a discussion inside a group
+  space instead of the course. Discussions that students start in a group exist
+  only there. The group must belong to the course.
 
 **Example:**
 ```
@@ -2088,6 +2134,9 @@ Read a specific discussion post.
 - `course_identifier`: Course code or ID
 - `topic_id`: Discussion topic ID
 - `entry_id`: Post ID
+- `group_id` (optional): Canvas group ID, to read a discussion inside a group
+  space instead of the course. Discussions that students start in a group exist
+  only there. The group must belong to the course.
 
 **Example:**
 ```
