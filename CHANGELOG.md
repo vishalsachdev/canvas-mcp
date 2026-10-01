@@ -67,6 +67,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `get_discussion_with_replies` check the course's (or group's) topic list; a
   listed topic gets a message that it exists, REST does not serve it, and it
   can be opened in the Canvas UI. A 404 for an unlisted topic is still not found.
+- **Anonymous discussion topics can be read** (issue 421, part 2). After the
+  part-1 404 check finds a topic in the list, the four topic read tools
+  (`get_discussion_entry_details` included) read it through Canvas GraphQL and
+  return the same output as for any other topic. Anonymous posts keep only
+  their anonymous alias, and replies nested deeper than one level are kept. A
+  topic read this way is remembered for ten minutes, so later reads take one
+  request. The client gains a `graphql` API root; every GraphQL response is
+  anonymized at the full tier. If GraphQL fails too, the part-1 message is
+  returned with the reason appended.
 
 ## [1.13.0] — 2026-09-27
 
