@@ -11,6 +11,7 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, parse_date, truncate_text
+from ..core.guarded_edit import BodyGuard, run_guarded_write, validate_guard
 from ..core.logging import log_warning
 from ..core.untrusted_content import (
     FENCE_LEAK_ERROR,
@@ -1163,8 +1164,19 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
         delayed_post_at: str | None = None,
         lock_at: str | None = None,
         require_initial_post: bool | None = None,
+        expect_updated_at: str | None = None,
+        find: str | None = None,
+        replace: str | None = None,
+        require: list[str] | None = None,
     ) -> str:
         """Update an existing discussion topic or announcement.
+
+        message replaces the whole body. To change one fragment, pass find and
+        replace instead. Optional guards (any of them makes the tool fetch the
+        topic first, refuse rather than write on a failed check, and read it
+        back after): expect_updated_at refuses if the topic changed since you
+        read it; find/replace edits one fragment of the current message;
+        require lists strings that must already be present in it.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -1177,7 +1189,17 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
             delayed_post_at: ISO 8601 datetime to schedule posting
             lock_at: ISO 8601 datetime to auto-lock the discussion
             require_initial_post: Students must post before seeing others
+            expect_updated_at: The topic's updated_at when you read it; refuse if it has changed
+            find: Exact HTML fragment that must occur exactly once in the current message
+            replace: Text that replaces find (may be empty to delete it)
+            require: Strings that must already be present in the current message
         """
+        guard = BodyGuard(expect_updated_at, find, replace, require)
+        if guard.active:
+            guard_error = validate_guard(guard, "message", message)
+            if guard_error:
+                return guard_error
+
         course_id = await get_course_id(course_identifier)
 
         # Backstop for issue 239: never publish our provenance fence markers.
@@ -1224,10 +1246,36 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                 )
             data["lock_at"] = parsed_lock.isoformat()
 
-        if not data:
+        if not data and not guard.fragment:
             return (
                 "No fields provided to update. Specify at least one field to modify "
                 "(e.g., title, message, published, pinned, locked)."
+            )
+
+        if guard.active:
+            topic_path = f"/courses/{course_id}/discussion_topics/{topic_id}"
+
+            async def fetch_topic() -> Any:
+                return await make_canvas_request("get", topic_path)
+
+            async def write_topic(body: str | None) -> Any:
+                if body is not None:
+                    data["message"] = body
+                return await make_canvas_request("put", topic_path, data=data)
+
+            async def refetch_topic(_response: Any) -> Any:
+                return await make_canvas_request("get", topic_path)
+
+            guarded_display = await get_course_code(course_id) or course_identifier
+            return await run_guarded_write(
+                guard,
+                what="discussion topic",
+                body_field="message",
+                full_body=message,
+                fetch=fetch_topic,
+                write=write_topic,
+                refetch=refetch_topic,
+                facts={"Course": guarded_display, "Topic ID": topic_id},
             )
 
         response = await make_canvas_request(

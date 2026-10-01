@@ -665,8 +665,8 @@
         {
           "name": "syllabus_body",
           "type": "string",
-          "required": true,
-          "description": "HTML for the syllabus. Canvas stores this as HTML; plain text renders without formatting"
+          "required": false,
+          "description": "HTML for the syllabus. Canvas stores this as HTML; plain text renders without formatting. Required unless find/replace is used"
         },
         {
           "name": "mode",
@@ -680,6 +680,30 @@
           "type": "string",
           "required": false,
           "description": "Token from the preview call. Only required when replacing a syllabus that already has content"
+        },
+        {
+          "name": "expect_body_sha256",
+          "type": "string",
+          "required": false,
+          "description": "SHA-256 of the syllabus body when you read it (get_syllabus prints it). The syllabus has no updated_at, so this is its drift check: refuse, writing nothing, if the body has changed"
+        },
+        {
+          "name": "find",
+          "type": "string",
+          "required": false,
+          "description": "Exact fragment of the current syllabus to change; must occur exactly once. Use with replace instead of syllabus_body; mode must be 'replace'"
+        },
+        {
+          "name": "replace",
+          "type": "string",
+          "required": false,
+          "description": "Text that replaces find (may be empty to delete it)"
+        },
+        {
+          "name": "require",
+          "type": "array",
+          "required": false,
+          "description": "Strings that must already be present in the current syllabus, else the tool refuses"
         }
       ],
       "returns": "Confirmation that the syllabus was written, verified by reading it back from Canvas. Replacing existing content first returns a preview plus a single-use token and writes nothing.",
@@ -687,7 +711,7 @@
         "Add a link to the course website at the top of the BADM 350 syllabus",
         "Replace the CS101 syllabus with this HTML"
       ],
-      "notes": "Canvas keeps no revision history for syllabus_body, so a replace cannot be undone. Append and prepend, and any write into an empty syllabus, are single-call because they destroy nothing."
+      "notes": "Canvas keeps no revision history for syllabus_body, so a replace cannot be undone. Append and prepend, and any write into an empty syllabus, are single-call because they destroy nothing. Optional guards (issue 419) are independent of the confirmation token: a find/replace over existing content still previews first. A guarded write is reported unconfirmed if the stored body is unchanged or lacks the text written, and reports the old and new body SHA-256."
     },
     {
       "name": "list_discussion_topics",
@@ -835,12 +859,37 @@
           "type": "boolean",
           "required": false,
           "description": "Students must post before seeing others"
+        },
+        {
+          "name": "expect_updated_at",
+          "type": "string",
+          "required": false,
+          "description": "The topic's updated_at when you read it. The tool fetches the topic first and refuses, writing nothing, unless it is the same instant; Z and offset forms of one instant match"
+        },
+        {
+          "name": "find",
+          "type": "string",
+          "required": false,
+          "description": "Exact fragment of the current message to change; must occur exactly once or the tool refuses and reports the count. Use with replace instead of message"
+        },
+        {
+          "name": "replace",
+          "type": "string",
+          "required": false,
+          "description": "Text that replaces find (may be empty to delete it)"
+        },
+        {
+          "name": "require",
+          "type": "array",
+          "required": false,
+          "description": "Strings that must already be present in the current message, else the tool refuses"
         }
       ],
       "returns": "Confirmation with updated fields and topic type",
       "examples": [
         "Update the Week 1 discussion prompt to mention Claude and Gemini"
-      ]
+      ],
+      "notes": "Optional guards (issue 419): expect_updated_at, find/replace on message, require. If Canvas returns no updated_at for a topic, a guarded call refuses or reports unconfirmed rather than guessing. Any guard parameter makes the tool fetch the object first, refuse on a failed check without writing, and read it back after the write: the result is reported as confirmed only if updated_at advanced and the written text is present, otherwise as unconfirmed with old and new updated_at. Omitting every guard parameter leaves the call unchanged."
     },
     {
       "name": "search_canvas_tools",
@@ -1885,20 +1934,45 @@
         {
           "name": "new_content",
           "type": "string",
-          "required": true,
-          "description": "New HTML content for the page"
+          "required": false,
+          "description": "Complete new HTML body (replaces the old body). Required unless find/replace is used"
         },
         {
           "name": "title",
           "type": "string",
           "required": false,
           "description": "Optional new title for the page"
+        },
+        {
+          "name": "expect_updated_at",
+          "type": "string",
+          "required": false,
+          "description": "The page's updated_at when you read it. The tool fetches the page first and refuses, writing nothing, unless it is the same instant; Z and offset forms of one instant match"
+        },
+        {
+          "name": "find",
+          "type": "string",
+          "required": false,
+          "description": "Exact fragment of the current body to change; must occur exactly once or the tool refuses and reports the count. Use with replace instead of new_content"
+        },
+        {
+          "name": "replace",
+          "type": "string",
+          "required": false,
+          "description": "Text that replaces find (may be empty to delete it)"
+        },
+        {
+          "name": "require",
+          "type": "array",
+          "required": false,
+          "description": "Strings that must already be present in the current body, else the tool refuses"
         }
       ],
       "returns": "Updated page details confirming the new content was saved",
       "examples": [
         "Update the 'Course Policies' page with this new HTML"
-      ]
+      ],
+      "notes": "Optional guards (issue 419): expect_updated_at, find/replace, require. Any guard parameter makes the tool fetch the object first, refuse on a failed check without writing, and read it back after the write: the result is reported as confirmed only if updated_at advanced and the written text is present, otherwise as unconfirmed with old and new updated_at. Omitting every guard parameter leaves the call unchanged."
     },
     {
       "name": "extract_peer_review_dataset",
@@ -2790,13 +2864,38 @@
           "type": "string",
           "required": false,
           "description": "Comma-separated file extensions (e.g., \"pdf,docx,txt\")"
+        },
+        {
+          "name": "expect_updated_at",
+          "type": "string",
+          "required": false,
+          "description": "The assignment's updated_at when you read it. The tool fetches the assignment first and refuses, writing nothing, unless it is the same instant; Z and offset forms of one instant match"
+        },
+        {
+          "name": "find",
+          "type": "string",
+          "required": false,
+          "description": "Exact fragment of the current description to change; must occur exactly once or the tool refuses and reports the count. Use with replace instead of description"
+        },
+        {
+          "name": "replace",
+          "type": "string",
+          "required": false,
+          "description": "Text that replaces find (may be empty to delete it)"
+        },
+        {
+          "name": "require",
+          "type": "array",
+          "required": false,
+          "description": "Strings that must already be present in the current description, else the tool refuses"
         }
       ],
       "returns": "Updated assignment details confirming the changes",
       "examples": [
         "Move the essay deadline to Friday 11:59pm",
         "Change the assignment to 25 points"
-      ]
+      ],
+      "notes": "Optional guards (issue 419): expect_updated_at, find/replace on description, require. Any guard parameter makes the tool fetch the object first, refuse on a failed check without writing, and read it back after the write: the result is reported as confirmed only if updated_at advanced and the written text is present, otherwise as unconfirmed with old and new updated_at. Omitting every guard parameter leaves the call unchanged."
     },
     {
       "name": "delete_assignment_with_confirmation",

@@ -88,7 +88,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `list_submissions` | Student submissions for grading |
 | `get_assignment_analytics` | Performance statistics |
 | `create_assignment` | Create new assignment with due date, submission types, peer reviews |
-| `update_assignment` | Update existing assignment (name, due date, points, published, etc.) |
+| `update_assignment` | Update existing assignment (name, due date, points, published, etc.). Optional guards: `expect_updated_at`, `find`/`replace` on the description, `require` (see Guarded edits) |
 | `delete_assignment_with_confirmation` | Delete an assignment (two-step: preview, then confirm with the token) |
 | `create_content_migration` | Preview target occupancy, then request a full course-copy migration after explicit confirmation |
 | `get_content_migration_status` | Poll one migration once and review terminal migration issues |
@@ -107,8 +107,8 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `send_bulk_messages_from_list` | Templated bulk messaging. **Two calls:** the first returns a preview + confirmation token and sends nothing; show the preview to the educator, then call again with the token and identical arguments. The token is single-use and dies if any argument changed |
 | `send_peer_review_inbox_messages` | Send direct Canvas Inbox messages about incomplete peer reviews; this is not Canvas's native reminder action. Requires `manage_grades` permission and uses **two calls** (preview + confirm) |
 | `create_announcement` | Post course announcements. Pre-checks Canvas's announcement permission; if Canvas silently creates a discussion instead, the tool deletes that unintended topic and reports failure (or warns if cleanup cannot be confirmed) |
-| `update_discussion_topic` | Edit discussion or announcement title/body and settings |
-| `update_syllabus` | Write the course Syllabus tab (`replace`, `append`, or `prepend`). Canvas keeps no revision history for the syllabus, so **replacing a syllabus that already has content is two calls** — preview + token, then confirm. Writing into an empty syllabus, appending, or prepending is a single call. The write is verified by reading the syllabus back |
+| `update_discussion_topic` | Edit discussion or announcement title/body and settings. Optional guards: `expect_updated_at`, `find`/`replace` on the message, `require` (see Guarded edits) |
+| `update_syllabus` | Write the course Syllabus tab (`replace`, `append`, or `prepend`). Canvas keeps no revision history for the syllabus, so **replacing a syllabus that already has content is two calls** — preview + token, then confirm. Writing into an empty syllabus, appending, or prepending is a single call. The write is verified by reading the syllabus back. Optional guards: `expect_body_sha256` (printed by `get_syllabus`), `find`/`replace`, `require`; independent of the token |
 
 ### Untrusted Canvas content is fenced
 
@@ -145,6 +145,7 @@ Content access tools available to all authenticated users.
 | `get_syllabus` | Full Syllabus tab content, untruncated (text/html/both). Educators write it with `update_syllabus` |
 | `list_pages` | Course pages |
 | `get_page_content` | Read page content |
+| `edit_page_content` | Replace a page body (and optionally title). Optional guards: `expect_updated_at`, `find`/`replace` instead of `new_content`, `require` (see Guarded edits) |
 | `update_page_settings` | Publish/unpublish, set front page, editing roles |
 | `bulk_update_pages` | Update multiple pages at once |
 | `list_modules` | List course modules |
@@ -286,6 +287,22 @@ The token expires in 5 minutes and stops matching if the target changed in betwe
 Applies to: delete_announcement_with_confirmation, bulk_delete_announcements,
 delete_announcements_by_criteria, delete_page, delete_module, delete_module_item,
 delete_assignment_with_confirmation. There is no un-tokened delete tool.
+```
+
+### Educator: Guarded Edits (pages, assignments, discussions, syllabus)
+```
+To change one fragment without reverting anyone else's edits:
+   → edit_page_content(course_id, "week-1", find="Monday 2pm", replace="Tuesday 3pm",
+                       expect_updated_at="<updated_at you read>")
+The tool fetches the object, refuses (writing nothing) if updated_at moved,
+if find matches 0 or 2+ times, or if a `require` string is missing; then
+writes once and reads back. Success means updated_at advanced and the new
+text is present; anything else is reported as unconfirmed, never success.
+Same parameters on update_assignment (description) and
+update_discussion_topic (message). The syllabus has no updated_at: pass
+expect_body_sha256 (get_syllabus prints it) instead; a find/replace over an
+existing syllabus still previews and needs the confirmation token.
+Omit every guard parameter and the tools behave exactly as before.
 ```
 
 ### Educator: Write the Syllabus

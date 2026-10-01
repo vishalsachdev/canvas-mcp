@@ -422,6 +422,11 @@ Update an existing assignment in a course.
 - `peer_reviews`: Enable/disable peer reviews
 - `automatic_peer_reviews`: Enable/disable auto-assign peer reviews
 - `allowed_extensions`: Comma-separated file extensions for uploads
+- `expect_updated_at` (optional): The assignment's `updated_at` when you read it. The tool fetches the assignment first and refuses, writing nothing, unless it is the same instant. Compared as timestamps, so `...Z` and `...-05:00` forms of one instant match.
+- `find` / `replace` (optional): Edit one fragment of the current description instead of sending `description`. `find` must occur exactly once in the freshly fetched description; on zero or several matches the tool refuses and reports the count. `replace` may be empty to delete the fragment. Supplying `description` as well is an error.
+- `require` (optional): List of strings that must already be present in the current description (for example, to confirm an earlier edit is still in place), else the tool refuses.
+
+**Guarded edits (issue 419):** with any of the three guards the tool fetches the assignment, runs the checks, writes once, then reads it back. It reports success only if `updated_at` advanced and the written text is present, and prints the old and new `updated_at`; otherwise it reports the write as unconfirmed. With none of them the call behaves exactly as before.
 
 **Example:**
 ```
@@ -1186,6 +1191,13 @@ Edit an existing discussion topic or announcement (title, body, publish state, e
 - `delayed_post_at`: Schedule posting, ISO 8601 (optional)
 - `lock_at`: Auto-lock datetime, ISO 8601 (optional)
 - `require_initial_post`: Require initial post before viewing replies (optional)
+- `expect_updated_at` (optional): The topic's `updated_at` when you read it. The tool fetches the topic first and refuses, writing nothing, unless it is the same instant. Compared as timestamps, so `...Z` and `...-05:00` forms of one instant match.
+- `find` / `replace` (optional): Edit one fragment of the current message instead of sending `message`. `find` must occur exactly once in the freshly fetched message; on zero or several matches the tool refuses and reports the count. `replace` may be empty to delete the fragment. Supplying `message` as well is an error.
+- `require` (optional): List of strings that must already be present in the current message (for example, to confirm an earlier edit is still in place), else the tool refuses.
+
+**Guarded edits (issue 419):** with any of the three guards the tool fetches the topic, runs the checks, writes once, then reads it back. It reports success only if `updated_at` advanced and the written text is present, and prints the old and new `updated_at`; otherwise it reports the write as unconfirmed. With none of them the call behaves exactly as before.
+
+If Canvas returns no `updated_at` for a topic, a guarded call refuses (with `expect_updated_at`) or reports the write unconfirmed rather than guessing.
 
 **Example:**
 ```
@@ -1299,8 +1311,13 @@ Replace the content of an existing page.
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `page_url_or_id`: Page URL slug or page ID
-- `new_content`: New HTML content for the page
+- `new_content`: New HTML body for the page; replaces the whole body. Required unless `find`/`replace` is used.
 - `title` (optional): New title for the page
+- `expect_updated_at` (optional): The page's `updated_at` when you read it. The tool fetches the page first and refuses, writing nothing, unless it is the same instant. Compared as timestamps, so `...Z` and `...-05:00` forms of one instant match.
+- `find` / `replace` (optional): Edit one fragment of the current body instead of sending `new_content`. `find` must occur exactly once in the freshly fetched body; on zero or several matches the tool refuses and reports the count. `replace` may be empty to delete the fragment. Supplying `new_content` as well is an error.
+- `require` (optional): List of strings that must already be present in the current body (for example, to confirm an earlier edit is still in place), else the tool refuses.
+
+**Guarded edits (issue 419):** with any of the three guards the tool fetches the page, runs the checks, writes once, then reads it back. It reports success only if `updated_at` advanced and the written text is present, and prints the old and new `updated_at`; otherwise it reports the write as unconfirmed. With none of them the call behaves exactly as before.
 
 **Example:**
 ```
@@ -1542,6 +1559,8 @@ Get the complete Canvas Syllabus tab content for a course, **untruncated**. Unli
 - `output_format` (optional): `text` (plain text, default), `html` (raw HTML body), or `both`
 - `max_chars` (optional): Cap on returned characters per section. When exceeded, the content is truncated with an explicit `[truncated...]` marker. Defaults to no truncation.
 
+The output starts with the body's SHA-256, which `update_syllabus` accepts as `expect_body_sha256`.
+
 **Example:**
 ```
 "Get the full syllabus for BADM 350 including the grading policy"
@@ -1562,6 +1581,11 @@ After writing, the tool reads the syllabus back from Canvas and checks that what
 - `syllabus_body`: HTML for the syllabus. Canvas stores this as HTML; plain text is accepted but renders unformatted.
 - `mode` (optional): `replace` (default) swaps the whole body, `append` adds to the end, `prepend` adds to the start
 - `confirmation_token` (optional): Token from the preview call. Only required when replacing a syllabus that already has content.
+- `expect_body_sha256` (optional): SHA-256 of the body when you read it, as printed by `get_syllabus`. The syllabus has no `updated_at`, so this is its drift check: the tool refuses, writing nothing, if the current body hashes differently.
+- `find` / `replace` (optional): Edit one fragment of the current syllabus instead of sending `syllabus_body`; `find` must occur exactly once, and `mode` must be `replace`. A find/replace over existing content is still a replace, so it still previews and needs the token.
+- `require` (optional): Strings that must already be present in the current syllabus, else the tool refuses.
+
+The guards are independent of the confirmation token and are checked on both the preview call and the confirming call; the token binds the guard arguments too. A guarded write prints the previous and new body SHA-256 and is reported unconfirmed if the stored body did not change.
 
 **Example:**
 ```
