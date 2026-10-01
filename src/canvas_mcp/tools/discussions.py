@@ -98,6 +98,73 @@ async def _discussion_prefix(
     return f"/groups/{group_id}", None
 
 
+def _anonymity_line(topic: dict[str, Any], indent: str = "") -> str:
+    """Show a topic's anonymous_state when Canvas sent a non-null one (issue 421).
+
+    Canvas documents null (not anonymous), "partial_anonymity" and
+    "full_anonymity". Nothing is shown when the field is absent or null, so
+    the output never claims a state Canvas did not report.
+    """
+    state = topic.get("anonymous_state")
+    if not state:
+        return ""
+    return f"{indent}Anonymity: {state}\n"
+
+
+def _is_not_found_error(error: Any) -> bool:
+    """True for make_canvas_request's 404 payload ("HTTP error: 404, ...")."""
+    return str(error).startswith("HTTP error: 404")
+
+
+async def _explain_unservable_topic(
+    prefix: str, topic_id: str | int, error: Any
+) -> str | None:
+    """Explain a topic 404 when the topic list still contains the topic (issue 421).
+
+    Canvas's REST API answers 404 for fully anonymous discussion topics even
+    though the topic index lists them, so a bare 404 would read as "deleted".
+    Called only after a 404, never on success. Returns None (keep the ordinary
+    not-found error) when the error is not a 404, the list cannot be read, or
+    the ID is not in the list.
+    """
+    if not _is_not_found_error(error):
+        return None
+    topics = await fetch_all_paginated_results(
+        f"{prefix}/discussion_topics", {"per_page": 100}
+    )
+    if not isinstance(topics, list):
+        return None
+    match = next(
+        (t for t in topics if isinstance(t, dict) and str(t.get("id")) == str(topic_id)),
+        None,
+    )
+    if match is None:
+        return None
+
+    state = match.get("anonymous_state")
+    if state:
+        reason = f"Canvas lists it with anonymous_state: {state}."
+    else:
+        reason = (
+            "The list did not report an anonymous_state for it, but anonymous "
+            "topics are the known case of a listed topic that REST does not serve."
+        )
+    scope = "group" if prefix.startswith("/groups/") else "course"
+    message = (
+        f"Error: discussion topic {topic_id} exists (it is in this {scope}'s "
+        "topic list), but Canvas's REST API returns 404 for it. It is most "
+        f"likely an anonymous discussion, which REST does not serve. {reason} "
+        "It has not been deleted. Open it in the Canvas UI to read it."
+    )
+    title = match.get("title")
+    if title:
+        message += f"\nTitle:\n{fence_untrusted(title, 'discussion topic title')}"
+    html_url = match.get("html_url")
+    if html_url:
+        message += f"\nCanvas URL: {html_url}"
+    return message
+
+
 def register_shared_discussion_tools(mcp: FastMCP) -> None:
     """Register discussion tools accessible to both students and educators."""
 
@@ -186,6 +253,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                 f"ID: {topic_id}\nType: {topic_type}\n"
                 f"Title:\n{fence_untrusted(title, 'discussion topic title')}\n"
                 f"Status: {status}\nPosted: {posted_at}\n"
+                f"{_anonymity_line(topic)}"
             )
 
         course_display = await get_course_code(course_id) or course_identifier
@@ -265,7 +333,8 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                     f"  Title:\n{fence_untrusted(topic.get('title', 'Untitled topic'), 'discussion topic title')}\n"
                     f"  Entries: {topic.get('discussion_subentry_count', 0)}\n"
                     f"  Origin: {origin}\n"
-                    f"  Posted: {format_date(topic.get('posted_at'))}"
+                    f"  Posted: {format_date(topic.get('posted_at'))}\n"
+                    f"{_anonymity_line(topic, '  ')}".rstrip("\n")
                 )
             sections.append("\n".join(lines) + "\n")
 
@@ -350,6 +419,11 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         )
 
         if "error" in response:
+            explained = await _explain_unservable_topic(
+                prefix, topic_id, response["error"]
+            )
+            if explained:
+                return explained
             return f"Error fetching discussion topic details: {response['error']}"
 
         # Extract topic details
@@ -442,6 +516,11 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         )
 
         if isinstance(entries, dict) and "error" in entries:
+            explained = await _explain_unservable_topic(
+                prefix, topic_id, entries["error"]
+            )
+            if explained:
+                return explained
             return f"Error fetching discussion entries: {entries['error']}"
 
         if not entries:
@@ -865,6 +944,11 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         )
 
         if isinstance(entries, dict) and "error" in entries:
+            explained = await _explain_unservable_topic(
+                prefix, topic_id, entries["error"]
+            )
+            if explained:
+                return explained
             return f"Error fetching discussion entries: {entries['error']}"
 
         if not entries:
