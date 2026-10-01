@@ -155,7 +155,7 @@ Content access tools available to all authenticated users.
 | `update_module_item` | Update module item settings |
 | `delete_module_item` | Remove item from module |
 | `list_announcements` | Course announcements, and nothing else |
-| `list_discussion_topics` | Discussion forums (discussions only; set `include_announcements` to also list announcements) |
+| `list_discussion_topics` | Discussion forums (discussions only; set `include_announcements` to also list announcements). Shows `Anonymity:` when Canvas reports an `anonymous_state`. Canvas REST returns 404 for fully anonymous topics; the topic read tools then say the topic exists and must be opened in the Canvas UI, instead of reporting it missing |
 | `list_group_discussion_topics` | Topics inside every group space, including topics students started in a group (pass `group_id` to the other discussion read tools to read them) |
 | `list_discussion_entries` | Posts in a discussion |
 | `post_discussion_entry` | Add a discussion post |
