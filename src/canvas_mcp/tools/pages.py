@@ -90,6 +90,7 @@ async def _guarded_page_edit(
         fetch=fetch,
         write=write,
         refetch=refetch,
+        requested={"title": title} if title else {},
         facts={"Course": course_display, "Page": page_url_or_id},
     )
 

@@ -861,12 +861,6 @@
           "description": "Students must post before seeing others"
         },
         {
-          "name": "expect_updated_at",
-          "type": "string",
-          "required": false,
-          "description": "The topic's updated_at when you read it. The tool fetches the topic first and refuses, writing nothing, unless it is the same instant; Z and offset forms of one instant match"
-        },
-        {
           "name": "find",
           "type": "string",
           "required": false,
@@ -883,13 +877,25 @@
           "type": "array",
           "required": false,
           "description": "Strings that must already be present in the current message, else the tool refuses"
+        },
+        {
+          "name": "expect_updated_at",
+          "type": "string",
+          "required": false,
+          "description": "Not supported: Canvas returns no updated_at for discussion topics. Passing it is an error; use expect_body_sha256"
+        },
+        {
+          "name": "expect_body_sha256",
+          "type": "string",
+          "required": false,
+          "description": "SHA-256 (hex) of the message as Canvas returned it when you read it. Topics have no updated_at, so this is the drift check: refuse, writing nothing, if the message changed"
         }
       ],
       "returns": "Confirmation with updated fields and topic type",
       "examples": [
         "Update the Week 1 discussion prompt to mention Claude and Gemini"
       ],
-      "notes": "Optional guards (issue 419): expect_updated_at, find/replace on message, require. If Canvas returns no updated_at for a topic, a guarded call refuses or reports unconfirmed rather than guessing. Any guard parameter makes the tool fetch the object first, refuse on a failed check without writing, and read it back after the write: the result is reported as confirmed only if updated_at advanced and the written text is present, otherwise as unconfirmed with old and new updated_at. Omitting every guard parameter leaves the call unchanged."
+      "notes": "Optional guards (issue 419): expect_body_sha256, find/replace on message, require. Any guard makes the tool fetch the topic first, refuse on a failed check without writing, and read it back after: confirmed only if find is gone and replace is present (whitespace-normalized HTML) and every other requested field reads back as sent, otherwise reported unconfirmed, with old and new body SHA-256. Omitting every guard parameter leaves the call unchanged."
     },
     {
       "name": "search_canvas_tools",
@@ -1972,7 +1978,7 @@
       "examples": [
         "Update the 'Course Policies' page with this new HTML"
       ],
-      "notes": "Optional guards (issue 419): expect_updated_at, find/replace, require. Any guard parameter makes the tool fetch the object first, refuse on a failed check without writing, and read it back after the write: the result is reported as confirmed only if updated_at advanced and the written text is present, otherwise as unconfirmed with old and new updated_at. Omitting every guard parameter leaves the call unchanged."
+      "notes": "Optional guards (issue 419): expect_updated_at, find/replace, require. Any guard parameter makes the tool fetch the object first, refuse on a failed check without writing, and read it back after the write: the result is reported as confirmed only if updated_at advanced, find is gone and replace is present (whitespace-normalized HTML; a full body must match), and every other requested field reads back as sent, otherwise as unconfirmed with old and new updated_at. Omitting every guard parameter leaves the call unchanged."
     },
     {
       "name": "extract_peer_review_dataset",
@@ -2895,7 +2901,7 @@
         "Move the essay deadline to Friday 11:59pm",
         "Change the assignment to 25 points"
       ],
-      "notes": "Optional guards (issue 419): expect_updated_at, find/replace on description, require. Any guard parameter makes the tool fetch the object first, refuse on a failed check without writing, and read it back after the write: the result is reported as confirmed only if updated_at advanced and the written text is present, otherwise as unconfirmed with old and new updated_at. Omitting every guard parameter leaves the call unchanged."
+      "notes": "Optional guards (issue 419): expect_updated_at, find/replace on description, require. Any guard parameter makes the tool fetch the object first, refuse on a failed check without writing, and read it back after the write: the result is reported as confirmed only if updated_at advanced, find is gone and replace is present (whitespace-normalized HTML; a full body must match), and every other requested field reads back as sent, otherwise as unconfirmed with old and new updated_at. Omitting every guard parameter leaves the call unchanged."
     },
     {
       "name": "delete_assignment_with_confirmation",

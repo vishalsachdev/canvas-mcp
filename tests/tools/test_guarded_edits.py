@@ -4,9 +4,15 @@ Each test drives the real tool against a small stateful fake of the Canvas
 endpoints it touches and asserts the outgoing requests: above all, that a
 refusal sends NO PUT, and that a plain call (no guard parameters) sends
 exactly the request it sent before the guards existed.
+
+The fakes keep the field sets Canvas really returns. In particular a
+discussion topic has NO updated_at (measured live, read-only: a single-topic
+GET's only timestamps are created_at, delayed_post_at, last_reply_at, lock_at
+and posted_at), while pages and assignments do.
 """
 
 import copy
+import datetime
 import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -20,6 +26,12 @@ from canvas_mcp.core.guarded_edit import parse_timestamp
 COURSE_ID = 60366
 OLD_TS = "2026-09-09T14:00:00Z"
 NEW_TS = "2026-09-09T14:05:00Z"
+
+ORIGINAL = "<p>Office hours: Monday 2pm.</p><p>Read chapter 3.</p>"
+
+
+def _sha(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def capture_tools(register: Callable[[Any], None]) -> dict[str, Any]:
@@ -44,22 +56,43 @@ def capture_tools(register: Callable[[Any], None]) -> dict[str, Any]:
     return captured
 
 
+def _initial_state(kind: str, body: str) -> dict[str, Any]:
+    if kind == "page":
+        return {"body": body, "title": "Week 1", "url": "week-1", "updated_at": OLD_TS,
+                "published": True}
+    if kind == "assignment":
+        return {"description": body, "name": "Essay", "due_at": "2026-10-01T04:59:00Z",
+                "points_possible": 10.0, "published": False, "updated_at": OLD_TS}
+    # The real topic timestamp set: no updated_at.
+    return {"message": body, "title": "Week 1 prompt", "created_at": "2026-08-20T15:00:00Z",
+            "delayed_post_at": None, "last_reply_at": None, "lock_at": None,
+            "posted_at": "2026-08-20T15:00:00Z", "published": True, "pinned": False,
+            "locked": False, "require_initial_post": False}
+
+
 class FakeCanvas:
     """One Canvas object behind GET/PUT, recording every request.
 
-    ``advance`` controls whether a PUT moves updated_at forward; ``store``
-    controls whether it actually stores the body it was sent. Turning either
-    off simulates Canvas answering 200 while not doing the write.
+    ``advance`` controls whether a PUT moves updated_at forward (objects that
+    have one), ``store`` whether it stores the body it was sent, and
+    ``store_fields`` whether it stores the other fields. Turning any off
+    simulates Canvas answering 200 while not doing (all of) the write; the old
+    values stay, so a test can prove the tool notices. ``rewrite`` simulates
+    Canvas sanitizing the stored HTML.
     """
 
-    def __init__(self, body_field: str, body: str, *, advance: bool = True,
-                 store: bool = True, include_updated_at: bool = True) -> None:
-        self.body_field = body_field
-        self.state: dict[str, Any] = {body_field: body, "url": "week-1"}
-        if include_updated_at:
-            self.state["updated_at"] = OLD_TS
+    def __init__(self, kind: str, body: str, *, advance: bool = True, store: bool = True,
+                 store_fields: bool = True, include_updated_at: bool = True,
+                 rewrite: Callable[[str], str] | None = None) -> None:
+        self.kind = kind
+        self.body_field = {"page": "body", "assignment": "description", "topic": "message"}[kind]
+        self.state = _initial_state(kind, body)
+        if not include_updated_at:
+            self.state.pop("updated_at", None)
         self.advance = advance
         self.store = store
+        self.store_fields = store_fields
+        self.rewrite = rewrite
         self.calls: list[tuple[str, str, dict[str, Any]]] = []
 
     def put_bodies(self) -> list[Any]:
@@ -71,8 +104,17 @@ class FakeCanvas:
             return copy.deepcopy(self.state)
         payload = kwargs["data"]
         inner = payload.get("wiki_page") or payload.get("assignment") or payload
-        if self.store and self.body_field in inner:
-            self.state[self.body_field] = inner[self.body_field]
+        for field, value in inner.items():
+            if field == self.body_field:
+                if self.store:
+                    self.state[field] = self.rewrite(value) if self.rewrite else value
+            elif self.store_fields:
+                if field.endswith("_at") and isinstance(value, str):
+                    # Canvas echoes dates back in UTC Z form, not as sent.
+                    parsed = parse_timestamp(value)
+                    assert parsed is not None
+                    value = parsed.astimezone(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+                self.state[field] = value
         if self.advance and "updated_at" in self.state:
             self.state["updated_at"] = NEW_TS
         return copy.deepcopy(self.state)
@@ -81,9 +123,9 @@ class FakeCanvas:
 @dataclass
 class ToolSpec:
     name: str
+    kind: str
     module: str
     register: str
-    body_field: str
     body_param: str
     path: str
     args: tuple[Any, ...]
@@ -94,24 +136,28 @@ class ToolSpec:
         module = importlib.import_module(self.module)
         return capture_tools(getattr(module, self.register))[self.name]
 
+    def fake(self, body: str = ORIGINAL, **options: Any) -> FakeCanvas:
+        return FakeCanvas(self.kind, body, **options)
+
     def put_body(self, data: dict[str, Any]) -> Any:
         inner = data.get("wiki_page") or data.get("assignment") or data
-        return inner.get(self.body_field)
+        return inner.get({"page": "body", "assignment": "description", "topic": "message"}[self.kind])
 
 
-PAGE = ToolSpec("edit_page_content", "canvas_mcp.tools.pages",
-                "register_educator_page_crud_tools", "body", "new_content",
+PAGE = ToolSpec("edit_page_content", "page", "canvas_mcp.tools.pages",
+                "register_educator_page_crud_tools", "new_content",
                 f"/courses/{COURSE_ID}/pages/week-1", ("CS101", "week-1"))
-ASSIGNMENT = ToolSpec("update_assignment", "canvas_mcp.tools.assignments",
-                      "register_educator_assignment_tools", "description", "description",
+ASSIGNMENT = ToolSpec("update_assignment", "assignment", "canvas_mcp.tools.assignments",
+                      "register_educator_assignment_tools", "description",
                       f"/courses/{COURSE_ID}/assignments/77", ("CS101", 77))
-TOPIC = ToolSpec("update_discussion_topic", "canvas_mcp.tools.discussions",
-                 "register_educator_discussion_tools", "message", "message",
+TOPIC = ToolSpec("update_discussion_topic", "topic", "canvas_mcp.tools.discussions",
+                 "register_educator_discussion_tools", "message",
                  f"/courses/{COURSE_ID}/discussion_topics/42", ("CS101", 42))
 SPECS = [PAGE, ASSIGNMENT, TOPIC]
 IDS = [s.name for s in SPECS]
-
-ORIGINAL = "<p>Office hours: Monday 2pm.</p><p>Read chapter 3.</p>"
+# Objects Canvas gives an updated_at.
+TS_SPECS = [PAGE, ASSIGNMENT]
+TS_IDS = [s.name for s in TS_SPECS]
 
 
 @pytest.fixture
@@ -135,6 +181,12 @@ def canvas_for():
         p.stop()
 
 
+def assert_unconfirmed(result: str, reason_fragment: str) -> None:
+    assert "Could not confirm" in result, result
+    assert reason_fragment in result, result
+    assert "✅" not in result and "Verified" not in result, result
+
+
 # --------------------------------------------------------------------------
 # Plain calls are unchanged
 # --------------------------------------------------------------------------
@@ -142,7 +194,7 @@ def canvas_for():
 @pytest.mark.asyncio
 @pytest.mark.parametrize("spec", SPECS, ids=IDS)
 async def test_plain_call_sends_exactly_the_pre_419_request(spec, canvas_for):
-    fake = canvas_for(spec, FakeCanvas(spec.body_field, ORIGINAL))
+    fake = canvas_for(spec, spec.fake())
 
     await spec.tool()(*spec.args, **{spec.body_param: "<p>New body</p>"})
 
@@ -155,13 +207,13 @@ async def test_plain_call_sends_exactly_the_pre_419_request(spec, canvas_for):
 
 
 # --------------------------------------------------------------------------
-# expect_updated_at
+# Drift: updated_at for pages and assignments
 # --------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("spec", SPECS, ids=IDS)
+@pytest.mark.parametrize("spec", TS_SPECS, ids=TS_IDS)
 async def test_drift_refuses_and_reports_both_values(spec, canvas_for):
-    fake = canvas_for(spec, FakeCanvas(spec.body_field, ORIGINAL))
+    fake = canvas_for(spec, spec.fake())
 
     result = await spec.tool()(
         *spec.args, **{spec.body_param: "<p>Stale copy</p>"},
@@ -171,14 +223,14 @@ async def test_drift_refuses_and_reports_both_values(spec, canvas_for):
     assert result.startswith("❌"), result
     assert "2026-09-09T13:00:00Z" in result and OLD_TS in result
     assert fake.put_bodies() == []
-    assert fake.state[spec.body_field] == ORIGINAL
+    assert fake.state[fake.body_field] == ORIGINAL
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("spec", SPECS, ids=IDS)
+@pytest.mark.parametrize("spec", TS_SPECS, ids=TS_IDS)
 async def test_same_instant_in_offset_form_passes(spec, canvas_for):
     """14:00Z and 09:00-05:00 are one instant; a string compare would refuse."""
-    fake = canvas_for(spec, FakeCanvas(spec.body_field, ORIGINAL))
+    fake = canvas_for(spec, spec.fake())
 
     result = await spec.tool()(
         *spec.args, **{spec.body_param: "<p>Fresh copy</p>"},
@@ -191,9 +243,9 @@ async def test_same_instant_in_offset_form_passes(spec, canvas_for):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("spec", SPECS, ids=IDS)
+@pytest.mark.parametrize("spec", TS_SPECS, ids=TS_IDS)
 async def test_missing_updated_at_refuses_rather_than_guessing(spec, canvas_for):
-    fake = canvas_for(spec, FakeCanvas(spec.body_field, ORIGINAL, include_updated_at=False))
+    fake = canvas_for(spec, spec.fake(include_updated_at=False))
 
     result = await spec.tool()(
         *spec.args, **{spec.body_param: "<p>x</p>"}, expect_updated_at=OLD_TS,
@@ -203,6 +255,73 @@ async def test_missing_updated_at_refuses_rather_than_guessing(spec, canvas_for)
     assert fake.put_bodies() == []
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("spec", TS_SPECS, ids=TS_IDS)
+async def test_readback_where_updated_at_did_not_advance_is_unconfirmed(spec, canvas_for):
+    fake = canvas_for(spec, spec.fake(advance=False))
+
+    result = await spec.tool()(*spec.args, find="Monday 2pm", replace="Tuesday 3pm")
+
+    assert len(fake.put_bodies()) == 1
+    assert_unconfirmed(result, "did not advance")
+
+
+# --------------------------------------------------------------------------
+# Drift: body hash for discussion topics (no updated_at in Canvas)
+# --------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_topic_expect_updated_at_is_an_error_naming_the_alternative(canvas_for):
+    fake = canvas_for(TOPIC, TOPIC.fake())
+
+    result = await TOPIC.tool()("CS101", 42, message="<p>x</p>", expect_updated_at=OLD_TS)
+
+    assert result.startswith("❌"), result
+    assert "expect_body_sha256" in result
+    assert fake.calls == []
+
+
+@pytest.mark.asyncio
+async def test_topic_hash_drift_refuses_and_reports_both_hashes(canvas_for):
+    fake = canvas_for(TOPIC, TOPIC.fake())
+    stale = _sha("<p>What I read an hour ago</p>")
+
+    result = await TOPIC.tool()(
+        "CS101", 42, find="Monday 2pm", replace="Tuesday 3pm", expect_body_sha256=stale,
+    )
+
+    assert result.startswith("❌"), result
+    assert stale in result and _sha(ORIGINAL) in result
+    assert fake.put_bodies() == []
+
+
+@pytest.mark.asyncio
+async def test_topic_matching_hash_writes_and_reports_old_and_new_hash(canvas_for):
+    fake = canvas_for(TOPIC, TOPIC.fake())
+
+    result = await TOPIC.tool()(
+        "CS101", 42, find="Monday 2pm", replace="Tuesday 3pm",
+        expect_body_sha256=_sha(ORIGINAL).upper(),
+    )
+
+    expected = "<p>Office hours: Tuesday 3pm.</p><p>Read chapter 3.</p>"
+    assert fake.put_bodies() == [{"message": expected}]
+    assert result.startswith("✅"), result
+    assert f"Previous body SHA-256: {_sha(ORIGINAL)}" in result
+    assert f"New body SHA-256: {_sha(expected)}" in result
+    assert "updated_at" not in result
+
+
+@pytest.mark.asyncio
+async def test_topic_malformed_hash_is_an_error(canvas_for):
+    fake = canvas_for(TOPIC, TOPIC.fake())
+
+    result = await TOPIC.tool()("CS101", 42, message="<p>x</p>", expect_body_sha256="abc")
+
+    assert result.startswith("❌"), result
+    assert fake.calls == []
+
+
 # --------------------------------------------------------------------------
 # find / replace / require
 # --------------------------------------------------------------------------
@@ -210,11 +329,10 @@ async def test_missing_updated_at_refuses_rather_than_guessing(spec, canvas_for)
 @pytest.mark.asyncio
 @pytest.mark.parametrize("spec", SPECS, ids=IDS)
 async def test_find_replace_writes_the_substituted_body(spec, canvas_for):
-    fake = canvas_for(spec, FakeCanvas(spec.body_field, ORIGINAL))
+    fake = canvas_for(spec, spec.fake())
 
     result = await spec.tool()(
-        *spec.args, find="Monday 2pm", replace="Tuesday 3pm",
-        require=["Read chapter 3."], expect_updated_at=OLD_TS,
+        *spec.args, find="Monday 2pm", replace="Tuesday 3pm", require=["Read chapter 3."],
     )
 
     # Hand-derived expectation, not computed by the code under test.
@@ -222,6 +340,17 @@ async def test_find_replace_writes_the_substituted_body(spec, canvas_for):
     assert [spec.put_body(d) for d in fake.put_bodies()] == [expected]
     assert [m for m, _, _ in fake.calls] == ["get", "put", "get"]
     assert result.startswith("✅"), result
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("spec", TS_SPECS, ids=TS_IDS)
+async def test_find_replace_reports_old_and_new_updated_at(spec, canvas_for):
+    canvas_for(spec, spec.fake())
+
+    result = await spec.tool()(
+        *spec.args, find="Monday 2pm", replace="Tuesday 3pm", expect_updated_at=OLD_TS,
+    )
+
     assert f"Previous updated_at: {OLD_TS}" in result
     assert f"New updated_at: {NEW_TS}" in result
 
@@ -229,7 +358,7 @@ async def test_find_replace_writes_the_substituted_body(spec, canvas_for):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("spec", SPECS, ids=IDS)
 async def test_find_with_zero_matches_refuses(spec, canvas_for):
-    fake = canvas_for(spec, FakeCanvas(spec.body_field, ORIGINAL))
+    fake = canvas_for(spec, spec.fake())
 
     result = await spec.tool()(*spec.args, find="Friday", replace="Saturday")
 
@@ -241,7 +370,7 @@ async def test_find_with_zero_matches_refuses(spec, canvas_for):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("spec", SPECS, ids=IDS)
 async def test_find_with_two_matches_refuses(spec, canvas_for):
-    fake = canvas_for(spec, FakeCanvas(spec.body_field, ORIGINAL))
+    fake = canvas_for(spec, spec.fake())
 
     result = await spec.tool()(*spec.args, find="<p>", replace="<p class='x'>")
 
@@ -253,7 +382,7 @@ async def test_find_with_two_matches_refuses(spec, canvas_for):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("spec", SPECS, ids=IDS)
 async def test_missing_require_string_refuses(spec, canvas_for):
-    fake = canvas_for(spec, FakeCanvas(spec.body_field, ORIGINAL))
+    fake = canvas_for(spec, spec.fake())
 
     result = await spec.tool()(
         *spec.args, find="Monday 2pm", replace="Tuesday 3pm",
@@ -268,7 +397,7 @@ async def test_missing_require_string_refuses(spec, canvas_for):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("spec", SPECS, ids=IDS)
 async def test_full_body_and_find_together_is_an_error(spec, canvas_for):
-    fake = canvas_for(spec, FakeCanvas(spec.body_field, ORIGINAL))
+    fake = canvas_for(spec, spec.fake())
 
     result = await spec.tool()(
         *spec.args, **{spec.body_param: "<p>All</p>"}, find="Monday", replace="Tuesday",
@@ -281,7 +410,7 @@ async def test_full_body_and_find_together_is_an_error(spec, canvas_for):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("spec", SPECS, ids=IDS)
 async def test_find_without_replace_is_an_error(spec, canvas_for):
-    fake = canvas_for(spec, FakeCanvas(spec.body_field, ORIGINAL))
+    fake = canvas_for(spec, spec.fake())
 
     result = await spec.tool()(*spec.args, find="Monday")
 
@@ -290,49 +419,152 @@ async def test_find_without_replace_is_an_error(spec, canvas_for):
 
 
 # --------------------------------------------------------------------------
-# Post-write read-back
+# Post-write read-back of the body
 # --------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("spec", SPECS, ids=IDS)
-async def test_readback_where_updated_at_did_not_advance_is_unconfirmed(spec, canvas_for):
-    fake = canvas_for(spec, FakeCanvas(spec.body_field, ORIGINAL, advance=False))
+async def test_readback_missing_the_replacement_is_unconfirmed(spec, canvas_for):
+    """Canvas bumps updated_at (where it has one) but keeps the old body."""
+    fake = canvas_for(spec, spec.fake(store=False))
 
     result = await spec.tool()(*spec.args, find="Monday 2pm", replace="Tuesday 3pm")
 
     assert len(fake.put_bodies()) == 1
-    assert "Could not confirm" in result
-    assert "did not advance" in result
-    assert "✅" not in result
+    assert_unconfirmed(result, "still contains the text find matched")
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("spec", SPECS, ids=IDS)
-async def test_readback_missing_the_replacement_is_unconfirmed(spec, canvas_for):
-    """Canvas bumps updated_at but keeps the old body (e.g. a dropped field)."""
-    fake = canvas_for(spec, FakeCanvas(spec.body_field, ORIGINAL, store=False))
+async def test_failed_deletion_is_not_reported_as_verified(spec, canvas_for):
+    """The kept text is present either way; only the removed text proves it."""
+    body = "<p>Keep me</p><p>Remove me</p>"
+    fake = canvas_for(spec, spec.fake(body, store=False))
 
-    result = await spec.tool()(*spec.args, find="Monday 2pm", replace="Tuesday 3pm")
+    result = await spec.tool()(
+        *spec.args, find="<p>Keep me</p><p>Remove me</p>", replace="<p>Keep me</p>",
+    )
 
-    assert len(fake.put_bodies()) == 1
-    assert "Could not confirm" in result
-    assert "does not contain the text that was written" in result
-    assert "✅" not in result
+    assert [spec.put_body(d) for d in fake.put_bodies()] == ["<p>Keep me</p>"]
+    assert_unconfirmed(result, "still contains the text find matched")
 
 
 @pytest.mark.asyncio
-async def test_assignment_guard_without_body_change_only_checks_updated_at(canvas_for):
-    fake = canvas_for(ASSIGNMENT, FakeCanvas("description", ORIGINAL))
+@pytest.mark.parametrize("spec", SPECS, ids=IDS)
+async def test_failed_attribute_only_edit_is_not_reported_as_verified(spec, canvas_for):
+    """Visible text is identical before and after an href change."""
+    body = '<p><a href="https://old.example/syllabus">Syllabus</a></p>'
+    fake = canvas_for(spec, spec.fake(body, store=False))
 
-    result = await ASSIGNMENT.tool()("CS101", 77, name="Essay 1", expect_updated_at=OLD_TS)
+    result = await spec.tool()(
+        *spec.args, find="https://old.example/syllabus", replace="https://new.example/syllabus",
+    )
 
-    assert fake.put_bodies() == [{"assignment": {"name": "Essay 1"}}]
+    assert len(fake.put_bodies()) == 1
+    assert_unconfirmed(result, "still contains the text find matched")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("spec", SPECS, ids=IDS)
+async def test_attribute_only_edit_that_landed_is_verified(spec, canvas_for):
+    body = '<p><a href="https://old.example/syllabus">Syllabus</a></p>'
+    canvas_for(spec, spec.fake(body))
+
+    result = await spec.tool()(
+        *spec.args, find="https://old.example/syllabus", replace="https://new.example/syllabus",
+    )
+
     assert result.startswith("✅"), result
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("spec", SPECS, ids=IDS)
+async def test_find_inside_replace_needs_a_new_occurrence(spec, canvas_for):
+    """Appending after find: success means one more copy of replace."""
+    fake = canvas_for(spec, spec.fake(store=False))
+
+    result = await spec.tool()(
+        *spec.args, find="Read chapter 3.", replace="Read chapter 3. Then chapter 4.",
+    )
+
+    assert len(fake.put_bodies()) == 1
+    assert_unconfirmed(result, "does not show the replacement")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("spec", SPECS, ids=IDS)
+async def test_whitespace_only_rewrite_still_verifies(spec, canvas_for):
+    canvas_for(spec, spec.fake(rewrite=lambda html: html.replace("</p><p>", "</p>\n  <p>")))
+
+    result = await spec.tool()(*spec.args, find="Monday 2pm", replace="Tuesday 3pm")
+
+    assert result.startswith("✅"), result
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("spec", SPECS, ids=IDS)
+async def test_full_body_rewritten_by_canvas_is_unconfirmed(spec, canvas_for):
+    """When markup differs from what was sent, it cannot be called verified."""
+    canvas_for(spec, spec.fake(rewrite=lambda html: html.replace(' rel="noopener"', "")))
+    guard = ({"expect_updated_at": OLD_TS} if spec in TS_SPECS
+             else {"expect_body_sha256": _sha(ORIGINAL)})
+
+    result = await spec.tool()(
+        *spec.args, **{spec.body_param: '<p><a href="/x" rel="noopener">x</a></p>'}, **guard,
+    )
+
+    assert_unconfirmed(result, "differs from what was sent")
+
+
+# --------------------------------------------------------------------------
+# Post-write read-back of the other requested fields
+# --------------------------------------------------------------------------
+
+FIELD_CASES = [
+    (PAGE, {"title": "Week one"}, "title"),
+    (ASSIGNMENT, {"name": "Essay 1", "due_at": "2026-10-08T23:59:00-05:00",
+                  "points_possible": 20, "published": True}, "name, due_at, points_possible, published"),
+    (TOPIC, {"title": "Week 1 prompt (revised)", "pinned": True, "locked": True},
+     "title, pinned, locked"),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("spec", "fields", "names"), FIELD_CASES, ids=IDS)
+async def test_other_fields_that_did_not_save_are_unconfirmed(spec, fields, names, canvas_for):
+    """Body lands, the other requested fields keep their old values."""
+    fake = canvas_for(spec, spec.fake(store_fields=False))
+
+    result = await spec.tool()(*spec.args, find="Monday 2pm", replace="Tuesday 3pm", **fields)
+
+    assert len(fake.put_bodies()) == 1
+    assert_unconfirmed(result, f"did not read back with the value sent: {names}")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("spec", "fields", "names"), FIELD_CASES, ids=IDS)
+async def test_other_fields_that_saved_are_verified(spec, fields, names, canvas_for):
+    """Includes a due date sent as -05:00 and echoed back by Canvas as Z."""
+    canvas_for(spec, spec.fake())
+
+    result = await spec.tool()(*spec.args, find="Monday 2pm", replace="Tuesday 3pm", **fields)
+
+    assert result.startswith("✅"), result
+
+
+@pytest.mark.asyncio
+async def test_assignment_guard_without_body_change_checks_the_field(canvas_for):
+    fake = canvas_for(ASSIGNMENT, ASSIGNMENT.fake(store_fields=False))
+
+    result = await ASSIGNMENT.tool()("CS101", 77, name="Essay 1", expect_updated_at=OLD_TS)
+
+    assert fake.put_bodies() == [{"assignment": {"name": "Essay 1"}}]
+    assert_unconfirmed(result, "did not read back with the value sent: name")
+
+
+@pytest.mark.asyncio
 async def test_page_readback_follows_a_renamed_slug(canvas_for):
-    fake = FakeCanvas("body", ORIGINAL)
+    fake = PAGE.fake()
     canvas_for(PAGE, fake)
 
     async def renaming(method: str, path: str, **kwargs: Any) -> Any:
@@ -372,14 +604,12 @@ def test_parse_timestamp_rejects_garbage():
 # update_syllabus: body hash instead of updated_at; token flow intact
 # --------------------------------------------------------------------------
 
-def _sha(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-
 class FakeSyllabus:
-    def __init__(self, body: str, *, store: bool = True) -> None:
+    def __init__(self, body: str, *, store: bool = True, inject: str = "") -> None:
         self.body = body
         self.store = store
+        # Theme injection Canvas adds to the stored body on every write.
+        self.inject = inject
         self.calls: list[tuple[str, str, dict[str, Any]]] = []
 
     def puts(self) -> list[str]:
@@ -390,6 +620,7 @@ class FakeSyllabus:
         if method == "put":
             if self.store:
                 self.body = kwargs["data"]["course"]["syllabus_body"]
+            self.body += self.inject
             return {"id": COURSE_ID, "course_code": "CS101"}
         return {"course_code": "CS101", "syllabus_body": self.body}
 
@@ -535,3 +766,22 @@ async def test_get_syllabus_prints_the_hash_update_syllabus_expects(syllabus_too
     result = await syllabus_tools["get_syllabus"]("CS101")
 
     assert f"Body SHA-256 (pass as expect_body_sha256 to update_syllabus): {_sha(ORIGINAL)}" in result
+
+
+@pytest.mark.asyncio
+async def test_syllabus_failed_deletion_is_not_reported_as_verified(syllabus_tools, syllabus_canvas):
+    """Canvas keeps the old body but injects a theme tag, so the hash moves and
+    the kept text is present; only the still-present removed text shows the
+    edit did not land."""
+    body = "<p>Keep me</p><p>Remove me</p>"
+    fake = syllabus_canvas(FakeSyllabus(body, store=False, inject='<link rel="stylesheet" href="/theme.css">'))
+    update = syllabus_tools["update_syllabus"]
+    args = {"find": "<p>Keep me</p><p>Remove me</p>", "replace": "<p>Keep me</p>"}
+
+    preview = await update("CS101", **args)
+    result = await update("CS101", **args, confirmation_token=_token(preview))
+
+    assert fake.puts() == ["<p>Keep me</p>"]
+    assert "Could not confirm" in result, result
+    assert "still contains the text find matched" in result
+    assert "✅" not in result

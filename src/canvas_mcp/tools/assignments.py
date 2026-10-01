@@ -945,6 +945,7 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
                 fetch=fetch_assignment,
                 write=write_assignment,
                 refetch=refetch_assignment,
+                requested=dict(assignment_data),
                 facts={"Course": guarded_display, "Assignment ID": assignment_id},
             )
 

@@ -24,6 +24,7 @@ from ..core.guarded_edit import (
     body_sha256,
     check_body_hash,
     check_require,
+    fragment_readback_failure,
     validate_guard,
 )
 from ..core.untrusted_content import (
@@ -1117,6 +1118,24 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
                 "Canvas accepted the request but the syllabus did not change. "
                 "Check the Syllabus tab.",
             )
+
+        if guard.fragment:
+            assert find is not None and replace is not None
+            fragment_reason = fragment_readback_failure(
+                existing_body, saved_body, find, replace
+            )
+            if fragment_reason:
+                return unconfirmed_write_warning(
+                    "the syllabus update",
+                    {
+                        "Course": course_display,
+                        "Reason": fragment_reason,
+                        "Previous body SHA-256": body_sha256(existing_body),
+                        "New body SHA-256": body_sha256(saved_body),
+                    },
+                    "Canvas accepted the request but the edit could not be "
+                    "confirmed. Check the Syllabus tab.",
+                )
 
         verb = {
             "replace": "Replaced",

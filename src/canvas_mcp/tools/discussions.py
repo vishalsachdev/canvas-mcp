@@ -1252,14 +1252,16 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
         find: str | None = None,
         replace: str | None = None,
         require: list[str] | None = None,
+        expect_body_sha256: str | None = None,
     ) -> str:
         """Update an existing discussion topic or announcement.
 
         message replaces the whole body. To change one fragment, pass find and
         replace instead. Optional guards (any of them makes the tool fetch the
         topic first, refuse rather than write on a failed check, and read it
-        back after): expect_updated_at refuses if the topic changed since you
-        read it; find/replace edits one fragment of the current message;
+        back after): expect_body_sha256 refuses if the message changed since
+        you read it (Canvas gives topics no updated_at, so expect_updated_at is
+        rejected); find/replace edits one fragment of the current message;
         require lists strings that must already be present in it.
 
         Args:
@@ -1273,12 +1275,26 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
             delayed_post_at: ISO 8601 datetime to schedule posting
             lock_at: ISO 8601 datetime to auto-lock the discussion
             require_initial_post: Students must post before seeing others
-            expect_updated_at: The topic's updated_at when you read it; refuse if it has changed
+            expect_updated_at: Not supported: Canvas returns no updated_at for
+                discussion topics. Use expect_body_sha256 instead.
             find: Exact HTML fragment that must occur exactly once in the current message
             replace: Text that replaces find (may be empty to delete it)
             require: Strings that must already be present in the current message
+            expect_body_sha256: SHA-256 (hex) of the message as Canvas returned
+                it when you read it; refuse if the message has changed. Each
+                guarded edit reports the new hash for the next edit.
         """
-        guard = BodyGuard(expect_updated_at, find, replace, require)
+        if expect_updated_at is not None:
+            return (
+                "❌ Discussion topics have no updated_at in Canvas, so "
+                "expect_updated_at cannot be checked. Pass expect_body_sha256 "
+                "(SHA-256 of the message as Canvas returned it) instead. "
+                "Nothing was written."
+            )
+        guard = BodyGuard(
+            find=find, replace=replace, require=require,
+            expect_body_sha256=expect_body_sha256,
+        )
         if guard.active:
             guard_error = validate_guard(guard, "message", message)
             if guard_error:
@@ -1359,7 +1375,9 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                 fetch=fetch_topic,
                 write=write_topic,
                 refetch=refetch_topic,
+                requested=dict(data),
                 facts={"Course": guarded_display, "Topic ID": topic_id},
+                has_updated_at=False,
             )
 
         response = await make_canvas_request(

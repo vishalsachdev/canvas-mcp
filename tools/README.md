@@ -426,7 +426,7 @@ Update an existing assignment in a course.
 - `find` / `replace` (optional): Edit one fragment of the current description instead of sending `description`. `find` must occur exactly once in the freshly fetched description; on zero or several matches the tool refuses and reports the count. `replace` may be empty to delete the fragment. Supplying `description` as well is an error.
 - `require` (optional): List of strings that must already be present in the current description (for example, to confirm an earlier edit is still in place), else the tool refuses.
 
-**Guarded edits (issue 419):** with any of the three guards the tool fetches the assignment, runs the checks, writes once, then reads it back. It reports success only if `updated_at` advanced and the written text is present, and prints the old and new `updated_at`; otherwise it reports the write as unconfirmed. With none of them the call behaves exactly as before.
+**Guarded edits (issue 419):** with any of the three guards the tool fetches the assignment, runs the checks, writes once, then reads it back. It reports success only if the read-back proves the write: `updated_at` advanced, the body shows the edit (HTML compared with whitespace normalization only, so attribute changes count; for find/replace, `find` is gone and `replace` is present), and every other field you asked to change reads back with the value sent. It prints the old and new `updated_at`. Anything it cannot establish, including HTML that Canvas rewrote, is reported as unconfirmed, never as success. With none of them the call behaves exactly as before.
 
 **Example:**
 ```
@@ -1191,13 +1191,12 @@ Edit an existing discussion topic or announcement (title, body, publish state, e
 - `delayed_post_at`: Schedule posting, ISO 8601 (optional)
 - `lock_at`: Auto-lock datetime, ISO 8601 (optional)
 - `require_initial_post`: Require initial post before viewing replies (optional)
-- `expect_updated_at` (optional): The topic's `updated_at` when you read it. The tool fetches the topic first and refuses, writing nothing, unless it is the same instant. Compared as timestamps, so `...Z` and `...-05:00` forms of one instant match.
+- `expect_body_sha256` (optional): SHA-256 (hex) of the message exactly as Canvas returned it when you read it. Canvas gives discussion topics **no `updated_at`** (a topic GET's only timestamps are `created_at`, `delayed_post_at`, `last_reply_at`, `lock_at` and `posted_at`), so the body hash is the drift check: the tool refuses, writing nothing, if the current message hashes differently. Every guarded edit prints the new hash for the next edit.
+- `expect_updated_at`: not supported on topics; passing it is an error that points to `expect_body_sha256`.
 - `find` / `replace` (optional): Edit one fragment of the current message instead of sending `message`. `find` must occur exactly once in the freshly fetched message; on zero or several matches the tool refuses and reports the count. `replace` may be empty to delete the fragment. Supplying `message` as well is an error.
 - `require` (optional): List of strings that must already be present in the current message (for example, to confirm an earlier edit is still in place), else the tool refuses.
 
-**Guarded edits (issue 419):** with any of the three guards the tool fetches the topic, runs the checks, writes once, then reads it back. It reports success only if `updated_at` advanced and the written text is present, and prints the old and new `updated_at`; otherwise it reports the write as unconfirmed. With none of them the call behaves exactly as before.
-
-If Canvas returns no `updated_at` for a topic, a guarded call refuses (with `expect_updated_at`) or reports the write unconfirmed rather than guessing.
+**Guarded edits (issue 419):** with any of the guards the tool fetches the topic, runs the checks, writes once, then reads it back. It reports success only if the read-back proves the write: the message shows the edit (HTML compared with whitespace normalization only, so attribute changes count; for find/replace, `find` is gone and `replace` is present), and every other field you asked to change reads back with the value sent. It prints the old and new body SHA-256. Anything it cannot establish, including HTML that Canvas rewrote, is reported as unconfirmed, never as success. With none of the guards the call behaves exactly as before.
 
 **Example:**
 ```
@@ -1317,7 +1316,7 @@ Replace the content of an existing page.
 - `find` / `replace` (optional): Edit one fragment of the current body instead of sending `new_content`. `find` must occur exactly once in the freshly fetched body; on zero or several matches the tool refuses and reports the count. `replace` may be empty to delete the fragment. Supplying `new_content` as well is an error.
 - `require` (optional): List of strings that must already be present in the current body (for example, to confirm an earlier edit is still in place), else the tool refuses.
 
-**Guarded edits (issue 419):** with any of the three guards the tool fetches the page, runs the checks, writes once, then reads it back. It reports success only if `updated_at` advanced and the written text is present, and prints the old and new `updated_at`; otherwise it reports the write as unconfirmed. With none of them the call behaves exactly as before.
+**Guarded edits (issue 419):** with any of the three guards the tool fetches the page, runs the checks, writes once, then reads it back. It reports success only if the read-back proves the write: `updated_at` advanced, the body shows the edit (HTML compared with whitespace normalization only, so attribute changes count; for find/replace, `find` is gone and `replace` is present), and every other field you asked to change reads back with the value sent. It prints the old and new `updated_at`. Anything it cannot establish, including HTML that Canvas rewrote, is reported as unconfirmed, never as success. With none of them the call behaves exactly as before.
 
 **Example:**
 ```
