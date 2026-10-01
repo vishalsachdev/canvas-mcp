@@ -15,6 +15,9 @@ def mock_canvas_api():
          patch('canvas_mcp.tools.discussions.fetch_all_paginated_results') as mock_fetch, \
          patch('canvas_mcp.tools.discussions.make_canvas_request') as mock_request:
 
+        from canvas_mcp.tools import discussions as discussions_module
+        discussions_module._unservable_topics.clear()
+
         mock_get_id.return_value = "60366"
         mock_get_code.return_value = "badm_350_120251"
 
@@ -1285,6 +1288,73 @@ class TestAnonymousDiscussionFallback:
         assert "deadline" not in result
 
 
+    @pytest.mark.asyncio
+    async def test_second_read_goes_straight_to_graphql(self, mock_canvas_api):
+        self._wire(mock_canvas_api, graphql_responses=[self._graphql(), self._graphql()])
+        tool = get_tool_function('get_discussion_with_replies')
+
+        await tool("badm_350_120251", 805022, include_replies=True)
+        mock_canvas_api['make_canvas_request'].reset_mock()
+        mock_canvas_api['fetch_all_paginated_results'].reset_mock()
+        result = await tool("badm_350_120251", 805022, include_replies=True)
+
+        assert "📝 Entry 1 by" in result
+        mock_canvas_api['fetch_all_paginated_results'].assert_not_called()
+        paths = [c.args[1] for c in mock_canvas_api['make_canvas_request'].call_args_list]
+        assert paths == ["/graphql"]
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_serves_every_read_tool(self, mock_canvas_api):
+        self._wire(mock_canvas_api, graphql_responses=[self._graphql() for _ in range(5)])
+        await get_tool_function('get_discussion_topic_details')("badm_350_120251", 805022)
+
+        for name, args in (
+            ('get_discussion_topic_details', (805022,)),
+            ('list_discussion_entries', (805022,)),
+            ('get_discussion_entry_details', (805022, 2)),
+            ('get_discussion_with_replies', (805022,)),
+        ):
+            mock_canvas_api['make_canvas_request'].reset_mock()
+            mock_canvas_api['fetch_all_paginated_results'].reset_mock()
+            result = await get_tool_function(name)("badm_350_120251", *args)
+            assert "404" not in result, name
+            mock_canvas_api['fetch_all_paginated_results'].assert_not_called()
+            paths = [c.args[1] for c in mock_canvas_api['make_canvas_request'].call_args_list]
+            assert paths == ["/graphql"], (name, paths)
+
+    @pytest.mark.asyncio
+    async def test_cache_entry_expires(self, mock_canvas_api, monkeypatch):
+        from canvas_mcp.tools import discussions as discussions_module
+
+        self._wire(mock_canvas_api, graphql_responses=[self._graphql(), self._graphql()])
+        tool = get_tool_function('get_discussion_topic_details')
+        await tool("badm_350_120251", 805022)
+
+        later = discussions_module.time.monotonic() + discussions_module._UNSERVABLE_TOPIC_TTL_SECONDS + 1
+        monkeypatch.setattr(discussions_module.time, "monotonic", lambda: later)
+        mock_canvas_api['make_canvas_request'].reset_mock()
+        await tool("badm_350_120251", 805022)
+
+        paths = [c.args[1] for c in mock_canvas_api['make_canvas_request'].call_args_list]
+        assert paths[0] != "/graphql"  # REST is tried again first
+        assert paths[-1] == "/graphql"
+
+    @pytest.mark.asyncio
+    async def test_graphql_failure_on_a_cache_hit_falls_back_to_rest(self, mock_canvas_api):
+        self._wire(mock_canvas_api, graphql_responses=[
+            self._graphql(),
+            {"errors": [{"message": "temporarily unavailable"}]},
+            {"errors": [{"message": "temporarily unavailable"}]},
+        ])
+        tool = get_tool_function('get_discussion_topic_details')
+        await tool("badm_350_120251", 805022)
+
+        result = await tool("badm_350_120251", 805022)
+
+        # The cached GraphQL read failed, so REST and the explanation ran again.
+        assert "topic 805022 exists" in result
+        assert "temporarily unavailable" in result
+
 @pytest.mark.asyncio
 async def test_anonymous_topic_graphql_fallback_through_real_client(monkeypatch):
     """The fallback's GraphQL answer goes through the real client and its anonymization."""
@@ -1297,6 +1367,8 @@ async def test_anonymous_topic_graphql_fallback_through_real_client(monkeypatch)
     monkeypatch.setenv("CANVAS_API_TOKEN", "test-token")
     monkeypatch.setenv("ENABLE_DATA_ANONYMIZATION", "true")
     reset_config()
+    from canvas_mcp.tools import discussions as discussions_module
+    discussions_module._unservable_topics.clear()
 
     graphql = TestAnonymousDiscussionFallback._graphql()
     requested = []

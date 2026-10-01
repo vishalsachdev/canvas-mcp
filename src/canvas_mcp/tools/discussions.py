@@ -3,6 +3,7 @@
 import asyncio
 import json
 import re
+import time
 from typing import Any
 
 from fastmcp import FastMCP
@@ -357,6 +358,38 @@ async def _read_discussion_via_graphql(
     return _GraphqlDiscussion(_rest_topic(node, len(by_id)), top_level, by_id), None
 
 
+# Topics that REST refused and GraphQL served recently. A repeat read goes
+# straight to GraphQL instead of paying for the REST 404 and the topic list
+# again. Canvas does not let a discussion's anonymity change once it has
+# replies; the TTL bounds staleness otherwise. If GraphQL fails on a cache hit,
+# the entry is dropped and the normal REST path runs.
+_UNSERVABLE_TOPIC_TTL_SECONDS = 600
+_unservable_topics: dict[tuple[str, str], float] = {}
+
+
+def _is_known_unservable(prefix: str, topic_id: str | int) -> bool:
+    key = (prefix, str(topic_id))
+    expires = _unservable_topics.get(key)
+    if expires is None:
+        return False
+    if time.monotonic() >= expires:
+        del _unservable_topics[key]
+        return False
+    return True
+
+
+async def _known_unservable_discussion(
+    course_id: str, prefix: str, topic_id: str | int, group_id: str | int | None
+) -> _GraphqlDiscussion | None:
+    """GraphQL read for a topic recently found unservable by REST, else None."""
+    if not _is_known_unservable(prefix, topic_id):
+        return None
+    discussion, _reason = await _read_discussion_via_graphql(course_id, topic_id, group_id)
+    if discussion is None:
+        _unservable_topics.pop((prefix, str(topic_id)), None)
+    return discussion
+
+
 async def _read_unservable_topic(
     course_id: str, prefix: str, topic_id: str | int,
     group_id: str | int | None, error: Any,
@@ -376,6 +409,9 @@ async def _read_unservable_topic(
         return None, None
     discussion, reason = await _read_discussion_via_graphql(course_id, topic_id, group_id)
     if discussion is not None:
+        _unservable_topics[(prefix, str(topic_id))] = (
+            time.monotonic() + _UNSERVABLE_TOPIC_TTL_SECONDS
+        )
         return discussion, None
     return None, f"{_unservable_topic_message(prefix, topic_id, match)}\nAlso, {reason}"
 
@@ -629,7 +665,8 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         if prefix_error:
             return prefix_error
 
-        response = await make_canvas_request(
+        known = await _known_unservable_discussion(course_id, prefix, topic_id, group_id)
+        response = known.topic if known is not None else await make_canvas_request(
             "get", f"{prefix}/discussion_topics/{topic_id}"
         )
 
@@ -736,12 +773,13 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             return prefix_error
 
         # Get basic entries first
-        entries = await fetch_all_paginated_results(
+        known = await _known_unservable_discussion(course_id, prefix, topic_id, group_id)
+        entries = known.entries if known is not None else await fetch_all_paginated_results(
             f"{prefix}/discussion_topics/{topic_id}/entries",
             {"per_page": 100}
         )
 
-        fallback = None
+        fallback = known
         if isinstance(entries, dict) and "error" in entries:
             fallback, explained = await _read_unservable_topic(
                 course_id, prefix, topic_id, group_id, entries["error"]
@@ -981,33 +1019,39 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         # Method 1: Try to get entry details from the discussion view endpoint
         entry_response = None
         entries_error: Any = None
+        known = await _known_unservable_discussion(course_id, prefix, topic_id, group_id)
+        if known is not None:
+            entry_response = known.find(entry_id)
+            if entry_response and include_replies:
+                replies = entry_response.get("replies", [])
         replies: list[Any] | Any = []
 
-        try:
-            # First try the discussion view endpoint which includes all entries
-            view_response = await make_canvas_request(
-                "get", f"{prefix}/discussion_topics/{topic_id}/view"
-            )
+        if known is None:
+            try:
+                # First try the discussion view endpoint which includes all entries
+                view_response = await make_canvas_request(
+                    "get", f"{prefix}/discussion_topics/{topic_id}/view"
+                )
 
-            if "error" not in view_response and "view" in view_response:
-                # Find our specific entry in the view
-                for entry in view_response.get("view", []):
-                    if str(entry.get("id")) == str(entry_id):
-                        entry_response = entry
-                        if include_replies:
-                            replies = entry.get("replies", [])
-                        break
-        except Exception as e:
-            log_warning(
-                "Failed to fetch discussion view for entry details",
-                exc=e,
-                course_id=course_id,
-                topic_id=topic_id,
-                entry_id=entry_id
-            )
+                if "error" not in view_response and "view" in view_response:
+                    # Find our specific entry in the view
+                    for entry in view_response.get("view", []):
+                        if str(entry.get("id")) == str(entry_id):
+                            entry_response = entry
+                            if include_replies:
+                                replies = entry.get("replies", [])
+                            break
+            except Exception as e:
+                log_warning(
+                    "Failed to fetch discussion view for entry details",
+                    exc=e,
+                    course_id=course_id,
+                    topic_id=topic_id,
+                    entry_id=entry_id
+                )
 
         # Method 2: If view method failed, try the entry_list endpoint
-        if not entry_response:
+        if not entry_response and known is None:
             try:
                 entry_list_response = await make_canvas_request(
                     "get", f"{prefix}/discussion_topics/{topic_id}/entry_list",
@@ -1027,7 +1071,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                 )
 
         # Method 3: Fallback to getting all entries and finding our target
-        if not entry_response:
+        if not entry_response and known is None:
             try:
                 all_entries = await fetch_all_paginated_results(
                     f"{prefix}/discussion_topics/{topic_id}/entries",
@@ -1054,7 +1098,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                 )
 
         # Anonymous topics: REST answers 404 for every method above (issue 421).
-        fallback = None
+        fallback = known
         if not entry_response and entries_error is not None:
             fallback, explained = await _read_unservable_topic(
                 course_id, prefix, topic_id, group_id, entries_error
@@ -1186,12 +1230,13 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             return prefix_error
 
         # Get basic entries first
-        entries = await fetch_all_paginated_results(
+        known = await _known_unservable_discussion(course_id, prefix, topic_id, group_id)
+        entries = known.entries if known is not None else await fetch_all_paginated_results(
             f"{prefix}/discussion_topics/{topic_id}/entries",
             {"per_page": 100}
         )
 
-        fallback = None
+        fallback = known
         if isinstance(entries, dict) and "error" in entries:
             fallback, explained = await _read_unservable_topic(
                 course_id, prefix, topic_id, group_id, entries["error"]
