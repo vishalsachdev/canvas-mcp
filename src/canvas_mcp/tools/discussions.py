@@ -1,5 +1,6 @@
 """Discussion and announcement MCP tools for Canvas API."""
 
+import asyncio
 import json
 import re
 from typing import Any
@@ -175,6 +176,90 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
         course_display = await get_course_code(course_id) or course_identifier
         return f"Discussion Topics for Course {course_display}:\n\n" + "\n".join(topics_info)
+
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
+    @validate_params
+    async def list_group_discussion_topics(
+        course_identifier: str | int,
+        group_category_id: str | int | None = None,
+    ) -> str:
+        """List the discussion topics inside every group space of a course.
+
+        list_discussion_topics only sees course-level topics. Topics that
+        students start inside a group space exist only in that group, so use
+        this tool to find them. Each topic is marked either as a group copy of
+        a course topic or as started in the group itself. Read a topic's posts
+        with list_discussion_entries or get_discussion_with_replies, passing
+        the topic's group_id.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            group_category_id: Only include groups in this group set
+                (default: None, all groups in the course)
+        """
+        course_id = await get_course_id(course_identifier)
+
+        groups = await fetch_all_paginated_results(
+            f"/courses/{course_id}/groups", {"per_page": 100}
+        )
+        if isinstance(groups, dict) and "error" in groups:
+            return f"Error fetching groups: {groups['error']}"
+        if group_category_id is not None:
+            groups = [
+                g for g in groups
+                if str(g.get("group_category_id")) == str(group_category_id)
+            ]
+        if not groups:
+            return f"No groups found for course {course_identifier}."
+
+        # The client's request semaphore bounds concurrency across the fan-out.
+        topic_lists = await asyncio.gather(*(
+            fetch_all_paginated_results(
+                f"/groups/{g.get('id')}/discussion_topics", {"per_page": 100}
+            )
+            for g in groups
+        ))
+
+        sections = []
+        for group, topics in zip(groups, topic_lists, strict=True):
+            header = (
+                f"Group: {fence_untrusted_inline(group.get('name', 'Unnamed group'), 'group name')} "
+                f"(ID: {group.get('id')}, Category ID: {group.get('group_category_id')})"
+            )
+            if isinstance(topics, dict) and "error" in topics:
+                sections.append(f"{header}\n  Error fetching topics: {topics['error']}\n")
+                continue
+            if not topics:
+                sections.append(f"{header}\n  No discussion topics.\n")
+                continue
+
+            lines = [header]
+            for topic in topics:
+                root_id = topic.get("root_topic_id")
+                if root_id:
+                    origin = f"Group copy of course topic {root_id}"
+                else:
+                    author = (topic.get("author") or {}).get("display_name") or topic.get(
+                        "user_name", "Unknown author"
+                    )
+                    origin = (
+                        "Started in this group by "
+                        f"{fence_untrusted_inline(author, 'author name')}"
+                    )
+                lines.append(
+                    f"  ID: {topic.get('id')}\n"
+                    f"  Title:\n{fence_untrusted(topic.get('title', 'Untitled topic'), 'discussion topic title')}\n"
+                    f"  Entries: {topic.get('discussion_subentry_count', 0)}\n"
+                    f"  Origin: {origin}\n"
+                    f"  Posted: {format_date(topic.get('posted_at'))}"
+                )
+            sections.append("\n".join(lines) + "\n")
+
+        course_display = await get_course_code(course_id) or course_identifier
+        return (
+            f"Group Discussion Topics for Course {course_display} "
+            f"({len(groups)} groups):\n\n" + "\n".join(sections)
+        )
 
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params

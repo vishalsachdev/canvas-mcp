@@ -714,6 +714,29 @@
       ]
     },
     {
+      "name": "list_group_discussion_topics",
+      "category": "shared",
+      "description": "List the discussion topics inside every group space of a course, marking each as a group copy of a course topic or as started in the group itself. Topics that students start in a group exist only there, so list_discussion_topics never returns them.",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "group_category_id",
+          "type": "string | integer",
+          "required": false,
+          "description": "Only include groups in this group set (default: all groups in the course)"
+        }
+      ],
+      "returns": "Per group: topic IDs, titles, entry counts, origin, and post dates",
+      "examples": [
+        "Which reference groups started their own discussions in PV1425?"
+      ]
+    },
+    {
       "name": "list_discussion_entries",
       "category": "shared",
       "description": "View posts in a discussion",
