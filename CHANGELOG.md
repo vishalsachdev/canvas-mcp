@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `assign_peer_review` no longer creates a placeholder submission. It scanned
+  one page (100) of submissions for the reviewee and, on a miss, POSTed a
+  placeholder on the student's behalf, so in a large assignment a truncated read
+  became a write. It now reads the reviewee's submission directly and refuses
+  when there is none. `reviewee_id` must be a numeric Canvas user ID (#420).
+- `list_conversations` reports `returned` and `more_available` instead of
+  presenting Canvas's first inbox page as the whole inbox (#420).
+- `list_peer_reviews` reads every page of each submission's reviews, reports
+  submissions whose reviews could not be read instead of skipping them, and
+  names the reviewer from `assessor_id` (it printed the reviewee as their own
+  reviewer) (#420).
+- `get_course_content_overview` states how many modules its item counts cover
+  (`Modules Analyzed for Items: 10 of N`) and any module it could not read (#420).
+- New guard test fails CI when a tool adds a single-request GET on a Canvas
+  collection endpoint (#420).
+
 ## [1.13.0] — 2026-09-27
 
 ### Security

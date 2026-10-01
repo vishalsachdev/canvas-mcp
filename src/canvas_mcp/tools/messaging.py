@@ -314,6 +314,10 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
         """
         List conversations for the current user.
 
+        Returns one page of the inbox (Canvas's default page size). `returned`
+        is how many conversations are in this response; `more_available` is
+        true when Canvas reported further pages that were not fetched.
+
         Args:
             scope: "unread", "starred", "sent", "archived", or "all"
             filter_ids: Conversation IDs to filter by
@@ -337,7 +341,15 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
                 params["filter[]"] = filter_ids
                 params["filter_mode"] = filter_mode
 
-            response = await make_canvas_request("get", "/conversations", params=params)
+            # One page on purpose: the inbox can be large, so the data read per
+            # call stays bounded. The next-link flag is reported instead of
+            # followed, so a partial page is never presented as the whole
+            # inbox (issue 420).
+            pagination: dict[str, str | None] = {}
+            response = await make_canvas_request(
+                "get", "/conversations", params=params, _pagination=pagination
+            )
+            more_available = bool(pagination.get("next"))
 
             if "error" in response:
                 error_response: dict[str, Any] = response
@@ -349,12 +361,21 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
                 for conversation in response:
                     _fence_conversation_fields(conversation)
 
-            return {
+            returned = len(response) if isinstance(response, list) else 0
+            result: dict[str, Any] = {
                 "success": True,
                 "untrusted_content_notice": UNTRUSTED_NOTICE,
                 "conversations": response,
-                "count": len(response) if isinstance(response, list) else 0
+                "count": returned,
+                "returned": returned,
+                "more_available": more_available,
             }
+            if more_available:
+                result["note"] = (
+                    f"Showing the first {returned} conversations; Canvas has more. "
+                    "Narrow with scope or filter_ids to see others."
+                )
+            return result
 
         except Exception as e:
             print(f"Error listing conversations: {str(e)}", file=sys.stderr)

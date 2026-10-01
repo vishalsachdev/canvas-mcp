@@ -32,6 +32,10 @@ from ..core.write_confirmation import (
 )
 from .self_identity import _own_roles
 
+# get_course_content_overview counts module items for this many modules only,
+# to bound API calls; the output states the cap whenever it applies.
+MODULE_ITEM_ANALYSIS_LIMIT = 10
+
 # Replacing a syllabus that already has content destroys the only copy Canvas
 # keeps -- syllabus_body carries no revision history, unlike a wiki page. So
 # that one case takes the same preview->token->confirm path as the delete
@@ -430,8 +434,14 @@ def register_course_tools(mcp: FastMCP) -> None:
                 # Count module items by type across all modules
                 item_type_counts: dict[str, int] = {}
                 total_items = 0
+                modules_analyzed = 0
+                modules_failed = 0
 
-                for module in modules[:10]:  # Limit to first 10 modules to avoid too many API calls
+                # Item counts cover the first few modules only, to bound API
+                # calls. The cap is disclosed below so the totals are not read
+                # as course-wide (issue 420).
+                analyzed = modules[:MODULE_ITEM_ANALYSIS_LIMIT]
+                for module in analyzed:
                     module_id = module.get("id")
                     if module_id:
                         items = await fetch_all_paginated_results(
@@ -439,11 +449,28 @@ def register_course_tools(mcp: FastMCP) -> None:
                             {"per_page": 100}
                         )
                         if isinstance(items, list):
+                            modules_analyzed += 1
                             total_items += len(items)
                             for item in items:
                                 item_type = item.get("type", "Unknown")
                                 item_type_counts[item_type] = item_type_counts.get(item_type, 0) + 1
+                        else:
+                            modules_failed += 1
 
+                modules_summary.append(
+                    f"  Modules Analyzed for Items: {modules_analyzed} of {len(modules)}"
+                )
+                if len(modules) > len(analyzed):
+                    modules_summary.append(
+                        f"  Note: item counts cover the first {len(analyzed)} modules only; "
+                        f"{len(modules) - len(analyzed)} more modules were not analyzed. "
+                        "Use list_module_items for the rest."
+                    )
+                if modules_failed:
+                    modules_summary.append(
+                        f"  Warning: items could not be read for {modules_failed} module(s); "
+                        "they are not counted."
+                    )
                 modules_summary.append(f"  Total Items Analyzed: {total_items}")
                 if item_type_counts:
                     modules_summary.append("  Item Types:")

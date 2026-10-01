@@ -854,6 +854,8 @@ List all peer review assignments.
 - `course_identifier`: Course code or ID
 - `assignment_id`: Assignment ID
 
+**Returns:** Reviews grouped by reviewee, each naming its reviewer (`assessor_id`) and status. Every page of each submission's reviews is read. If any submission's reviews cannot be read, a warning listing those students appears before the list, so a partial list is never presented as complete.
+
 **Example:**
 ```
 "Show me peer review assignments for Assignment 2"
@@ -929,7 +931,12 @@ Manually assign a peer review.
 - `course_identifier`: Course code or ID
 - `assignment_id`: Assignment ID
 - `reviewer_id`: Student who will review
-- `reviewee_id`: Student being reviewed
+- `reviewee_id`: Numeric Canvas user ID of the student being reviewed
+
+Looks up the reviewee's submission directly. If Canvas has no submission record
+for that student on the assignment (for example, they are not assigned to it),
+the tool returns an error and assigns nothing. It never creates a submission on
+the student's behalf.
 
 ---
 
@@ -1587,7 +1594,7 @@ Get a comprehensive overview of course content including pages, modules, and syl
 "Give me an overview of everything in BADM 350"
 ```
 
-**Returns:** Structured overview of the course's pages, modules, and syllabus. The syllabus portion is a ~1000-character preview — use `get_syllabus` for the full body.
+**Returns:** Structured overview of the course's pages, modules, and syllabus. The syllabus portion is a ~1000-character preview — use `get_syllabus` for the full body. Module item counts cover the first 10 modules only; the output states how many modules were analyzed out of the total (`Modules Analyzed for Items: 10 of 25`) and notes any module whose items could not be read. Use `list_module_items` for the rest.
 
 ---
 
@@ -1953,7 +1960,7 @@ List Canvas inbox conversations for the current user.
 "Show my Canvas inbox"
 ```
 
-**Returns:** Conversations with participants, subjects, and read state.
+**Returns:** One page of conversations (Canvas's default page size) with participants, subjects, and read state. `returned` is the number of conversations in this response (`count` is kept as an alias); `more_available` is `true` when Canvas has further pages that were not fetched, with a `note` saying so. Narrow with `scope` or `filter_ids` to reach older conversations.
 
 ---
 
