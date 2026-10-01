@@ -315,6 +315,13 @@ List all assignments for a course.
 
 **Parameters:**
 - `course_identifier`: Course code (e.g., "badm_350_120251_246794") or ID
+- `raw_dates` (optional, default `false`): append a JSON block with each
+  assignment's `due_at`, `unlock_at`, `lock_at`, `updated_at`, `all_dates` and,
+  for checkpointed discussions, `has_sub_assignments` and each checkpoint's
+  dates, exactly as Canvas returns them (ISO 8601, `null` stays `null`). A
+  checkpointed discussion has a null parent `due_at` by design; its dates are on
+  the checkpoints. Metadata only: no submission, grade or user fields. Section
+  and group titles and checkpoint names are left out.
 
 **Example:**
 ```
@@ -330,6 +337,9 @@ Get detailed information about a specific assignment.
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `assignment_id`: Assignment ID
+- `raw_dates` (optional, default `false`): append the same JSON dates block as
+  `list_assignments` for this assignment (requests `all_dates=true` and
+  `include[]=checkpoints` on the same endpoint).
 
 **Example:**
 ```
@@ -859,6 +869,8 @@ List all peer review assignments.
 - `course_identifier`: Course code or ID
 - `assignment_id`: Assignment ID
 
+**Returns:** Reviews grouped by reviewee, each naming its reviewer (`assessor_id`) and status. Every page of each submission's reviews is read. If any submission's reviews cannot be read, a warning listing those students appears before the list, so a partial list is never presented as complete.
+
 **Example:**
 ```
 "Show me peer review assignments for Assignment 2"
@@ -934,7 +946,12 @@ Manually assign a peer review.
 - `course_identifier`: Course code or ID
 - `assignment_id`: Assignment ID
 - `reviewer_id`: Student who will review
-- `reviewee_id`: Student being reviewed
+- `reviewee_id`: Numeric Canvas user ID of the student being reviewed
+
+Looks up the reviewee's submission directly. If Canvas has no submission record
+for that student on the assignment (for example, they are not assigned to it),
+the tool returns an error and assigns nothing. It never creates a submission on
+the student's behalf.
 
 ---
 
@@ -1610,7 +1627,7 @@ Get a comprehensive overview of course content including pages, modules, and syl
 "Give me an overview of everything in BADM 350"
 ```
 
-**Returns:** Structured overview of the course's pages, modules, and syllabus. The syllabus portion is a ~1000-character preview — use `get_syllabus` for the full body.
+**Returns:** Structured overview of the course's pages, modules, and syllabus. The syllabus portion is a ~1000-character preview — use `get_syllabus` for the full body. Module item counts cover the first 10 modules only; the output states how many modules were analyzed out of the total (`Modules Analyzed for Items: 10 of 25`) and notes any module whose items could not be read. Use `list_module_items` for the rest.
 
 ---
 
@@ -1976,7 +1993,7 @@ List Canvas inbox conversations for the current user.
 "Show my Canvas inbox"
 ```
 
-**Returns:** Conversations with participants, subjects, and read state.
+**Returns:** One page of conversations (Canvas's default page size) with participants, subjects, and read state. `returned` is the number of conversations in this response (`count` is kept as an alias); `more_available` is `true` when Canvas has further pages that were not fetched, with a `note` saying so. Narrow with `scope` or `filter_ids` to reach older conversations. With `include_all_ids=true`, the result also carries `conversation_ids` (every matching ID, per Canvas) and `total`.
 
 ---
 
@@ -2105,6 +2122,15 @@ Get details about a specific discussion.
 - `group_id` (optional): Canvas group ID, to read a discussion inside a group
   space instead of the course. Discussions that students start in a group exist
   only there. The group must belong to the course.
+- `raw_dates` (optional, default `false`): append a JSON block with the topic's
+  `delayed_post_at`, `lock_at`, `todo_date`, `is_checkpointed` and, for a graded
+  discussion, its assignment's dates and checkpoint dates as Canvas returns them.
+  No extra request. The topic endpoint does not return `all_dates`; use
+  `get_assignment_details` with `raw_dates` for section and override dates.
+
+For a course topic (no `group_id`) the output includes the message's SHA-256,
+which `update_discussion_topic` accepts as `expect_body_sha256` (topics have no
+`updated_at`).
 
 ---
 

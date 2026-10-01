@@ -155,9 +155,16 @@
           "type": "string | integer",
           "required": true,
           "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "raw_dates",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Append a JSON block with each assignment's due_at, unlock_at, lock_at, updated_at, all_dates and checkpoint dates exactly as Canvas returns them (null stays null). Adds include[]=checkpoints. Metadata only: no submission, grade or user fields."
         }
       ],
-      "returns": "List of assignments with IDs, names, due dates, points",
+      "returns": "List of assignments with IDs, names, due dates, points; with raw_dates, also a JSON dates block",
       "examples": [
         "Show me all assignments in BADM 350",
         "List assignments for course 12345"
@@ -179,9 +186,16 @@
           "type": "string | integer",
           "required": true,
           "description": "Assignment ID"
+        },
+        {
+          "name": "raw_dates",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Append a JSON block with due_at, unlock_at, lock_at, updated_at, all_dates and checkpoint dates exactly as Canvas returns them (null stays null). Adds all_dates=true and include[]=checkpoints."
         }
       ],
-      "returns": "Full assignment details including description, due date, submission types",
+      "returns": "Full assignment details including description, due date, submission types; with raw_dates, also a JSON dates block",
       "examples": [
         "Show me details for assignment 456 in course 123"
       ]
@@ -3352,9 +3366,16 @@
           "type": "string | integer",
           "required": false,
           "description": "Canvas group ID, to read a discussion inside a group space instead of the course. Discussions that students start in a group exist only there. The group must belong to the course."
+        },
+        {
+          "name": "raw_dates",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Append a JSON block with the topic's dates and, for a graded discussion, its assignment's due_at, unlock_at, lock_at, updated_at and checkpoint dates exactly as Canvas returns them. No extra request."
         }
       ],
-      "returns": "Topic metadata and full message body",
+      "returns": "Topic metadata and full message body; with raw_dates, also a JSON dates block",
       "examples": [
         "Show the details of the 'Introductions' discussion topic"
       ]

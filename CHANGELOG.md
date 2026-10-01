@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`raw_dates` on `list_assignments`, `get_assignment_details` and
+  `get_discussion_topic_details`** (opt-in, default output unchanged). Appends a
+  JSON block with `due_at`, `unlock_at`, `lock_at`, `updated_at`, `all_dates` and,
+  for checkpointed discussions, `has_sub_assignments` and each checkpoint's dates,
+  exactly as Canvas returns them (`null` stays `null`). A checkpointed
+  discussion's parent `due_at` is null by design, which the summaries used to
+  report as "no due date". Metadata only: no submission, grade or user fields.
 - **Discussions inside group spaces.** The discussion read tools
   (`list_discussion_topics`, `get_discussion_topic_details`,
   `list_discussion_entries`, `get_discussion_entry_details`,
@@ -36,6 +43,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `assign_peer_review` no longer creates a placeholder submission. It scanned
+  one page (100) of submissions for the reviewee and, on a miss, POSTed a
+  placeholder on the student's behalf, so in a large assignment a truncated read
+  became a write. It now reads the reviewee's submission directly and refuses
+  when there is none. `reviewee_id` must be a numeric Canvas user ID (#420).
+- `list_conversations` reports `returned` and `more_available` instead of
+  presenting Canvas's first inbox page as the whole inbox (#420).
+- `list_peer_reviews` reads every page of each submission's reviews, reports
+  submissions whose reviews could not be read instead of skipping them, and
+  names the reviewer from `assessor_id` (it printed the reviewee as their own
+  reviewer) (#420).
+- `get_course_content_overview` states how many modules its item counts cover
+  (`Modules Analyzed for Items: 10 of N`) and any module it could not read (#420).
+- New guard test fails CI when a tool adds a single-request GET on a Canvas
+  collection endpoint (#420).
 - **Anonymous discussion topics no longer read as missing** (issue 421, part 1).
   Canvas's REST API answers 404 for fully anonymous topics that its topic list
   still includes. `list_discussion_topics` and `list_group_discussion_topics`

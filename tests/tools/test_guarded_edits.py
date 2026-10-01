@@ -313,6 +313,41 @@ async def test_topic_matching_hash_writes_and_reports_old_and_new_hash(canvas_fo
 
 
 @pytest.mark.asyncio
+async def test_topic_hash_printed_by_the_read_tool_is_the_one_the_guard_accepts(canvas_for):
+    """get_discussion_topic_details gives the caller a starting hash; once the
+    message changes, that same hash must be refused."""
+    import re
+
+    from canvas_mcp.tools.discussions import register_shared_discussion_tools
+
+    fake = canvas_for(TOPIC, TOPIC.fake())
+    read = capture_tools(register_shared_discussion_tools)["get_discussion_topic_details"]
+
+    details = await read("CS101", 42)
+    match = re.search(
+        r"Body SHA-256 \(pass as expect_body_sha256 to update_discussion_topic\): ([0-9a-f]{64})",
+        details,
+    )
+    assert match, details
+    printed = match.group(1)
+    assert printed == _sha(ORIGINAL)  # independent of the code under test
+
+    result = await TOPIC.tool()(
+        "CS101", 42, find="Monday 2pm", replace="Tuesday 3pm", expect_body_sha256=printed,
+    )
+    assert result.startswith("✅"), result
+    assert len(fake.put_bodies()) == 1
+
+    # A colleague edits the message; the hash read earlier is now stale.
+    fake.state["message"] = "<p>Office hours moved by a colleague.</p><p>Read chapter 3.</p>"
+    stale = await TOPIC.tool()(
+        "CS101", 42, find="Read chapter 3.", replace="Read chapter 4.", expect_body_sha256=printed,
+    )
+    assert stale.startswith("❌"), stale
+    assert len(fake.put_bodies()) == 1, "a refused edit must not PUT"
+
+
+@pytest.mark.asyncio
 async def test_topic_malformed_hash_is_an_error(canvas_for):
     fake = canvas_for(TOPIC, TOPIC.fake())
 

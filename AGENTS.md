@@ -83,8 +83,8 @@ Course management, grading, and analytics. Requires instructor/TA role.
 
 | Tool | Purpose |
 |------|---------|
-| `list_assignments` | All assignments in a course |
-| `get_assignment_details` | Full assignment info including description |
+| `list_assignments` | All assignments in a course; `raw_dates=True` appends every date as Canvas returns it (`due_at`, `unlock_at`, `lock_at`, `updated_at`, `all_dates`, checkpoint dates). Use it for due-date audits: a checkpointed discussion's `due_at` is null by design |
+| `get_assignment_details` | Full assignment info including description; `raw_dates=True` appends the same dates block |
 | `list_submissions` | Student submissions for grading |
 | `get_assignment_analytics` | Performance statistics |
 | `create_assignment` | Create new assignment with due date, submission types, peer reviews |
@@ -158,6 +158,7 @@ Content access tools available to all authenticated users.
 | `list_announcements` | Course announcements, and nothing else |
 | `list_discussion_topics` | Discussion forums (discussions only; set `include_announcements` to also list announcements). Shows `Anonymity:` when Canvas reports an `anonymous_state`. Canvas REST returns 404 for fully anonymous topics; the topic read tools then say the topic exists and must be opened in the Canvas UI, instead of reporting it missing |
 | `list_group_discussion_topics` | Topics inside every group space, including topics students started in a group (pass `group_id` to the other discussion read tools to read them) |
+| `get_discussion_topic_details` | One topic's details; `raw_dates=True` appends the topic's dates and, for a graded discussion, its assignment and checkpoint dates. Prints the message's SHA-256 for `update_discussion_topic`'s `expect_body_sha256` |
 | `list_discussion_entries` | Posts in a discussion |
 | `post_discussion_entry` | Add a discussion post |
 | `reply_to_discussion_entry` | Reply to a post |
@@ -302,7 +303,8 @@ is present in the HTML, and every other field you changed reads back as sent.
 Anything else is reported as unconfirmed, never success.
 Same parameters on update_assignment (description). Discussion topics and the
 syllabus have NO updated_at: pass expect_body_sha256 instead (SHA-256 of the
-body as Canvas returned it; get_syllabus prints it, and every guarded edit
+body as Canvas returned it; get_syllabus and get_discussion_topic_details
+print it, and every guarded edit
 prints the new hash). A find/replace over an existing syllabus still previews
 and needs the confirmation token.
 Omit every guard parameter and the tools behave exactly as before.

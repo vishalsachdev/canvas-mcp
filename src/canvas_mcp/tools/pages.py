@@ -66,7 +66,9 @@ async def _guarded_page_edit(
     path = f"/courses/{course_id}/pages/{page_url_or_id}"
 
     async def fetch() -> Any:
-        return await make_canvas_request("get", path)
+        return await make_canvas_request(
+            "get", f"/courses/{course_id}/pages/{page_url_or_id}"
+        )
 
     async def write(body: str | None) -> Any:
         update_data: dict[str, dict[str, str]] = {"wiki_page": {"body": body or ""}}
