@@ -721,3 +721,179 @@ class TestDiscussionToolDocstringsWarnAgainstAnnouncementFallback:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestGroupDiscussionReads:
+    """Read tools reach discussions inside a group space via group_id."""
+
+    @staticmethod
+    def _group_aware_request(group_course_id="60366"):
+        async def request(method, path, **kwargs):
+            if path == "/groups/298062":
+                return {"id": 298062, "course_id": group_course_id}
+            if path.endswith("/discussion_topics/814175"):
+                return {"id": 814175, "title": "Utkast till Första Referensgruppsmötet"}
+            return {"error": f"unexpected path {path}"}
+        return request
+
+    @pytest.mark.asyncio
+    async def test_list_topics_uses_group_path(self, mock_canvas_api):
+        mock_canvas_api['make_canvas_request'].side_effect = self._group_aware_request()
+        mock_canvas_api['fetch_all_paginated_results'].return_value = [
+            {"id": 814175, "title": "Utkast till Första Referensgruppsmötet",
+             "published": True, "posted_at": "2026-09-25T10:00:00Z"},
+        ]
+
+        list_discussion_topics = get_tool_function('list_discussion_topics')
+        result = await list_discussion_topics("badm_350_120251", group_id=298062)
+
+        path = mock_canvas_api['fetch_all_paginated_results'].call_args[0][0]
+        assert path == "/groups/298062/discussion_topics"
+        assert "814175" in result
+
+    @pytest.mark.asyncio
+    async def test_list_topics_without_group_keeps_course_path(self, mock_canvas_api):
+        mock_canvas_api['fetch_all_paginated_results'].return_value = []
+
+        list_discussion_topics = get_tool_function('list_discussion_topics')
+        await list_discussion_topics("badm_350_120251")
+
+        path = mock_canvas_api['fetch_all_paginated_results'].call_args[0][0]
+        assert path == "/courses/60366/discussion_topics"
+        mock_canvas_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_group_from_another_course_is_rejected(self, mock_canvas_api):
+        mock_canvas_api['make_canvas_request'].side_effect = self._group_aware_request(
+            group_course_id="99999"
+        )
+
+        list_discussion_entries = get_tool_function('list_discussion_entries')
+        result = await list_discussion_entries(
+            "badm_350_120251", 814175, group_id=298062
+        )
+
+        assert "does not belong to course 60366" in result
+        mock_canvas_api['fetch_all_paginated_results'].assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("bad_group_id", [
+        "298062/discussion_topics", "298062?as_user_id=1", "../courses/60366", "", "12a",
+    ])
+    async def test_non_numeric_group_id_is_refused_before_any_request(
+        self, mock_canvas_api, bad_group_id
+    ):
+        list_discussion_entries = get_tool_function('list_discussion_entries')
+        result = await list_discussion_entries(
+            "badm_350_120251", 814175, group_id=bad_group_id
+        )
+
+        assert "group_id must be a numeric Canvas group ID" in result
+        requested = [c.args[1] for c in mock_canvas_api['make_canvas_request'].call_args_list]
+        assert not any(path.startswith("/groups") for path in requested)
+        mock_canvas_api['fetch_all_paginated_results'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_entries_and_replies_use_group_path(self, mock_canvas_api):
+        mock_canvas_api['make_canvas_request'].side_effect = self._group_aware_request()
+
+        async def fetch(path, params=None):
+            if path.endswith("/entries"):
+                return [{"id": 1, "user_id": 7, "user_name": "Student",
+                         "message": "<p>Feedback</p>", "created_at": "2026-09-26T08:00:00Z",
+                         "recent_replies": [], "has_more_replies": False}]
+            return []
+        mock_canvas_api['fetch_all_paginated_results'].side_effect = fetch
+
+        get_discussion_with_replies = get_tool_function('get_discussion_with_replies')
+        result = await get_discussion_with_replies(
+            "badm_350_120251", 814175, include_replies=True, group_id=298062
+        )
+
+        fetched = [c[0][0] for c in mock_canvas_api['fetch_all_paginated_results'].call_args_list]
+        assert fetched == [
+            "/groups/298062/discussion_topics/814175/entries",
+            "/groups/298062/discussion_topics/814175/entries/1/replies",
+        ]
+        assert "Feedback" in result
+
+    def test_group_discussion_content_is_anonymization_gated(self):
+        from canvas_mcp.core.client import ANONYMIZE_FULL, _endpoint_anonymization_mode
+
+        for path in (
+            "/groups/298062/discussion_topics/814175/entries",
+            "/groups/298062/discussion_topics/814175/view",
+            "/groups/298062/discussion_topics/814175/entries/1/replies",
+        ):
+            assert _endpoint_anonymization_mode(path) == ANONYMIZE_FULL
+
+
+class TestListGroupDiscussionTopics:
+    """list_group_discussion_topics sweeps every group space of a course."""
+
+    GROUPS = [
+        {"id": 298061, "name": "Referensgrupp A", "group_category_id": 47901},
+        {"id": 298062, "name": "Referensgrupp B", "group_category_id": 47901},
+        {"id": 294537, "name": "Projektgrupp 1", "group_category_id": 47915},
+    ]
+    TOPICS = {
+        "/groups/298061/discussion_topics": [
+            {"id": 807009, "title": "Första referensgruppsmöte - Referensgrupp A",
+             "root_topic_id": 803256, "discussion_subentry_count": 6},
+        ],
+        "/groups/298062/discussion_topics": [
+            {"id": 814175, "title": "Utkast till Första Referensgruppsmötet",
+             "root_topic_id": None, "discussion_subentry_count": 4,
+             "author": {"display_name": "Julia Student"}},
+        ],
+        "/groups/294537/discussion_topics": [],
+    }
+
+    def _fetch(self):
+        async def fetch(path, params=None):
+            if path == "/courses/60366/groups":
+                return self.GROUPS
+            return self.TOPICS[path]
+        return fetch
+
+    @pytest.mark.asyncio
+    async def test_marks_topics_started_in_a_group(self, mock_canvas_api):
+        mock_canvas_api['fetch_all_paginated_results'].side_effect = self._fetch()
+
+        tool = get_tool_function('list_group_discussion_topics')
+        result = await tool("badm_350_120251")
+
+        assert "(3 groups)" in result
+        assert "Group copy of course topic 803256" in result
+        assert "Started in this group by" in result
+        assert "Julia Student" in result
+        assert "Entries: 4" in result
+        assert "No discussion topics." in result
+
+    @pytest.mark.asyncio
+    async def test_filters_by_group_category(self, mock_canvas_api):
+        mock_canvas_api['fetch_all_paginated_results'].side_effect = self._fetch()
+
+        tool = get_tool_function('list_group_discussion_topics')
+        result = await tool("badm_350_120251", group_category_id=47901)
+
+        fetched = {c[0][0] for c in mock_canvas_api['fetch_all_paginated_results'].call_args_list}
+        assert "/groups/294537/discussion_topics" not in fetched
+        assert "(2 groups)" in result
+
+    @pytest.mark.asyncio
+    async def test_reports_a_failing_group_without_dropping_the_rest(self, mock_canvas_api):
+        topics = dict(self.TOPICS)
+        topics["/groups/298061/discussion_topics"] = {"error": "HTTP error: 403"}
+
+        async def fetch(path, params=None):
+            if path == "/courses/60366/groups":
+                return self.GROUPS
+            return topics[path]
+        mock_canvas_api['fetch_all_paginated_results'].side_effect = fetch
+
+        tool = get_tool_function('list_group_discussion_topics')
+        result = await tool("badm_350_120251")
+
+        assert "Error fetching topics: HTTP error: 403" in result
+        assert "814175" in result

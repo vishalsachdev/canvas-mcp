@@ -692,7 +692,7 @@
     {
       "name": "list_discussion_topics",
       "category": "shared",
-      "description": "View discussion forums in a course. Returns discussion topics only; announcements are excluded unless include_announcements is set. Use list_announcements to list announcements on their own.",
+      "description": "View discussion forums in a course. Returns discussion topics only; announcements are excluded unless include_announcements is set. Use list_announcements to list announcements on their own. Without group_id it lists course-level topics only; topics that students start inside a group space are missing, so use list_group_discussion_topics to find them.",
       "parameters": [
         {
           "name": "course_identifier",
@@ -706,11 +706,40 @@
           "required": false,
           "default": false,
           "description": "Also list the course's announcements alongside its discussion topics; each entry is labelled Type: Announcement or Type: Discussion"
+        },
+        {
+          "name": "group_id",
+          "type": "string | integer",
+          "required": false,
+          "description": "Canvas group ID, to read a discussion inside a group space instead of the course. Discussions that students start in a group exist only there. The group must belong to the course."
         }
       ],
       "returns": "List of discussion topics with IDs and titles",
       "examples": [
         "What discussions are active in my course?"
+      ]
+    },
+    {
+      "name": "list_group_discussion_topics",
+      "category": "shared",
+      "description": "List the discussion topics inside every group space of a course, marking each as a group copy of a course topic or as started in the group itself. Topics that students start in a group exist only there, so list_discussion_topics never returns them.",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "group_category_id",
+          "type": "string | integer",
+          "required": false,
+          "description": "Only include groups in this group set (default: all groups in the course)"
+        }
+      ],
+      "returns": "Per group: topic IDs, titles, entry counts, origin, and post dates",
+      "examples": [
+        "Which reference groups started their own discussions in PV1425?"
       ]
     },
     {
@@ -729,6 +758,12 @@
           "type": "string | integer",
           "required": true,
           "description": "Discussion topic ID"
+        },
+        {
+          "name": "group_id",
+          "type": "string | integer",
+          "required": false,
+          "description": "Canvas group ID, to read a discussion inside a group space instead of the course. Discussions that students start in a group exist only there. The group must belong to the course."
         }
       ],
       "returns": "List of discussion posts with authors and content",
@@ -3177,6 +3212,12 @@
           "required": false,
           "default": true,
           "description": "Fetch and include replies (default: True)"
+        },
+        {
+          "name": "group_id",
+          "type": "string | integer",
+          "required": false,
+          "description": "Canvas group ID, to read a discussion inside a group space instead of the course. Discussions that students start in a group exist only there. The group must belong to the course."
         }
       ],
       "returns": "Entry text plus all replies with authors and timestamps",
@@ -3200,6 +3241,12 @@
           "type": "string | integer",
           "required": true,
           "description": "Discussion topic ID"
+        },
+        {
+          "name": "group_id",
+          "type": "string | integer",
+          "required": false,
+          "description": "Canvas group ID, to read a discussion inside a group space instead of the course. Discussions that students start in a group exist only there. The group must belong to the course."
         }
       ],
       "returns": "Topic metadata and full message body",
@@ -3230,6 +3277,12 @@
           "required": false,
           "default": false,
           "description": "Fetch detailed replies for all entries (default: False)"
+        },
+        {
+          "name": "group_id",
+          "type": "string | integer",
+          "required": false,
+          "description": "Canvas group ID, to read a discussion inside a group space instead of the course. Discussions that students start in a group exist only there. The group must belong to the course."
         }
       ],
       "returns": "All discussion entries with nested replies in one call",

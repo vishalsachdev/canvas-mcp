@@ -1,5 +1,6 @@
 """Discussion and announcement MCP tools for Canvas API."""
 
+import asyncio
 import json
 import re
 from typing import Any
@@ -17,7 +18,7 @@ from ..core.untrusted_content import (
     fence_untrusted,
     fence_untrusted_inline,
 )
-from ..core.validation import validate_params
+from ..core.validation import coerce_canvas_id, validate_params
 from ..core.write_confirmation import (
     ConfirmationGuard,
     preview_with_token,
@@ -59,6 +60,43 @@ def _is_permission_error(error_text: str) -> bool:
     return any(marker.lower() in lowered for marker in _PERMISSION_ERROR_MARKERS)
 
 
+async def _discussion_prefix(
+    course_id: str, group_id: str | int | None
+) -> tuple[str, str | None]:
+    """Resolve the API path prefix for discussions in a course or one of its groups.
+
+    Canvas keeps discussions that students start inside a group space under
+    /groups/{id}/discussion_topics only. They have no course-level parent, so
+    the /courses/{id}/... endpoints never return them. The group must belong to
+    the course, so a group id cannot be used to read outside the course the
+    caller named.
+
+    Returns:
+        (prefix, error): prefix such as "/courses/1" or "/groups/2", and an
+        error message when the group cannot be used (prefix is then "").
+    """
+    if group_id is None:
+        return f"/courses/{course_id}", None
+
+    # group_id is interpolated into every request path, so anything but plain
+    # digits (a "/" or "?" could retarget the call) is refused before any I/O.
+    canonical_group_id = coerce_canvas_id(group_id)
+    if canonical_group_id is None:
+        return "", f"Error: group_id must be a numeric Canvas group ID, got {group_id!r}."
+    group_id = canonical_group_id
+
+    group = await make_canvas_request("get", f"/groups/{group_id}")
+    if not isinstance(group, dict):
+        return "", f"Error fetching group {group_id}: unexpected response."
+    if "error" in group:
+        return "", f"Error fetching group {group_id}: {group['error']}"
+    if str(group.get("course_id")) != str(course_id):
+        return "", (
+            f"Error: group {group_id} does not belong to course {course_id}."
+        )
+    return f"/groups/{group_id}", None
+
+
 def register_shared_discussion_tools(mcp: FastMCP) -> None:
     """Register discussion tools accessible to both students and educators."""
 
@@ -67,20 +105,32 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def list_discussion_topics(course_identifier: str | int,
-                                   include_announcements: bool = False) -> str:
+                                   include_announcements: bool = False,
+                                   group_id: str | int | None = None) -> str:
         """List discussion topics for a specific course.
 
         Returns discussion topics only. Announcements are a separate Canvas
         collection and are NOT included unless include_announcements=True.
         To list announcements on their own, use list_announcements instead.
 
+        Without group_id this lists course-level topics only. Topics that
+        students start inside a group space are missing from that list; use
+        list_group_discussion_topics to find them across all groups.
+
         Args:
             course_identifier: Course code or Canvas ID
             include_announcements: Also list the course's announcements
                 alongside its discussion topics (default: False). Each entry is
                 labelled "Type: Announcement" or "Type: Discussion".
+            group_id: Canvas group ID, to read a discussion inside a group
+                space instead of the course (default: None). Discussions that
+                students start in a group exist only there. The group must
+                belong to the course.
         """
         course_id = await get_course_id(course_identifier)
+        prefix, prefix_error = await _discussion_prefix(course_id, group_id)
+        if prefix_error:
+            return prefix_error
 
         # Canvas serves discussions and announcements from the same endpoint but
         # as disjoint sets: the index excludes announcements unless
@@ -89,7 +139,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         # calls. (include[]=announcement is NOT a supported include value --
         # Canvas silently ignores it. Issue #238.)
         topics = await fetch_all_paginated_results(
-            f"/courses/{course_id}/discussion_topics", {"per_page": 100}
+            f"{prefix}/discussion_topics", {"per_page": 100}
         )
 
         if isinstance(topics, dict) and "error" in topics:
@@ -97,7 +147,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
         if include_announcements:
             announcements = await fetch_all_paginated_results(
-                f"/courses/{course_id}/discussion_topics",
+                f"{prefix}/discussion_topics",
                 {"only_announcements": True, "per_page": 100},
             )
             if isinstance(announcements, dict) and "error" in announcements:
@@ -139,6 +189,90 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
         course_display = await get_course_code(course_id) or course_identifier
         return f"Discussion Topics for Course {course_display}:\n\n" + "\n".join(topics_info)
+
+    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
+    @validate_params
+    async def list_group_discussion_topics(
+        course_identifier: str | int,
+        group_category_id: str | int | None = None,
+    ) -> str:
+        """List the discussion topics inside every group space of a course.
+
+        list_discussion_topics only sees course-level topics. Topics that
+        students start inside a group space exist only in that group, so use
+        this tool to find them. Each topic is marked either as a group copy of
+        a course topic or as started in the group itself. Read a topic's posts
+        with list_discussion_entries or get_discussion_with_replies, passing
+        the topic's group_id.
+
+        Args:
+            course_identifier: Course code or Canvas ID
+            group_category_id: Only include groups in this group set
+                (default: None, all groups in the course)
+        """
+        course_id = await get_course_id(course_identifier)
+
+        groups = await fetch_all_paginated_results(
+            f"/courses/{course_id}/groups", {"per_page": 100}
+        )
+        if isinstance(groups, dict) and "error" in groups:
+            return f"Error fetching groups: {groups['error']}"
+        if group_category_id is not None:
+            groups = [
+                g for g in groups
+                if str(g.get("group_category_id")) == str(group_category_id)
+            ]
+        if not groups:
+            return f"No groups found for course {course_identifier}."
+
+        # The client's request semaphore bounds concurrency across the fan-out.
+        topic_lists = await asyncio.gather(*(
+            fetch_all_paginated_results(
+                f"/groups/{g.get('id')}/discussion_topics", {"per_page": 100}
+            )
+            for g in groups
+        ))
+
+        sections = []
+        for group, topics in zip(groups, topic_lists, strict=True):
+            header = (
+                f"Group: {fence_untrusted_inline(group.get('name', 'Unnamed group'), 'group name')} "
+                f"(ID: {group.get('id')}, Category ID: {group.get('group_category_id')})"
+            )
+            if isinstance(topics, dict) and "error" in topics:
+                sections.append(f"{header}\n  Error fetching topics: {topics['error']}\n")
+                continue
+            if not topics:
+                sections.append(f"{header}\n  No discussion topics.\n")
+                continue
+
+            lines = [header]
+            for topic in topics:
+                root_id = topic.get("root_topic_id")
+                if root_id:
+                    origin = f"Group copy of course topic {root_id}"
+                else:
+                    author = (topic.get("author") or {}).get("display_name") or topic.get(
+                        "user_name", "Unknown author"
+                    )
+                    origin = (
+                        "Started in this group by "
+                        f"{fence_untrusted_inline(author, 'author name')}"
+                    )
+                lines.append(
+                    f"  ID: {topic.get('id')}\n"
+                    f"  Title:\n{fence_untrusted(topic.get('title', 'Untitled topic'), 'discussion topic title')}\n"
+                    f"  Entries: {topic.get('discussion_subentry_count', 0)}\n"
+                    f"  Origin: {origin}\n"
+                    f"  Posted: {format_date(topic.get('posted_at'))}"
+                )
+            sections.append("\n".join(lines) + "\n")
+
+        course_display = await get_course_code(course_id) or course_identifier
+        return (
+            f"Group Discussion Topics for Course {course_display} "
+            f"({len(groups)} groups):\n\n" + "\n".join(sections)
+        )
 
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
@@ -188,17 +322,25 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
     async def get_discussion_topic_details(course_identifier: str | int,
-                                         topic_id: str | int) -> str:
+                                         topic_id: str | int,
+                                         group_id: str | int | None = None) -> str:
         """Get detailed information about a specific discussion topic.
 
         Args:
             course_identifier: Course code or Canvas ID
             topic_id: Discussion topic ID
+            group_id: Canvas group ID, to read a discussion inside a group
+                space instead of the course (default: None). Discussions that
+                students start in a group exist only there. The group must
+                belong to the course.
         """
         course_id = await get_course_id(course_identifier)
+        prefix, prefix_error = await _discussion_prefix(course_id, group_id)
+        if prefix_error:
+            return prefix_error
 
         response = await make_canvas_request(
-            "get", f"/courses/{course_id}/discussion_topics/{topic_id}"
+            "get", f"{prefix}/discussion_topics/{topic_id}"
         )
 
         if "error" in response:
@@ -263,7 +405,8 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
     async def list_discussion_entries(course_identifier: str | int,
                                     topic_id: str | int,
                                     include_full_content: bool = False,
-                                    include_replies: bool = False) -> str:
+                                    include_replies: bool = False,
+                                    group_id: str | int | None = None) -> str:
         """List discussion entries (posts) for a specific discussion topic with optional full content and replies.
 
         Args:
@@ -271,12 +414,19 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             topic_id: Discussion topic ID
             include_full_content: Fetch full content for each entry (default: False)
             include_replies: Fetch replies for each entry (default: False)
+            group_id: Canvas group ID, to read a discussion inside a group
+                space instead of the course (default: None). Discussions that
+                students start in a group exist only there. The group must
+                belong to the course.
         """
         course_id = await get_course_id(course_identifier)
+        prefix, prefix_error = await _discussion_prefix(course_id, group_id)
+        if prefix_error:
+            return prefix_error
 
         # Get basic entries first
         entries = await fetch_all_paginated_results(
-            f"/courses/{course_id}/discussion_topics/{topic_id}/entries",
+            f"{prefix}/discussion_topics/{topic_id}/entries",
             {"per_page": 100}
         )
 
@@ -295,7 +445,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             full_entries_map = {}
             try:
                 view_response = await make_canvas_request(
-                    "get", f"/courses/{course_id}/discussion_topics/{topic_id}/view"
+                    "get", f"{prefix}/discussion_topics/{topic_id}/view"
                 )
 
                 if "error" not in view_response and "view" in view_response:
@@ -319,7 +469,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             if missing_entry_ids:
                 try:
                     entry_list_response = await make_canvas_request(
-                        "get", f"/courses/{course_id}/discussion_topics/{topic_id}/entry_list",
+                        "get", f"{prefix}/discussion_topics/{topic_id}/entry_list",
                         params={"ids[]": missing_entry_ids}
                     )
 
@@ -337,7 +487,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
         # Get topic details for context
         topic_response = await make_canvas_request(
-            "get", f"/courses/{course_id}/discussion_topics/{topic_id}"
+            "get", f"{prefix}/discussion_topics/{topic_id}"
         )
 
         topic_title = "Unknown Topic"
@@ -400,7 +550,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                 if not replies or has_more_replies:
                     try:
                         replies_response = await fetch_all_paginated_results(
-                            f"/courses/{course_id}/discussion_topics/{topic_id}/entries/{entry_id}/replies",
+                            f"{prefix}/discussion_topics/{topic_id}/entries/{entry_id}/replies",
                             {"per_page": 100}
                         )
 
@@ -487,7 +637,8 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
     async def get_discussion_entry_details(course_identifier: str | int,
                                          topic_id: str | int,
                                          entry_id: str | int,
-                                         include_replies: bool = True) -> str:
+                                         include_replies: bool = True,
+                                         group_id: str | int | None = None) -> str:
         """Get detailed information about a specific discussion entry including all its replies.
 
         Args:
@@ -495,8 +646,15 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             topic_id: Discussion topic ID
             entry_id: Discussion entry ID
             include_replies: Fetch and include replies (default: True)
+            group_id: Canvas group ID, to read a discussion inside a group
+                space instead of the course (default: None). Discussions that
+                students start in a group exist only there. The group must
+                belong to the course.
         """
         course_id = await get_course_id(course_identifier)
+        prefix, prefix_error = await _discussion_prefix(course_id, group_id)
+        if prefix_error:
+            return prefix_error
 
         # Method 1: Try to get entry details from the discussion view endpoint
         entry_response = None
@@ -505,7 +663,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         try:
             # First try the discussion view endpoint which includes all entries
             view_response = await make_canvas_request(
-                "get", f"/courses/{course_id}/discussion_topics/{topic_id}/view"
+                "get", f"{prefix}/discussion_topics/{topic_id}/view"
             )
 
             if "error" not in view_response and "view" in view_response:
@@ -529,7 +687,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         if not entry_response:
             try:
                 entry_list_response = await make_canvas_request(
-                    "get", f"/courses/{course_id}/discussion_topics/{topic_id}/entry_list",
+                    "get", f"{prefix}/discussion_topics/{topic_id}/entry_list",
                     params={"ids[]": entry_id}
                 )
 
@@ -549,7 +707,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         if not entry_response:
             try:
                 all_entries = await fetch_all_paginated_results(
-                    f"/courses/{course_id}/discussion_topics/{topic_id}/entries",
+                    f"{prefix}/discussion_topics/{topic_id}/entries",
                     {"per_page": 100}
                 )
 
@@ -578,7 +736,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         if include_replies and not replies:
             try:
                 replies_response = await fetch_all_paginated_results(
-                    f"/courses/{course_id}/discussion_topics/{topic_id}/entries/{entry_id}/replies",
+                    f"{prefix}/discussion_topics/{topic_id}/entries/{entry_id}/replies",
                     {"per_page": 100}
                 )
 
@@ -595,7 +753,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
         # Get topic details for context
         topic_response = await make_canvas_request(
-            "get", f"/courses/{course_id}/discussion_topics/{topic_id}"
+            "get", f"{prefix}/discussion_topics/{topic_id}"
         )
 
         topic_title = "Unknown Topic"
@@ -664,7 +822,8 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
     @validate_params
     async def get_discussion_with_replies(course_identifier: str | int,
                                         topic_id: str | int,
-                                        include_replies: bool = False) -> str:
+                                        include_replies: bool = False,
+                                        group_id: str | int | None = None) -> str:
         """Read a discussion topic's title and a preview of every entry.
 
         Returns the topic title (not its body) and each top-level entry's author,
@@ -678,12 +837,19 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             course_identifier: Course code or Canvas ID
             topic_id: Discussion topic ID
             include_replies: Fetch detailed replies for all entries (default: False)
+            group_id: Canvas group ID, to read a discussion inside a group
+                space instead of the course (default: None). Discussions that
+                students start in a group exist only there. The group must
+                belong to the course.
         """
         course_id = await get_course_id(course_identifier)
+        prefix, prefix_error = await _discussion_prefix(course_id, group_id)
+        if prefix_error:
+            return prefix_error
 
         # Get basic entries first
         entries = await fetch_all_paginated_results(
-            f"/courses/{course_id}/discussion_topics/{topic_id}/entries",
+            f"{prefix}/discussion_topics/{topic_id}/entries",
             {"per_page": 100}
         )
 
@@ -695,7 +861,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
         # Get topic details for context
         topic_response = await make_canvas_request(
-            "get", f"/courses/{course_id}/discussion_topics/{topic_id}"
+            "get", f"{prefix}/discussion_topics/{topic_id}"
         )
 
         topic_title = "Unknown Topic"
@@ -745,7 +911,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                 if not replies or has_more_replies:
                     try:
                         replies_response = await fetch_all_paginated_results(
-                            f"/courses/{course_id}/discussion_topics/{topic_id}/entries/{entry_id}/replies",
+                            f"{prefix}/discussion_topics/{topic_id}/entries/{entry_id}/replies",
                             {"per_page": 100}
                         )
 
