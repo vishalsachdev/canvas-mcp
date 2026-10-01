@@ -31,8 +31,9 @@ SINGLE_OBJECT_PATHS: dict[str, str] = {
     "/users/self": "the caller's own user object",
     "/users/self/profile": "the caller's own profile object",
     "/courses/{}/assignments/{}/submissions/self": "the caller's own submission",
-    "/courses/{}/discussion_topics/{}/view": "the full-topic view: one object holding the whole tree",
-    "/courses/{}/discussion_topics/{}/entry_list": "ID-filtered by ids[]: returns exactly the entries asked for",
+    # {prefix} is /courses/{id} or /groups/{id} since group discussions (#433).
+    "{}/discussion_topics/{}/view": "the full-topic view: one object holding the whole tree",
+    "{}/discussion_topics/{}/entry_list": "ID-filtered by ids[]: returns exactly the entries asked for",
     "/conversations/unread_count": "one count object",
     "/courses/{}/permissions": "one permissions map",
 }
