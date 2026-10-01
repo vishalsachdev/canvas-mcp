@@ -7,12 +7,16 @@ reviewee past page 1 got a placeholder submission POSTed on their behalf.
 
 Collections must be read with ``fetch_all_paginated_results``. A tool that reads
 one page on purpose passes ``_pagination=`` so it can see Canvas's next link and
-must tell the caller more exists (``list_conversations`` does this).
+must tell the caller more exists. Passing ``_pagination=`` proves only that the
+link is read, not that it is reported, so such readers are exempt only when
+listed in ``DISCLOSING_SINGLE_PAGE_READERS`` with the behavioral test that
+proves they report ``more_available``.
 
 This test walks the AST of every module under ``src/canvas_mcp/tools`` and
 fails when a GET's path template ends in a literal segment (a collection name)
 rather than an identifier, unless the template is a known single-object path
-listed below with the reason it is single.
+listed below with the reason it is single, or the call is a listed
+disclosing single-page reader.
 """
 
 from __future__ import annotations
@@ -37,6 +41,19 @@ SINGLE_OBJECT_PATHS: dict[str, str] = {
     "/conversations/unread_count": "one count object",
     "/courses/{}/permissions": "one permissions map",
 }
+
+# (file under tools/, function) -> "test file::test name" proving the reader
+# reports more_available when Canvas sends a next link. Only listed readers may
+# use a single-page collection GET with _pagination=; every named test must
+# exist (checked below).
+DISCLOSING_SINGLE_PAGE_READERS: dict[tuple[str, str], str] = {
+    ("messaging.py", "list_conversations"): (
+        "tests/tools/test_truncation_disclosure.py::"
+        "test_list_conversations_reports_more_available_without_fetching_more"
+    ),
+}
+
+REPO_ROOT = TOOLS_DIR.parents[2]
 
 
 @dataclass(frozen=True)
@@ -135,12 +152,18 @@ def violations(sites: list[GetSite]) -> list[str]:
     problems = []
     for site in sites:
         where = f"{site.file}:{site.line} in {site.function}()"
-        if site.reads_next_link:
+        if site.reads_next_link and (site.file, site.function) in DISCLOSING_SINGLE_PAGE_READERS:
             continue
         if site.path is None:
             problems.append(f"{where}: GET endpoint could not be resolved to a path template")
         elif is_collection_path(site.path):
-            problems.append(f"{where}: single-request GET on collection {site.path!r}")
+            if site.reads_next_link:
+                problems.append(
+                    f"{where}: single-page GET on collection {site.path!r} reads the next "
+                    "link but is not a listed disclosing reader (DISCLOSING_SINGLE_PAGE_READERS)"
+                )
+            else:
+                problems.append(f"{where}: single-request GET on collection {site.path!r}")
     return problems
 
 
@@ -158,8 +181,9 @@ def test_no_single_request_get_on_a_collection_endpoint():
     problems = violations(scan_tools())
     assert not problems, (
         "Single-request GET on a collection endpoint returns only Canvas's first page "
-        "(issue 420). Use fetch_all_paginated_results, or pass _pagination= and "
-        "report more_available. If the path really returns one object, add it to "
+        "(issue 420). Use fetch_all_paginated_results, or pass _pagination=, report "
+        "more_available, and list the reader in DISCLOSING_SINGLE_PAGE_READERS with "
+        "the test proving it. If the path really returns one object, add it to "
         "SINGLE_OBJECT_PATHS with the reason.\n" + "\n".join(problems)
     )
 
@@ -189,6 +213,43 @@ def test_list_conversations_reads_next_link():
     """The one deliberate single-page collection read must carry _pagination."""
     convo = [s for s in scan_tools() if s.path == "/conversations"]
     assert convo and all(s.reads_next_link for s in convo)
+
+
+def test_every_disclosing_reader_is_used_and_backed_by_an_existing_test():
+    """Each exemption must match a real _pagination reader and name a real test."""
+    readers = {(s.file, s.function) for s in scan_tools() if s.reads_next_link}
+    unused = sorted(set(DISCLOSING_SINGLE_PAGE_READERS) - readers)
+    assert not unused, f"DISCLOSING_SINGLE_PAGE_READERS entries no longer used: {unused}"
+
+    for reader, test_ref in DISCLOSING_SINGLE_PAGE_READERS.items():
+        test_file, test_name = test_ref.split("::")
+        tree = ast.parse((REPO_ROOT / test_file).read_text())
+        names = {
+            n.name for n in ast.walk(tree)
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        assert test_name in names, f"{reader}: behavioral test {test_ref} does not exist"
+
+
+def test_guard_flags_an_unlisted_pagination_reader():
+    """_pagination= alone proves the link is read, not that truncation is reported."""
+    source = '''
+async def list_everyone():
+    return await make_canvas_request("get", "/courses/1/users", _pagination={})
+'''
+    problems = violations(scan_source(source, "synthetic.py"))
+    assert len(problems) == 1
+    assert "not a listed disclosing reader" in problems[0]
+
+
+def test_guard_flags_listed_function_name_in_another_file():
+    """The exemption is keyed to (file, function), not the function name alone."""
+    source = '''
+async def list_conversations():
+    return await make_canvas_request("get", "/conversations", _pagination={})
+'''
+    assert len(violations(scan_source(source, "other.py"))) == 1
+    assert violations(scan_source(source, "messaging.py")) == []
 
 
 def test_guard_flags_a_reintroduced_truncated_lookup():
@@ -234,6 +295,5 @@ async def tool(course_id, page_id):
     b = await make_canvas_request("get", f"/courses/{course_id}/front_page")
     c = await make_canvas_request("post", f"/courses/{course_id}/pages")
     d = await fetch_all_paginated_results(f"/courses/{course_id}/pages")
-    e = await make_canvas_request("get", "/conversations", _pagination={})
 '''
     assert violations(scan_source(source, "synthetic.py")) == []
