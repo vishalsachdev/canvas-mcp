@@ -156,6 +156,9 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
     async def assign_peer_review(course_identifier: str, assignment_id: str, reviewer_id: str, reviewee_id: str) -> str:
         """Manually assign a peer review to a student for a specific assignment.
 
+        Refuses if the reviewee has no submission record on the assignment
+        (for example, a student not assigned to it); never creates one.
+
         Args:
             course_identifier: Course code or Canvas ID
             assignment_id: Canvas assignment ID
@@ -164,45 +167,38 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
         """
         course_id = await get_course_id(course_identifier)
 
-        # First, we need to get the submission ID for the reviewee
-        submissions = await make_canvas_request(
-            "get",
-            f"/courses/{course_id}/assignments/{assignment_id}/submissions",
-            params={"per_page": 100}
-        )
-
-        if "error" in submissions:
-            return f"Error fetching submissions: {submissions['error']}"
-
-        # Find the submission for the reviewee
-        reviewee_submission = None
-        for submission in submissions:
-            if str(submission.get("user_id")) == str(reviewee_id):
-                reviewee_submission = submission
-                break
-
-        # If no submission exists, we need to create a placeholder submission
-        if not reviewee_submission:
-            # Create a placeholder submission for the reviewee
-            placeholder_data = {
-                "submission": {
-                    "user_id": reviewee_id,
-                    "submission_type": "online_text_entry",
-                    "body": "Placeholder submission for peer review"
-                }
-            }
-
-            reviewee_submission = await make_canvas_request(
-                "post",
-                f"/courses/{course_id}/assignments/{assignment_id}/submissions",
-                data=placeholder_data
+        reviewee = str(reviewee_id).strip()
+        if not reviewee.isdigit():
+            return (
+                f"Error: reviewee_id must be a numeric Canvas user ID, got {reviewee_id!r}. "
+                "No peer review was assigned."
             )
 
-            if "error" in reviewee_submission:
-                return f"Error creating placeholder submission: {reviewee_submission['error']}"
+        # Look the reviewee's submission up directly. This used to scan one
+        # page of the submissions list and, on a miss, POST a placeholder
+        # submission on the student's behalf, so a reviewee past the first
+        # page got a fabricated submission (issue 420). A lookup miss now
+        # refuses; this tool never creates a submission.
+        submission = await make_canvas_request(
+            "get",
+            f"/courses/{course_id}/assignments/{assignment_id}/submissions/{reviewee}",
+        )
 
-        # Now assign the peer review using the submission ID
-        submission_id = reviewee_submission.get("id")
+        if not isinstance(submission, dict) or "error" in submission:
+            detail = submission.get("error") if isinstance(submission, dict) else "unexpected response"
+            return (
+                f"Error: could not find a submission for reviewee {reviewee} on assignment "
+                f"{assignment_id} ({detail}). Check that the student is enrolled and assigned "
+                "this assignment. No peer review was assigned and no submission was created."
+            )
+
+        submission_id = submission.get("id")
+        if submission_id is None or str(submission.get("user_id")) != reviewee:
+            return (
+                f"Error: Canvas did not return a submission for reviewee {reviewee} on "
+                f"assignment {assignment_id}. No peer review was assigned and no "
+                "submission was created."
+            )
 
         # Data for the peer review assignment
         data = {
@@ -272,20 +268,26 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
 
         # Collect peer review data
         peer_reviews_by_submission = {}
+        # Submissions whose peer reviews could not be read. These used to be
+        # skipped silently, so a failed read looked like "no reviews"
+        # (issue 420); they are now reported.
+        failed_submissions: list[tuple[str, str]] = []
 
         for submission in submissions:
             submission_id = submission.get("id")
             user_id = str(submission.get("user_id"))
             user_name = user_map.get(user_id, f"User {user_id}")
 
-            # Get peer reviews for this submission
-            peer_reviews = await make_canvas_request(
-                "get",
-                f"/courses/{course_id}/assignments/{assignment_id}/submissions/{submission_id}/peer_reviews"
+            # Follow every page: a single request returned only Canvas's
+            # first page of reviews for a submission.
+            peer_reviews = await fetch_all_paginated_results(
+                f"/courses/{course_id}/assignments/{assignment_id}/submissions/{submission_id}/peer_reviews",
+                {"per_page": 100},
             )
 
-            if "error" in peer_reviews:
-                continue  # Skip if error
+            if isinstance(peer_reviews, dict) and "error" in peer_reviews:
+                failed_submissions.append((user_id, str(peer_reviews["error"])))
+                continue
 
             if peer_reviews:
                 peer_reviews_by_submission[submission_id] = {
@@ -298,9 +300,23 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
         course_display = await get_course_code(course_id) or course_identifier
         output = f"Peer Reviews for Assignment {assignment_id} in course {course_display}:\n\n"
 
+        failure_note = ""
+        if failed_submissions:
+            failure_lines = "\n".join(
+                f"  - User {uid}: {err}" for uid, err in failed_submissions
+            )
+            failure_note = (
+                f"WARNING: peer reviews could not be read for {len(failed_submissions)} of "
+                f"{len(submissions)} submissions; this list is incomplete:\n{failure_lines}\n"
+            )
+
         if not peer_reviews_by_submission:
+            if failed_submissions:
+                return output + failure_note + "\nNo peer reviews found in the submissions that could be read."
             output += "No peer reviews found for this assignment."
             return output
+
+        output += failure_note + ("\n" if failure_note else "")
 
         # Display peer reviews grouped by reviewee
         for _submission_id, data in peer_reviews_by_submission.items():
@@ -318,7 +334,11 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
                 continue
 
             for review in reviews:
-                reviewer_id = str(review.get("user_id"))
+                # In a Canvas PeerReview, assessor_id is the reviewer and
+                # user_id is the reviewee (the submission's owner); reading
+                # user_id here printed the reviewee as their own reviewer.
+                assessor = review.get("assessor_id")
+                reviewer_id = str(assessor) if assessor is not None else "unknown"
                 reviewer_name = user_map.get(reviewer_id, f"User {reviewer_id}")
                 workflow_state = review.get("workflow_state", "Unknown")
 
