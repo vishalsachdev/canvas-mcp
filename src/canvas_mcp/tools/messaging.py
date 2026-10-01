@@ -355,21 +355,40 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
                 error_response: dict[str, Any] = response
                 return error_response
 
+            # With include_all_conversation_ids, Canvas wraps the page in an
+            # object: {"conversations": [...], "conversation_ids": [...]}.
+            # Unwrap it so counting and fencing see the conversations.
+            conversation_ids: list[Any] | None = None
+            if isinstance(response, dict):
+                conversations = response.get("conversations")
+                ids = response.get("conversation_ids")
+                if isinstance(ids, list):
+                    conversation_ids = ids
+            else:
+                conversations = response
+            if not isinstance(conversations, list):
+                return {"error": "Unexpected response shape from Canvas for /conversations"}
+
             # Subjects and last-message previews are authored by whoever wrote
             # to the inbox (issue 239): fence them.
-            if isinstance(response, list):
-                for conversation in response:
+            for conversation in conversations:
+                if isinstance(conversation, dict):
                     _fence_conversation_fields(conversation)
 
-            returned = len(response) if isinstance(response, list) else 0
+            returned = len(conversations)
             result: dict[str, Any] = {
                 "success": True,
                 "untrusted_content_notice": UNTRUSTED_NOTICE,
-                "conversations": response,
+                "conversations": conversations,
                 "count": returned,
                 "returned": returned,
                 "more_available": more_available,
             }
+            if conversation_ids is not None:
+                # Canvas returns every matching ID here, not just this page's,
+                # so the total is knowable in this mode.
+                result["conversation_ids"] = conversation_ids
+                result["total"] = len(conversation_ids)
             if more_available:
                 result["note"] = (
                     f"Showing the first {returned} conversations; Canvas has more. "

@@ -1960,7 +1960,7 @@ List Canvas inbox conversations for the current user.
 "Show my Canvas inbox"
 ```
 
-**Returns:** One page of conversations (Canvas's default page size) with participants, subjects, and read state. `returned` is the number of conversations in this response (`count` is kept as an alias); `more_available` is `true` when Canvas has further pages that were not fetched, with a `note` saying so. Narrow with `scope` or `filter_ids` to reach older conversations.
+**Returns:** One page of conversations (Canvas's default page size) with participants, subjects, and read state. `returned` is the number of conversations in this response (`count` is kept as an alias); `more_available` is `true` when Canvas has further pages that were not fetched, with a `note` saying so. Narrow with `scope` or `filter_ids` to reach older conversations. With `include_all_ids=true`, the result also carries `conversation_ids` (every matching ID, per Canvas) and `total`.
 
 ---
 
