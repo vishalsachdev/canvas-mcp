@@ -432,6 +432,11 @@ Update an existing assignment in a course.
 - `peer_reviews`: Enable/disable peer reviews
 - `automatic_peer_reviews`: Enable/disable auto-assign peer reviews
 - `allowed_extensions`: Comma-separated file extensions for uploads
+- `expect_updated_at` (optional): The assignment's `updated_at` when you read it. The tool fetches the assignment first and refuses, writing nothing, unless it is the same instant. Compared as timestamps, so `...Z` and `...-05:00` forms of one instant match.
+- `find` / `replace` (optional): Edit one fragment of the current description instead of sending `description`. `find` must occur exactly once in the freshly fetched description; on zero or several matches the tool refuses and reports the count. `replace` may be empty to delete the fragment. Supplying `description` as well is an error.
+- `require` (optional): List of strings that must already be present in the current description (for example, to confirm an earlier edit is still in place), else the tool refuses.
+
+**Guarded edits (issue 419):** with any of the three guards the tool fetches the assignment, runs the checks, writes once, then reads it back. It reports success only if the read-back proves the write: `updated_at` advanced, the stored body equals the body the write should have produced (for find/replace, the fetched body with the one substitution), compared after whitespace normalization only, so dropped attributes and lost unrelated content both count, and every other field you asked to change reads back with the value sent. It prints the old and new `updated_at`. Anything it cannot establish, including HTML that Canvas rewrote, is reported as unconfirmed, never as success. With none of them the call behaves exactly as before.
 
 **Example:**
 ```
@@ -1203,6 +1208,12 @@ Edit an existing discussion topic or announcement (title, body, publish state, e
 - `delayed_post_at`: Schedule posting, ISO 8601 (optional)
 - `lock_at`: Auto-lock datetime, ISO 8601 (optional)
 - `require_initial_post`: Require initial post before viewing replies (optional)
+- `expect_body_sha256` (optional): SHA-256 (hex) of the message exactly as Canvas returned it when you read it. Canvas gives discussion topics **no `updated_at`** (a topic GET's only timestamps are `created_at`, `delayed_post_at`, `last_reply_at`, `lock_at` and `posted_at`), so the body hash is the drift check: the tool refuses, writing nothing, if the current message hashes differently. Every guarded edit prints the new hash for the next edit.
+- `expect_updated_at`: not supported on topics; passing it is an error that points to `expect_body_sha256`.
+- `find` / `replace` (optional): Edit one fragment of the current message instead of sending `message`. `find` must occur exactly once in the freshly fetched message; on zero or several matches the tool refuses and reports the count. `replace` may be empty to delete the fragment. Supplying `message` as well is an error.
+- `require` (optional): List of strings that must already be present in the current message (for example, to confirm an earlier edit is still in place), else the tool refuses.
+
+**Guarded edits (issue 419):** with any of the guards the tool fetches the topic, runs the checks, writes once, then reads it back. It reports success only if the read-back proves the write: the stored message equals the message the write should have produced (for find/replace, the fetched message with the one substitution), compared after whitespace normalization only, so dropped attributes and lost unrelated content both count, and every other field you asked to change reads back with the value sent. It prints the old and new body SHA-256. Anything it cannot establish, including HTML that Canvas rewrote, is reported as unconfirmed, never as success. With none of the guards the call behaves exactly as before.
 
 **Example:**
 ```
@@ -1316,8 +1327,13 @@ Replace the content of an existing page.
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `page_url_or_id`: Page URL slug or page ID
-- `new_content`: New HTML content for the page
+- `new_content`: New HTML body for the page; replaces the whole body. Required unless `find`/`replace` is used.
 - `title` (optional): New title for the page
+- `expect_updated_at` (optional): The page's `updated_at` when you read it. The tool fetches the page first and refuses, writing nothing, unless it is the same instant. Compared as timestamps, so `...Z` and `...-05:00` forms of one instant match.
+- `find` / `replace` (optional): Edit one fragment of the current body instead of sending `new_content`. `find` must occur exactly once in the freshly fetched body; on zero or several matches the tool refuses and reports the count. `replace` may be empty to delete the fragment. Supplying `new_content` as well is an error.
+- `require` (optional): List of strings that must already be present in the current body (for example, to confirm an earlier edit is still in place), else the tool refuses.
+
+**Guarded edits (issue 419):** with any of the three guards the tool fetches the page, runs the checks, writes once, then reads it back. It reports success only if the read-back proves the write: `updated_at` advanced, the stored body equals the body the write should have produced (for find/replace, the fetched body with the one substitution), compared after whitespace normalization only, so dropped attributes and lost unrelated content both count, and every other field you asked to change reads back with the value sent. It prints the old and new `updated_at`. Anything it cannot establish, including HTML that Canvas rewrote, is reported as unconfirmed, never as success. With none of them the call behaves exactly as before.
 
 **Example:**
 ```
@@ -1559,6 +1575,8 @@ Get the complete Canvas Syllabus tab content for a course, **untruncated**. Unli
 - `output_format` (optional): `text` (plain text, default), `html` (raw HTML body), or `both`
 - `max_chars` (optional): Cap on returned characters per section. When exceeded, the content is truncated with an explicit `[truncated...]` marker. Defaults to no truncation.
 
+The output starts with the body's SHA-256, which `update_syllabus` accepts as `expect_body_sha256`.
+
 **Example:**
 ```
 "Get the full syllabus for BADM 350 including the grading policy"
@@ -1579,6 +1597,11 @@ After writing, the tool reads the syllabus back from Canvas and checks that what
 - `syllabus_body`: HTML for the syllabus. Canvas stores this as HTML; plain text is accepted but renders unformatted.
 - `mode` (optional): `replace` (default) swaps the whole body, `append` adds to the end, `prepend` adds to the start
 - `confirmation_token` (optional): Token from the preview call. Only required when replacing a syllabus that already has content.
+- `expect_body_sha256` (optional): SHA-256 of the body when you read it, as printed by `get_syllabus`. The syllabus has no `updated_at`, so this is its drift check: the tool refuses, writing nothing, if the current body hashes differently.
+- `find` / `replace` (optional): Edit one fragment of the current syllabus instead of sending `syllabus_body`; `find` must occur exactly once, and `mode` must be `replace`. A find/replace over existing content is still a replace, so it still previews and needs the token.
+- `require` (optional): Strings that must already be present in the current syllabus, else the tool refuses.
+
+The guards are independent of the confirmation token and are checked on both the preview call and the confirming call; the token binds the guard arguments too. A guarded write prints the previous and new body SHA-256 and is confirmed only if the stored syllabus equals the expected HTML (the full body, current+new for `append`, new+current for `prepend`, or the fetched body with the substitution) after whitespace normalization; otherwise it is unconfirmed. Calls without guards keep the visible-text check.
 
 **Example:**
 ```
@@ -2104,6 +2127,10 @@ Get details about a specific discussion.
   discussion, its assignment's dates and checkpoint dates as Canvas returns them.
   No extra request. The topic endpoint does not return `all_dates`; use
   `get_assignment_details` with `raw_dates` for section and override dates.
+
+For a course topic (no `group_id`) the output includes the message's SHA-256,
+which `update_discussion_topic` accepts as `expect_body_sha256` (topics have no
+`updated_at`).
 
 ---
 

@@ -11,6 +11,7 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, parse_date
+from ..core.guarded_edit import BodyGuard, run_guarded_write, validate_guard
 from ..core.raw_dates import assignment_raw_dates, render_raw_dates
 from ..core.untrusted_content import (
     FENCE_LEAK_ERROR,
@@ -847,9 +848,21 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
         assignment_group_id: str | int | None = None,
         peer_reviews: bool | None = None,
         automatic_peer_reviews: bool | None = None,
-        allowed_extensions: str | None = None
+        allowed_extensions: str | None = None,
+        expect_updated_at: str | None = None,
+        find: str | None = None,
+        replace: str | None = None,
+        require: list[str] | None = None,
     ) -> str:
         """Update an existing assignment in a course.
+
+        description replaces the whole HTML description. To change one
+        fragment, pass find and replace instead. Optional guards (any of them
+        makes the tool fetch the assignment first, refuse rather than write on
+        a failed check, and read it back after): expect_updated_at refuses if
+        the assignment changed since you read it; find/replace edits one
+        fragment of the current description; require lists strings that must
+        already be present in it.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -867,7 +880,17 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             peer_reviews: Enable peer reviews
             automatic_peer_reviews: Auto-assign peer reviews
             allowed_extensions: Comma-separated file extensions (e.g., "pdf,docx,txt")
+            expect_updated_at: The assignment's updated_at when you read it; refuse if it has changed
+            find: Exact HTML fragment that must occur exactly once in the current description
+            replace: Text that replaces find (may be empty to delete it)
+            require: Strings that must already be present in the current description
         """
+        guard = BodyGuard(expect_updated_at, find, replace, require)
+        if guard.active:
+            guard_error = validate_guard(guard, "description", description)
+            if guard_error:
+                return guard_error
+
         # Backstop for issue 239: never publish our provenance markers.
         if (name is not None and contains_fence_markers(name)) or (
             description is not None and contains_fence_markers(description)
@@ -946,9 +969,42 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             extensions_list = [ext.strip() for ext in allowed_extensions.split(",")]
             assignment_data["allowed_extensions"] = extensions_list
 
-        # Check if there's anything to update
-        if not assignment_data:
+        # Check if there's anything to update (find/replace supplies the body later)
+        if not assignment_data and not guard.fragment:
             return "No fields provided to update. Specify at least one field to modify (e.g., name, description, due_at, points_possible)."
+
+        if guard.active:
+            assignment_path = f"/courses/{course_id}/assignments/{assignment_id}"
+
+            async def fetch_assignment() -> Any:
+                return await make_canvas_request(
+                    "get", f"/courses/{course_id}/assignments/{assignment_id}"
+                )
+
+            async def write_assignment(body: str | None) -> Any:
+                if body is not None:
+                    assignment_data["description"] = body
+                return await make_canvas_request(
+                    "put", assignment_path, data={"assignment": assignment_data}
+                )
+
+            async def refetch_assignment(_response: Any) -> Any:
+                return await make_canvas_request(
+                    "get", f"/courses/{course_id}/assignments/{assignment_id}"
+                )
+
+            guarded_display = await get_course_code(course_id) or course_identifier
+            return await run_guarded_write(
+                guard,
+                what="assignment",
+                body_field="description",
+                full_body=description,
+                fetch=fetch_assignment,
+                write=write_assignment,
+                refetch=refetch_assignment,
+                requested=dict(assignment_data),
+                facts={"Course": guarded_display, "Assignment ID": assignment_id},
+            )
 
         # Make the API request
         response = await make_canvas_request(

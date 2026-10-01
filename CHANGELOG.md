@@ -26,6 +26,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `list_group_discussion_topics` lists the topics in every group of a course
   (optionally one group set) in one call, with entry counts, and marks each
   topic as a group copy of a course topic or as started in the group.
+- **Guarded body edits (issue 419).** `edit_page_content` and
+  `update_assignment` take optional `expect_updated_at` (refuse if the object
+  changed since it was read; `Z` and offset forms of one instant match),
+  `find`/`replace` (edit one fragment, which must occur exactly once, instead
+  of resending the whole body) and `require` (strings that must already be
+  present). Discussion topics and the syllabus have no `updated_at`, so
+  `update_discussion_topic` and `update_syllabus` take `expect_body_sha256`
+  instead, plus the same `find`/`replace`/`require`; `get_syllabus` and
+  `get_discussion_topic_details` now print that hash, and the syllabus
+  confirmation token is unchanged and independent.
+  A guarded write is read back and reported as confirmed only when the
+  read-back proves it (timestamp advanced where there is one, the whole stored
+  body equal to the expected body after whitespace-only normalization, every
+  other requested field as sent); otherwise it is reported unconfirmed. Calls without the new
+  parameters send exactly the same requests as before.
 
 ### Fixed
 

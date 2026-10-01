@@ -14,6 +14,7 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import make_canvas_request
 from ..core.dates import format_date, parse_date
+from ..core.guarded_edit import BodyGuard, run_guarded_write, validate_guard
 from ..core.untrusted_content import (
     FENCE_LEAK_ERROR,
     contains_fence_markers,
@@ -38,6 +39,62 @@ _NOTIFY_IS_NOT_A_SETTING = (
     "regardless. Confirm delivery through the recipients' Canvas notifications, "
     "not through this page."
 )
+
+
+async def _guarded_page_edit(
+    course_identifier: str | int,
+    page_url_or_id: str,
+    new_content: str | None,
+    title: str | None,
+    guard: BodyGuard,
+) -> str:
+    """edit_page_content with any issue-419 guard supplied."""
+    error = validate_guard(guard, "new_content", new_content)
+    if error:
+        return error
+    if new_content is None and not guard.fragment:
+        return (
+            "❌ new_content is required, or pass find and replace to edit one "
+            "fragment. Nothing was written."
+        )
+    if (new_content is not None and contains_fence_markers(new_content)) or (
+        title is not None and contains_fence_markers(title)
+    ):
+        return FENCE_LEAK_ERROR
+
+    course_id = await get_course_id(course_identifier)
+    path = f"/courses/{course_id}/pages/{page_url_or_id}"
+
+    async def fetch() -> Any:
+        return await make_canvas_request(
+            "get", f"/courses/{course_id}/pages/{page_url_or_id}"
+        )
+
+    async def write(body: str | None) -> Any:
+        update_data: dict[str, dict[str, str]] = {"wiki_page": {"body": body or ""}}
+        if title:
+            update_data["wiki_page"]["title"] = title
+        return await make_canvas_request("put", path, data=update_data)
+
+    async def refetch(response: Any) -> Any:
+        # A title change can rename the slug; follow the one Canvas returned.
+        slug = response.get("url") if isinstance(response, dict) else None
+        return await make_canvas_request(
+            "get", f"/courses/{course_id}/pages/{slug or page_url_or_id}"
+        )
+
+    course_display = await get_course_code(course_id) or course_identifier
+    return await run_guarded_write(
+        guard,
+        what="page",
+        body_field="body",
+        full_body=new_content,
+        fetch=fetch,
+        write=write,
+        refetch=refetch,
+        requested={"title": title} if title else {},
+        facts={"Course": course_display, "Page": page_url_or_id},
+    )
 
 
 def _notify_of_update_warning(response: dict[str, Any]) -> str:
@@ -352,22 +409,46 @@ def register_educator_page_crud_tools(mcp: FastMCP) -> None:
     @validate_params
     async def edit_page_content(course_identifier: str | int,
                                page_url_or_id: str,
-                               new_content: str,
-                               title: str | None = None) -> str:
-        """Replace the entire HTML body of a page (and optionally its title).
+                               new_content: str | None = None,
+                               title: str | None = None,
+                               expect_updated_at: str | None = None,
+                               find: str | None = None,
+                               replace: str | None = None,
+                               require: list[str] | None = None) -> str:
+        """Replace the HTML body of a page (and optionally its title).
 
         new_content becomes the whole body: it is not merged or appended, so
-        pass the complete page, not a fragment. To change one section, read the
-        current body with get_page_content, edit it, and send the full result.
-        Publishing state, editing roles, and front-page status
-        are unchanged; use update_page_settings for those.
+        pass the complete page, not a fragment. To change one fragment, pass
+        find and replace instead of new_content. Publishing state, editing
+        roles, and front-page status are unchanged; use update_page_settings.
+
+        Optional guards (any of them makes the tool fetch the page first, refuse
+        rather than write on a failed check, and read the page back after):
+        expect_updated_at refuses if the page changed since you read it;
+        find/replace edits one fragment of the current body; require lists
+        strings that must already be present.
 
         Args:
             course_identifier: Course code or Canvas ID
             page_url_or_id: Page URL slug or page ID
-            new_content: Complete new HTML body for the page (replaces the old body)
+            new_content: Complete new HTML body (replaces the old body). Omit when using find/replace.
             title: Optional new title for the page
+            expect_updated_at: The page's updated_at when you read it; refuse if it has changed
+            find: Exact HTML fragment that must occur exactly once in the current body
+            replace: Text that replaces find (may be empty to delete it)
+            require: Strings that must already be present in the current body
         """
+        guard = BodyGuard(expect_updated_at, find, replace, require)
+        if guard.active:
+            return await _guarded_page_edit(
+                course_identifier, page_url_or_id, new_content, title, guard
+            )
+        if new_content is None:
+            return (
+                "❌ new_content is required, or pass find and replace to edit one "
+                "fragment. Nothing was written."
+            )
+
         # Backstop for issue 239: refuse to write our own provenance fence
         # markers (added by read tools like get_page_content) into Canvas.
         # Read tools fence titles too, so the title is checked like the body.

@@ -17,6 +17,16 @@ from ..core.cache import (
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.config import get_config
 from ..core.dates import format_date
+from ..core.guarded_edit import (
+    NOTHING_WRITTEN,
+    BodyGuard,
+    apply_find_replace,
+    body_readback_failure,
+    body_sha256,
+    check_body_hash,
+    check_require,
+    validate_guard,
+)
 from ..core.untrusted_content import (
     FENCE_LEAK_ERROR,
     contains_fence_markers,
@@ -49,6 +59,36 @@ _UPDATE_SYLLABUS_GUARD = ConfirmationGuard(
 def _syllabus_text(body: str) -> str:
     """Visible text of a syllabus body, whitespace-collapsed, for comparison."""
     return " ".join(strip_html_tags(body).split())
+
+
+def _syllabus_guard_error(
+    guard: BodyGuard,
+    syllabus_body: str | None,
+    mode: str,
+    expect_body_sha256: str | None,
+) -> str | None:
+    """Argument checks for update_syllabus's issue-419 guards, before any I/O."""
+    error = validate_guard(guard, "syllabus_body", syllabus_body)
+    if error:
+        return error
+    if guard.fragment and mode != "replace":
+        return (
+            f"❌ find/replace computes the whole new body, so mode must be "
+            f"'replace' (got '{mode}'). {NOTHING_WRITTEN}"
+        )
+    if not guard.fragment and syllabus_body is None:
+        return (
+            "❌ syllabus_body is required, or pass find and replace to edit "
+            f"one fragment. {NOTHING_WRITTEN}"
+        )
+    if expect_body_sha256 is not None and not re.fullmatch(
+        r"[0-9a-fA-F]{64}", expect_body_sha256.strip()
+    ):
+        return (
+            "❌ expect_body_sha256 must be a 64-character hex SHA-256, as printed "
+            f"by get_syllabus. {NOTHING_WRITTEN}"
+        )
+    return None
 
 
 class _MediaCollector(HTMLParser):
@@ -344,7 +384,11 @@ def register_course_tools(mcp: FastMCP) -> None:
 
         # Section headers only help disambiguate when both formats are present.
         labeled = fmt == "both"
-        sections = [f"Syllabus for Course {course_display}:"]
+        sections = [
+            f"Syllabus for Course {course_display}:\n"
+            f"Body SHA-256 (pass as expect_body_sha256 to update_syllabus): "
+            f"{body_sha256(syllabus_body)}"
+        ]
 
         # Syllabus bodies are course-authored free text (issue 239): fence them
         # so embedded directives arrive marked as data, not instructions.
@@ -847,9 +891,13 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
     @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=False))
     @validate_params
     async def update_syllabus(course_identifier: str | int,
-                              syllabus_body: str,
+                              syllabus_body: str | None = None,
                               mode: str = "replace",
-                              confirmation_token: str | None = None) -> str:
+                              confirmation_token: str | None = None,
+                              expect_body_sha256: str | None = None,
+                              find: str | None = None,
+                              replace: str | None = None,
+                              require: list[str] | None = None) -> str:
         """Set the Canvas Syllabus tab content for a course.
 
         Canvas keeps no revision history for the syllabus, so replacing a
@@ -858,6 +906,13 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
         preview to the educator, and only after they approve it call again with
         the token and identical arguments. Writing into an empty syllabus, or appending/prepending,
         destroys nothing and takes a single call.
+
+        Optional guards, independent of the confirmation token: the syllabus has
+        no updated_at, so expect_body_sha256 (shown by get_syllabus) refuses if
+        the body changed since you read it; find/replace edits one fragment of
+        the current body instead of sending syllabus_body (mode must be
+        "replace", and it still previews first); require lists strings that
+        must already be present.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -868,6 +923,11 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
             confirmation_token: Token from the preview call. Only needed when
                 replacing a syllabus that already has content; a token that is
                 supplied is always checked, in every mode.
+            expect_body_sha256: SHA-256 of the syllabus body when you read it
+                (get_syllabus prints it); refuse if the body has changed
+            find: Exact HTML fragment that must occur exactly once in the current body
+            replace: Text that replaces find (may be empty to delete it)
+            require: Strings that must already be present in the current body
         """
         normalized_mode = (mode or "replace").lower()
         if normalized_mode not in ("replace", "append", "prepend"):
@@ -876,13 +936,27 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
                 "Use 'replace', 'append', or 'prepend'."
             )
 
+        guard = BodyGuard(find=find, replace=replace, require=require)
+        guarded = guard.active or expect_body_sha256 is not None
+        if guarded:
+            guard_error = _syllabus_guard_error(
+                guard, syllabus_body, normalized_mode, expect_body_sha256
+            )
+            if guard_error:
+                return guard_error
+        elif syllabus_body is None:
+            return (
+                "❌ syllabus_body is required, or pass find and replace to edit "
+                f"one fragment. {NOTHING_WRITTEN}"
+            )
+
         # Backstop for issue 239: get_syllabus fences the body it returns, so a
         # model round-tripping that output would otherwise write our own
         # provenance markers into the course.
-        if contains_fence_markers(syllabus_body):
+        if syllabus_body is not None and contains_fence_markers(syllabus_body):
             return FENCE_LEAK_ERROR
 
-        if not syllabus_body.strip():
+        if syllabus_body is not None and not syllabus_body.strip():
             if normalized_mode == "replace":
                 return (
                     "Error: syllabus_body is empty. To clear a syllabus "
@@ -904,7 +978,33 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
         course_display = current.get("course_code", course_identifier)
         has_existing = bool(existing_body.strip())
 
-        if normalized_mode == "append":
+        if guarded:
+            # Drift and require are checked on every call, preview and
+            # confirm alike; the token below separately binds existing_body.
+            if expect_body_sha256 is not None:
+                guard_error = check_body_hash(existing_body, expect_body_sha256, "syllabus")
+                if guard_error:
+                    return guard_error
+            guard_error = check_require(existing_body, require, "syllabus")
+            if guard_error:
+                return guard_error
+
+        if guard.fragment:
+            assert find is not None and replace is not None
+            fragment_body, guard_error = apply_find_replace(
+                existing_body, find, replace, "syllabus"
+            )
+            if guard_error or fragment_body is None:
+                return guard_error or f"❌ find/replace failed. {NOTHING_WRITTEN}"
+            if not fragment_body.strip():
+                return (
+                    "Error: the find/replace would leave the syllabus empty. To "
+                    "clear a syllabus deliberately, pass a body such as '<p></p>'."
+                )
+            new_body = fragment_body
+        elif syllabus_body is None:  # unreachable: argument checks above
+            return f"❌ syllabus_body is required. {NOTHING_WRITTEN}"
+        elif normalized_mode == "append":
             new_body = f"{existing_body}\n{syllabus_body}" if has_existing else syllabus_body
         elif normalized_mode == "prepend":
             new_body = f"{syllabus_body}\n{existing_body}" if has_existing else syllabus_body
@@ -925,14 +1025,25 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
             # and the supplied body are bound as well, so a token previewed
             # for one call cannot be redeemed by a different call that happens
             # to produce the same result.
-            fingerprint = _UPDATE_SYLLABUS_GUARD.fingerprint(
+            fingerprint_parts = [
                 "update_syllabus",
                 str(course_id),
                 normalized_mode,
-                syllabus_body,
+                syllabus_body if syllabus_body is not None else "",
                 existing_body,
                 new_body,
-            )
+            ]
+            if guarded:
+                # Bind the guard arguments too, so a token previewed for one
+                # guarded call cannot confirm a differently guarded one.
+                fingerprint_parts += [
+                    "guards",
+                    expect_body_sha256 or "",
+                    find if find is not None else "",
+                    replace if replace is not None else "",
+                    "\x00".join(require or []),
+                ]
+            fingerprint = _UPDATE_SYLLABUS_GUARD.fingerprint(*fingerprint_parts)
             if confirmation_token is None:
                 # Show what will land, not just its length: the person
                 # approving has to be able to read the change (GHSA-hmr8).
@@ -950,6 +1061,10 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
                     f"and embed destinations):\n"
                     f"{fence_untrusted(new_body, 'proposed syllabus HTML')}"
                 )
+                if guarded:
+                    preview += (
+                        f"\n\n  Current body SHA-256: {body_sha256(existing_body)}"
+                    )
                 return preview_with_token(
                     _UPDATE_SYLLABUS_GUARD,
                     fingerprint,
@@ -1017,6 +1132,40 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
                 "edit the syllabus. Check the Syllabus tab.",
             )
 
+        if guarded and body_sha256(saved_body) == body_sha256(existing_body):
+            # The syllabus analogue of "updated_at did not advance".
+            return unconfirmed_write_warning(
+                "the syllabus update",
+                {
+                    "Course": course_display,
+                    "Mode": normalized_mode,
+                    "Reason": "the stored body is byte-identical to the body before the write",
+                    "Body SHA-256": body_sha256(saved_body),
+                },
+                "Canvas accepted the request but the syllabus did not change. "
+                "Check the Syllabus tab.",
+            )
+
+        if guarded:
+            # Every guarded mode must prove the whole stored body: full body,
+            # current+new (append), new+current (prepend), or the fetched body
+            # with one substitution. Visible-text containment (the unguarded
+            # check below) misses dropped attributes and lost content.
+            body_reason = body_readback_failure(new_body, saved_body)
+            if body_reason:
+                return unconfirmed_write_warning(
+                    "the syllabus update",
+                    {
+                        "Course": course_display,
+                        "Mode": normalized_mode,
+                        "Reason": body_reason,
+                        "Previous body SHA-256": body_sha256(existing_body),
+                        "New body SHA-256": body_sha256(saved_body),
+                    },
+                    "Canvas accepted the request but the change could not be "
+                    "confirmed. Check the Syllabus tab.",
+                )
+
         verb = {
             "replace": "Replaced",
             "append": "Appended to",
@@ -1042,4 +1191,7 @@ def register_educator_course_tools(mcp: FastMCP) -> None:
                 "  Note: Canvas stored a rewritten copy of the HTML (institutional "
                 "theme injection or sanitizing). The text sent is present."
             )
+        if guarded:
+            lines.append(f"  Previous body SHA-256: {body_sha256(existing_body)}")
+            lines.append(f"  New body SHA-256: {body_sha256(saved_body)}")
         return "\n".join(lines)
