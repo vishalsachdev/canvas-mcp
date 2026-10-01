@@ -777,6 +777,23 @@ class TestGroupDiscussionReads:
         mock_canvas_api['fetch_all_paginated_results'].assert_not_called()
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("bad_group_id", [
+        "298062/discussion_topics", "298062?as_user_id=1", "../courses/60366", "", "12a",
+    ])
+    async def test_non_numeric_group_id_is_refused_before_any_request(
+        self, mock_canvas_api, bad_group_id
+    ):
+        list_discussion_entries = get_tool_function('list_discussion_entries')
+        result = await list_discussion_entries(
+            "badm_350_120251", 814175, group_id=bad_group_id
+        )
+
+        assert "group_id must be a numeric Canvas group ID" in result
+        requested = [c.args[1] for c in mock_canvas_api['make_canvas_request'].call_args_list]
+        assert not any(path.startswith("/groups") for path in requested)
+        mock_canvas_api['fetch_all_paginated_results'].assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_entries_and_replies_use_group_path(self, mock_canvas_api):
         mock_canvas_api['make_canvas_request'].side_effect = self._group_aware_request()
 

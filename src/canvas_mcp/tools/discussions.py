@@ -18,7 +18,7 @@ from ..core.untrusted_content import (
     fence_untrusted,
     fence_untrusted_inline,
 )
-from ..core.validation import validate_params
+from ..core.validation import coerce_canvas_id, validate_params
 from ..core.write_confirmation import (
     ConfirmationGuard,
     preview_with_token,
@@ -78,7 +78,16 @@ async def _discussion_prefix(
     if group_id is None:
         return f"/courses/{course_id}", None
 
+    # group_id is interpolated into every request path, so anything but plain
+    # digits (a "/" or "?" could retarget the call) is refused before any I/O.
+    canonical_group_id = coerce_canvas_id(group_id)
+    if canonical_group_id is None:
+        return "", f"Error: group_id must be a numeric Canvas group ID, got {group_id!r}."
+    group_id = canonical_group_id
+
     group = await make_canvas_request("get", f"/groups/{group_id}")
+    if not isinstance(group, dict):
+        return "", f"Error fetching group {group_id}: unexpected response."
     if "error" in group:
         return "", f"Error fetching group {group_id}: {group['error']}"
     if str(group.get("course_id")) != str(course_id):
