@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`raw_dates` on `list_assignments`, `get_assignment_details` and
+  `get_discussion_topic_details`** (opt-in, default output unchanged). Appends a
+  JSON block with `due_at`, `unlock_at`, `lock_at`, `updated_at`, `all_dates` and,
+  for checkpointed discussions, `has_sub_assignments` and each checkpoint's dates,
+  exactly as Canvas returns them (`null` stays `null`). A checkpointed
+  discussion's parent `due_at` is null by design, which the summaries used to
+  report as "no due date". Metadata only: no submission, grade or user fields.
 - **Discussions inside group spaces.** The discussion read tools
   (`list_discussion_topics`, `get_discussion_topic_details`,
   `list_discussion_entries`, `get_discussion_entry_details`,

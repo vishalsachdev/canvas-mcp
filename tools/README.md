@@ -315,6 +315,13 @@ List all assignments for a course.
 
 **Parameters:**
 - `course_identifier`: Course code (e.g., "badm_350_120251_246794") or ID
+- `raw_dates` (optional, default `false`): append a JSON block with each
+  assignment's `due_at`, `unlock_at`, `lock_at`, `updated_at`, `all_dates` and,
+  for checkpointed discussions, `has_sub_assignments` and each checkpoint's
+  dates, exactly as Canvas returns them (ISO 8601, `null` stays `null`). A
+  checkpointed discussion has a null parent `due_at` by design; its dates are on
+  the checkpoints. Metadata only: no submission, grade or user fields. Section
+  and group titles and checkpoint names are left out.
 
 **Example:**
 ```
@@ -330,6 +337,9 @@ Get detailed information about a specific assignment.
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `assignment_id`: Assignment ID
+- `raw_dates` (optional, default `false`): append the same JSON dates block as
+  `list_assignments` for this assignment (requests `all_dates=true` and
+  `include[]=checkpoints` on the same endpoint).
 
 **Example:**
 ```
@@ -2082,6 +2092,11 @@ Get details about a specific discussion.
 - `group_id` (optional): Canvas group ID, to read a discussion inside a group
   space instead of the course. Discussions that students start in a group exist
   only there. The group must belong to the course.
+- `raw_dates` (optional, default `false`): append a JSON block with the topic's
+  `delayed_post_at`, `lock_at`, `todo_date`, `is_checkpointed` and, for a graded
+  discussion, its assignment's dates and checkpoint dates as Canvas returns them.
+  No extra request. The topic endpoint does not return `all_dates`; use
+  `get_assignment_details` with `raw_dates` for section and override dates.
 
 ---
 
