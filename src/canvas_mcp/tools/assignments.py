@@ -11,6 +11,7 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, parse_date
+from ..core.raw_dates import assignment_raw_dates, render_raw_dates
 from ..core.untrusted_content import (
     FENCE_LEAK_ERROR,
     contains_fence_markers,
@@ -37,17 +38,25 @@ def register_shared_assignment_tools(mcp: FastMCP) -> None:
 
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
-    async def list_assignments(course_identifier: str | int) -> str:
+    async def list_assignments(course_identifier: str | int, raw_dates: bool = False) -> str:
         """List assignments for a specific course.
 
         Args:
             course_identifier: Course code or Canvas ID
+            raw_dates: Append a JSON block with each assignment's due_at,
+                unlock_at, lock_at, updated_at, all_dates and checkpoint dates
+                exactly as Canvas returns them (null stays null). Use it for
+                due-date audits: a checkpointed discussion has a null due_at
+                and its dates on the checkpoints. Default False.
         """
         course_id = await get_course_id(course_identifier)
 
+        include = ["all_dates", "submission"]
+        if raw_dates:
+            include.append("checkpoints")
         params = {
             "per_page": 100,
-            "include[]": ["all_dates", "submission"]
+            "include[]": include
         }
 
         all_assignments = await fetch_all_paginated_results(f"/courses/{course_id}/assignments", params)
@@ -74,25 +83,46 @@ def register_shared_assignment_tools(mcp: FastMCP) -> None:
 
         # Try to get the course code for display
         course_display = await get_course_code(course_id) or course_identifier
-        return f"Assignments for Course {course_display}:\n\n" + "\n".join(assignments_info)
+        result = f"Assignments for Course {course_display}:\n\n" + "\n".join(assignments_info)
+        if raw_dates:
+            # Allowlisted dates only; the requested submission never leaks in.
+            result += render_raw_dates(
+                {"assignments": [assignment_raw_dates(a) for a in all_assignments]}
+            )
+        return result
 
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
-    async def get_assignment_details(course_identifier: str | int, assignment_id: str | int) -> str:
+    async def get_assignment_details(
+        course_identifier: str | int, assignment_id: str | int, raw_dates: bool = False
+    ) -> str:
         """Get detailed information about a specific assignment.
 
         Args:
             course_identifier: Course code or Canvas ID
             assignment_id: Canvas assignment ID
+            raw_dates: Append a JSON block with due_at, unlock_at, lock_at,
+                updated_at, all_dates and checkpoint dates exactly as Canvas
+                returns them (null stays null). Default False.
         """
         course_id = await get_course_id(course_identifier)
 
         # Ensure assignment_id is a string
         assignment_id_str = str(assignment_id)
 
-        response = await make_canvas_request(
-            "get", f"/courses/{course_id}/assignments/{assignment_id_str}"
-        )
+        if raw_dates:
+            # Measured: this endpoint returns all_dates only for the boolean
+            # all_dates=true (include[]=all_dates is ignored here), and the
+            # checkpoint fields only for include[]=checkpoints.
+            response = await make_canvas_request(
+                "get",
+                f"/courses/{course_id}/assignments/{assignment_id_str}",
+                params={"all_dates": "true", "include[]": ["checkpoints"]},
+            )
+        else:
+            response = await make_canvas_request(
+                "get", f"/courses/{course_id}/assignments/{assignment_id_str}"
+            )
 
         if "error" in response:
             return f"Error fetching assignment details: {response['error']}"
@@ -112,7 +142,10 @@ def register_shared_assignment_tools(mcp: FastMCP) -> None:
 
         # Try to get the course code for display
         course_display = await get_course_code(course_id) or course_identifier
-        return f"Assignment Details for ID {assignment_id} in course {course_display}:\n\n" + "\n".join(details)
+        result = f"Assignment Details for ID {assignment_id} in course {course_display}:\n\n" + "\n".join(details)
+        if raw_dates:
+            result += render_raw_dates(assignment_raw_dates(response))
+        return result
 
 
 def register_educator_assignment_tools(mcp: FastMCP) -> None:
