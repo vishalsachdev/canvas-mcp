@@ -1065,11 +1065,18 @@ class TestAnonymousTopics:
 
 
 @pytest.mark.asyncio
-async def test_anonymous_topic_404_through_real_client_transport():
+async def test_anonymous_topic_404_through_real_client_transport(monkeypatch):
     """The 404 detector must match what the real client produces for a 404."""
     import httpx
 
     import canvas_mcp.core.client as cm
+    from canvas_mcp.core.config import reset_config
+
+    # The real client builds absolute URLs from config; pin it so the test does
+    # not depend on a developer's .env (CI has none).
+    monkeypatch.setenv("CANVAS_API_URL", "https://canvas.example/api/v1")
+    monkeypatch.setenv("CANVAS_API_TOKEN", "test-token")
+    reset_config()
 
     requested = []
 
