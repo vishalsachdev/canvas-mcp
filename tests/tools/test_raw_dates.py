@@ -16,8 +16,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from tests.tools.test_assignments import get_tool_function as get_assignment_tool
-from tests.tools.test_discussions import get_tool_function as get_discussion_tool
+from .test_assignments import get_tool_function as get_assignment_tool
+from .test_discussions import get_tool_function as get_discussion_tool
 
 FIXTURE = json.loads(
     (Path(__file__).parent.parent / "fixtures" / "canvas_raw_dates.json").read_text()
