@@ -21,8 +21,9 @@ The guards here add refusals, never new writes:
 
 After a guarded write the tool reads the object back. It reports the write as
 confirmed only when the read-back proves it: ``updated_at`` advanced (where the
-object has one), the body shows the edit in HTML compared with whitespace
-normalization only (so attribute changes count), and every other requested
+object has one), the stored body equals the body the write should have produced, compared
+after whitespace normalization only (so attribute changes and unrelated
+content loss both count), and every other requested
 field reads back with the value sent. Anything it cannot establish, including
 HTML that Canvas rewrote, is reported through ``unconfirmed_write_warning``,
 never as success.
@@ -239,33 +240,26 @@ def prepare_body(
     return full_body, None
 
 
-_REWRITTEN = (
-    "Canvas stored HTML that differs from what was sent (sanitizing or theme "
-    "injection), so the edit cannot be confirmed exactly"
+BODY_MISMATCH = (
+    "the stored body is not the expected body (compared after whitespace "
+    "normalization only): Canvas dropped or rewrote content, so the edit "
+    "cannot be confirmed"
 )
 
 
-def fragment_readback_failure(
-    before_body: str, stored_body: str, find: str, replace: str
-) -> str | None:
-    """Did the stored body take a find/replace edit? None means proven.
+def body_readback_failure(expected_body: str, stored_body: str | None) -> str | None:
+    """Does the stored body equal the body this write should have produced?
 
-    Compared on whitespace-normalized HTML, so attribute-only edits count.
-    When ``find`` is not part of ``replace`` the proof is that ``find`` is gone
-    and ``replace`` is present; otherwise ``replace`` must occur more often
-    than it did before the write.
+    ``expected_body`` is the whole body sent: for find/replace, the fetched
+    body with the one substitution applied. Equality after whitespace-only
+    normalization is the proof. Checking just the edited fragment is not:
+    a read-back that lost unrelated content would still pass. None = proven.
     """
-    before, stored = normalize_html(before_body), normalize_html(stored_body)
-    found, replaced = normalize_html(find), normalize_html(replace)
-    if found not in replaced:
-        if found in stored:
-            return "the stored body still contains the text find matched"
-        if replaced and replaced not in stored:
-            return f"the stored body does not contain the replacement; {_REWRITTEN}"
-        return None
-    if stored.count(replaced) > before.count(replaced):
-        return None
-    return f"the stored body does not show the replacement; {_REWRITTEN}"
+    if stored_body is None:
+        return "the read-back has no body"
+    if normalize_html(stored_body) != normalize_html(expected_body):
+        return BODY_MISMATCH
+    return None
 
 
 def _same_value(field: str, sent: Any, got: Any) -> bool:
@@ -310,19 +304,10 @@ def readback_failure(
         if old_ts is not None and new_ts <= old_ts:
             return "updated_at did not advance, so Canvas may not have saved the change"
 
-    stored_body = after.get(body_field)
     if written_body is not None:
-        if stored_body is None:
-            return f"the read-back has no {body_field}"
-        if guard.fragment:
-            assert guard.find is not None and guard.replace is not None
-            reason = fragment_readback_failure(
-                before.get(body_field) or "", stored_body, guard.find, guard.replace
-            )
-            if reason:
-                return reason
-        elif normalize_html(stored_body) != normalize_html(written_body):
-            return _REWRITTEN
+        reason = body_readback_failure(written_body, after.get(body_field))
+        if reason:
+            return reason
 
     mismatched = [
         field for field, sent in requested.items()

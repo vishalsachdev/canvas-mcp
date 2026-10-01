@@ -725,7 +725,7 @@
         "Add a link to the course website at the top of the BADM 350 syllabus",
         "Replace the CS101 syllabus with this HTML"
       ],
-      "notes": "Canvas keeps no revision history for syllabus_body, so a replace cannot be undone. Append and prepend, and any write into an empty syllabus, are single-call because they destroy nothing. Optional guards (issue 419) are independent of the confirmation token: a find/replace over existing content still previews first. A guarded write is reported unconfirmed if the stored body is unchanged or lacks the text written, and reports the old and new body SHA-256."
+      "notes": "Canvas keeps no revision history for syllabus_body, so a replace cannot be undone. Append and prepend, and any write into an empty syllabus, are single-call because they destroy nothing. Optional guards (issue 419) are independent of the confirmation token: a find/replace over existing content still previews first. A guarded write is confirmed only if the stored syllabus equals the expected HTML (full body, current+new for append, new+current for prepend, or the substituted body) after whitespace normalization; otherwise unconfirmed, and reports the old and new body SHA-256."
     },
     {
       "name": "list_discussion_topics",
@@ -909,7 +909,7 @@
       "examples": [
         "Update the Week 1 discussion prompt to mention Claude and Gemini"
       ],
-      "notes": "Optional guards (issue 419): expect_body_sha256, find/replace on message, require. Any guard makes the tool fetch the topic first, refuse on a failed check without writing, and read it back after: confirmed only if find is gone and replace is present (whitespace-normalized HTML) and every other requested field reads back as sent, otherwise reported unconfirmed, with old and new body SHA-256. Omitting every guard parameter leaves the call unchanged."
+      "notes": "Optional guards (issue 419): expect_body_sha256, find/replace on message, require. Any guard makes the tool fetch the topic first, refuse on a failed check without writing, and read it back after: confirmed only if the stored message equals the expected message (whole body, whitespace-normalized HTML) and every other requested field reads back as sent, otherwise reported unconfirmed, with old and new body SHA-256. Omitting every guard parameter leaves the call unchanged."
     },
     {
       "name": "search_canvas_tools",
@@ -1992,7 +1992,7 @@
       "examples": [
         "Update the 'Course Policies' page with this new HTML"
       ],
-      "notes": "Optional guards (issue 419): expect_updated_at, find/replace, require. Any guard parameter makes the tool fetch the object first, refuse on a failed check without writing, and read it back after the write: the result is reported as confirmed only if updated_at advanced, find is gone and replace is present (whitespace-normalized HTML; a full body must match), and every other requested field reads back as sent, otherwise as unconfirmed with old and new updated_at. Omitting every guard parameter leaves the call unchanged."
+      "notes": "Optional guards (issue 419): expect_updated_at, find/replace, require. Any guard parameter makes the tool fetch the object first, refuse on a failed check without writing, and read it back after the write: the result is reported as confirmed only if updated_at advanced, the stored body equals the expected body (whole body, whitespace-normalized HTML), and every other requested field reads back as sent, otherwise as unconfirmed with old and new updated_at. Omitting every guard parameter leaves the call unchanged."
     },
     {
       "name": "extract_peer_review_dataset",
@@ -2915,7 +2915,7 @@
         "Move the essay deadline to Friday 11:59pm",
         "Change the assignment to 25 points"
       ],
-      "notes": "Optional guards (issue 419): expect_updated_at, find/replace on description, require. Any guard parameter makes the tool fetch the object first, refuse on a failed check without writing, and read it back after the write: the result is reported as confirmed only if updated_at advanced, find is gone and replace is present (whitespace-normalized HTML; a full body must match), and every other requested field reads back as sent, otherwise as unconfirmed with old and new updated_at. Omitting every guard parameter leaves the call unchanged."
+      "notes": "Optional guards (issue 419): expect_updated_at, find/replace on description, require. Any guard parameter makes the tool fetch the object first, refuse on a failed check without writing, and read it back after the write: the result is reported as confirmed only if updated_at advanced, the stored body equals the expected body (whole body, whitespace-normalized HTML), and every other requested field reads back as sent, otherwise as unconfirmed with old and new updated_at. Omitting every guard parameter leaves the call unchanged."
     },
     {
       "name": "delete_assignment_with_confirmation",

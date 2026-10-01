@@ -298,8 +298,9 @@ To change one fragment without reverting anyone else's edits:
 The tool fetches the object, refuses (writing nothing) if it changed since
 you read it, if find matches 0 or 2+ times, or if a `require` string is
 missing; then writes once and reads back. Success means the read-back proves
-the write: updated_at advanced (pages, assignments), find is gone and replace
-is present in the HTML, and every other field you changed reads back as sent.
+the write: updated_at advanced (pages, assignments), the stored body equals
+the expected body after whitespace normalization (whole body, not just the
+edited fragment), and every other field you changed reads back as sent.
 Anything else is reported as unconfirmed, never success.
 Same parameters on update_assignment (description). Discussion topics and the
 syllabus have NO updated_at: pass expect_body_sha256 instead (SHA-256 of the

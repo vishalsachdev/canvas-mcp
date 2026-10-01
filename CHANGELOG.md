@@ -37,9 +37,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `get_discussion_topic_details` now print that hash, and the syllabus
   confirmation token is unchanged and independent.
   A guarded write is read back and reported as confirmed only when the
-  read-back proves it (timestamp advanced where there is one, `find` gone and
-  `replace` present in whitespace-normalized HTML, every other requested field
-  as sent); otherwise it is reported unconfirmed. Calls without the new
+  read-back proves it (timestamp advanced where there is one, the whole stored
+  body equal to the expected body after whitespace-only normalization, every
+  other requested field as sent); otherwise it is reported unconfirmed. Calls without the new
   parameters send exactly the same requests as before.
 
 ### Fixed

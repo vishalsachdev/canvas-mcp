@@ -466,7 +466,7 @@ async def test_readback_missing_the_replacement_is_unconfirmed(spec, canvas_for)
     result = await spec.tool()(*spec.args, find="Monday 2pm", replace="Tuesday 3pm")
 
     assert len(fake.put_bodies()) == 1
-    assert_unconfirmed(result, "still contains the text find matched")
+    assert_unconfirmed(result, "is not the expected body")
 
 
 @pytest.mark.asyncio
@@ -481,7 +481,44 @@ async def test_failed_deletion_is_not_reported_as_verified(spec, canvas_for):
     )
 
     assert [spec.put_body(d) for d in fake.put_bodies()] == ["<p>Keep me</p>"]
-    assert_unconfirmed(result, "still contains the text find matched")
+    assert_unconfirmed(result, "is not the expected body")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("spec", SPECS, ids=IDS)
+async def test_deletion_that_lost_unrelated_content_is_not_verified(spec, canvas_for):
+    """find is gone and the (empty) replacement is trivially present, but the
+    kept paragraph vanished too: only whole-body equality catches this."""
+    body = "<p>Keep me</p><p>Remove me</p>"
+    fake = canvas_for(spec, spec.fake(body, rewrite=lambda _html: ""))
+
+    result = await spec.tool()(*spec.args, find="<p>Remove me</p>", replace="")
+
+    assert [spec.put_body(d) for d in fake.put_bodies()] == ["<p>Keep me</p>"]
+    assert_unconfirmed(result, "is not the expected body")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("spec", SPECS, ids=IDS)
+async def test_edit_that_lost_unrelated_content_is_not_verified(spec, canvas_for):
+    """The replacement landed but Canvas dropped the second paragraph."""
+    fake = canvas_for(spec, spec.fake(
+        rewrite=lambda html: html.replace("<p>Read chapter 3.</p>", "")))
+
+    result = await spec.tool()(*spec.args, find="Monday 2pm", replace="Tuesday 3pm")
+
+    assert len(fake.put_bodies()) == 1
+    assert_unconfirmed(result, "is not the expected body")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("spec", SPECS, ids=IDS)
+async def test_deletion_that_landed_exactly_is_verified(spec, canvas_for):
+    canvas_for(spec, spec.fake("<p>Keep me</p><p>Remove me</p>"))
+
+    result = await spec.tool()(*spec.args, find="<p>Remove me</p>", replace="")
+
+    assert result.startswith("✅"), result
 
 
 @pytest.mark.asyncio
@@ -496,7 +533,7 @@ async def test_failed_attribute_only_edit_is_not_reported_as_verified(spec, canv
     )
 
     assert len(fake.put_bodies()) == 1
-    assert_unconfirmed(result, "still contains the text find matched")
+    assert_unconfirmed(result, "is not the expected body")
 
 
 @pytest.mark.asyncio
@@ -523,7 +560,7 @@ async def test_find_inside_replace_needs_a_new_occurrence(spec, canvas_for):
     )
 
     assert len(fake.put_bodies()) == 1
-    assert_unconfirmed(result, "does not show the replacement")
+    assert_unconfirmed(result, "is not the expected body")
 
 
 @pytest.mark.asyncio
@@ -548,7 +585,7 @@ async def test_full_body_rewritten_by_canvas_is_unconfirmed(spec, canvas_for):
         *spec.args, **{spec.body_param: '<p><a href="/x" rel="noopener">x</a></p>'}, **guard,
     )
 
-    assert_unconfirmed(result, "differs from what was sent")
+    assert_unconfirmed(result, "is not the expected body")
 
 
 # --------------------------------------------------------------------------
@@ -640,9 +677,12 @@ def test_parse_timestamp_rejects_garbage():
 # --------------------------------------------------------------------------
 
 class FakeSyllabus:
-    def __init__(self, body: str, *, store: bool = True, inject: str = "") -> None:
+    def __init__(self, body: str, *, store: bool = True, inject: str = "",
+                 rewrite: Callable[[str], str] | None = None) -> None:
         self.body = body
         self.store = store
+        # Canvas's sanitizer rewriting the stored HTML.
+        self.rewrite = rewrite
         # Theme injection Canvas adds to the stored body on every write.
         self.inject = inject
         self.calls: list[tuple[str, str, dict[str, Any]]] = []
@@ -654,7 +694,8 @@ class FakeSyllabus:
         self.calls.append((method, path, kwargs))
         if method == "put":
             if self.store:
-                self.body = kwargs["data"]["course"]["syllabus_body"]
+                sent = kwargs["data"]["course"]["syllabus_body"]
+                self.body = self.rewrite(sent) if self.rewrite else sent
             self.body += self.inject
             return {"id": COURSE_ID, "course_code": "CS101"}
         return {"course_code": "CS101", "syllabus_body": self.body}
@@ -818,5 +859,85 @@ async def test_syllabus_failed_deletion_is_not_reported_as_verified(syllabus_too
 
     assert fake.puts() == ["<p>Keep me</p>"]
     assert "Could not confirm" in result, result
-    assert "still contains the text find matched" in result
+    assert "is not the expected body" in result
     assert "✅" not in result
+
+
+STRIP_NOOPENER = {"rewrite": lambda html: html.replace(' rel="noopener"', "")}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["replace", "append", "prepend"])
+async def test_syllabus_guarded_write_with_a_dropped_attribute_is_unconfirmed(
+    syllabus_tools, syllabus_canvas, mode
+):
+    """Visible text is identical after Canvas strips rel="noopener"; the
+    stored HTML is not the HTML that was meant to be written."""
+    fake = syllabus_canvas(FakeSyllabus(ORIGINAL, **STRIP_NOOPENER))
+    update = syllabus_tools["update_syllabus"]
+    args = {"syllabus_body": '<p><a href="/x" rel="noopener">x</a></p>', "mode": mode,
+            "expect_body_sha256": _sha(ORIGINAL)}
+
+    first = await update("CS101", **args)
+    if mode == "replace":
+        assert fake.puts() == [], "a replace over existing content previews first"
+        result = await update("CS101", **args, confirmation_token=_token(first))
+    else:
+        result = first  # append/prepend destroy nothing: one call writes
+
+    assert len(fake.puts()) == 1
+    assert "Could not confirm" in result, result
+    assert "is not the expected body" in result
+    assert "✅" not in result
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("mode", "expected"), [
+    ("replace", '<p><a href="/x" rel="noopener">x</a></p>'),
+    ("append", ORIGINAL + '\n<p><a href="/x" rel="noopener">x</a></p>'),
+    ("prepend", '<p><a href="/x" rel="noopener">x</a></p>\n' + ORIGINAL),
+])
+async def test_syllabus_guarded_write_stored_exactly_is_verified(
+    syllabus_tools, syllabus_canvas, mode, expected
+):
+    fake = syllabus_canvas(FakeSyllabus(ORIGINAL))
+    update = syllabus_tools["update_syllabus"]
+    args = {"syllabus_body": '<p><a href="/x" rel="noopener">x</a></p>', "mode": mode,
+            "expect_body_sha256": _sha(ORIGINAL)}
+
+    first = await update("CS101", **args)
+    result = (await update("CS101", **args, confirmation_token=_token(first))
+              if mode == "replace" else first)
+
+    assert fake.puts() == [expected]
+    assert result.startswith("✅"), result
+
+
+@pytest.mark.asyncio
+async def test_syllabus_fragment_edit_that_lost_unrelated_content_is_unconfirmed(
+    syllabus_tools, syllabus_canvas
+):
+    fake = syllabus_canvas(FakeSyllabus(
+        "<p>Keep me</p><p>Remove me</p>", rewrite=lambda _html: "<p>x</p>"))
+    update = syllabus_tools["update_syllabus"]
+    args = {"find": "<p>Remove me</p>", "replace": ""}
+
+    preview = await update("CS101", **args)
+    result = await update("CS101", **args, confirmation_token=_token(preview))
+
+    assert fake.puts() == ["<p>Keep me</p>"]
+    assert "Could not confirm" in result, result
+    assert "✅" not in result
+
+
+@pytest.mark.asyncio
+async def test_unguarded_syllabus_write_keeps_the_visible_text_check(syllabus_tools, syllabus_canvas):
+    """No guard parameters: today's behavior, where Canvas stripping an
+    attribute still reads as success with a 'rewritten copy' note."""
+    syllabus_canvas(FakeSyllabus("", **STRIP_NOOPENER))
+
+    result = await syllabus_tools["update_syllabus"](
+        "CS101", '<p><a href="/x" rel="noopener">x</a></p>')
+
+    assert result.startswith("✅"), result
+    assert "rewritten copy" in result
