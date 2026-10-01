@@ -2059,6 +2059,18 @@ Without `group_id` this lists course-level topics only. Topics that students
 start inside a group space are missing; use
 [`list_group_discussion_topics`](#list_group_discussion_topics) to find them.
 
+When Canvas reports a non-null `anonymous_state` for a topic
+(`partial_anonymity` or `full_anonymity`), the entry shows an `Anonymity:` line.
+`list_group_discussion_topics` does the same.
+
+**Anonymous topics:** Canvas's REST API answers 404 for topics created with
+full anonymity, although the topic list includes them. When
+`get_discussion_topic_details`, `list_discussion_entries` or
+`get_discussion_with_replies` gets a 404, the tool checks the topic list of the
+same course (or group). If the topic is listed, it says the topic exists, that
+REST does not serve it (most likely because it is anonymous), and to open it in
+the Canvas UI. A 404 for a topic that is not listed is reported as not found.
+
 **Example:**
 ```
 "What discussions are active in my course?"

@@ -31,6 +31,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the confirmation token is unchanged and independent. Calls without the new
   parameters send exactly the same requests as before.
 
+### Fixed
+
+- **Anonymous discussion topics no longer read as missing** (issue 421, part 1).
+  Canvas's REST API answers 404 for fully anonymous topics that its topic list
+  still includes. `list_discussion_topics` and `list_group_discussion_topics`
+  now show `Anonymity:` when Canvas reports an `anonymous_state`. On a 404,
+  `get_discussion_topic_details`, `list_discussion_entries` and
+  `get_discussion_with_replies` check the course's (or group's) topic list; a
+  listed topic gets a message that it exists, REST does not serve it, and it
+  can be opened in the Canvas UI. A 404 for an unlisted topic is still not found.
+
 ## [1.13.0] — 2026-09-27
 
 ### Security
