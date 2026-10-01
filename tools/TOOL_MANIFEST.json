@@ -692,7 +692,7 @@
     {
       "name": "list_discussion_topics",
       "category": "shared",
-      "description": "View discussion forums in a course. Returns discussion topics only; announcements are excluded unless include_announcements is set. Use list_announcements to list announcements on their own.",
+      "description": "View discussion forums in a course. Returns discussion topics only; announcements are excluded unless include_announcements is set. Use list_announcements to list announcements on their own. Without group_id it lists course-level topics only; topics that students start inside a group space are missing, so use list_group_discussion_topics to find them.",
       "parameters": [
         {
           "name": "course_identifier",

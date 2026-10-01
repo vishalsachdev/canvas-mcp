@@ -104,6 +104,10 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         collection and are NOT included unless include_announcements=True.
         To list announcements on their own, use list_announcements instead.
 
+        Without group_id this lists course-level topics only. Topics that
+        students start inside a group space are missing from that list; use
+        list_group_discussion_topics to find them across all groups.
+
         Args:
             course_identifier: Course code or Canvas ID
             include_announcements: Also list the course's announcements
