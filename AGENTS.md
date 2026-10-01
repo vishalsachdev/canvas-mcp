@@ -83,8 +83,8 @@ Course management, grading, and analytics. Requires instructor/TA role.
 
 | Tool | Purpose |
 |------|---------|
-| `list_assignments` | All assignments in a course |
-| `get_assignment_details` | Full assignment info including description |
+| `list_assignments` | All assignments in a course; `raw_dates=True` appends every date as Canvas returns it (`due_at`, `unlock_at`, `lock_at`, `updated_at`, `all_dates`, checkpoint dates). Use it for due-date audits: a checkpointed discussion's `due_at` is null by design |
+| `get_assignment_details` | Full assignment info including description; `raw_dates=True` appends the same dates block |
 | `list_submissions` | Student submissions for grading |
 | `get_assignment_analytics` | Performance statistics |
 | `create_assignment` | Create new assignment with due date, submission types, peer reviews |
@@ -157,6 +157,7 @@ Content access tools available to all authenticated users.
 | `list_announcements` | Course announcements, and nothing else |
 | `list_discussion_topics` | Discussion forums (discussions only; set `include_announcements` to also list announcements) |
 | `list_group_discussion_topics` | Topics inside every group space, including topics students started in a group (pass `group_id` to the other discussion read tools to read them) |
+| `get_discussion_topic_details` | One topic's details; `raw_dates=True` appends the topic's dates and, for a graded discussion, its assignment and checkpoint dates |
 | `list_discussion_entries` | Posts in a discussion |
 | `post_discussion_entry` | Add a discussion post |
 | `reply_to_discussion_entry` | Reply to a post |

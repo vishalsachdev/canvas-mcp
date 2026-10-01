@@ -12,6 +12,7 @@ from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, parse_date, truncate_text
 from ..core.logging import log_warning
+from ..core.raw_dates import render_raw_dates, topic_raw_dates
 from ..core.untrusted_content import (
     FENCE_LEAK_ERROR,
     contains_fence_markers,
@@ -323,7 +324,8 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
     @validate_params
     async def get_discussion_topic_details(course_identifier: str | int,
                                          topic_id: str | int,
-                                         group_id: str | int | None = None) -> str:
+                                         group_id: str | int | None = None,
+                                         raw_dates: bool = False) -> str:
         """Get detailed information about a specific discussion topic.
 
         Args:
@@ -333,6 +335,10 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                 space instead of the course (default: None). Discussions that
                 students start in a group exist only there. The group must
                 belong to the course.
+            raw_dates: Append a JSON block with the topic's dates and, for a
+                graded discussion, its assignment's due_at, unlock_at, lock_at,
+                updated_at and checkpoint dates exactly as Canvas returns them
+                (null stays null). Default False.
         """
         course_id = await get_course_id(course_identifier)
         prefix, prefix_error = await _discussion_prefix(course_id, group_id)
@@ -397,6 +403,11 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             # Topic bodies are third-party text (issue 239): mark provenance
             # so embedded directives read as data, not instructions.
             result += f"\nContent:\n{fence_untrusted(message, 'discussion topic body')}"
+
+        if raw_dates:
+            # No extra request: the topic response embeds its assignment,
+            # checkpoints included (measured 2026-10-01).
+            result += render_raw_dates(topic_raw_dates(response, topic_id))
 
         return result
 

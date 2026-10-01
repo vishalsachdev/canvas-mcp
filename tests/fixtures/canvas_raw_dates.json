@@ -1,0 +1,322 @@
+{
+  "_provenance": "Real Canvas API responses captured 2026-10-01 by read-only GETs: GET /courses/:id/assignments?include[]=all_dates&include[]=checkpoints (list_item), GET /courses/:id/assignments/:id?all_dates=true&include[]=checkpoints (assignment), GET /courses/:id/discussion_topics/:id (topic). De-identified: course, assignment, topic and override IDs replaced with placeholders; titles and checkpoint names replaced with neutral text; description/message bodies replaced; author replaced; other fields dropped. Date values, nulls and checkpoint structure are unchanged.",
+  "checkpointed": {
+    "list_item": {
+      "id": 5001,
+      "name": "Checkpointed discussion (de-identified)",
+      "course_id": 9001,
+      "description": "<p>Body removed for the fixture.</p>",
+      "created_at": "2026-08-13T17:21:00Z",
+      "updated_at": "2026-08-13T17:30:26Z",
+      "due_at": null,
+      "unlock_at": null,
+      "lock_at": null,
+      "all_dates": [
+        {
+          "due_at": "2026-08-15T04:59:59Z",
+          "unlock_at": null,
+          "lock_at": null,
+          "title": "Everyone",
+          "base": true
+        },
+        {
+          "due_at": "2026-08-16T04:59:59Z",
+          "unlock_at": null,
+          "lock_at": null,
+          "title": "Everyone",
+          "base": true
+        }
+      ],
+      "has_sub_assignments": true,
+      "checkpoints": [
+        {
+          "name": "Checkpointed discussion (de-identified)",
+          "tag": "reply_to_topic",
+          "points_possible": 1.0,
+          "due_at": "2026-08-15T04:59:59Z",
+          "only_visible_to_overrides": false,
+          "overrides": [],
+          "unlock_at": null,
+          "lock_at": null
+        },
+        {
+          "name": "Checkpointed discussion (de-identified)",
+          "tag": "reply_to_entry",
+          "points_possible": 0.0,
+          "due_at": "2026-08-16T04:59:59Z",
+          "only_visible_to_overrides": false,
+          "overrides": [],
+          "unlock_at": null,
+          "lock_at": null
+        }
+      ],
+      "points_possible": 1.0,
+      "submission_types": [
+        "discussion_topic"
+      ],
+      "published": true,
+      "has_overrides": false,
+      "only_visible_to_overrides": false,
+      "discussion_topic": {
+        "id": 7001
+      },
+      "needs_grading_count": 2,
+      "graded_submissions_exist": false,
+      "has_submitted_submissions": false,
+      "locked_for_user": false
+    },
+    "assignment": {
+      "id": 5001,
+      "name": "Checkpointed discussion (de-identified)",
+      "course_id": 9001,
+      "description": "<p>Body removed for the fixture.</p>",
+      "created_at": "2026-08-13T17:21:00Z",
+      "updated_at": "2026-08-13T17:30:26Z",
+      "due_at": null,
+      "unlock_at": null,
+      "lock_at": null,
+      "all_dates": [
+        {
+          "due_at": "2026-08-15T04:59:59Z",
+          "unlock_at": null,
+          "lock_at": null,
+          "title": "Everyone",
+          "base": true
+        },
+        {
+          "due_at": "2026-08-16T04:59:59Z",
+          "unlock_at": null,
+          "lock_at": null,
+          "title": "Everyone",
+          "base": true
+        }
+      ],
+      "has_sub_assignments": true,
+      "checkpoints": [
+        {
+          "name": "Checkpointed discussion (de-identified)",
+          "tag": "reply_to_topic",
+          "points_possible": 1.0,
+          "due_at": "2026-08-15T04:59:59Z",
+          "only_visible_to_overrides": false,
+          "overrides": [],
+          "unlock_at": null,
+          "lock_at": null
+        },
+        {
+          "name": "Checkpointed discussion (de-identified)",
+          "tag": "reply_to_entry",
+          "points_possible": 0.0,
+          "due_at": "2026-08-16T04:59:59Z",
+          "only_visible_to_overrides": false,
+          "overrides": [],
+          "unlock_at": null,
+          "lock_at": null
+        }
+      ],
+      "points_possible": 1.0,
+      "submission_types": [
+        "discussion_topic"
+      ],
+      "published": true,
+      "has_overrides": false,
+      "only_visible_to_overrides": false,
+      "discussion_topic": {
+        "id": 7001
+      },
+      "needs_grading_count": 2,
+      "graded_submissions_exist": false,
+      "has_submitted_submissions": false,
+      "locked_for_user": false
+    },
+    "topic": {
+      "id": 7001,
+      "title": "Checkpointed discussion (de-identified)",
+      "message": "<p>Body removed for the fixture.</p>",
+      "is_announcement": false,
+      "assignment_id": 5001,
+      "is_checkpointed": true,
+      "reply_to_entry_required_count": 2,
+      "created_at": "2026-08-13T17:21:00Z",
+      "posted_at": "2026-08-13T17:21:00Z",
+      "delayed_post_at": null,
+      "lock_at": null,
+      "todo_date": null,
+      "locked": false,
+      "pinned": false,
+      "require_initial_post": null,
+      "discussion_subentry_count": 2,
+      "unread_count": 2,
+      "read_state": "unread",
+      "author": {
+        "id": 1001,
+        "display_name": "Instructor (placeholder)"
+      },
+      "assignment": {
+        "id": 5001,
+        "name": "Checkpointed discussion (de-identified)",
+        "course_id": 9001,
+        "description": "<p>Body removed for the fixture.</p>",
+        "created_at": "2026-08-13T17:21:00Z",
+        "updated_at": "2026-08-13T17:30:26Z",
+        "due_at": null,
+        "unlock_at": null,
+        "lock_at": null,
+        "has_sub_assignments": true,
+        "checkpoints": [
+          {
+            "name": "Checkpointed discussion (de-identified)",
+            "tag": "reply_to_topic",
+            "points_possible": 1.0,
+            "due_at": "2026-08-15T04:59:59Z",
+            "only_visible_to_overrides": false,
+            "overrides": [],
+            "unlock_at": null,
+            "lock_at": null
+          },
+          {
+            "name": "Checkpointed discussion (de-identified)",
+            "tag": "reply_to_entry",
+            "points_possible": 0.0,
+            "due_at": "2026-08-16T04:59:59Z",
+            "only_visible_to_overrides": false,
+            "overrides": [],
+            "unlock_at": null,
+            "lock_at": null
+          }
+        ],
+        "points_possible": 1.0,
+        "submission_types": [
+          "discussion_topic"
+        ],
+        "published": true,
+        "has_overrides": false,
+        "only_visible_to_overrides": false,
+        "needs_grading_count": 2,
+        "graded_submissions_exist": false,
+        "has_submitted_submissions": false,
+        "locked_for_user": false
+      }
+    }
+  },
+  "graded_discussion": {
+    "list_item": {
+      "id": 5002,
+      "name": "Graded discussion (de-identified)",
+      "course_id": 9001,
+      "description": "<p>Body removed for the fixture.</p>",
+      "created_at": "2020-11-12T01:33:16Z",
+      "updated_at": "2021-01-14T14:53:04Z",
+      "due_at": "2021-02-01T05:59:59Z",
+      "unlock_at": null,
+      "lock_at": null,
+      "all_dates": [
+        {
+          "due_at": "2021-02-01T05:59:59Z",
+          "unlock_at": null,
+          "lock_at": null,
+          "title": "Everyone",
+          "base": true
+        }
+      ],
+      "has_sub_assignments": false,
+      "checkpoints": [],
+      "points_possible": 3.0,
+      "submission_types": [
+        "discussion_topic"
+      ],
+      "published": false,
+      "has_overrides": false,
+      "only_visible_to_overrides": false,
+      "discussion_topic": {
+        "id": 7002
+      },
+      "needs_grading_count": 0,
+      "graded_submissions_exist": false,
+      "has_submitted_submissions": false,
+      "locked_for_user": false
+    },
+    "assignment": {
+      "id": 5002,
+      "name": "Graded discussion (de-identified)",
+      "course_id": 9001,
+      "description": "<p>Body removed for the fixture.</p>",
+      "created_at": "2020-11-12T01:33:16Z",
+      "updated_at": "2021-01-14T14:53:04Z",
+      "due_at": "2021-02-01T05:59:59Z",
+      "unlock_at": null,
+      "lock_at": null,
+      "all_dates": [
+        {
+          "due_at": "2021-02-01T05:59:59Z",
+          "unlock_at": null,
+          "lock_at": null,
+          "title": "Everyone",
+          "base": true
+        }
+      ],
+      "has_sub_assignments": false,
+      "checkpoints": [],
+      "points_possible": 3.0,
+      "submission_types": [
+        "discussion_topic"
+      ],
+      "published": false,
+      "has_overrides": false,
+      "only_visible_to_overrides": false,
+      "discussion_topic": {
+        "id": 7002
+      },
+      "needs_grading_count": 0,
+      "graded_submissions_exist": false,
+      "has_submitted_submissions": false,
+      "locked_for_user": false
+    },
+    "topic": {
+      "id": 7002,
+      "title": "Graded discussion (de-identified)",
+      "message": "<p>Body removed for the fixture.</p>",
+      "is_announcement": false,
+      "assignment_id": 5002,
+      "created_at": "2020-11-12T01:33:16Z",
+      "posted_at": "2020-11-12T01:48:16Z",
+      "delayed_post_at": null,
+      "lock_at": null,
+      "todo_date": null,
+      "locked": false,
+      "pinned": false,
+      "require_initial_post": null,
+      "discussion_subentry_count": 0,
+      "unread_count": 0,
+      "read_state": "unread",
+      "author": {
+        "id": 1001,
+        "display_name": "Instructor (placeholder)"
+      },
+      "assignment": {
+        "id": 5002,
+        "name": "Graded discussion (de-identified)",
+        "course_id": 9001,
+        "description": "<p>Body removed for the fixture.</p>",
+        "created_at": "2020-11-12T01:33:16Z",
+        "updated_at": "2021-01-14T14:53:04Z",
+        "due_at": "2021-02-01T05:59:59Z",
+        "unlock_at": null,
+        "lock_at": null,
+        "has_sub_assignments": false,
+        "checkpoints": [],
+        "points_possible": 3.0,
+        "submission_types": [
+          "discussion_topic"
+        ],
+        "published": false,
+        "has_overrides": false,
+        "only_visible_to_overrides": false,
+        "needs_grading_count": 0,
+        "graded_submissions_exist": false,
+        "has_submitted_submissions": false,
+        "locked_for_user": false
+      }
+    }
+  }
+}
