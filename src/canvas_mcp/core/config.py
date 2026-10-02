@@ -33,6 +33,10 @@ def _int_env(name: str, default: int) -> int:
         return default
 
 
+def _list_env(name: str) -> list[str]:
+    """Return a comma- or whitespace-separated environment variable as a list."""
+    value = os.getenv(name, "")
+    return [item for item in value.replace(",", " ").split() if item]
 def _float_env(name: str, default: float) -> float:
     value = os.getenv(name)
     if value is None or value.strip() == "":
@@ -87,6 +91,31 @@ class Config:
         self.ts_sandbox_memory_limit_mb = _int_env("TS_SANDBOX_MEMORY_LIMIT_MB", 512)
         self.ts_sandbox_timeout_sec = _int_env("TS_SANDBOX_TIMEOUT_SEC", 120)
         self.ts_sandbox_container_image = os.getenv("TS_SANDBOX_CONTAINER_IMAGE", "node:20-alpine")
+
+        # MCP client authentication for the streamable HTTP transport.  The
+        # server acts as an OAuth proxy in front of an existing OIDC provider;
+        # this keeps Canvas credentials server-side and gives MCP clients a
+        # standards-compliant OAuth 2.1 flow.
+        self.mcp_auth_mode = os.getenv("MCP_AUTH_MODE", "none").strip().lower()
+        self.mcp_public_url = os.getenv("MCP_PUBLIC_URL", "").rstrip("/")
+        self.mcp_oidc_config_url = os.getenv("MCP_OIDC_CONFIG_URL", "")
+        self.mcp_oidc_client_id = os.getenv("MCP_OIDC_CLIENT_ID", "")
+        self.mcp_oidc_client_secret = os.getenv("MCP_OIDC_CLIENT_SECRET", "")
+        self.mcp_oidc_audience = os.getenv("MCP_OIDC_AUDIENCE", "")
+        self.mcp_oidc_required_scopes = _list_env("MCP_OIDC_REQUIRED_SCOPES")
+        self.mcp_oidc_redirect_path = os.getenv(
+            "MCP_OIDC_REDIRECT_PATH", "/auth/callback"
+        )
+        self.mcp_oidc_allowed_client_redirect_uris = _list_env(
+            "MCP_OIDC_ALLOWED_CLIENT_REDIRECT_URIS"
+        )
+        self.mcp_oidc_jwt_signing_key = os.getenv("MCP_OIDC_JWT_SIGNING_KEY", "")
+        self.mcp_oidc_token_endpoint_auth_method = os.getenv(
+            "MCP_OIDC_TOKEN_ENDPOINT_AUTH_METHOD", ""
+        )
+        self.mcp_oidc_require_authorization_consent = _bool_env(
+            "MCP_OIDC_REQUIRE_AUTHORIZATION_CONSENT", True
+        )
 
         # Optional metadata
         self.institution_name = os.getenv("INSTITUTION_NAME", "")
@@ -181,6 +210,42 @@ def validate_config() -> bool:
     for env_name, note in unimplemented_env_vars.items():
         if os.getenv(env_name):
             log_warning(f"{env_name} is set but {note}.")
+
+    return True
+
+
+def validate_http_auth_config() -> bool:
+    """Validate optional OAuth/OIDC protection for the HTTP MCP endpoint."""
+    config = get_config()
+
+    if config.mcp_auth_mode == "none":
+        return True
+
+    if config.mcp_auth_mode != "oidc":
+        log_error("MCP_AUTH_MODE must be either 'none' or 'oidc'")
+        return False
+
+    required = {
+        "MCP_PUBLIC_URL": config.mcp_public_url,
+        "MCP_OIDC_CONFIG_URL": config.mcp_oidc_config_url,
+        "MCP_OIDC_CLIENT_ID": config.mcp_oidc_client_id,
+        "MCP_OIDC_CLIENT_SECRET": config.mcp_oidc_client_secret,
+        "MCP_OIDC_JWT_SIGNING_KEY": config.mcp_oidc_jwt_signing_key,
+    }
+    missing = [name for name, value in required.items() if not value]
+    if missing:
+        log_error(
+            "OIDC authentication is enabled but required settings are missing: "
+            + ", ".join(missing)
+        )
+        return False
+
+    if not config.mcp_oidc_allowed_client_redirect_uris:
+        log_error(
+            "MCP_OIDC_ALLOWED_CLIENT_REDIRECT_URIS is required when OIDC "
+            "authentication is enabled"
+        )
+        return False
 
     return True
 

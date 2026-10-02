@@ -19,7 +19,8 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from .core.config import get_config, validate_config
+from .core.config import get_config, validate_config, validate_http_auth_config
+from .core.mcp_auth import create_mcp_auth_provider, register_mcp_auth_routes
 from .core.credentials import (
     RequestCredentials,
     clear_request_credentials,
@@ -92,10 +93,17 @@ def create_server(
     """Create and configure the Canvas MCP server."""
     config = get_config()
     kwargs: dict[str, Any] = {"name": config.mcp_server_name}
+    authentication = None
     if transport != "stdio":
         kwargs["host"] = host
         kwargs["port"] = port
+        authentication = create_mcp_auth_provider(config)
+        if authentication is not None:
+            kwargs["auth"] = authentication.settings
+            kwargs["auth_server_provider"] = authentication.provider
     mcp = FastMCP(**kwargs)
+    if transport != "stdio" and authentication is not None:
+        register_mcp_auth_routes(mcp, authentication)
     return mcp
 
 
@@ -235,6 +243,10 @@ def main() -> None:
 
     config = get_config()
 
+    if is_http and not validate_http_auth_config():
+        log_error("Please check the HTTP MCP authentication configuration")
+        sys.exit(1)
+
     # Handle special commands
     if args.config:
         print("Canvas MCP Server Configuration:", file=sys.stderr)
@@ -298,7 +310,14 @@ def main() -> None:
         log_info(
             f"Starting Canvas MCP server in HTTP mode on {args.host}:{args.port}"
         )
-        log_info("Credentials: per-request via X-Canvas-Token / X-Canvas-URL headers")
+        if config.mcp_auth_mode == "oidc":
+            log_info("MCP client authentication: OAuth 2.1 via upstream OIDC")
+        else:
+            log_warning(
+                "HTTP MCP authentication is disabled. Put the endpoint behind "
+                "a trusted gateway or set MCP_AUTH_MODE=oidc."
+            )
+        log_info("Canvas credentials: per-request via X-Canvas-Token / X-Canvas-URL, or .env")
     else:
         log_info(f"Starting Canvas MCP server with API URL: {config.canvas_api_url}")
 
