@@ -852,7 +852,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
         topic_title = "Unknown Topic"
         if "error" not in topic_response:
-            topic_title = topic_response.get("title", "Unknown Topic")
+            topic_title = str(topic_response.get("title") or "Unknown Topic")
 
         # Format the output
         course_display = await get_course_code(course_id) or course_identifier
@@ -1019,12 +1019,12 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         # Method 1: Try to get entry details from the discussion view endpoint
         entry_response = None
         entries_error: Any = None
+        replies: list[Any] | Any = []
         known = await _known_unservable_discussion(course_id, prefix, topic_id, group_id)
         if known is not None:
             entry_response = known.find(entry_id)
             if entry_response and include_replies:
                 replies = entry_response.get("replies", [])
-        replies: list[Any] | Any = []
 
         if known is None:
             try:
