@@ -1318,6 +1318,9 @@ class TestAnonymousDiscussionFallback:
             mock_canvas_api['fetch_all_paginated_results'].reset_mock()
             result = await get_tool_function(name)("badm_350_120251", *args)
             assert "404" not in result, name
+            if name == "get_discussion_entry_details":
+                assert "Replies (1):" in result
+                assert "Thanks!" in result
             mock_canvas_api['fetch_all_paginated_results'].assert_not_called()
             paths = [c.args[1] for c in mock_canvas_api['make_canvas_request'].call_args_list]
             assert paths == ["/graphql"], (name, paths)
