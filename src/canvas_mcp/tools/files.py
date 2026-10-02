@@ -117,6 +117,10 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
         # runs and break every local download there. O_EXCL alone still refuses
         # an existing path, including a pre-planted symlink, which is the bulk
         # of the protection.
+        # The 0o600 mode is owner-only on POSIX. Windows has no permission bits:
+        # the mode only sets the read-only attribute, and access follows the ACL
+        # inherited from save_dir (the default, the per-user temp dir, is
+        # private to that user).
         open_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
         try:
             fd = os.open(save_path, open_flags, 0o600)
