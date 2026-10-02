@@ -1076,7 +1076,7 @@ async def test_anonymous_topic_404_through_real_client_transport(monkeypatch):
     """The 404 detector must match what the real client produces for a 404."""
     import httpx
 
-    import canvas_mcp.core.client as cm
+    from canvas_mcp.core import client as cm
     from canvas_mcp.core.config import reset_config
 
     # The real client builds absolute URLs from config; pin it so the test does
@@ -1363,7 +1363,7 @@ async def test_anonymous_topic_graphql_fallback_through_real_client(monkeypatch)
     """The fallback's GraphQL answer goes through the real client and its anonymization."""
     import httpx
 
-    import canvas_mcp.core.client as cm
+    from canvas_mcp.core import client as cm
     from canvas_mcp.core.config import reset_config
 
     monkeypatch.setenv("CANVAS_API_URL", "https://canvas.example/api/v1")
