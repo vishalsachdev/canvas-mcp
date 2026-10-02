@@ -822,9 +822,9 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             # Method 2: For entries not found in view, try entry_list endpoint
             missing_entry_ids = []
             for entry in entries:
-                entry_id = str(entry.get("id"))
-                if entry_id not in full_entries_map:
-                    missing_entry_ids.append(entry_id)
+                missing_entry_id = str(entry.get("id"))
+                if missing_entry_id not in full_entries_map:
+                    missing_entry_ids.append(missing_entry_id)
 
             if missing_entry_ids:
                 try:
@@ -852,7 +852,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
         topic_title = "Unknown Topic"
         if "error" not in topic_response:
-            topic_title = str(topic_response.get("title") or "Unknown Topic")
+            topic_title = topic_response.get("title", "Unknown Topic")
 
         # Format the output
         course_display = await get_course_code(course_id) or course_identifier
