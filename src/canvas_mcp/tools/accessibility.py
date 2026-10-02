@@ -10,6 +10,7 @@ import re
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
@@ -19,7 +20,7 @@ from ..core.validation import validate_params
 def register_accessibility_tools(mcp: FastMCP) -> None:
     """Register all accessibility-related MCP tools."""
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def fetch_ufixit_report(
         course_identifier: str | int,
@@ -73,7 +74,7 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
             "course_id": course_id
         })
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def parse_ufixit_violations(report_json: str) -> str:
         """Parse UFIXIT report content to extract accessibility violations.
@@ -108,7 +109,7 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
             }
         })
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def format_accessibility_summary(violations_json: str) -> str:
         """Format parsed violations into a human-readable summary.
@@ -179,7 +180,7 @@ def register_accessibility_tools(mcp: FastMCP) -> None:
 
         return "\n".join(lines)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def scan_course_content_accessibility(
         course_identifier: str | int,

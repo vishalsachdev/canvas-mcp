@@ -4,11 +4,13 @@ Allows Claude to search and explore available TypeScript tools.
 """
 
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Literal
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from ..core.validation import validate_params
 
@@ -18,7 +20,7 @@ DetailLevel = Literal["names", "signatures", "full"]
 def register_discovery_tools(mcp: FastMCP) -> None:
     """Register tool discovery tools."""
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     @validate_params
     async def search_canvas_tools(
         query: str = "",
@@ -63,7 +65,8 @@ def register_discovery_tools(mcp: FastMCP) -> None:
                         content = ts_file.read_text()
                         if query_lower not in content.lower():
                             continue
-                    except Exception:
+                    except Exception as e:
+                        logging.debug("Skipping file %s: %s", ts_file, e)
                         continue
 
                 relative_path = str(ts_file.relative_to(code_api_path))

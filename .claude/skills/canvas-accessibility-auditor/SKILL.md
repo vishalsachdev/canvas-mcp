@@ -1,1 +1,0 @@
-../../../skills/canvas-accessibility-auditor/SKILL.md

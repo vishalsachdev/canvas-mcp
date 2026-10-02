@@ -8,7 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![skills.sh](https://img.shields.io/badge/skills.sh-canvas--mcp-blue)](https://skills.sh)
 
-MCP server for Canvas LMS with **90+ tools** and **8 agent skills**. Works with Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh).
+MCP server for Canvas LMS with **88 tools** and **8 agent skills**. Works with Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh).
 
 ```bash
 npx skills add vishalsachdev/canvas-mcp
@@ -23,7 +23,7 @@ npx skills add vishalsachdev/canvas-mcp
   See CLAUDE.md "Documentation Maintenance" for full guidelines.
 -->
 
-Canvas MCP provides **90+ tools** for interacting with Canvas LMS. Tools are organized by user type:
+Canvas MCP provides **88 tools** for interacting with Canvas LMS. Tools are organized by user type:
 
 <details>
 <summary><strong>Student Tools</strong> (click to expand)</summary>
@@ -125,20 +125,22 @@ Canvas MCP provides **90+ tools** for interacting with Canvas LMS. Tools are org
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing **both students and educators** with an intelligent interface to their Canvas environment. Built on the Model Context Protocol (MCP), it enables natural language interactions with Canvas data through any MCP-compatible client.
 
-## Latest Release: v1.1.0
+## Latest Release: v1.3.0
 
-**Released:** March 4, 2026 | **[View Full Release Notes](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.1.0)**
+**Released:** May 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
 
-- **Hosted Server** — Use without installing: connect via `https://mcp.illinihunt.org/mcp` with your Canvas credentials as HTTP headers
-- **Learning Designer Tools** — New `get_course_structure` tool + 3 skills for course QC, accessibility auditing, and course scaffolding
-- **Agent Skills** — 8 workflow skills for 40+ coding agents via [skills.sh](https://skills.sh)
-- **File Management** — `download_course_file` and `list_course_files` tools (community PR #75)
-- **Token Optimization** — Trimmed tool docstrings ~35% for faster MCP context loading
-- **Generic Distribution** — Removed institution-specific defaults for universal use
-- **Codebase Refactor** — Type dispatch, structured logging, Python 3.14 fix
+- **`create_rubric`** — Programmatic rubric creation with criteria, ratings, and optional assignment association (PR #100)
+- **`read_course_file`** — Read Canvas file content for remote MCP deployments ([@DomBarker99](https://github.com/DomBarker99), PR #90)
+- **Event-loop fix** — Resolves "Event loop is closed" on user-scoped tools (`get_my_todo_items`, `get_my_upcoming_assignments`, etc.) (PR #99)
+- **⚠️ Bulk-delete safety** — `bulk_delete_announcements` now caps at 25 IDs by default; pass `limit=N` to override or `dry_run=True` to preview. **Existing callers passing >25 IDs must add `limit=N` explicitly.** (PR #96)
+- **Maintenance** — Drop unused `fastmcp` dep, pin `mcp>=1.26,<2`, prune ~30 transitive deps (PR #93)
 
 <details>
 <summary>Previous releases</summary>
+
+**v1.2.0** — Role-Based Tool Filtering ([@Promithius-DR](https://github.com/Promithius-DR), PR #84), Accessibility Remediation (`fix_accessibility_issues`, scanner expanded 4→20 checks), Security Hardening (path traversal/symlink protections), Windows Support for `execute_typescript` (PR #85), CI consolidation (11→8 checks)
+
+**v1.1.0** — Hosted Server (`mcp.illinihunt.org`), Learning Designer tools + 3 skills, Agent Skills on skills.sh, File Management ([@Metzpapa](https://github.com/Metzpapa), PR #75), Token Optimization, Generic Distribution
 
 **v1.0.8** — Security Hardening (PII sanitization, audit logging, sandbox-by-default), Ruff linting, 235+ tests
 
@@ -160,7 +162,7 @@ Get AI-powered assistance with:
 - Accessing course content and discussions
 - Organizing your TODO list
 
-**[→ Get Started as a Student](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/STUDENT_GUIDE.md)**
+**[→ Get Started as a Student](https://canvas-mcp.illinihunt.org/student-guide.html)**
 
 ### For Educators 👨‍🏫
 Enhance your teaching with:
@@ -170,7 +172,7 @@ Enhance your teaching with:
 - **FERPA-compliant** student data handling
 - Bulk messaging and communication tools
 
-**[→ Get Started as an Educator](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/EDUCATOR_GUIDE.md)**
+**[→ Get Started as an Educator](https://canvas-mcp.illinihunt.org/educator-guide.html)**
 
 ### For Learning Designers 🎨
 AI-powered course design and quality assurance:
@@ -238,7 +240,7 @@ Complete FERPA compliance through systematic data anonymization when working wit
 - **FERPA-compliant analytics**: Ask "Which students need support?" without exposing real identities
 - **De-anonymization mapping tool** for faculty to correlate anonymous IDs with real students locally
 
-All student data is anonymized **before** it reaches AI systems. See [Educator Guide](https://github.com/vishalsachdev/canvas-mcp/blob/main/docs/EDUCATOR_GUIDE.md) for configuration details.
+All student data is anonymized **before** it reaches AI systems. See [Educator Guide](https://canvas-mcp.illinihunt.org/educator-guide.html) for configuration details.
 
 ### For Students: Your Data Stays Private
 
@@ -254,7 +256,40 @@ Connect to the hosted Canvas MCP server — no Python, no cloning, no setup. Jus
 **All you need:** A Canvas API token and your institution's Canvas URL.
 
 <details open>
-<summary><strong>Claude Desktop / Cursor / Windsurf / Continue</strong></summary>
+<summary><strong>Claude Desktop</strong></summary>
+
+Claude Desktop's `claude_desktop_config.json` expects stdio servers (`command` + `args`), so use an HTTP bridge:
+
+```json
+{
+  "mcpServers": {
+    "canvas": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://mcp.illinihunt.org/mcp",
+        "--transport",
+        "http-only",
+        "--header",
+        "X-Canvas-Token: ${CANVAS_TOKEN}",
+        "--header",
+        "X-Canvas-URL: ${CANVAS_URL}"
+      ],
+      "env": {
+        "CANVAS_TOKEN": "your_canvas_api_token",
+        "CANVAS_URL": "https://your-school.instructure.com/api/v1"
+      }
+    }
+  }
+}
+```
+
+Requires Node.js (`npx`).
+
+</details>
+
+<details>
+<summary><strong>Cursor / Windsurf / Continue</strong></summary>
 
 Add to your MCP client configuration:
 
@@ -291,7 +326,7 @@ claude mcp add canvas \
 
 > **Find your Canvas URL:** It's your institution's Canvas domain with `/api/v1` appended (e.g., `https://canvas.illinois.edu/api/v1`). Check the URL bar when you log into Canvas.
 
-Your credentials are sent as HTTP headers with each request — they are never stored on the server. All 90+ tools work the same as local installation.
+Your credentials are sent as HTTP headers with each request — they are never stored on the server. All 88 tools work the same as local installation.
 
 > **Privacy note:** The hosted server does not store or log credentials or Canvas data. However, data passes through a third-party VPS in transit. **Educators handling FERPA-protected student data should use the [local installation](#local-installation) instead.** The hosted server is ideal for students (who only access their own data) and for trying out Canvas MCP before installing locally.
 
@@ -511,7 +546,7 @@ For bulk operations (30+ items), Canvas MCP supports **TypeScript code execution
 | `bulk_grade_submissions` | Batch grading 10-29 items | Low |
 | `execute_typescript` | 30+ items, custom logic | **99.7% less** |
 
-Use `search_canvas_tools` to discover available operations, then `execute_typescript` to run them locally. Code runs in a **secure sandbox by default** (network blocked, env filtered, resource limits).
+Use `search_canvas_tools` to discover available operations, then `execute_typescript` to run them locally. Code runs in a **secure sandbox by default** (network blocked, env filtered, resource limits). Works on macOS, Linux, and Windows.
 
 <details>
 <summary>Code execution examples and security details</summary>
@@ -557,16 +592,16 @@ Quick start guides: [Student](examples/student_quickstart.md) | [Educator](examp
 
 ## Documentation
 
-- **[Tool Documentation](tools/README.md)** — Complete reference for all 90+ tools
-- **[Student Guide](docs/STUDENT_GUIDE.md)** — Getting started as a student
-- **[Educator Guide](docs/EDUCATOR_GUIDE.md)** — FERPA compliance and educator workflows
+- **[Tool Documentation](tools/README.md)** — Complete reference for all 88 tools
+- **[Student Guide](https://canvas-mcp.illinihunt.org/student-guide.html)** — Getting started as a student
+- **[Educator Guide](https://canvas-mcp.illinihunt.org/educator-guide.html)** — FERPA compliance and educator workflows
 - **[Bulk Grading Example](examples/bulk_grading_example.md)** — Token-efficient batch grading walkthrough
 - **[Development Guide](CLAUDE.md)** — Architecture and contributing
 
 <details>
 <summary>Technical details</summary>
 
-Built on **FastMCP** with async `httpx`, `pydantic` validation, and `python-dotenv` configuration. Modern `src/` layout with `pyproject.toml`. Full type hints, connection pooling, smart pagination, and rate limiting. 300+ tests. `ruff` + `black` for code quality.
+Built on **FastMCP** with async `httpx`, `pydantic` validation, and `python-dotenv` configuration. Modern `src/` layout with `pyproject.toml`. Full type hints, connection pooling, smart pagination, and rate limiting. 328 tests. `ruff` + `black` for code quality.
 
 </details>
 
@@ -590,7 +625,7 @@ Four layers of runtime security, all enabled by default:
 | Structured audit logging | Opt-in: `LOG_ACCESS_EVENTS=true` |
 | Sandboxed code execution | `ENABLE_TS_SANDBOX=true` |
 
-FERPA-compliant anonymization for educators: `ENABLE_DATA_ANONYMIZATION=true`. See [Educator Guide](docs/EDUCATOR_GUIDE.md) for details.
+FERPA-compliant anonymization for educators: `ENABLE_DATA_ANONYMIZATION=true`. See [Educator Guide](https://canvas-mcp.illinihunt.org/educator-guide.html) for details.
 
 ## Publishing
 
@@ -602,6 +637,15 @@ Contributions are welcome! Feel free to:
 - Submit issues for bugs or feature requests
 - Create pull requests with improvements
 - Share your use cases and feedback
+
+## Contributors
+
+Thanks to everyone who has contributed to Canvas MCP:
+
+- **[@DomBarker99](https://github.com/DomBarker99)** — `read_course_file` tool for remote MCP deployments (#90)
+- **[@Promithius-DR](https://github.com/Promithius-DR)** — Role-based tool filtering and tool annotations (#84)
+- **[@Metzpapa](https://github.com/Metzpapa)** — File download and listing tools (#75)
+- **[@JCSnap](https://github.com/JCSnap)** — Student tool bug fixes (#72, #73)
 
 ## License
 

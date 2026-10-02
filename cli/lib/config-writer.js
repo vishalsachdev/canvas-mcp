@@ -37,50 +37,42 @@ function writeToml(filePath, data) {
   writeFileSync(filePath, TOML.stringify(data), "utf-8");
 }
 
-function configureJsonClient(client, token, canvasUrl) {
+function updateConfigFile(client, mutate) {
   const filePath = client.configPath();
+  const isToml = client.format === "toml";
+
   backup(filePath);
+  const config = isToml ? readToml(filePath) : readJson(filePath);
+  mutate(config);
+  (isToml ? writeToml : writeJson)(filePath, config);
 
-  const config = readJson(filePath);
-  const wrapper = client.wrapperKey;
-
-  if (!config[wrapper]) config[wrapper] = {};
-
-  config[wrapper]["canvas-mcp"] = {
-    url: HOSTED_URL,
-    headers: {
-      "X-Canvas-Token": token,
-      "X-Canvas-URL": canvasUrl,
-    },
-  };
-
-  writeJson(filePath, config);
   return filePath;
-}
-
-function configureCodexClient(client, token, canvasUrl) {
-  const filePath = client.configPath();
-  backup(filePath);
-
-  const config = readToml(filePath);
-
-  if (!config.mcp_servers) config.mcp_servers = {};
-
-  config.mcp_servers["canvas-mcp"] = {
-    url: HOSTED_URL,
-    env_http_headers: { "X-Canvas-Token": "CANVAS_API_TOKEN" },
-    http_headers: { "X-Canvas-URL": canvasUrl },
-  };
-
-  writeToml(filePath, config);
-  return { filePath, envVar: "CANVAS_API_TOKEN", token };
 }
 
 function configureClient(client, token, canvasUrl) {
   if (client.format === "toml") {
-    return configureCodexClient(client, token, canvasUrl);
+    const filePath = updateConfigFile(client, (config) => {
+      if (!config.mcp_servers) config.mcp_servers = {};
+      config.mcp_servers["canvas-mcp"] = {
+        url: HOSTED_URL,
+        env_http_headers: { "X-Canvas-Token": "CANVAS_API_TOKEN" },
+        http_headers: { "X-Canvas-URL": canvasUrl },
+      };
+    });
+    return { filePath, envVar: "CANVAS_API_TOKEN", token };
   }
-  return configureJsonClient(client, token, canvasUrl);
+
+  return updateConfigFile(client, (config) => {
+    const wrapper = client.wrapperKey;
+    if (!config[wrapper]) config[wrapper] = {};
+    config[wrapper]["canvas-mcp"] = {
+      url: HOSTED_URL,
+      headers: {
+        "X-Canvas-Token": token,
+        "X-Canvas-URL": canvasUrl,
+      },
+    };
+  });
 }
 
 export { configureClient, readJson, readToml, HOSTED_URL };

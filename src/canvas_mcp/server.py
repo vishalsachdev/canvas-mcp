@@ -30,19 +30,26 @@ from .core.logging import log_error, log_info, log_warning
 from .resources import register_resources_and_prompts
 from .tools import (
     register_accessibility_tools,
-    register_assignment_tools,
+    register_admin_tools,
     register_code_execution_tools,
     register_course_tools,
     register_discovery_tools,
-    register_discussion_tools,
-    register_file_tools,
-    register_messaging_tools,
-    register_module_tools,
-    register_other_tools,
+    register_educator_assignment_tools,
+    register_educator_discussion_tools,
+    register_educator_file_tools,
+    register_educator_messaging_tools,
+    register_educator_module_tools,
+    register_educator_page_crud_tools,
     register_page_tools,
     register_peer_review_comment_tools,
     register_peer_review_tools,
     register_rubric_tools,
+    register_shared_assignment_tools,
+    register_shared_content_tools,
+    register_shared_discussion_tools,
+    register_shared_file_tools,
+    register_shared_messaging_tools,
+    register_shared_module_tools,
     register_student_tools,
 )
 
@@ -100,28 +107,46 @@ def create_server(
     return mcp
 
 
-def register_all_tools(mcp: FastMCP) -> None:
-    """Register all MCP tools, resources, and prompts."""
-    log_info("Registering Canvas MCP tools...")
+def register_all_tools(mcp: FastMCP, role: str = "all") -> None:
+    """Register MCP tools based on the selected role profile.
 
-    # Register tools by category
+    Args:
+        mcp: FastMCP server instance
+        role: One of "student", "educator", or "all" (default)
+    """
+    log_info(f"Registering Canvas MCP tools (role: {role})...")
+
+    # Shared tools — always registered for all roles
     register_course_tools(mcp)
-    register_assignment_tools(mcp)
-    register_discussion_tools(mcp)
-    register_file_tools(mcp)
-    register_module_tools(mcp)
-    register_other_tools(mcp)
-    register_page_tools(mcp)
-    register_rubric_tools(mcp)
-    register_peer_review_tools(mcp)
-    register_peer_review_comment_tools(mcp)
-    register_messaging_tools(mcp)
-    register_student_tools(mcp)
-    register_accessibility_tools(mcp)
+    register_shared_content_tools(mcp)
+    register_shared_assignment_tools(mcp)
+    register_shared_discussion_tools(mcp)
+    register_shared_module_tools(mcp)
+    register_shared_file_tools(mcp)
+    register_shared_messaging_tools(mcp)
     register_discovery_tools(mcp)
-    register_code_execution_tools(mcp)
 
-    # Register resources and prompts
+    # Student-specific tools
+    if role in ("student", "all"):
+        register_student_tools(mcp)
+
+    # Educator-specific tools
+    if role in ("educator", "all"):
+        register_educator_assignment_tools(mcp)
+        register_educator_discussion_tools(mcp)
+        register_educator_module_tools(mcp)
+        register_educator_file_tools(mcp)
+        register_page_tools(mcp)
+        register_educator_page_crud_tools(mcp)
+        register_rubric_tools(mcp)
+        register_peer_review_tools(mcp)
+        register_peer_review_comment_tools(mcp)
+        register_educator_messaging_tools(mcp)
+        register_accessibility_tools(mcp)
+        register_code_execution_tools(mcp)
+        register_admin_tools(mcp)
+
+    # Resources and prompts — always registered
     register_resources_and_prompts(mcp)
 
     log_info("All Canvas MCP tools registered successfully!")
@@ -199,6 +224,12 @@ def main() -> None:
         default=8819,
         help="Port for HTTP server (default: 8819)"
     )
+    parser.add_argument(
+        "--role",
+        choices=["student", "educator", "all"],
+        default=None,
+        help="Tool profile: student (~31 tools), educator (~86 tools), all (default: all)"
+    )
 
     args = parser.parse_args()
     is_http = args.transport == "streamable-http"
@@ -221,6 +252,8 @@ def main() -> None:
         print("Canvas MCP Server Configuration:", file=sys.stderr)
         print(f"  Server Name: {config.mcp_server_name}", file=sys.stderr)
         print(f"  Transport: {args.transport}", file=sys.stderr)
+        resolved_role = args.role or config.canvas_role
+        print(f"  Tool Profile: {resolved_role}", file=sys.stderr)
         if is_http:
             print(f"  Host: {args.host}", file=sys.stderr)
             print(f"  Port: {args.port}", file=sys.stderr)
@@ -307,6 +340,16 @@ def main() -> None:
                 "Could not validate token on startup (network may be unavailable). "
                 "Server will start anyway."
             )
+        finally:
+            # asyncio.run() creates and immediately closes its own event loop.
+            # Any global httpx client or asyncio semaphore created during token
+            # validation is now bound to that closed loop.  Reset them so they
+            # are recreated fresh inside the event loop that mcp.run() starts.
+            from .core import client as _client_module
+            _client_module.http_client = None
+            _client_module._http_client_loop_ref = None
+            _client_module._request_semaphore = None
+            _client_module._semaphore_loop_ref = None
 
     log_info("Use Ctrl+C to stop the server")
 
@@ -314,7 +357,13 @@ def main() -> None:
     mcp = create_server(
         host=args.host, port=args.port, transport=args.transport
     )
-    register_all_tools(mcp)
+    # Resolve role: CLI flag > env var > default
+    role = args.role or config.canvas_role
+    if role not in ("student", "educator", "all"):
+        log_warning(f"Unknown role '{role}', defaulting to 'all'")
+        role = "all"
+    log_info(f"Tool profile: {role}")
+    register_all_tools(mcp, role=role)
 
     try:
         if is_http:

@@ -149,7 +149,6 @@ class TestGeneratePeerReviewReportFileSafety:
     async def test_symlink_traversal_rejected(self, tmp_path):
         """A symlink inside reports_dir that points outside is rejected by is_relative_to()."""
         from pathlib import Path
-        import os
 
         reports_dir = (tmp_path / "reports")
         reports_dir.mkdir()
