@@ -8,6 +8,8 @@ matched nothing. See `test_acceptance_replay_real_history` for the check that
 runs against this repo's genuine git log.
 """
 
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -406,6 +408,31 @@ def test_acceptance_replay_real_history():
     )
 
 
+def _hook_shell() -> tuple[str, dict[str, str]]:
+    """The bash and minimal environment git would run the hook with.
+
+    POSIX: the system bash with a bare system PATH. Windows: Git for Windows
+    runs hooks with its own bundled bash, so use that one. `bash` on PATH is not
+    safe there: C:\\Windows\\System32\\bash.exe is the WSL launcher, which
+    cannot see Windows paths, git, or Python. Its minimal PATH holds git and the
+    interpreter running this suite, because Windows has no /usr/bin with both.
+    """
+    if sys.platform != "win32":
+        return "bash", {"PATH": "/usr/bin:/bin:/usr/local/bin"}
+
+    git = shutil.which("git")
+    if git is None:
+        pytest.skip("git is not on PATH, so there is no Git for Windows bash")
+    git_path = Path(git).resolve()
+    for root in git_path.parents:
+        for candidate in (root / "usr" / "bin" / "bash.exe", root / "bin" / "bash.exe"):
+            if candidate.is_file():
+                path = os.pathsep.join([str(Path(sys.executable).parent), str(git_path.parent)])
+                env = {"PATH": path, "SYSTEMROOT": os.environ.get("SYSTEMROOT", r"C:\Windows")}
+                return str(candidate), env
+    pytest.skip(f"no Git for Windows bash found beside {git_path}")
+
+
 def test_hook_is_executable_and_rejects_the_incident(tmp_path):
     """End-to-end: the hook script itself, not just the Python behind it."""
     hook = REPO_ROOT / ".githooks" / "commit-msg"
@@ -414,13 +441,60 @@ def test_hook_is_executable_and_rejects_the_incident(tmp_path):
     msg = tmp_path / "COMMIT_EDITMSG"
     msg.write_text(INCIDENT_COMMIT_MSG, encoding="utf-8")
 
-    env = {"PATH": "/usr/bin:/bin:/usr/local/bin"}
+    bash, env = _hook_shell()
     result = subprocess.run(
-        ["bash", str(hook), str(msg)],
+        [bash, str(hook), str(msg)],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        errors="replace",
         env=env,
     )
-    assert result.returncode == 1
+    assert result.returncode == 1, result.stderr
     assert "#172" in result.stderr
+
+
+def test_hook_skips_a_python3_that_does_not_run(tmp_path):
+    """A `python3` that exists but cannot run must not decide the commit.
+
+    On Windows, `python3` on PATH is usually the Microsoft Store alias: it
+    prints an install hint and exits non-zero. The hook used to call it
+    unconditionally, so under `set -e` every commit failed, clean or not, and
+    the incident was never actually scanned.
+    """
+    hook = REPO_ROOT / ".githooks" / "commit-msg"
+    bash, env = _hook_shell()
+
+    stub_dir = tmp_path / "stub"
+    stub_dir.mkdir()
+    stub = stub_dir / "python3"
+    stub.write_text(
+        "#!/bin/sh\necho 'Python was not found; install it from the Store.' >&2\nexit 9009\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    stub.chmod(0o755)
+    # The broken python3 goes first and shadows every other python3, so the
+    # hook has to fall back to `python`; keep the suite's interpreter
+    # reachable under that name.
+    real_python_dir = str(Path(sys.executable).parent)
+    env["PATH"] = os.pathsep.join([str(stub_dir), real_python_dir, env["PATH"]])
+    if shutil.which("python", path=env["PATH"]) is None:
+        pytest.skip(f"no `python` on the hook PATH to fall back to: {env['PATH']}")
+
+    clean = tmp_path / "CLEAN_MSG"
+    clean.write_text("docs: describe the guard without closing anything\n", encoding="utf-8")
+    ok = subprocess.run(
+        [bash, str(hook), str(clean)],
+        cwd=REPO_ROOT, capture_output=True, text=True, errors="replace", env=env,
+    )
+    assert ok.returncode == 0, ok.stderr
+
+    incident = tmp_path / "COMMIT_EDITMSG"
+    incident.write_text(INCIDENT_COMMIT_MSG, encoding="utf-8")
+    blocked = subprocess.run(
+        [bash, str(hook), str(incident)],
+        cwd=REPO_ROOT, capture_output=True, text=True, errors="replace", env=env,
+    )
+    assert blocked.returncode == 1, blocked.stderr
+    assert "#172" in blocked.stderr

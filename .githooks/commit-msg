@@ -25,7 +25,24 @@ case "$cleanup" in
   *)               git_comments="" ;;
 esac
 
+# Use the first Python that actually runs, not merely the first on PATH. On
+# Windows, `python3` is usually the Microsoft Store alias: it exists, prints an
+# install hint and exits non-zero, which under `set -e` rejected every commit
+# without scanning anything. Git for Windows ships no Python of its own.
+python=""
+for candidate in python3 python; do
+  if "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 8))' >/dev/null 2>&1; then
+    python="$candidate"
+    break
+  fi
+done
+# Same rule as a missing checker: fail open, CI is the backstop.
+if [ -z "$python" ]; then
+  echo "commit-msg: no working Python 3 found; closing-keyword check skipped (CI still runs it)." >&2
+  exit 0
+fi
+
 # shellcheck disable=SC2086
-python3 "$checker" "$1" $git_comments \
+"$python" "$checker" "$1" $git_comments \
   --label "commit message" \
   --bypass-hint "ALLOW_CLOSING_KEYWORD=1 git commit ..."
