@@ -56,7 +56,8 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 - [ ] **#157** sandbox egress is mitigated, not closed (self-hosted only; `execute_typescript` is disabled on hosted). Needs an egress proxy or network namespace.
 - [ ] **#236** OAuth2 developer-key flow: additive only, blocked on admin access to pilot a scoped key.
 - [ ] **#172** Canvas Quizzes tools: blocked on a New-Quizzes-enabled sandbox (PR #191 was closed as unverifiable).
-- [ ] **#418 to #421** (raw dates, guarded edits, honest pagination, anonymous discussions); #420 includes an `assign_peer_review` placeholder write past 100 submissions.
+- [x] **#418 to #420** shipped to `main` 2026-10-01 (#438, #437, #436); **#421** part 1 shipped (#435), still open for part 2 (GraphQL read path) and an `update_discussion_topic` refusal on anonymous topics.
+- [ ] **Release v1.14.0** (minor): `CHANGELOG.md` Unreleased covers #433, #435, #436, #437, #438. `assign_peer_review` now requires a numeric `reviewee_id`; guarded edits are mock-verified only, so try one on a real page first.
 - [ ] GHSA-hmr8: publish and request a CVE. GHSA-7pp5: decide (in triage since 07-04).
 - [ ] Watch, no owner: Agent Plugins packaging (blocked on credential delivery; triggers in project-history).
 
@@ -71,8 +72,9 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 ## Session Log
 > Full history: `internal/session-history.md`, local-only and untracked since 2026-08-20. Do not re-add it to git.
 
-### 2026-09-27 — v1.13.0 released: GHSA-hmr8 fixed, production pinned to releases, hosted service read-only
-- **Merged:** #395, #387, #390, #417 (production deploys only on a tag or manual run), #422 (`mcp-remote --header-file`), #425.
-- **GHSA-hmr8 fix** (`3f23ed0`): `core/tool_policy.py` + `ALLOWED_WRITE_TOOLS`; `send_conversation` always previews; `get_conversation_details` never marks read. Codex security review clean at round 3.
-- **v1.13.0** tagged on `c3207d3`; all five channels verified. Advisory patched version set to 1.13.0, still a draft.
-- **Next:** publish GHSA-hmr8; decide GHSA-7pp5; fix the #420 placeholder write; `scripts/rotate-canvas-token.mjs` does not know `--header-file`.
+### 2026-09-30 06:44 → 2026-10-01 22:49 CDT — six PRs merged, CLAUDE.md trimmed, issue agents
+- **Merged:** #432 (`pyjwt` 2.15.1) and #434 (`urllib3` 2.8.0), both lockfile-only after new advisories turned the dependency scan red; #423 (@lindsay-cheng, `missing` flag); Dependabot #427 to #429; #433 (@papatistos, group discussions, plus a numeric `group_id` check); and agent PRs #435 (#421 part 1), #436 (#420), #437 (#419), #438 (#418). Codex gated #436 (2 rounds) and #437 (3 rounds); 7 real defects fixed before merge.
+- **Mistake:** #435 merged with red tests (merge not gated on checks); fixed on `main` in `8c3ff15`. Run the suite as CI does: `CANVAS_API_URL= CANVAS_API_TOKEN= uv run --all-extras pytest tests/ -q` (bare `pytest`, no credentials).
+- **Docs:** CLAUDE.md 497 → 78 lines (`internal/dev-reference.md`, `internal/project-history.md`); AGENTS.md "Developing this server" pointer for Codex; reference claims checked and dated.
+- **Housekeeping:** 74 stale remote branches deleted (10 with local backups under `refs/backup/`); fleet hooks hidden locally (`info/exclude` + skip-worktree on `.githooks/commit-msg`); closed #374, #375, #384. MCP events assessment in `internal/research/2026-09-30-openai-mcp-events.md` (recommendation: wait).
+- **Next:** review #439 (@papatistos, #421 part 2 via GraphQL, opened 10-01 evening, fork CI needs approval); release v1.14.0; publish GHSA-hmr8 + CVE; decide GHSA-7pp5; #421 part 2; `fastmcp` 4.0.3 → 4.0.10 patch and the `mcp` 2.2.0 review (#416); #391 Windows `uv` design.
