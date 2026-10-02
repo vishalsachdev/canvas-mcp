@@ -37,7 +37,7 @@ def test_oidc_auth_config_accepts_chatgpt_redirects():
         "MCP_OIDC_CLIENT_ID": "client-id",
         "MCP_OIDC_CLIENT_SECRET": "client-secret",
         "MCP_OIDC_JWT_SIGNING_KEY": "signing-key",
-        "MCP_OIDC_ALLOWED_CLIENT_REDIRECT_URIS": "https://chatgpt.com/connector_platform_oauth_redirect,https://chatgpt.com/connector/oauth/*",
+        "MCP_OIDC_ALLOWED_CLIENT_REDIRECT_URIS": "https://chatgpt.com/connector_platform_oauth_redirect,https://chatgpt.com/connector/oauth/*,http://localhost:*,http://127.0.0.1:*",
     }
     previous_config = config_module._config
     try:

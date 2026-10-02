@@ -28,12 +28,14 @@ MCP_OIDC_CONFIG_URL=https://YOUR-IDP/.well-known/openid-configuration
 MCP_OIDC_CLIENT_ID=...
 MCP_OIDC_CLIENT_SECRET=...
 MCP_OIDC_JWT_SIGNING_KEY=... # independent, high-entropy secret
-MCP_OIDC_ALLOWED_CLIENT_REDIRECT_URIS=https://chatgpt.com/connector_platform_oauth_redirect,https://chatgpt.com/connector/oauth/*
+MCP_OIDC_ALLOWED_CLIENT_REDIRECT_URIS=https://chatgpt.com/connector_platform_oauth_redirect,https://chatgpt.com/connector/oauth/*,http://localhost:*,http://127.0.0.1:*
 ```
 
 FastMCP publishes the protected-resource metadata, authorization endpoints,
-token endpoint, and dynamic-client-registration endpoint. Do not block those
-routes in Caddy.
+token endpoint, and dynamic-client-registration endpoint. The two loopback
+patterns allow an OAuth-capable local MCP client such as Claude Code to receive
+its browser callback without permitting arbitrary public redirects. Do not
+block those routes in Caddy.
 
 ## 3. Caddy
 
