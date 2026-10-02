@@ -3529,7 +3529,7 @@
           "description": "Include all participant IDs"
         }
       ],
-      "returns": "List of conversations with participants, subjects, and read state",
+      "returns": "One page of conversations with participants, subjects, and read state; count and returned report the page size, more_available indicates another page, and note warns when the result is incomplete",
       "examples": [
         "Show my Canvas inbox"
       ]

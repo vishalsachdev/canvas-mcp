@@ -1,7 +1,8 @@
 # Sample: push to the `staging` branch builds + ships to the app's staging
 # deployment slot. Use this to validate a build against real Entra/Azure config
-# before it reaches main/prod. Promote by merging `staging` -> `main` (which
-# fires deploy-prod), or via an Azure slot swap.
+# before it reaches main/prod. Promote by merging `staging` -> `main`, then
+# push a `v*` release tag for that commit or manually run deploy-prod on main.
+# Alternatively, promote via an Azure slot swap.
 #
 # To use: copy to .github/workflows/deploy-staging.yml and replace
 # <registry-name> and <app-name>. Requires the same ACR secrets as the prod

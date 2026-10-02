@@ -1069,7 +1069,7 @@ async def test_anonymous_topic_404_through_real_client_transport(monkeypatch):
     """The 404 detector must match what the real client produces for a 404."""
     import httpx
 
-    import canvas_mcp.core.client as cm
+    from canvas_mcp.core import client as cm
     from canvas_mcp.core.config import reset_config
 
     # The real client builds absolute URLs from config; pin it so the test does
