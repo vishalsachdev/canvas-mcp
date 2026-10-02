@@ -21,6 +21,7 @@ http_client: httpx.AsyncClient | None = None
 
 # Concurrency limiter for outbound Canvas API calls
 _request_semaphore: asyncio.Semaphore | None = None
+_token_refresh_lock = asyncio.Lock()
 
 
 def _get_request_semaphore() -> asyncio.Semaphore:
@@ -115,9 +116,19 @@ async def cleanup_http_client() -> None:
         http_client = None
 
 
-async def get_new_access_token():
-    """Silently fetch a new access token using the OAuth2 refresh token."""
-    canvas_url = os.getenv("CANVAS_BASE_URL", "").rstrip('/')
+async def get_new_access_token(failed_access_token: str | None = None) -> str | None:
+    """Silently refresh the server's Canvas OAuth access token.
+
+    This function is intentionally for the server-wide credential only.  A
+    request supplied with ``X-Canvas-Token`` belongs to the caller and must
+    never be replaced with the server's refresh-token-derived credential.
+    """
+    from .config import get_config
+
+    config = get_config()
+    canvas_url = os.getenv("CANVAS_BASE_URL", "").rstrip("/")
+    if not canvas_url:
+        canvas_url = config.canvas_api_url.rstrip("/").removesuffix("/api/v1")
     client_id = os.getenv("CANVAS_CLIENT_ID")
     client_secret = os.getenv("CANVAS_CLIENT_SECRET")
     refresh_token = os.getenv("CANVAS_REFRESH_TOKEN")
@@ -125,28 +136,40 @@ async def get_new_access_token():
     if not all([canvas_url, client_id, client_secret, refresh_token]):
         return None
 
-    payload = {
-        "grant_type": "refresh_token",
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "refresh_token": refresh_token
-    }
+    async with _token_refresh_lock:
+        # Another request may have completed the refresh while this one waited.
+        if failed_access_token and config.canvas_api_token != failed_access_token:
+            return config.canvas_api_token
 
-    url = f"{canvas_url}/login/oauth2/token"
+        payload = {
+            "grant_type": "refresh_token",
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "refresh_token": refresh_token,
+        }
+        redirect_uri = os.getenv("CANVAS_OAUTH_REDIRECT_URI")
+        if redirect_uri:
+            payload["redirect_uri"] = redirect_uri
 
-    # Use httpx to make the request asynchronously
-    async with httpx.AsyncClient() as refresh_client:
+        url = f"{canvas_url}/login/oauth2/token"
         try:
-            response = await refresh_client.post(url, data=payload)
-            response.raise_for_status()
+            async with httpx.AsyncClient() as refresh_client:
+                response = await refresh_client.post(url, data=payload)
+                response.raise_for_status()
 
-            new_token = response.json().get('access_token')
+            new_token = response.json().get("access_token")
+            if not isinstance(new_token, str) or not new_token:
+                log_error("Canvas OAuth refresh response did not contain an access token")
+                return None
 
-            # Update the environment variable so future calls use the new token
+            # Keep every server-side consumer in sync, including code execution.
             os.environ["CANVAS_API_TOKEN"] = new_token
+            config.canvas_api_token = new_token
+            if http_client is not None and not http_client.is_closed:
+                http_client.headers["Authorization"] = f"Bearer {new_token}"
             return new_token
-        except Exception as e:
-            print(f"Failed to refresh token: {e}")
+        except httpx.HTTPError as exc:
+            log_error("Canvas OAuth token refresh failed", error_type=type(exc).__name__)
             return None
 
 
@@ -207,6 +230,7 @@ async def make_canvas_request(
     async with semaphore:
         # Retry loop for rate limiting
         try:
+            token_refresh_attempted = False
             for attempt in range(MAX_RETRIES + 1):
                 try:
                     # Log the request for debugging (if enabled)
@@ -292,12 +316,23 @@ async def make_canvas_request(
                         await asyncio.sleep(wait_time)
                         continue
 
-                    # --- NEW 401 UNAUTHORIZED LOGIC START ---
-                    if e.response.status_code == 401 and attempt < MAX_RETRIES:
+                    # Refresh only the server credential.  Per-request Canvas
+                    # tokens are owned by the caller, so using this server's
+                    # refresh token there would cross account boundaries.
+                    can_refresh_server_token = (
+                        req_creds is None
+                        and not token_refresh_attempted
+                        and e.response.status_code == 401
+                        and bool(e.response.headers.get("WWW-Authenticate"))
+                    )
+                    if can_refresh_server_token:
+                        token_refresh_attempted = True
                         log_warning("Token expired (401). Attempting to refresh...",
                                     attempt=attempt + 1, max_retries=MAX_RETRIES)
 
-                        new_token = await get_new_access_token()
+                        new_token = await get_new_access_token(
+                            failed_access_token=config.canvas_api_token
+                        )
 
                         if new_token:
                             # Update the active client's headers so the retry uses the new token
@@ -308,10 +343,11 @@ async def make_canvas_request(
                         else:
                             log_error(
                                 "Could not refresh OAuth token. Check your .env variables.")
-                    # --- NEW 401 UNAUTHORIZED LOGIC END ---
-
-                    # Not a rate limit error, not a 401, or out of retries - format and return error
+                    # Not rate-limited, not a refreshable server token, or a
+                    # failed refresh: return the actual HTTP error now.
                     error_message = f"HTTP error: {e.response.status_code}"
+                    log_data_access(method, endpoint, "error", error_message)
+                    return {"error": error_message}
 
                 except Exception as e:
                     log_error(
@@ -323,8 +359,7 @@ async def make_canvas_request(
 
                     return {"error": f"Request failed: {str(e)}"}
 
-            # Should never reach here, but just in case
-            return {"error": "Max retries ================>"}
+            return {"error": "Maximum retry count reached"}
         finally:
             if _close_client:
                 await client.aclose()
