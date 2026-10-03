@@ -57,7 +57,7 @@ async def test_update_checks_topic_before_any_write(
             return httpx.Response(200, json=dict(topic, message=body))
         if request.method == "GET" and request.url.path == listing_path:
             return httpx.Response(listing_status, json=[topic] if listed else [])
-        pytest.fail(f"Unexpected request: {request.method} {request.url.path}")
+        raise AssertionError(f"Unexpected request: {request.method} {request.url.path}")
 
     kwargs = {"find": "Before", "replace": "After"} if guarded else {"message": "<p>After</p>"}
     async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
