@@ -209,7 +209,7 @@ class _GraphqlDiscussion:
     ``topic`` has the fields of GET /discussion_topics/{id}. ``entries`` are
     the top-level entries as GET .../entries returns them. Every entry
     carries ``replies`` and ``recent_replies``: all of its descendants,
-    flattened in posting order, so replies nested deeper than one level are
+    flattened in Canvas connection order, so replies nested deeper than one level are
     not lost.
     """
 
@@ -319,7 +319,8 @@ async def _read_discussion_via_graphql(
 
     by_id = {str(n.get("_id")): _rest_entry(n) for n in nodes}
     children: dict[str | None, list[str]] = {}
-    for entry_id, entry in sorted(by_id.items(), key=lambda kv: kv[1].get("created_at") or ""):
+    order = {entry_id: index for index, entry_id in enumerate(by_id)}
+    for entry_id, entry in by_id.items():
         parent = entry.get("parent_id")
         # A reply whose parent was not returned is shown at top level, not dropped.
         key = str(parent) if parent is not None and str(parent) in by_id else None
@@ -327,10 +328,16 @@ async def _read_discussion_via_graphql(
 
     def descendants(entry_id: str) -> list[dict[str, Any]]:
         found: list[dict[str, Any]] = []
-        for child_id in children.get(entry_id, []):
+        seen = {entry_id}
+        pending = list(reversed(children.get(entry_id, [])))
+        while pending:
+            child_id = pending.pop()
+            if child_id in seen:
+                continue
+            seen.add(child_id)
             found.append(by_id[child_id])
-            found.extend(descendants(child_id))
-        return sorted(found, key=lambda e: e.get("created_at") or "")
+            pending.extend(reversed(children.get(child_id, [])))
+        return sorted(found, key=lambda e: order[str(e["id"])])
 
     for entry_id, entry in by_id.items():
         replies = descendants(entry_id)

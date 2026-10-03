@@ -1217,6 +1217,35 @@ class TestAnonymousDiscussionFallback:
         assert ("/courses/60366", "805022") not in discussions._unservable_topics
 
     @pytest.mark.asyncio
+    async def test_graphql_deep_reply_chain_does_not_recurse(self, mock_canvas_api):
+        from canvas_mcp.tools import discussions
+        nodes = [dict(self.ROOT, _id=str(i), parentId=str(i - 1) if i else None)
+                 for i in range(1100)]
+        self._wire(mock_canvas_api, graphql_responses=[self._graphql(nodes)])
+        discussion, reason = await discussions._read_discussion_via_graphql("60366", 805022, None)
+        assert reason is None
+        assert discussion is not None
+        root = discussion.find("0")
+        assert root is not None
+        assert len(root["replies"]) == 1099
+        assert {e["id"] for e in root["replies"]} == {str(i) for i in range(1, 1100)}
+
+    @pytest.mark.asyncio
+    async def test_graphql_preserves_canvas_connection_order(self, mock_canvas_api):
+        from canvas_mcp.tools import discussions
+        newer_root = dict(self.ROOT, _id="4", createdAt="2026-09-02T08:00:00Z")
+        self._wire(mock_canvas_api, graphql_responses=[
+            self._graphql([newer_root, self.NESTED, self.REPLY, self.ROOT])
+        ])
+        discussion, reason = await discussions._read_discussion_via_graphql("60366", 805022, None)
+        assert reason is None
+        assert discussion is not None
+        assert [e["id"] for e in discussion.entries] == ["4", "1"]
+        root = discussion.find("1")
+        assert root is not None
+        assert [e["id"] for e in root["replies"]] == ["3", "2"]
+
+    @pytest.mark.asyncio
     async def test_topic_details_fall_back(self, mock_canvas_api):
         self._wire(mock_canvas_api)
 
@@ -1240,7 +1269,8 @@ class TestAnonymousDiscussionFallback:
         assert "📝 Entry 1 by" in result
         assert "Anonymous 8x6pv" in result
         assert "Replies (2)" in result  # the direct reply and the nested one
-        assert result.index("Friday.") < result.index("Thanks!")
+        # Canvas supplied NESTED before REPLY; retain that connection order.
+        assert result.index("Thanks!") < result.index("Friday.")
         # No REST reply calls once GraphQL has answered.
         fetched = [c.args[0] for c in mock_canvas_api['fetch_all_paginated_results'].call_args_list]
         assert not any("/replies" in p for p in fetched)
