@@ -26,6 +26,7 @@ DEFAULT_PAGE_SIZE = 100
 MAX_PAGINATION_PAGES = 10000
 API_ROOT_REST: Final = "rest"
 API_ROOT_QUIZ: Final = "quiz"
+API_ROOT_GRAPHQL: Final = "graphql"
 
 
 def _canvas_auth_headers(api_token: str) -> dict[str, str]:
@@ -37,12 +38,13 @@ def _canvas_auth_headers(api_token: str) -> dict[str, str]:
         "User-Agent": f"canvas-mcp/{__version__} (https://github.com/vishalsachdev/canvas-mcp)",
     }
 
-def _resolve_canvas_api_root(base_api_url: str, api_root: Literal["rest", "quiz"]) -> str:
+def _resolve_canvas_api_root(base_api_url: str, api_root: Literal["rest", "quiz", "graphql"]) -> str:
     """Resolve a configured ``…/api/v<N>`` base URL to a selected Canvas API root.
 
     ``rest`` keeps the configured URL unchanged. ``quiz`` rewrites only the
     trailing API version segment to ``/api/quiz/v1`` while preserving any
-    institution prefix (e.g. ``/lms``). This is an explicit call-site opt-in;
+    institution prefix (e.g. ``/lms``). ``graphql`` rewrites it to ``/api``, so
+    the endpoint ``/graphql`` reaches Canvas's GraphQL API at ``/api/graphql``. This is an explicit call-site opt-in;
     endpoint strings never select a base path implicitly.
     """
     if api_root == API_ROOT_REST:
@@ -51,9 +53,11 @@ def _resolve_canvas_api_root(base_api_url: str, api_root: Literal["rest", "quiz"
     match = re.search(r"/api/v\d+$", base_api_url)
     if not match:
         raise ValueError(
-            "Invalid Canvas API base URL for quiz root resolution: expected trailing /api/v<N>"
+            f"Invalid Canvas API base URL for {api_root} root resolution: expected trailing /api/v<N>"
         )
 
+    if api_root == API_ROOT_GRAPHQL:
+        return f"{base_api_url[:match.start()]}/api"
     return f"{base_api_url[:match.start()]}/api/quiz/v1"
 
 
@@ -269,6 +273,11 @@ def _endpoint_anonymization_mode(endpoint: str) -> str:
     if self_indices:
         segments = [seg for i, seg in enumerate(segments) if i not in self_indices]
 
+    # GraphQL has a single endpoint, so its path says nothing about what the
+    # query returns. Treat every response as sensitive (fail closed).
+    if segments == ['graphql']:
+        return ANONYMIZE_FULL
+
     # Discussion content endpoints carry student posts and names
     if 'discussion_topics' in segments and _has_route_segment(
         segments, {'entries', 'view', 'entry_list', 'replies'}
@@ -408,7 +417,7 @@ async def make_canvas_request(
     use_form_data: bool = False,
     skip_anonymization: bool = False,
     files: dict[str, tuple[str, bytes, str]] | None = None,
-    api_root: Literal["rest", "quiz"] = API_ROOT_REST,
+    api_root: Literal["rest", "quiz", "graphql"] = API_ROOT_REST,
     _pagination: dict[str, str | None] | None = None,
 ) -> Any:
     """Make a request to the Canvas API with proper error handling.
@@ -423,7 +432,7 @@ async def make_canvas_request(
         use_form_data: Use form data instead of JSON
         skip_anonymization: Skip anonymization (used by paginated fetchers)
         files: Dictionary of file objects for multipart form uploads
-        api_root: Which Canvas API root to call ("rest" => /api/v<N>, "quiz" => /api/quiz/v1)
+        api_root: Which Canvas API root to call ("rest" => /api/v<N>, "quiz" => /api/quiz/v1, "graphql" => /api)
     """
 
     from .audit import log_data_access
@@ -459,7 +468,7 @@ async def make_canvas_request(
         )
         return RequestFailure("Invalid endpoint: '..' is not allowed in a request path", WriteOutcome.NOT_DISPATCHED)
 
-    if api_root not in (API_ROOT_REST, API_ROOT_QUIZ):
+    if api_root not in (API_ROOT_REST, API_ROOT_QUIZ, API_ROOT_GRAPHQL):
         return {"error": f"Unsupported api_root: {api_root}"}
 
     if req_creds:
@@ -744,7 +753,7 @@ async def fetch_all_paginated_results(
     endpoint: str,
     params: dict[str, Any] | None = None,
     skip_anonymization: bool = False,
-    api_root: Literal["rest", "quiz"] = API_ROOT_REST,
+    api_root: Literal["rest", "quiz", "graphql"] = API_ROOT_REST,
 ) -> Any:
     """Fetch all results from a paginated Canvas API endpoint.
 

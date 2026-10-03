@@ -44,6 +44,14 @@ class TestResolveCanvasApiRoot:
             == "https://canvas.school.edu/lms/api/quiz/v1"
         )
 
+    def test_graphql_root_rewrites_trailing_api_version_to_api(self):
+        assert (
+            client_module._resolve_canvas_api_root(
+                "https://canvas.school.edu/lms/api/v1", "graphql"
+            )
+            == "https://canvas.school.edu/lms/api"
+        )
+
     def test_quiz_root_rejects_non_api_version_base(self):
         with pytest.raises(ValueError, match="expected trailing /api/v<N>"):
             client_module._resolve_canvas_api_root(
@@ -98,6 +106,60 @@ class TestMakeCanvasRequestApiRoot:
         mock_anonymize.assert_called_once_with(
             {"id": 101, "name": "Alice"}, "/courses/42/users"
         )
+
+
+class TestGraphqlRequest:
+    """GraphQL responses pass the same client-layer anonymization gate."""
+
+    @pytest.fixture(autouse=True)
+    def reset_client_state(self):
+        client_module._request_semaphore = None
+        client_module._semaphore_loop_ref = None
+        yield
+        client_module._request_semaphore = None
+        client_module._semaphore_loop_ref = None
+
+    def test_graphql_endpoint_is_fully_anonymized(self):
+        assert (
+            client_module._endpoint_anonymization_mode("/graphql")
+            == client_module.ANONYMIZE_FULL
+        )
+
+    @pytest.mark.asyncio
+    async def test_graphql_post_hits_api_graphql_and_scrubs_author_names(self):
+        mock_config = SimpleNamespace(
+            canvas_api_url="https://canvas.school.edu/api/v1",
+            max_concurrent_requests=5,
+            api_timeout=30,
+            log_api_requests=False,
+            enable_data_anonymization=True,
+            anonymization_debug=False,
+        )
+        # Shape produced by REST-style GraphQL aliases (author.display_name).
+        payload = {"data": {"legacyNode": {"entries": {"nodes": [
+            {"id": "1", "user_id": "7", "message": "Bra jobbat",
+             "author": {"id": "7", "display_name": "Alice Realname"}},
+        ]}}}}
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json.return_value = payload
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+
+        with (
+            patch("canvas_mcp.core.config.get_config", return_value=mock_config),
+            patch("canvas_mcp.core.client._get_http_client", return_value=mock_client),
+        ):
+            result = await client_module.make_canvas_request(
+                "post", "/graphql", data={"query": "{}"}, api_root="graphql",
+            )
+
+        assert mock_client.post.await_args.args[0] == "https://canvas.school.edu/api/graphql"
+        assert mock_client.post.await_args.kwargs["json"] == {"query": "{}"}
+        assert "Alice Realname" not in str(result)
+        entry = result["data"]["legacyNode"]["entries"]["nodes"][0]
+        assert entry["user_id"] == "7"
 
 
 class TestPaginatedFetchApiRoot:

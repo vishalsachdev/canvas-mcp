@@ -2079,13 +2079,22 @@ When Canvas reports a non-null `anonymous_state` for a topic
 (`partial_anonymity` or `full_anonymity`), the entry shows an `Anonymity:` line.
 `list_group_discussion_topics` does the same.
 
-**Anonymous topics:** Canvas's REST API answers 404 for topics created with
-full anonymity, although the topic list includes them. When
-`get_discussion_topic_details`, `list_discussion_entries` or
-`get_discussion_with_replies` gets a 404, the tool checks the topic list of the
-same course (or group). If the topic is listed, it says the topic exists, that
-REST does not serve it (most likely because it is anonymous), and to open it in
-the Canvas UI. A 404 for a topic that is not listed is reported as not found.
+**Anonymous topics:** Canvas's REST API answers 404 for anonymous topics
+(partial or full anonymity), although the topic list includes them. When
+`get_discussion_topic_details`, `list_discussion_entries`,
+`get_discussion_with_replies` or `get_discussion_entry_details` gets a 404, the
+tool checks the topic list of the same course (or group). If the topic is
+listed, the tool explains the REST limitation and links to Canvas by default. With
+`DISCUSSION_GRAPHQL_ENABLED=true` (operator opt-in), it reads through Canvas GraphQL and returns the same
+output as for any other topic; anonymous posts show only their anonymous alias.
+Pin status is unavailable in the fixed GraphQL query and is omitted. Entry read
+state is reported as unknown. `raw_dates=True` explicitly reports unavailable
+scheduling/assignment/checkpoint metadata on this path. Reaching the GraphQL
+page cap returns an incomplete-result error rather than partial content.
+A topic read this way is remembered for ten minutes, so later reads go straight
+to GraphQL. If GraphQL fails too, the tool says the topic exists, that REST does
+not serve it, and to open it in the Canvas UI. A 404 for a topic that is not
+listed is reported as not found.
 
 **Example:**
 ```

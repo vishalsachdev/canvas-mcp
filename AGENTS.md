@@ -156,9 +156,9 @@ Content access tools available to all authenticated users.
 | `update_module_item` | Update module item settings |
 | `delete_module_item` | Remove item from module |
 | `list_announcements` | Course announcements, and nothing else |
-| `list_discussion_topics` | Discussion forums (discussions only; set `include_announcements` to also list announcements). Shows `Anonymity:` when Canvas reports an `anonymous_state`. Canvas REST returns 404 for fully anonymous topics; the topic read tools then say the topic exists and must be opened in the Canvas UI, instead of reporting it missing |
+| `list_discussion_topics` | Discussion forums (discussions only; set `include_announcements` to also list announcements). Shows `Anonymity:` when Canvas reports an `anonymous_state`. Canvas REST returns 404 for anonymous topics; by default the read tools explain this and link to Canvas. Set `DISCUSSION_GRAPHQL_ENABLED=true` to enable the read-only GraphQL fallback |
 | `list_group_discussion_topics` | Topics inside every group space, including topics students started in a group (pass `group_id` to the other discussion read tools to read them) |
-| `get_discussion_topic_details` | One topic's details; `raw_dates=True` appends the topic's dates and, for a graded discussion, its assignment and checkpoint dates. Prints the message's SHA-256 for `update_discussion_topic`'s `expect_body_sha256` |
+| `get_discussion_topic_details` | One topic's details; `raw_dates=True` appends the topic's dates and, for a graded discussion, its assignment and checkpoint dates. On a GraphQL fallback, `raw_dates=True` reports unavailable date metadata and unknown grading status. Prints the message's SHA-256 for `update_discussion_topic`'s `expect_body_sha256` |
 | `list_discussion_entries` | Posts in a discussion |
 | `post_discussion_entry` | Add a discussion post |
 | `reply_to_discussion_entry` | Reply to a post |
