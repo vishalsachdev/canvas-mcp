@@ -1,7 +1,7 @@
 """
 Tool discovery for Canvas MCP.
 Allows Claude to search and explore both the registered MCP tools
-(the ~99 Python tools exposed via @mcp.tool()) and the TypeScript
+(the Python tools exposed via @mcp.tool()) and the TypeScript
 code-execution API modules used by execute_typescript().
 """
 
