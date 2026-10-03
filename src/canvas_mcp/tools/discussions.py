@@ -310,8 +310,6 @@ async def _read_discussion_via_graphql(
                     topic_id=topic_id, pages=_GRAPHQL_MAX_PAGES)
         return None, f"{failed}: page limit reached; results are incomplete. Open it in the Canvas UI."
 
-    if node is None:
-        return None, f"{failed}: the topic was not returned."
     expected_type, expected_id = (
         ("Group", group_id) if group_id is not None else ("Course", course_id)
     )
