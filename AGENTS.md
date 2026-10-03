@@ -302,7 +302,9 @@ the write: updated_at advanced (pages, assignments), the stored body equals
 the expected body after whitespace normalization (whole body, not just the
 edited fragment), and every other field you changed reads back as sent.
 Anything else is reported as unconfirmed, never success.
-Same parameters on update_assignment (description). Discussion topics and the
+Same parameters on update_assignment (description). Read it first with
+get_assignment_details(course_id, assignment_id, raw_dates=True) and use the
+raw_dates JSON block's updated_at as expect_updated_at. Discussion topics and the
 syllabus have NO updated_at: pass expect_body_sha256 instead (SHA-256 of the
 body as Canvas returned it; get_syllabus and get_discussion_topic_details
 print it, and every guarded edit
