@@ -3,6 +3,7 @@
 import asyncio
 import json
 import re
+import time
 from typing import Any
 
 from fastmcp import FastMCP
@@ -122,31 +123,21 @@ def _is_not_found_error(error: Any) -> bool:
     return str(error).startswith("HTTP error: 404")
 
 
-async def _explain_unservable_topic(
-    prefix: str, topic_id: str | int, error: Any
-) -> str | None:
-    """Explain a topic 404 when the topic list still contains the topic (issue 421).
-
-    Canvas's REST API answers 404 for fully anonymous discussion topics even
-    though the topic index lists them, so a bare 404 would read as "deleted".
-    Called only after a 404, never on success. Returns None (keep the ordinary
-    not-found error) when the error is not a 404, the list cannot be read, or
-    the ID is not in the list.
-    """
-    if not _is_not_found_error(error):
-        return None
+async def _find_listed_topic(prefix: str, topic_id: str | int) -> dict[str, Any] | None:
+    """The topic list's entry for `topic_id`, or None if it is not listed."""
     topics = await fetch_all_paginated_results(
         f"{prefix}/discussion_topics", {"per_page": 100}
     )
     if not isinstance(topics, list):
         return None
-    match = next(
+    return next(
         (t for t in topics if isinstance(t, dict) and str(t.get("id")) == str(topic_id)),
         None,
     )
-    if match is None:
-        return None
 
+
+def _unservable_topic_message(prefix: str, topic_id: str | int, match: dict[str, Any]) -> str:
+    """Explain a 404 on a topic that the topic list still contains (issue 421)."""
     state = match.get("anonymous_state")
     if state:
         reason = f"Canvas lists it with anonymous_state: {state}."
@@ -169,6 +160,260 @@ async def _explain_unservable_topic(
     if html_url:
         message += f"\nCanvas URL: {html_url}"
     return message
+
+
+async def _explain_unservable_topic(
+    prefix: str, topic_id: str | int, error: Any
+) -> str | None:
+    """Explain a topic 404 when the topic list still contains the topic (issue 421).
+
+    Canvas's REST API answers 404 for fully anonymous discussion topics even
+    though the topic index lists them, so a bare 404 would read as "deleted".
+    Called only after a 404, never on success. Returns None (keep the ordinary
+    not-found error) when the error is not a 404, the list cannot be read, or
+    the ID is not in the list.
+    """
+    if not _is_not_found_error(error):
+        return None
+    match = await _find_listed_topic(prefix, topic_id)
+    if match is None:
+        return None
+    return _unservable_topic_message(prefix, topic_id, match)
+
+
+# ===== GraphQL fallback for anonymous discussions =====
+#
+# Canvas lists anonymous discussions but its REST API answers 404 when they are
+# read (issue 421). Its GraphQL API serves them. After such a 404, the REST read
+# tools read the topic through GraphQL and convert the answer to the REST shapes
+# they already format, so callers never need to know which API answered.
+#
+# The author fields are aliased to REST names (author.id, author.display_name)
+# so the client-layer scrubber, which is keyed on REST names, recognises them;
+# `message` already has its REST name. Canvas caps aliases per query, so the
+# remaining camelCase fields are mapped to REST names in Python, after the
+# client layer has scrubbed the response. rootEntries: false returns every
+# entry as one flat list with parentId, replies included.
+_GRAPHQL_DISCUSSION_QUERY = """
+query($id: ID!, $after: String) {
+  legacyNode(_id: $id, type: Discussion) {
+    ... on Discussion {
+      _id title message createdAt postedAt locked requireInitialPost
+      isAnnouncement anonymousState contextType contextId
+      author { id: _id display_name: name }
+      anonymousAuthor { shortName }
+      entryCounts { repliesCount unreadCount }
+      participant { read }
+      discussionEntriesConnection(first: 100, after: $after, rootEntries: false) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          _id parentId deleted createdAt updatedAt message
+          author { id: _id display_name: name }
+          anonymousAuthor { shortName }
+        }
+      }
+    }
+  }
+}
+"""
+
+# Upper bound on GraphQL pages (100 entries each) for one discussion.
+_GRAPHQL_MAX_PAGES = 50
+
+
+class _GraphqlDiscussion:
+    """A discussion read through GraphQL, converted to REST shapes.
+
+    ``topic`` has the fields of GET /discussion_topics/{id}. ``entries`` are
+    the top-level entries as GET .../entries returns them. Every entry
+    carries ``replies`` and ``recent_replies``: all of its descendants,
+    flattened in posting order, so replies nested deeper than one level are
+    not lost.
+    """
+
+    def __init__(self, topic: dict[str, Any], entries: list[dict[str, Any]],
+                 by_id: dict[str, dict[str, Any]]) -> None:
+        self.topic = topic
+        self.entries = entries
+        self._by_id = by_id
+
+    def find(self, entry_id: str | int) -> dict[str, Any] | None:
+        return self._by_id.get(str(entry_id))
+
+
+def _author_fields(node: dict[str, Any]) -> tuple[Any, str]:
+    """(user_id, user_name) for a GraphQL node: real name, else anonymous alias."""
+    author = node.get("author") or {}
+    if author.get("display_name"):
+        return author.get("id"), author["display_name"]
+    alias = (node.get("anonymousAuthor") or {}).get("shortName")
+    if alias:
+        return None, f"Anonymous {alias}"
+    return None, "Unknown user"
+
+
+def _rest_entry(node: dict[str, Any]) -> dict[str, Any]:
+    user_id, user_name = _author_fields(node)
+    return {
+        "id": node.get("_id"),
+        "parent_id": node.get("parentId"),
+        "user_id": user_id,
+        "user_name": user_name,
+        "message": "" if node.get("deleted") else (node.get("message") or ""),
+        "deleted": bool(node.get("deleted")),
+        "created_at": node.get("createdAt"),
+        "updated_at": node.get("updatedAt"),
+        "read_state": "read",
+        "has_more_replies": False,
+    }
+
+
+def _rest_topic(node: dict[str, Any], entry_total: int) -> dict[str, Any]:
+    user_id, user_name = _author_fields(node)
+    counts = node.get("entryCounts") or {}
+    return {
+        "id": node.get("_id"),
+        "title": node.get("title"),
+        "message": node.get("message") or "",
+        "is_announcement": bool(node.get("isAnnouncement")),
+        "author": {"id": user_id, "display_name": user_name},
+        "created_at": node.get("createdAt"),
+        "posted_at": node.get("postedAt"),
+        "discussion_entries_count": counts.get("repliesCount", entry_total),
+        "unread_count": counts.get("unreadCount", 0),
+        "read_state": "read" if (node.get("participant") or {}).get("read") else "unread",
+        "locked": bool(node.get("locked")),
+        "pinned": False,
+        "require_initial_post": bool(node.get("requireInitialPost")),
+        "anonymous_state": node.get("anonymousState"),
+    }
+
+
+async def _read_discussion_via_graphql(
+    course_id: str, topic_id: str | int, group_id: str | int | None
+) -> tuple[_GraphqlDiscussion | None, str | None]:
+    """Read a whole discussion through Canvas GraphQL, converted to REST shapes.
+
+    Returns:
+        (discussion, None) on success, or (None, reason) on failure.
+    """
+    failed = "reading it through Canvas GraphQL failed"
+
+    node: dict[str, Any] | None = None
+    nodes: list[dict[str, Any]] = []
+    after: str | None = None
+    for _ in range(_GRAPHQL_MAX_PAGES):
+        response = await make_canvas_request(
+            "post", "/graphql", api_root="graphql",
+            data={"query": _GRAPHQL_DISCUSSION_QUERY,
+                  "variables": {"id": str(topic_id), "after": after}},
+        )
+        if "error" in response:
+            return None, f"{failed}: {response['error']}"
+        if response.get("errors"):
+            messages = "; ".join(str(e.get("message")) for e in response["errors"])
+            return None, f"{failed}: {messages}"
+        node = (response.get("data") or {}).get("legacyNode")
+        if not node:
+            return None, f"{failed}: the topic was not returned."
+        connection = node.get("discussionEntriesConnection") or {}
+        nodes.extend(connection.get("nodes") or [])
+        page_info = connection.get("pageInfo") or {}
+        if not page_info.get("hasNextPage"):
+            break
+        after = page_info.get("endCursor")
+    else:
+        log_warning("GraphQL discussion read hit the page limit",
+                    topic_id=topic_id, pages=_GRAPHQL_MAX_PAGES)
+
+    if node is None:
+        return None, f"{failed}: the topic was not returned."
+    expected_type, expected_id = (
+        ("Group", group_id) if group_id is not None else ("Course", course_id)
+    )
+    if node.get("contextType") != expected_type or str(node.get("contextId")) != str(expected_id):
+        where = f"group {group_id}" if group_id is not None else f"course {course_id}"
+        return None, f"Error: discussion {topic_id} does not belong to {where}."
+
+    by_id = {str(n.get("_id")): _rest_entry(n) for n in nodes}
+    children: dict[str | None, list[str]] = {}
+    for entry_id, entry in sorted(by_id.items(), key=lambda kv: kv[1].get("created_at") or ""):
+        parent = entry.get("parent_id")
+        # A reply whose parent was not returned is shown at top level, not dropped.
+        key = str(parent) if parent is not None and str(parent) in by_id else None
+        children.setdefault(key, []).append(entry_id)
+
+    def descendants(entry_id: str) -> list[dict[str, Any]]:
+        found: list[dict[str, Any]] = []
+        for child_id in children.get(entry_id, []):
+            found.append(by_id[child_id])
+            found.extend(descendants(child_id))
+        return sorted(found, key=lambda e: e.get("created_at") or "")
+
+    for entry_id, entry in by_id.items():
+        replies = descendants(entry_id)
+        entry["replies"] = replies
+        entry["recent_replies"] = replies
+    top_level = [by_id[i] for i in children.get(None, [])]
+    return _GraphqlDiscussion(_rest_topic(node, len(by_id)), top_level, by_id), None
+
+
+# Topics that REST refused and GraphQL served recently. A repeat read goes
+# straight to GraphQL instead of paying for the REST 404 and the topic list
+# again. Canvas does not let a discussion's anonymity change once it has
+# replies; the TTL bounds staleness otherwise. If GraphQL fails on a cache hit,
+# the entry is dropped and the normal REST path runs.
+_UNSERVABLE_TOPIC_TTL_SECONDS = 600
+_unservable_topics: dict[tuple[str, str], float] = {}
+
+
+def _is_known_unservable(prefix: str, topic_id: str | int) -> bool:
+    key = (prefix, str(topic_id))
+    expires = _unservable_topics.get(key)
+    if expires is None:
+        return False
+    if time.monotonic() >= expires:
+        del _unservable_topics[key]
+        return False
+    return True
+
+
+async def _known_unservable_discussion(
+    course_id: str, prefix: str, topic_id: str | int, group_id: str | int | None
+) -> _GraphqlDiscussion | None:
+    """GraphQL read for a topic recently found unservable by REST, else None."""
+    if not _is_known_unservable(prefix, topic_id):
+        return None
+    discussion, _reason = await _read_discussion_via_graphql(course_id, topic_id, group_id)
+    if discussion is None:
+        _unservable_topics.pop((prefix, str(topic_id)), None)
+    return discussion
+
+
+async def _read_unservable_topic(
+    course_id: str, prefix: str, topic_id: str | int,
+    group_id: str | int | None, error: Any,
+) -> tuple[_GraphqlDiscussion | None, str | None]:
+    """After a REST 404, read a listed topic through GraphQL instead (issue 421).
+
+    Returns:
+        (discussion, None) when GraphQL served the topic; (None, message) when
+        the topic is listed but GraphQL failed too, with the reason appended to
+        the issue-421 explanation; (None, None) when the error is not a 404 or
+        the topic is not listed, so the caller keeps its ordinary error.
+    """
+    if not _is_not_found_error(error):
+        return None, None
+    match = await _find_listed_topic(prefix, topic_id)
+    if match is None:
+        return None, None
+    discussion, reason = await _read_discussion_via_graphql(course_id, topic_id, group_id)
+    if discussion is not None:
+        _unservable_topics[(prefix, str(topic_id))] = (
+            time.monotonic() + _UNSERVABLE_TOPIC_TTL_SECONDS
+        )
+        return discussion, None
+    return None, f"{_unservable_topic_message(prefix, topic_id, match)}\nAlso, {reason}"
 
 
 def register_shared_discussion_tools(mcp: FastMCP) -> None:
@@ -420,17 +665,20 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         if prefix_error:
             return prefix_error
 
-        response = await make_canvas_request(
+        known = await _known_unservable_discussion(course_id, prefix, topic_id, group_id)
+        response = known.topic if known is not None else await make_canvas_request(
             "get", f"{prefix}/discussion_topics/{topic_id}"
         )
 
         if "error" in response:
-            explained = await _explain_unservable_topic(
-                prefix, topic_id, response["error"]
+            fallback, explained = await _read_unservable_topic(
+                course_id, prefix, topic_id, group_id, response["error"]
             )
             if explained:
                 return explained
-            return f"Error fetching discussion topic details: {response['error']}"
+            if fallback is None:
+                return f"Error fetching discussion topic details: {response['error']}"
+            response = fallback.topic
 
         # Extract topic details
         title = response.get("title", "Untitled")
@@ -478,6 +726,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         if unread_count > 0:
             result += f"Unread Entries: {unread_count}\n"
         result += f"Read State: {read_state.title()}\n"
+        result += _anonymity_line(response)
         if group_id is None:
             # Topics have no updated_at, so this hash of the raw message (the
             # same bytes the guard hashes) is update_discussion_topic's drift
@@ -524,18 +773,22 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             return prefix_error
 
         # Get basic entries first
-        entries = await fetch_all_paginated_results(
+        known = await _known_unservable_discussion(course_id, prefix, topic_id, group_id)
+        entries = known.entries if known is not None else await fetch_all_paginated_results(
             f"{prefix}/discussion_topics/{topic_id}/entries",
             {"per_page": 100}
         )
 
+        fallback = known
         if isinstance(entries, dict) and "error" in entries:
-            explained = await _explain_unservable_topic(
-                prefix, topic_id, entries["error"]
+            fallback, explained = await _read_unservable_topic(
+                course_id, prefix, topic_id, group_id, entries["error"]
             )
             if explained:
                 return explained
-            return f"Error fetching discussion entries: {entries['error']}"
+            if fallback is None:
+                return f"Error fetching discussion entries: {entries['error']}"
+            entries = fallback.entries
 
         if not entries:
             return f"No discussion entries found for topic {topic_id}."
@@ -544,7 +797,10 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         # ENABLE_DATA_ANONYMIZATION -- this endpoint matches _should_anonymize_endpoint (#179)
 
         # Enhanced content fetching using multiple methods
-        if include_full_content or include_replies:
+        if fallback is not None:
+            # GraphQL already returned every entry with its replies.
+            full_entries_map = {str(e.get("id")): e for e in entries}
+        elif include_full_content or include_replies:
             # Method 1: Try to get everything from discussion view (most efficient)
             full_entries_map = {}
             try:
@@ -566,9 +822,9 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             # Method 2: For entries not found in view, try entry_list endpoint
             missing_entry_ids = []
             for entry in entries:
-                entry_id = str(entry.get("id"))
-                if entry_id not in full_entries_map:
-                    missing_entry_ids.append(entry_id)
+                missing_entry_id = str(entry.get("id"))
+                if missing_entry_id not in full_entries_map:
+                    missing_entry_ids.append(missing_entry_id)
 
             if missing_entry_ids:
                 try:
@@ -590,7 +846,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                     )
 
         # Get topic details for context
-        topic_response = await make_canvas_request(
+        topic_response = fallback.topic if fallback is not None else await make_canvas_request(
             "get", f"{prefix}/discussion_topics/{topic_id}"
         )
 
@@ -651,7 +907,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
                 # If still no replies or need more, try direct API call
                 has_more_replies = entry.get("has_more_replies", False)
-                if not replies or has_more_replies:
+                if (not replies or has_more_replies) and fallback is None:
                     try:
                         replies_response = await fetch_all_paginated_results(
                             f"{prefix}/discussion_topics/{topic_id}/entries/{entry_id}/replies",
@@ -762,33 +1018,40 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
         # Method 1: Try to get entry details from the discussion view endpoint
         entry_response = None
+        entries_error: Any = None
         replies: list[Any] | Any = []
+        known = await _known_unservable_discussion(course_id, prefix, topic_id, group_id)
+        if known is not None:
+            entry_response = known.find(entry_id)
+            if entry_response and include_replies:
+                replies = entry_response.get("replies", [])
 
-        try:
-            # First try the discussion view endpoint which includes all entries
-            view_response = await make_canvas_request(
-                "get", f"{prefix}/discussion_topics/{topic_id}/view"
-            )
+        if known is None:
+            try:
+                # First try the discussion view endpoint which includes all entries
+                view_response = await make_canvas_request(
+                    "get", f"{prefix}/discussion_topics/{topic_id}/view"
+                )
 
-            if "error" not in view_response and "view" in view_response:
-                # Find our specific entry in the view
-                for entry in view_response.get("view", []):
-                    if str(entry.get("id")) == str(entry_id):
-                        entry_response = entry
-                        if include_replies:
-                            replies = entry.get("replies", [])
-                        break
-        except Exception as e:
-            log_warning(
-                "Failed to fetch discussion view for entry details",
-                exc=e,
-                course_id=course_id,
-                topic_id=topic_id,
-                entry_id=entry_id
-            )
+                if "error" not in view_response and "view" in view_response:
+                    # Find our specific entry in the view
+                    for entry in view_response.get("view", []):
+                        if str(entry.get("id")) == str(entry_id):
+                            entry_response = entry
+                            if include_replies:
+                                replies = entry.get("replies", [])
+                            break
+            except Exception as e:
+                log_warning(
+                    "Failed to fetch discussion view for entry details",
+                    exc=e,
+                    course_id=course_id,
+                    topic_id=topic_id,
+                    entry_id=entry_id
+                )
 
         # Method 2: If view method failed, try the entry_list endpoint
-        if not entry_response:
+        if not entry_response and known is None:
             try:
                 entry_list_response = await make_canvas_request(
                     "get", f"{prefix}/discussion_topics/{topic_id}/entry_list",
@@ -808,14 +1071,16 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                 )
 
         # Method 3: Fallback to getting all entries and finding our target
-        if not entry_response:
+        if not entry_response and known is None:
             try:
                 all_entries = await fetch_all_paginated_results(
                     f"{prefix}/discussion_topics/{topic_id}/entries",
                     {"per_page": 100}
                 )
 
-                if not isinstance(all_entries, dict) or "error" not in all_entries:
+                if isinstance(all_entries, dict) and "error" in all_entries:
+                    entries_error = all_entries["error"]
+                else:
                     for entry in all_entries:
                         if str(entry.get("id")) == str(entry_id):
                             entry_response = entry
@@ -832,12 +1097,25 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                     entry_id=entry_id
                 )
 
+        # Anonymous topics: REST answers 404 for every method above (issue 421).
+        fallback = known
+        if not entry_response and entries_error is not None:
+            fallback, explained = await _read_unservable_topic(
+                course_id, prefix, topic_id, group_id, entries_error
+            )
+            if explained:
+                return explained
+            if fallback is not None:
+                entry_response = fallback.find(entry_id)
+                if entry_response and include_replies:
+                    replies = entry_response.get("replies", [])
+
         # If we still don't have the entry, return error
         if not entry_response:
             return f"Error: Could not find discussion entry {entry_id} in topic {topic_id}. The entry may not exist or you may not have permission to view it."
 
         # Method 4: If we have the entry but no replies yet, try the replies endpoint
-        if include_replies and not replies:
+        if include_replies and not replies and fallback is None:
             try:
                 replies_response = await fetch_all_paginated_results(
                     f"{prefix}/discussion_topics/{topic_id}/entries/{entry_id}/replies",
@@ -856,7 +1134,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                 )
 
         # Get topic details for context
-        topic_response = await make_canvas_request(
+        topic_response = fallback.topic if fallback is not None else await make_canvas_request(
             "get", f"{prefix}/discussion_topics/{topic_id}"
         )
 
@@ -952,24 +1230,28 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             return prefix_error
 
         # Get basic entries first
-        entries = await fetch_all_paginated_results(
+        known = await _known_unservable_discussion(course_id, prefix, topic_id, group_id)
+        entries = known.entries if known is not None else await fetch_all_paginated_results(
             f"{prefix}/discussion_topics/{topic_id}/entries",
             {"per_page": 100}
         )
 
+        fallback = known
         if isinstance(entries, dict) and "error" in entries:
-            explained = await _explain_unservable_topic(
-                prefix, topic_id, entries["error"]
+            fallback, explained = await _read_unservable_topic(
+                course_id, prefix, topic_id, group_id, entries["error"]
             )
             if explained:
                 return explained
-            return f"Error fetching discussion entries: {entries['error']}"
+            if fallback is None:
+                return f"Error fetching discussion entries: {entries['error']}"
+            entries = fallback.entries
 
         if not entries:
             return f"No discussion entries found for topic {topic_id}."
 
         # Get topic details for context
-        topic_response = await make_canvas_request(
+        topic_response = fallback.topic if fallback is not None else await make_canvas_request(
             "get", f"{prefix}/discussion_topics/{topic_id}"
         )
 
@@ -1017,7 +1299,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
                 # Method 2: If no recent_replies or has_more_replies, try direct API call
                 has_more_replies = entry.get("has_more_replies", False)
-                if not replies or has_more_replies:
+                if (not replies or has_more_replies) and fallback is None:
                     try:
                         replies_response = await fetch_all_paginated_results(
                             f"{prefix}/discussion_topics/{topic_id}/entries/{entry_id}/replies",
