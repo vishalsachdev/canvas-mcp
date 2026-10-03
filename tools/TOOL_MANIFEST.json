@@ -528,9 +528,15 @@
           "type": "object",
           "required": true,
           "description": "Rubric criterion ratings: {criterion_id: {points, comments?}}"
+        },
+        {
+          "name": "comment",
+          "type": "string",
+          "required": false,
+          "description": "Optional student-visible overall feedback; omit unless explicitly requested. Each call appends a new comment."
         }
       ],
-      "returns": "Confirmation of grade submission",
+      "returns": "Verified grade submission, refusal if rubric grading settings cannot be confirmed, or an unconfirmed-result warning",
       "examples": [
         "Grade student 123's submission with 80 points on criterion _8027"
       ]

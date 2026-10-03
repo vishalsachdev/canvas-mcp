@@ -2229,7 +2229,7 @@ These tools help developers discover, explore, and execute Canvas code execution
 
 #### `search_canvas_tools`
 Search and discover available Canvas tools by keyword — both the registered
-MCP tools (the ~99 Python tools like `list_peer_reviews`,
+MCP tools (the Python tools like `list_peer_reviews`,
 `create_assignment`, called directly) and the TypeScript code execution API
 operations (used from `execute_typescript`). Matches against tool name and
 description.
