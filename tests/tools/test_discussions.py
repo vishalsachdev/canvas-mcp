@@ -1185,6 +1185,38 @@ class TestAnonymousDiscussionFallback:
                 if c.args[1] == "/graphql"]
 
     @pytest.mark.asyncio
+    async def test_graphql_raw_dates_are_explicitly_unavailable(self, mock_canvas_api):
+        self._wire(mock_canvas_api, graphql_responses=[self._graphql(), self._graphql()])
+        tool = get_tool_function('get_discussion_topic_details')
+        for _ in range(2):  # cold fallback and cached route
+            result = await tool("badm_350_120251", 805022, raw_dates=True)
+            assert "Raw dates unavailable" in result
+            assert "Ungraded topic" not in result
+            assert "Raw dates (JSON" not in result
+
+    @pytest.mark.asyncio
+    async def test_graphql_entry_read_state_is_unknown(self, mock_canvas_api):
+        self._wire(mock_canvas_api)
+        result = await get_tool_function('get_discussion_entry_details')(
+            "badm_350_120251", 805022, 2
+        )
+        assert "Read State: Unknown" in result
+        assert "Read State: Read" not in result
+
+    @pytest.mark.asyncio
+    async def test_graphql_page_cap_refuses_partial_discussion(self, mock_canvas_api, monkeypatch):
+        from canvas_mcp.tools import discussions
+        monkeypatch.setattr(discussions, "_GRAPHQL_MAX_PAGES", 1)
+        self._wire(mock_canvas_api, graphql_responses=[
+            self._graphql([self.ROOT], has_next=True, cursor="c1")
+        ])
+        result = await get_tool_function('get_discussion_with_replies')("badm_350_120251", 805022)
+        assert "page limit" in result
+        assert "incomplete" in result
+        assert "When is the deadline?" not in result
+        assert ("/courses/60366", "805022") not in discussions._unservable_topics
+
+    @pytest.mark.asyncio
     async def test_topic_details_fall_back(self, mock_canvas_api):
         self._wire(mock_canvas_api)
 

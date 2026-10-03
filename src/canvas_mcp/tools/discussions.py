@@ -245,7 +245,7 @@ def _rest_entry(node: dict[str, Any]) -> dict[str, Any]:
         "deleted": bool(node.get("deleted")),
         "created_at": node.get("createdAt"),
         "updated_at": node.get("updatedAt"),
-        "read_state": "read",
+        "read_state": "unknown",
         "has_more_replies": False,
     }
 
@@ -308,6 +308,7 @@ async def _read_discussion_via_graphql(
     else:
         log_warning("GraphQL discussion read hit the page limit",
                     topic_id=topic_id, pages=_GRAPHQL_MAX_PAGES)
+        return None, f"{failed}: page limit reached; results are incomplete. Open it in the Canvas UI."
 
     if node is None:
         return None, f"{failed}: the topic was not returned."
@@ -653,6 +654,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             return prefix_error
 
         known = await _known_unservable_discussion(course_id, prefix, topic_id, group_id)
+        graphql_read = known is not None
         response = known.topic if known is not None else await make_canvas_request(
             "get", f"{prefix}/discussion_topics/{topic_id}"
         )
@@ -666,6 +668,7 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             if fallback is None:
                 return f"Error fetching discussion topic details: {response['error']}"
             response = fallback.topic
+            graphql_read = True
 
         # Extract topic details
         title = response.get("title", "Untitled")
@@ -731,7 +734,14 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         if raw_dates:
             # No extra request: the topic response embeds its assignment,
             # checkpoints included (measured 2026-10-01).
-            result += render_raw_dates(topic_raw_dates(response, topic_id))
+            if graphql_read:
+                result += (
+                    "\n\nRaw dates unavailable: the GraphQL fallback does not return "
+                    "topic scheduling, assignment, or checkpoint date metadata. "
+                    "Grading status is unknown on this path. Check the Canvas UI."
+                )
+            else:
+                result += render_raw_dates(topic_raw_dates(response, topic_id))
 
         return result
 
