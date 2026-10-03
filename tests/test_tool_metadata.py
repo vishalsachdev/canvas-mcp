@@ -277,7 +277,7 @@ async def test_tool_manifest_matches_registry_exactly():
     and a stale extra entry (removed/renamed tool) both fail CI.
     """
     manifest_path = Path(__file__).parent.parent / "tools" / "TOOL_MANIFEST.json"
-    manifest = json.loads(manifest_path.read_text())
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest_names = [t["name"] for t in manifest["tools"]]
 
     dupes = {n for n in manifest_names if manifest_names.count(n) > 1}

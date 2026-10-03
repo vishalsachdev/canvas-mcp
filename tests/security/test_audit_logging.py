@@ -204,7 +204,7 @@ class TestAuditFileHandling:
                     audit_file = os.path.join(tmpdir, "audit.jsonl")
                     assert os.path.exists(audit_file)
 
-                    with open(audit_file) as f:
+                    with open(audit_file, encoding="utf-8") as f:
                         content = f.read()
                     assert "data_access" in content
                 finally:

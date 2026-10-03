@@ -133,7 +133,7 @@ class TestDependencyPinning:
         if not pyproject.exists():
             pytest.skip("pyproject.toml not found")
 
-        content = pyproject.read_text()
+        content = pyproject.read_text(encoding="utf-8")
 
         # Check that dependencies have version specifiers
         # Look for dependencies section
@@ -173,7 +173,7 @@ class TestSupplyChainSecurity:
         pyproject = Path("pyproject.toml")
 
         if pyproject.exists():
-            content = pyproject.read_text()
+            content = pyproject.read_text(encoding="utf-8")
 
             # Check for git+https dependencies (supply chain risk)
             assert "git+https" not in content or "# trusted" in content, \
@@ -184,7 +184,7 @@ class TestSupplyChainSecurity:
         pyproject = Path("pyproject.toml")
 
         if pyproject.exists():
-            content = pyproject.read_text()
+            content = pyproject.read_text(encoding="utf-8")
 
             # Check for common typosquatting targets
             suspicious_patterns = [
@@ -232,7 +232,7 @@ class TestDevelopmentDependencies:
         pyproject = Path("pyproject.toml")
 
         if pyproject.exists():
-            content = pyproject.read_text()
+            content = pyproject.read_text(encoding="utf-8")
 
             # Should have separate dev dependencies
             assert "dev" in content or "optional" in content, \
@@ -244,7 +244,7 @@ class TestDevelopmentDependencies:
         pyproject = Path("pyproject.toml")
 
         if pyproject.exists():
-            content = pyproject.read_text()
+            content = pyproject.read_text(encoding="utf-8")
 
             # Dev tools should be in optional-dependencies or dependency-groups (PEP 735)
             if "pytest" in content:

@@ -39,7 +39,7 @@ FORBIDDEN_WRITE_SCOPES = {"contents", "pull-requests", "packages", "actions",
 
 
 def _load(path: Path) -> dict:
-    return yaml.safe_load(path.read_text())
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
 @pytest.mark.skipif(not AI_WORKFLOW.exists(), reason="workflow not present")
@@ -77,7 +77,7 @@ class TestWeeklyMaintenancePermissions:
 
     def test_untrusted_input_is_framed_as_data(self):
         """The prompt should tell the model that fetched content is not instructions."""
-        text = AI_WORKFLOW.read_text().lower()
+        text = AI_WORKFLOW.read_text(encoding="utf-8").lower()
         assert "untrusted" in text, (
             "the prompt does not mark issue/web content as untrusted data"
         )
@@ -124,7 +124,8 @@ class TestNoWorkflowReintroducesUnrestrictedGh:
             "  j:\n"
             "    steps:\n"
             "      - with:\n"
-            '          claude_args: \'--allowed-tools "Bash(gh:*),Read"\'\n'
+            '          claude_args: \'--allowed-tools "Bash(gh:*),Read"\'\n',
+            encoding="utf-8",
         )
         assert any("Bash(gh:*)" in arg for arg in _tool_args_in(sample))
 

@@ -135,7 +135,7 @@ async def test_storage_upload_log_uses_sanitized_url(tmp_path):
     from canvas_mcp.core.client import upload_file_to_storage
 
     source = tmp_path / "upload.txt"
-    source.write_text("content")
+    source.write_text("content", encoding="utf-8")
     response = MagicMock(status_code=200)
     response.json.return_value = {"id": 1}
     client = AsyncMock()

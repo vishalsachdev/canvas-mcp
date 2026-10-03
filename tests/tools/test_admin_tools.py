@@ -307,7 +307,7 @@ class TestCreateStudentAnonymizationMap:
 
         assert "Error" not in result
         written = (tmp_path / "local_maps").glob("anonymization_map_*.csv")
-        content = next(written).read_text()
+        content = next(written).read_text(encoding="utf-8")
         assert "Alice Example" in content
         assert "alice@illinois.edu" in content
         assert generate_anonymous_id(301) in content

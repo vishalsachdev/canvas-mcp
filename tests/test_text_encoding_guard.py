@@ -1,0 +1,269 @@
+"""Guard: every text read and write names its encoding.
+
+``Path.read_text()``, ``Path.write_text()`` and ``open()`` with no ``encoding=``
+resolve to ``locale.getpreferredencoding(False)``. That is UTF-8 on this
+repository's CI (ubuntu-latest) and on macOS, and the host code page on Windows:
+cp1252 in Western Europe and the US, cp932 in Japan, cp936 in China. The same
+source file is then decoded differently depending on who runs the suite.
+
+This already shipped once as a user-visible bug. ``code_api_search`` and
+``code_api_signatures`` read repository sources with a bare ``read_text()``
+under ``except Exception: continue``, so on a cp932 host the two files holding
+``"✓"``/``"✗"`` were silently dropped from search results and a signature read
+failed outright; the fix pinned UTF-8 at those three call sites. The file
+writers were already explicit -- ``admin_tools.py`` and
+``peer_review_comments.py`` both pass ``encoding='utf-8'`` -- so what was left
+was the test suite, which read those UTF-8 files back with whatever the host
+offered.
+
+The reason this is a source scan and not a behavioral test: the defect is
+invisible on a UTF-8 host, so a behavioral test cannot fail on this
+repository's CI. An AST guard fails there on the day the call site is
+written. ``test_an_encoding_less_read_is_decoded_by_the_host_code_page`` below
+forces a non-UTF-8 default to show what the guard is protecting against.
+
+Binary modes carry no encoding, so ``open(p, "rb")``, ``os.open`` and
+``os.fdopen(fd, "wb")`` are not flagged.
+"""
+
+from __future__ import annotations
+
+import ast
+from dataclasses import dataclass
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SCANNED_DIRS = ("src/canvas_mcp", "tests")
+
+# "path/to/file.py:function" -> why this call site may stay encoding-less.
+# Add an entry only with the reason the host code page is the right answer
+# there, which for repository-owned text is essentially never.
+ENCODING_LESS_ALLOWED: dict[str, str] = {
+    "tests/test_text_encoding_guard.py:"
+    "test_an_encoding_less_read_is_decoded_by_the_host_code_page": (
+        "the control below, which must stay encoding-less to show what a bare "
+        "read does on a non-UTF-8 host"
+    ),
+}
+
+TEXT_READ_WRITE_METHODS = frozenset({"read_text", "write_text"})
+
+
+@dataclass(frozen=True)
+class TextIOSite:
+    file: str
+    line: int
+    function: str
+    call: str
+
+    @property
+    def key(self) -> str:
+        return f"{self.file}:{self.function}"
+
+
+def _has_encoding(node: ast.Call) -> bool:
+    if any(kw.arg == "encoding" for kw in node.keywords):
+        return True
+    # **kwargs forwarding: the caller decides, so do not second-guess it.
+    return any(kw.arg is None for kw in node.keywords)
+
+
+def _mode_of(node: ast.Call, mode_arg: int) -> str | None:
+    """The mode of an ``open()`` call, or None when it is not a literal.
+
+    ``mode_arg`` differs by receiver: ``open(path, mode)`` carries it second,
+    ``Path.open(mode)`` first.
+    """
+    for kw in node.keywords:
+        if kw.arg == "mode":
+            return kw.value.value if isinstance(kw.value, ast.Constant) else None
+    if len(node.args) > mode_arg:
+        positional = node.args[mode_arg]
+        return positional.value if isinstance(positional, ast.Constant) else None
+    return "r"
+
+
+def _is_binary(node: ast.Call, mode_arg: int) -> bool:
+    mode = _mode_of(node, mode_arg)
+    return mode is not None and "b" in mode
+
+
+def scan_source(source: str, filename: str) -> list[TextIOSite]:
+    """Every text read/write in ``source`` that does not name an encoding."""
+    sites: list[TextIOSite] = []
+    tree = ast.parse(source)
+
+    enclosing: dict[int, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for child in ast.walk(node):
+                enclosing.setdefault(id(child), node.name)
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or _has_encoding(node):
+            continue
+
+        if isinstance(node.func, ast.Attribute):
+            attr = node.func.attr
+            if attr in TEXT_READ_WRITE_METHODS:
+                call = f"{attr}()"
+            elif attr == "open":
+                # Path.open() / p.open(); os.open and os.fdopen are not text I/O.
+                owner = node.func.value
+                if isinstance(owner, ast.Name) and owner.id == "os":
+                    continue
+                if _is_binary(node, mode_arg=0):
+                    continue
+                call = f"open({_mode_of(node, mode_arg=0)!r})"
+            else:
+                continue
+        elif isinstance(node.func, ast.Name) and node.func.id == "open":
+            if _is_binary(node, mode_arg=1):
+                continue
+            call = f"open({_mode_of(node, mode_arg=1)!r})"
+        else:
+            continue
+
+        sites.append(
+            TextIOSite(
+                file=filename,
+                line=node.lineno,
+                function=enclosing.get(id(node), "<module>"),
+                call=call,
+            )
+        )
+    return sites
+
+
+def scan_repository() -> list[TextIOSite]:
+    sites: list[TextIOSite] = []
+    for rel in SCANNED_DIRS:
+        root = REPO_ROOT / rel
+        for path in sorted(root.rglob("*.py")):
+            source = path.read_text(encoding="utf-8")
+            name = str(path.relative_to(REPO_ROOT)).replace("\\", "/")
+            sites.extend(scan_source(source, name))
+    return sites
+
+
+# --- The guard -------------------------------------------------------------
+
+
+def test_no_encoding_less_text_io_in_src_or_tests() -> None:
+    problems = [
+        f"{s.file}:{s.line} in {s.function}(): {s.call} with no encoding="
+        for s in scan_repository()
+        if s.key not in ENCODING_LESS_ALLOWED
+    ]
+    assert not problems, (
+        "A text read or write with no encoding= uses the host code page, so the "
+        "same file decodes differently on cp1252/cp932 than on CI's UTF-8. Pass "
+        'encoding="utf-8", or open the file in binary mode, or add the call site '
+        "to ENCODING_LESS_ALLOWED with the reason.\n" + "\n".join(problems)
+    )
+
+
+def test_every_allowlisted_site_still_exists() -> None:
+    """A stale entry would silently permit a future encoding-less call."""
+    present = {s.key for s in scan_repository()}
+    unused = sorted(set(ENCODING_LESS_ALLOWED) - present)
+    assert not unused, f"ENCODING_LESS_ALLOWED entries no longer apply: {unused}"
+
+
+# --- Controls: prove the scanner sees what it claims to police --------------
+
+
+def test_scanner_reaches_the_real_tree() -> None:
+    """An empty walk would make the guard above pass without inspecting anything."""
+    encoded = 0
+    for rel in SCANNED_DIRS:
+        for path in sorted((REPO_ROOT / rel).rglob("*.py")):
+            source = path.read_text(encoding="utf-8")
+            encoded += sum(
+                1
+                for node in ast.walk(ast.parse(source))
+                if isinstance(node, ast.Call) and _has_encoding(node)
+            )
+    assert encoded > 20, (
+        f"only {encoded} calls naming an encoding were found across "
+        f"{SCANNED_DIRS}; the walk is broken, so the guard proves nothing"
+    )
+
+
+def test_guard_flags_each_encoding_less_form() -> None:
+    source = """
+from pathlib import Path
+
+def read_it(p: Path) -> str:
+    return p.read_text()
+
+def write_it(p: Path) -> None:
+    p.write_text("x")
+
+def open_it(p: Path) -> str:
+    with open(p) as handle:
+        return handle.read()
+
+def path_open_it(p: Path) -> str:
+    with p.open("r") as handle:
+        return handle.read()
+"""
+    found = {(s.function, s.call) for s in scan_source(source, "sample.py")}
+    assert found == {
+        ("read_it", "read_text()"),
+        ("write_it", "write_text()"),
+        ("open_it", "open('r')"),
+        ("path_open_it", "open('r')"),
+    }, found
+
+
+def test_guard_ignores_what_carries_no_encoding() -> None:
+    source = """
+import os
+from pathlib import Path
+
+def explicit(p: Path) -> str:
+    return p.read_text(encoding="utf-8")
+
+def binary_read(p: Path) -> bytes:
+    with open(p, "rb") as handle:
+        return handle.read()
+
+def binary_write(p: Path, data: bytes) -> None:
+    with p.open("wb") as handle:
+        handle.write(data)
+
+def low_level(path: str, data: bytes) -> None:
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT, 0o600)
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(data)
+
+def forwarded(p: Path, **kwargs: object) -> str:
+    return p.read_text(**kwargs)
+"""
+    assert scan_source(source, "sample.py") == []
+
+
+def test_an_encoding_less_read_is_decoded_by_the_host_code_page(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """What the guard is protecting against, shown on a forced cp932 default."""
+    target = tmp_path / "checkmark.py"
+    target.write_bytes('STATUS = "✓"\n'.encode())
+
+    real_read_text = Path.read_text
+
+    def shim(self, encoding=None, errors=None, *args, **kwargs):
+        return real_read_text(self, encoding=encoding or "cp932", errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", shim)
+
+    assert target.read_text(encoding="utf-8") == 'STATUS = "✓"\n'
+    try:
+        decoded = target.read_text()
+    except UnicodeDecodeError:
+        return
+    assert decoded != 'STATUS = "✓"\n', (
+        "cp932 decoded the UTF-8 bytes without error and without mangling them, "
+        "so this control proves nothing on this host"
+    )

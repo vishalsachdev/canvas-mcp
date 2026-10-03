@@ -36,7 +36,7 @@ class TestSandboxSecurity:
         # Generate the guard and verify it intercepts https.request
         guard_path = _write_network_guard(["allowed.com"], Path(tempfile.mkdtemp()))
         try:
-            content = guard_path.read_text()
+            content = guard_path.read_text(encoding="utf-8")
             assert "enforce" in content
             assert "SANDBOX_NETWORK_BLOCKED" in content
             assert "allowed.com" in content
@@ -101,7 +101,7 @@ class TestSandboxSecurity:
         temp_file = Path(temp_dir) / "test.ts"
 
         # Simulate code execution file
-        temp_file.write_text("console.log('test');")
+        temp_file.write_text("console.log('test');", encoding="utf-8")
 
         # Verify file is deleted after execution
         # In real implementation, this would be done by execute_typescript

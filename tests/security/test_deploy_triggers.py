@@ -42,7 +42,7 @@ def _policy_violations(workflow: dict) -> list[str]:
 
 @pytest.mark.parametrize("path", PROD_WORKFLOWS, ids=lambda p: p.name)
 def test_production_deploys_only_on_release_or_manual_run(path):
-    assert _policy_violations(yaml.safe_load(path.read_text())) == []
+    assert _policy_violations(yaml.safe_load(path.read_text(encoding="utf-8"))) == []
 
 
 def test_the_policy_rejects_the_old_push_to_main_trigger():

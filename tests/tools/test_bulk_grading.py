@@ -199,7 +199,7 @@ class TestGradingArtifactsDoNotTeachComments:
         import re
         from pathlib import Path
         skill = Path(__file__).resolve().parents[2] / "skills/canvas-bulk-grading/SKILL.md"
-        text = skill.read_text()
+        text = skill.read_text(encoding="utf-8")
 
         # Ban comment VALUES that narrate the grading process rather than give
         # feedback -- those are what a model copies into a student's
