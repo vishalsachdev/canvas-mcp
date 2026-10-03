@@ -11,6 +11,7 @@ from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
+from ..core.config import get_config
 from ..core.dates import format_date, parse_date, truncate_text
 from ..core.guarded_edit import (
     BodyGuard,
@@ -162,25 +163,6 @@ def _unservable_topic_message(prefix: str, topic_id: str | int, match: dict[str,
     return message
 
 
-async def _explain_unservable_topic(
-    prefix: str, topic_id: str | int, error: Any
-) -> str | None:
-    """Explain a topic 404 when the topic list still contains the topic (issue 421).
-
-    Canvas's REST API answers 404 for fully anonymous discussion topics even
-    though the topic index lists them, so a bare 404 would read as "deleted".
-    Called only after a 404, never on success. Returns None (keep the ordinary
-    not-found error) when the error is not a 404, the list cannot be read, or
-    the ID is not in the list.
-    """
-    if not _is_not_found_error(error):
-        return None
-    match = await _find_listed_topic(prefix, topic_id)
-    if match is None:
-        return None
-    return _unservable_topic_message(prefix, topic_id, match)
-
-
 # ===== GraphQL fallback for anonymous discussions =====
 #
 # Canvas lists anonymous discussions but its REST API answers 404 when they are
@@ -283,7 +265,8 @@ def _rest_topic(node: dict[str, Any], entry_total: int) -> dict[str, Any]:
         "unread_count": counts.get("unreadCount", 0),
         "read_state": "read" if (node.get("participant") or {}).get("read") else "unread",
         "locked": bool(node.get("locked")),
-        "pinned": False,
+        # This fixed query does not return pin status; omit it rather than
+        # inventing an unpinned state. The formatter only prints known pins.
         "require_initial_post": bool(node.get("requireInitialPost")),
         "anonymous_state": node.get("anonymousState"),
     }
@@ -382,6 +365,8 @@ async def _known_unservable_discussion(
     course_id: str, prefix: str, topic_id: str | int, group_id: str | int | None
 ) -> _GraphqlDiscussion | None:
     """GraphQL read for a topic recently found unservable by REST, else None."""
+    if not get_config().discussion_graphql_enabled:
+        return None
     if not _is_known_unservable(prefix, topic_id):
         return None
     discussion, _reason = await _read_discussion_via_graphql(course_id, topic_id, group_id)
@@ -407,6 +392,8 @@ async def _read_unservable_topic(
     match = await _find_listed_topic(prefix, topic_id)
     if match is None:
         return None, None
+    if not get_config().discussion_graphql_enabled:
+        return None, _unservable_topic_message(prefix, topic_id, match)
     discussion, reason = await _read_discussion_via_graphql(course_id, topic_id, group_id)
     if discussion is not None:
         _unservable_topics[(prefix, str(topic_id))] = (

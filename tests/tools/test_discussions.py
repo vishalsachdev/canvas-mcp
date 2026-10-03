@@ -1026,17 +1026,17 @@ class TestAnonymousTopics:
         "list_discussion_entries", "get_discussion_with_replies",
     ])
     async def test_entry_readers_explain_listed_404(self, mock_canvas_api, tool_name):
-        # The GraphQL fallback is tried and fails too, so the explanation stands.
+        # Without operator opt-in, explain the REST limitation without GraphQL.
         mock_canvas_api['fetch_all_paginated_results'].side_effect = self._list_fetch()
         mock_canvas_api['make_canvas_request'].return_value = dict(self.NOT_FOUND)
 
         result = await get_tool_function(tool_name)("badm_350_120251", 555)
 
         assert "topic 555 exists" in result
-        assert "reading it through Canvas GraphQL failed" in result
+        assert "Canvas UI" in result
         assert "Error fetching discussion entries" not in result
         paths = [c.args[1] for c in mock_canvas_api['make_canvas_request'].call_args_list]
-        assert paths == ["/graphql"]
+        assert paths == []
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("tool_name", [
@@ -1114,10 +1114,15 @@ async def test_anonymous_topic_404_through_real_client_transport(monkeypatch):
     assert [p.rsplit("/api/v1", 1)[-1] for p in requested] == [
         "/courses/60366/discussion_topics/555",
         "/courses/60366/discussion_topics",
-        "/api/graphql",
     ]
 
 
+@pytest.fixture
+def enable_discussion_graphql(monkeypatch):
+    monkeypatch.setenv("DISCUSSION_GRAPHQL_ENABLED", "true")
+
+
+@pytest.mark.usefixtures("enable_discussion_graphql")
 class TestAnonymousDiscussionFallback:
     """REST reads of an anonymous topic fall back to GraphQL transparently."""
 
@@ -1359,7 +1364,7 @@ class TestAnonymousDiscussionFallback:
         assert "temporarily unavailable" in result
 
 @pytest.mark.asyncio
-async def test_anonymous_topic_graphql_fallback_through_real_client(monkeypatch):
+async def test_anonymous_topic_graphql_fallback_through_real_client(monkeypatch, enable_discussion_graphql):
     """The fallback's GraphQL answer goes through the real client and its anonymization."""
     import httpx
 
@@ -1404,3 +1409,25 @@ async def test_anonymous_topic_graphql_fallback_through_real_client(monkeypatch)
     assert "Anonymous 8x6pv" in result
     # The real author name is pseudonymised by the client layer.
     assert "Teacher Name" not in result
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("setting", [None, "false", "invalid"])
+@pytest.mark.parametrize("tool_name", ["get_discussion_topic_details", "list_discussion_entries", "get_discussion_with_replies", "get_discussion_entry_details"])
+async def test_graphql_requires_operator_opt_in(mock_canvas_api, monkeypatch, setting, tool_name):
+    from canvas_mcp.tools import discussions
+    if setting is None:
+        monkeypatch.delenv("DISCUSSION_GRAPHQL_ENABLED", raising=False)
+    else:
+        monkeypatch.setenv("DISCUSSION_GRAPHQL_ENABLED", setting)
+    case = TestAnonymousDiscussionFallback()
+    case._wire(mock_canvas_api)
+    # Even a marker left by a previously enabled read cannot bypass the gate.
+    discussions._unservable_topics[("/courses/60366", "805022")] = float("inf")
+    args = ["badm_350_120251", 805022]
+    if tool_name == "get_discussion_entry_details":
+        args.append(2)
+    result = await get_tool_function(tool_name)(*args)
+    assert "topic 805022 exists" in result
+    assert "Canvas UI" in result
+    assert case._graphql_calls(mock_canvas_api) == []

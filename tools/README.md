@@ -2084,8 +2084,10 @@ When Canvas reports a non-null `anonymous_state` for a topic
 `get_discussion_topic_details`, `list_discussion_entries`,
 `get_discussion_with_replies` or `get_discussion_entry_details` gets a 404, the
 tool checks the topic list of the same course (or group). If the topic is
-listed, the tool reads it through Canvas GraphQL instead and returns the same
+listed, the tool explains the REST limitation and links to Canvas by default. With
+`DISCUSSION_GRAPHQL_ENABLED=true` (operator opt-in), it reads through Canvas GraphQL and returns the same
 output as for any other topic; anonymous posts show only their anonymous alias.
+Pin status is unavailable in the fixed GraphQL query and is omitted.
 A topic read this way is remembered for ten minutes, so later reads go straight
 to GraphQL. If GraphQL fails too, the tool says the topic exists, that REST does
 not serve it, and to open it in the Canvas UI. A 404 for a topic that is not

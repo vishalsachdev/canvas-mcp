@@ -69,7 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   can be opened in the Canvas UI. A 404 for an unlisted topic is still not found.
 - **Anonymous discussion topics can be read** (issue 421, part 2). After the
   part-1 404 check finds a topic in the list, the four topic read tools
-  (`get_discussion_entry_details` included) read it through Canvas GraphQL and
+  (`get_discussion_entry_details` included) can read it through Canvas GraphQL when
+  the operator sets `DISCUSSION_GRAPHQL_ENABLED=true` (off by default), and
   return the same output as for any other topic. Anonymous posts keep only
   their anonymous alias, and replies nested deeper than one level are kept. A
   topic read this way is remembered for ten minutes, so later reads take one
