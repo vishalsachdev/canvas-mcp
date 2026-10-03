@@ -251,6 +251,9 @@ class Config:
         self.max_concurrent_requests = _int_env("MAX_CONCURRENT_REQUESTS", 10)
         self.read_file_max_size_mb = _float_env("READ_FILE_MAX_SIZE_MB", 100.0)
 
+        # Additional read API surface is an explicit operator choice (#421).
+        self.discussion_graphql_enabled = _bool_env("DISCUSSION_GRAPHQL_ENABLED", False)
+
         # Development configuration
         self.log_level = os.getenv("LOG_LEVEL", "INFO").upper()
         self.log_api_requests = _bool_env("LOG_API_REQUESTS", False)
