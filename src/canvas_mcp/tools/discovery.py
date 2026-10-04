@@ -1,7 +1,7 @@
 """
 Tool discovery for Canvas MCP.
 Allows Claude to search and explore both the registered MCP tools
-(the ~99 Python tools exposed via @mcp.tool()) and the TypeScript
+(the Python tools exposed via @mcp.tool()) and the TypeScript
 code-execution API modules used by execute_typescript().
 """
 
@@ -59,7 +59,7 @@ async def _search_mcp_tools(
     flags like EXECUTE_TYPESCRIPT_ENABLED or STUDENT_WRITE_TOOLS change
     the live tool set. Skips FastMCP's middleware chain (run_middleware=False)
     since this is a metadata listing, not a tool invocation — re-running
-    ~99 tools' middleware on every search call would be pure overhead.
+    every registered tool's middleware on each search call would be pure overhead.
     """
     tools = await mcp.list_tools(run_middleware=False)
 
