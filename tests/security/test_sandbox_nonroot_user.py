@@ -23,6 +23,7 @@ and stays a real, world-readable file on disk.
 import asyncio
 import os
 import tempfile
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -69,6 +70,33 @@ def _mock_process():
         communicate=AsyncMock(return_value=(b"ok\n", b"")),
         returncode=0,
     )
+
+
+@pytest.mark.asyncio
+async def test_host_script_is_utf8_on_a_non_utf8_host(monkeypatch):
+    tool = get_execute_typescript(ENABLE_TS_SANDBOX="false")
+    assert tool is not None
+    real_temporary_file = tempfile.NamedTemporaryFile
+
+    def locale_temporary_file(*args, **kwargs):
+        kwargs.setdefault("encoding", "cp1252")
+        return real_temporary_file(*args, **kwargs)
+
+    monkeypatch.setattr(tempfile, "NamedTemporaryFile", locale_temporary_file)
+    code = 'console.log("学生 🧪");'
+    observed = []
+
+    async def spawn(*args, **kwargs):
+        script = next(Path(arg) for arg in args if str(arg).endswith(".ts"))
+        observed.append(script.read_bytes())
+        return _mock_process()
+
+    with patch(
+        "canvas_mcp.tools.code_execution.asyncio.create_subprocess_exec", new=spawn
+    ):
+        result = await tool(code=code)
+    assert observed == [code.encode("utf-8")]
+    assert "TypeScript execution completed successfully" in result
 
 
 class TestContainerRunsAsNonRoot:
@@ -462,4 +490,3 @@ class TestSandboxUidGidConfigurable:
         assert uid_gid == "65532:65532", (
             f"{root_uid_gid} should fall back to default 65532:65532, got {uid_gid}"
         )
-

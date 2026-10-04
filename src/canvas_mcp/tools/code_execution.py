@@ -250,6 +250,7 @@ if (typeof globalThis.fetch === 'function') {{
 """
     guard_file = tempfile.NamedTemporaryFile(
         mode="w",
+        encoding="utf-8",
         suffix=".cjs",
         dir=directory,
         delete=False
@@ -549,6 +550,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
             # Create a temporary file for the code
             with tempfile.NamedTemporaryFile(
                 mode='w',
+                encoding="utf-8",
                 suffix='.ts',
                 dir=code_api_dir,
                 delete=False

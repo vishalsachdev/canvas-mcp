@@ -73,7 +73,7 @@ def _has_encoding(node: ast.Call) -> bool:
     return any(kw.arg is None for kw in node.keywords)
 
 
-def _mode_of(node: ast.Call, mode_arg: int) -> str | None:
+def _mode_of(node: ast.Call, mode_arg: int, default: str = "r") -> str | None:
     """The mode of an ``open()`` call, or None when it is not a literal.
 
     ``mode_arg`` differs by receiver: ``open(path, mode)`` carries it second,
@@ -85,11 +85,11 @@ def _mode_of(node: ast.Call, mode_arg: int) -> str | None:
     if len(node.args) > mode_arg:
         positional = node.args[mode_arg]
         return positional.value if isinstance(positional, ast.Constant) else None
-    return "r"
+    return default
 
 
-def _is_binary(node: ast.Call, mode_arg: int) -> bool:
-    mode = _mode_of(node, mode_arg)
+def _is_binary(node: ast.Call, mode_arg: int, default: str = "r") -> bool:
+    mode = _mode_of(node, mode_arg, default)
     return mode is not None and "b" in mode
 
 
@@ -108,7 +108,14 @@ def scan_source(source: str, filename: str) -> list[TextIOSite]:
         if not isinstance(node, ast.Call) or _has_encoding(node):
             continue
 
-        if isinstance(node.func, ast.Attribute):
+        if (
+            isinstance(node.func, ast.Attribute) and node.func.attr == "NamedTemporaryFile"
+            or isinstance(node.func, ast.Name) and node.func.id == "NamedTemporaryFile"
+        ):
+            if _is_binary(node, mode_arg=0, default="w+b"):
+                continue
+            call = f"NamedTemporaryFile({_mode_of(node, mode_arg=0, default='w+b')!r})"
+        elif isinstance(node.func, ast.Attribute):
             attr = node.func.attr
             if attr in TEXT_READ_WRITE_METHODS:
                 call = f"{attr}()"
@@ -210,6 +217,20 @@ os.fdopen(fd, "wb")
 '''
     assert [s.call for s in scan_source(source, "sample.py")] == [
         "fdopen('r')", "fdopen('w')", "fdopen('r')",
+    ]
+
+
+def test_guard_checks_text_mode_named_temporary_files() -> None:
+    source = '''
+import tempfile
+tempfile.NamedTemporaryFile(mode="w")
+NamedTemporaryFile("w", encoding=None)
+tempfile.NamedTemporaryFile(mode="w", encoding="utf-8")
+tempfile.NamedTemporaryFile()
+tempfile.NamedTemporaryFile(mode="wb")
+'''
+    assert [s.call for s in scan_source(source, "sample.py")] == [
+        "NamedTemporaryFile('w')", "NamedTemporaryFile('w')",
     ]
 
 

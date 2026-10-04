@@ -750,11 +750,22 @@ Link a rubric to an assignment.
 #### `grade_with_rubric`
 Grade a student submission using a rubric.
 
+Before submitting, the tool reads the assignment's rubric and grading settings.
+It submits nothing if those settings cannot be read or
+`use_rubric_for_grading` is not explicitly true. Attach the rubric with
+`associate_rubric(..., use_for_grading=true)` or configure it in Canvas first.
+After submission, success requires a returned grade and a score matching the
+expected total for a complete rubric assessment, excluding criteria marked
+`ignore_for_scoring`.
+An unconfirmed result may already have saved an
+assessment; check Canvas before retrying.
+
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `assignment_id`: Assignment ID
 - `user_id`: Student ID
 - `rubric_assessment`: JSON with criterion ratings
+- `comment` (optional): Student-visible feedback; omit unless explicitly requested
 
 ---
 
@@ -808,6 +819,13 @@ Grade multiple submissions concurrently.
 - `dry_run: true` previews the grade **and** any comment that would be posted
 - Can mix and match grading styles for different students
 - Automatically validates rubric configuration before grading
+- For any rubric-based grade, it first reads the rubric and grading settings;
+  an unreadable assignment or `use_rubric_for_grading` other than true stops
+  the entire batch before any grade is submitted
+- A rubric grade counts as successful only when Canvas returns a grade and
+  a score matching the expected total for a complete rubric assessment, excluding
+  criteria marked `ignore_for_scoring`; unconfirmed entries are reported as failed even
+  though an assessment may have been saved, so check Canvas before retrying
 - Use `dry_run=true` to preview grades before applying
 - For custom bulk grading logic that can return selected output, consider `execute_typescript` with `bulkGrade` from the code execution API
 
@@ -2219,7 +2237,7 @@ These tools help developers discover, explore, and execute Canvas code execution
 
 #### `search_canvas_tools`
 Search and discover available Canvas tools by keyword — both the registered
-MCP tools (the ~99 Python tools like `list_peer_reviews`,
+MCP tools (the Python tools like `list_peer_reviews`,
 `create_assignment`, called directly) and the TypeScript code execution API
 operations (used from `execute_typescript`). Matches against tool name and
 description.
