@@ -131,9 +131,13 @@ def scan_source(source: str, filename: str) -> list[TextIOSite]:
                 owner = node.func.value
                 if isinstance(owner, ast.Name) and owner.id == "os":
                     continue
-                if _is_binary(node, mode_arg=0):
+                module = owner.id if isinstance(owner, ast.Name) else ""
+                compressed = module in {"gzip", "bz2", "lzma"}
+                mode_arg = 1 if compressed or module in {"io", "builtins"} else 0
+                mode = _mode_of(node, mode_arg, default="rb" if compressed else "r")
+                if mode is not None and ("t" not in mode if compressed else "b" in mode):
                     continue
-                call = f"open({_mode_of(node, mode_arg=0)!r})"
+                call = f"open({mode!r})"
             else:
                 continue
         elif isinstance(node.func, ast.Name) and node.func.id == "open":
@@ -231,6 +235,22 @@ tempfile.NamedTemporaryFile(mode="wb")
 '''
     assert [s.call for s in scan_source(source, "sample.py")] == [
         "NamedTemporaryFile('w')", "NamedTemporaryFile('w')",
+    ]
+
+
+def test_guard_uses_module_open_mode_not_filename() -> None:
+    source = '''
+import io
+import gzip
+io.open("blob.txt", "w")
+io.open("alpha.txt", "rb")
+gzip.open("blob.gz", "wt")
+gzip.open("alpha.gz", "rb")
+gzip.open("blob.gz")
+gzip.open("blob.gz", "r")
+'''
+    assert [s.call for s in scan_source(source, "sample.py")] == [
+        "open('w')", "open('wt')",
     ]
 
 
