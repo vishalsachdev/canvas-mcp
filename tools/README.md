@@ -1197,6 +1197,11 @@ Start a new discussion forum.
 #### `update_discussion_topic`
 Edit an existing discussion topic or announcement (title, body, publish state, etc.).
 
+Every update first reads the topic through REST. Anonymous topics are refused
+without sending an update; open them in the Canvas UI to edit them. If REST
+returns 404 but the topic is still listed, the tool explains that it exists
+and REST does not serve it. The optional GraphQL fallback is read-only.
+
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `topic_id`: Discussion topic ID
@@ -1213,7 +1218,7 @@ Edit an existing discussion topic or announcement (title, body, publish state, e
 - `find` / `replace` (optional): Edit one fragment of the current message instead of sending `message`. `find` must occur exactly once in the freshly fetched message; on zero or several matches the tool refuses and reports the count. `replace` may be empty to delete the fragment. Supplying `message` as well is an error.
 - `require` (optional): List of strings that must already be present in the current message (for example, to confirm an earlier edit is still in place), else the tool refuses.
 
-**Guarded edits (issue 419):** with any of the guards the tool fetches the topic, runs the checks, writes once, then reads it back. It reports success only if the read-back proves the write: the stored message equals the message the write should have produced (for find/replace, the fetched message with the one substitution), compared after whitespace normalization only, so dropped attributes and lost unrelated content both count, and every other field you asked to change reads back with the value sent. It prints the old and new body SHA-256. Anything it cannot establish, including HTML that Canvas rewrote, is reported as unconfirmed, never as success. With none of the guards the call behaves exactly as before.
+**Guarded edits (issue 419):** with any of the guards the tool uses the preflight topic read, runs the checks, writes once, then reads it back. It reports success only if the read-back proves the write: the stored message equals the message the write should have produced (for find/replace, the fetched message with the one substitution), compared after whitespace normalization only, so dropped attributes and lost unrelated content both count, and every other field you asked to change reads back with the value sent. It prints the old and new body SHA-256. Anything it cannot establish, including HTML that Canvas rewrote, is reported as unconfirmed, never as success. Without guards, ordinary topic updates still use the preflight read but do not add read-back verification.
 
 **Example:**
 ```

@@ -29,13 +29,17 @@ Binary modes carry no encoding, so ``open(p, "rb")``, ``os.open`` and
 from __future__ import annotations
 
 import ast
+import sys
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCANNED_DIRS = ("src/canvas_mcp", "tests")
 
-# "path/to/file.py:function" -> why this call site may stay encoding-less.
+# "path/to/file.py:function" -> why exactly one site may stay encoding-less.
 # Add an entry only with the reason the host code page is the right answer
 # there, which for repository-owned text is essentially never.
 ENCODING_LESS_ALLOWED: dict[str, str] = {
@@ -62,8 +66,9 @@ class TextIOSite:
 
 
 def _has_encoding(node: ast.Call) -> bool:
-    if any(kw.arg == "encoding" for kw in node.keywords):
-        return True
+    for kw in node.keywords:
+        if kw.arg == "encoding":
+            return not (isinstance(kw.value, ast.Constant) and kw.value.value is None)
     # **kwargs forwarding: the caller decides, so do not second-guess it.
     return any(kw.arg is None for kw in node.keywords)
 
@@ -164,13 +169,42 @@ def test_no_encoding_less_text_io_in_src_or_tests() -> None:
 
 
 def test_every_allowlisted_site_still_exists() -> None:
-    """A stale entry would silently permit a future encoding-less call."""
-    present = {s.key for s in scan_repository()}
-    unused = sorted(set(ENCODING_LESS_ALLOWED) - present)
-    assert not unused, f"ENCODING_LESS_ALLOWED entries no longer apply: {unused}"
+    """Each exception must cover exactly one call, never another future call."""
+    present = Counter(s.key for s in scan_repository())
+    invalid = {key: present[key] for key in ENCODING_LESS_ALLOWED if present[key] != 1}
+    assert not invalid, f"ENCODING_LESS_ALLOWED requires exactly one site per entry: {invalid}"
 
 
 # --- Controls: prove the scanner sees what it claims to police --------------
+
+
+def test_guard_flags_explicit_locale_encoding() -> None:
+    source = '''
+def locale_io(p, **kwargs):
+    p.read_text(encoding=None)
+    p.write_text("x", encoding=None)
+    open(p, encoding=None)
+    p.open(encoding=None)
+    p.read_text(encoding=None, **kwargs)
+'''
+    assert [s.call for s in scan_source(source, "sample.py")] == [
+        "read_text()", "write_text()", "open('r')", "open('r')", "read_text()",
+    ]
+
+
+@pytest.mark.parametrize("count", [0, 1, 2])
+def test_allowlist_permits_exactly_one_site(count: int, monkeypatch) -> None:
+    source = "def control(p):\n    pass\n" + "    p.read_text()\n" * count
+    sites = scan_source(source, "sample.py")
+    monkeypatch.setattr(sys.modules[__name__], "scan_repository", lambda: sites)
+    monkeypatch.setattr(
+        sys.modules[__name__], "ENCODING_LESS_ALLOWED", {"sample.py:control": "control"}
+    )
+    if count == 1:
+        test_every_allowlisted_site_still_exists()
+    else:
+        with pytest.raises(AssertionError):
+            test_every_allowlisted_site_still_exists()
 
 
 def test_scanner_reaches_the_real_tree() -> None:

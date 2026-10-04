@@ -77,6 +77,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   request. The client gains a `graphql` API root; every GraphQL response is
   anonymized at the full tier. If GraphQL fails too, the part-1 message is
   returned with the reason appended.
+- **Anonymous discussion updates are refused** (issue 421). Every
+  `update_discussion_topic` call reads the topic before writing. A listed topic
+  whose detail read returns 404 is explained as existing and unsupported by
+  REST; a readable topic marked anonymous is also refused. Neither path sends
+  an update or a GraphQL request. Guarded edits reuse the preflight read;
+  ordinary updates add one REST read before their existing write.
 
 ## [1.13.0] — 2026-09-27
 
