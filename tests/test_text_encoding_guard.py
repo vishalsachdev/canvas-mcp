@@ -112,8 +112,15 @@ def scan_source(source: str, filename: str) -> list[TextIOSite]:
             attr = node.func.attr
             if attr in TEXT_READ_WRITE_METHODS:
                 call = f"{attr}()"
+            elif attr == "fdopen":
+                owner = node.func.value
+                if not (isinstance(owner, ast.Name) and owner.id == "os"):
+                    continue
+                if _is_binary(node, mode_arg=1):
+                    continue
+                call = f"fdopen({_mode_of(node, mode_arg=1)!r})"
             elif attr == "open":
-                # Path.open() / p.open(); os.open and os.fdopen are not text I/O.
+                # Path.open() / p.open(); os.open is low-level, not text I/O.
                 owner = node.func.value
                 if isinstance(owner, ast.Name) and owner.id == "os":
                     continue
@@ -189,6 +196,20 @@ def locale_io(p, **kwargs):
 '''
     assert [s.call for s in scan_source(source, "sample.py")] == [
         "read_text()", "write_text()", "open('r')", "open('r')", "read_text()",
+    ]
+
+
+def test_guard_checks_text_mode_fdopen() -> None:
+    source = '''
+import os
+os.fdopen(fd)
+os.fdopen(fd, "w")
+os.fdopen(fd, mode="r", encoding=None)
+os.fdopen(fd, "w", encoding="utf-8")
+os.fdopen(fd, "wb")
+'''
+    assert [s.call for s in scan_source(source, "sample.py")] == [
+        "fdopen('r')", "fdopen('w')", "fdopen('r')",
     ]
 
 
