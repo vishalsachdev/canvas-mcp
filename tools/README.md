@@ -755,7 +755,8 @@ It submits nothing if those settings cannot be read or
 `use_rubric_for_grading` is not explicitly true. Attach the rubric with
 `associate_rubric(..., use_for_grading=true)` or configure it in Canvas first.
 After submission, success requires a returned grade and a score matching the
-expected total for a complete rubric assessment, excluding outcome-only criteria.
+expected total for a complete rubric assessment, excluding criteria marked
+`ignore_for_scoring`.
 An unconfirmed result may already have saved an
 assessment; check Canvas before retrying.
 
@@ -823,7 +824,7 @@ Grade multiple submissions concurrently.
   the entire batch before any grade is submitted
 - A rubric grade counts as successful only when Canvas returns a grade and
   a score matching the expected total for a complete rubric assessment, excluding
-  outcome-only criteria; unconfirmed entries are reported as failed even
+  criteria marked `ignore_for_scoring`; unconfirmed entries are reported as failed even
   though an assessment may have been saved, so check Canvas before retrying
 - Use `dry_run=true` to preview grades before applying
 - For custom bulk grading logic that can return selected output, consider `execute_typescript` with `bulkGrade` from the code execution API
