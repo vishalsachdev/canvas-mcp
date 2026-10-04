@@ -170,7 +170,7 @@ def violations(sites: list[GetSite]) -> list[str]:
 def scan_tools() -> list[GetSite]:
     sites: list[GetSite] = []
     for path in sorted(TOOLS_DIR.rglob("*.py")):
-        sites.extend(scan_source(path.read_text(), str(path.relative_to(TOOLS_DIR))))
+        sites.extend(scan_source(path.read_text(encoding="utf-8"), str(path.relative_to(TOOLS_DIR))))
     return sites
 
 
@@ -223,7 +223,7 @@ def test_every_disclosing_reader_is_used_and_backed_by_an_existing_test():
 
     for reader, test_ref in DISCLOSING_SINGLE_PAGE_READERS.items():
         test_file, test_name = test_ref.split("::")
-        tree = ast.parse((REPO_ROOT / test_file).read_text())
+        tree = ast.parse((REPO_ROOT / test_file).read_text(encoding="utf-8"))
         names = {
             n.name for n in ast.walk(tree)
             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))

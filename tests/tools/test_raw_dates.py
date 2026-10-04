@@ -20,7 +20,7 @@ from .test_assignments import get_tool_function as get_assignment_tool
 from .test_discussions import get_tool_function as get_discussion_tool
 
 FIXTURE = json.loads(
-    (Path(__file__).parent.parent / "fixtures" / "canvas_raw_dates.json").read_text()
+    (Path(__file__).parent.parent / "fixtures" / "canvas_raw_dates.json").read_text(encoding="utf-8")
 )
 CHECKPOINTED = FIXTURE["checkpointed"]
 GRADED = FIXTURE["graded_discussion"]

@@ -216,7 +216,7 @@ class TestUploadRefusedOverHttp:
     @pytest.mark.asyncio
     async def test_upload_refused_over_http(self, tmp_path):
         secret = tmp_path / "secret.txt"
-        secret.write_text("service-account readable content")
+        secret.write_text("service-account readable content", encoding="utf-8")
 
         with patch(
             "canvas_mcp.tools.files.is_http_request_active", return_value=True

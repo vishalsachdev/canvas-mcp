@@ -24,7 +24,7 @@ SETTING = "ENABLE_DATA_ANONYMIZATION"
 
 
 def _registry_manifest_default() -> str:
-    manifest = json.loads((REPO_ROOT / "server.json").read_text())
+    manifest = json.loads((REPO_ROOT / "server.json").read_text(encoding="utf-8"))
 
     found = []
     def walk(node):
@@ -62,14 +62,14 @@ def _code_default() -> bool:
 
 
 def _dockerfile_default() -> str:
-    text = (REPO_ROOT / "Dockerfile").read_text()
+    text = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
     matches = re.findall(rf'^\s*{SETTING}="?([A-Za-z]+)"?', text, re.MULTILINE)
     assert matches, f"{SETTING} is not set in the Dockerfile"
     return matches[-1].strip().lower()
 
 
 def _env_template_default() -> str:
-    text = (REPO_ROOT / "env.template").read_text()
+    text = (REPO_ROOT / "env.template").read_text(encoding="utf-8")
     matches = re.findall(rf"^{SETTING}=(\S+)", text, re.MULTILINE)
     assert matches, f"{SETTING} is not set in env.template"
     return matches[-1].strip().lower()

@@ -127,7 +127,7 @@ class TestFetchGuard:
         """Guard JS should include globalThis.fetch override."""
         guard_path = _write_network_guard(["canvas.example.com"], tmp_path)
         try:
-            content = guard_path.read_text()
+            content = guard_path.read_text(encoding="utf-8")
             assert "globalThis.fetch" in content
             assert "originalFetch" in content
             assert "enforce" in content

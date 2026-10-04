@@ -118,7 +118,7 @@ class TestAPITokenSecurity:
         gitignore_path = Path(".gitignore")
 
         if gitignore_path.exists():
-            gitignore_content = gitignore_path.read_text()
+            gitignore_content = gitignore_path.read_text(encoding="utf-8")
 
             # Verify .env is ignored
             assert ".env" in gitignore_content or "*.env" in gitignore_content
@@ -132,7 +132,7 @@ class TestAPITokenSecurity:
         token_pattern = re.compile(r'["\'][\w-]{30,}["\']')
 
         for py_file in source_dir.rglob("*.py"):
-            content = py_file.read_text()
+            content = py_file.read_text(encoding="utf-8")
 
             # Skip comments and docstrings (simple approach)
             lines = content.split('\n')
@@ -207,13 +207,13 @@ class TestSecretsInVersionControl:
         # Check that .env is in .gitignore
         gitignore = Path(".gitignore")
         assert gitignore.exists()
-        assert ".env" in gitignore.read_text()
+        assert ".env" in gitignore.read_text(encoding="utf-8")
 
     def test_env_template_no_real_secrets(self):
         """Verify env.template has no real secrets."""
         template = Path("env.template")
         if template.exists():
-            content = template.read_text()
+            content = template.read_text(encoding="utf-8")
 
             # Verify placeholder values only
             assert "your_canvas_api_token_here" in content.lower() or \
