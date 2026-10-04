@@ -1572,6 +1572,10 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
         rejected); find/replace edits one fragment of the current message;
         require lists strings that must already be present in it.
 
+        Every update checks the topic through REST before writing. Anonymous
+        topics cannot be updated here; use the Canvas UI instead. The optional
+        GraphQL fallback is for reads only.
+
         Args:
             course_identifier: Course code or Canvas ID
             topic_id: Discussion topic ID
@@ -1660,13 +1664,31 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                 "(e.g., title, message, published, pinned, locked)."
             )
 
+        topic_path = f"/courses/{course_id}/discussion_topics/{topic_id}"
+        topic = await make_canvas_request("get", topic_path)
+        if "error" in topic:
+            if _is_not_found_error(topic["error"]):
+                prefix = f"/courses/{course_id}"
+                match = await _find_listed_topic(prefix, topic_id)
+                if match is not None:
+                    return (
+                        _unservable_topic_message(prefix, topic_id, match)
+                        + "\nThis tool cannot update topics that REST does not serve. "
+                        "Use the Canvas UI to edit it. Nothing was written."
+                    )
+            return f"Error updating discussion topic: {topic['error']}. Nothing was written."
+        if topic.get("anonymous_state"):
+            return (
+                f"Error: discussion topic {topic_id} exists, but this tool cannot "
+                "update anonymous discussions "
+                f"(anonymous_state: {topic['anonymous_state']}). "
+                "Open it in the Canvas UI to edit it. Nothing was written."
+            )
+
         if guard.active:
-            topic_path = f"/courses/{course_id}/discussion_topics/{topic_id}"
 
             async def fetch_topic() -> Any:
-                return await make_canvas_request(
-                    "get", f"/courses/{course_id}/discussion_topics/{topic_id}"
-                )
+                return topic
 
             async def write_topic(body: str | None) -> Any:
                 if body is not None:

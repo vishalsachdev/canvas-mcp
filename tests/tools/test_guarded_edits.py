@@ -188,12 +188,12 @@ def assert_unconfirmed(result: str, reason_fragment: str) -> None:
 
 
 # --------------------------------------------------------------------------
-# Plain calls are unchanged
+# Plain calls preserve their write payload; topics add an anonymity preflight.
 # --------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("spec", SPECS, ids=IDS)
-async def test_plain_call_sends_exactly_the_pre_419_request(spec, canvas_for):
+async def test_plain_call_preserves_write_payload(spec, canvas_for):
     fake = canvas_for(spec, spec.fake())
 
     await spec.tool()(*spec.args, **{spec.body_param: "<p>New body</p>"})
@@ -203,7 +203,10 @@ async def test_plain_call_sends_exactly_the_pre_419_request(spec, canvas_for):
         "update_assignment": {"assignment": {"description": "<p>New body</p>"}},
         "update_discussion_topic": {"message": "<p>New body</p>"},
     }[spec.name]
-    assert fake.calls == [("put", spec.path, {"data": expected_data})]
+    expected_calls = [("put", spec.path, {"data": expected_data})]
+    if spec.name == "update_discussion_topic":
+        expected_calls.insert(0, ("get", spec.path, {}))
+    assert fake.calls == expected_calls
 
 
 # --------------------------------------------------------------------------

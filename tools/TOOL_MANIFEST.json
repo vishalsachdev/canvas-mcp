@@ -818,7 +818,7 @@
     {
       "name": "update_discussion_topic",
       "category": "educator",
-      "description": "Edit an existing discussion topic or announcement",
+      "description": "Edit an existing discussion topic or announcement after a REST preflight; anonymous and REST-unservable topics are refused without an update request",
       "parameters": [
         {
           "name": "course_identifier",

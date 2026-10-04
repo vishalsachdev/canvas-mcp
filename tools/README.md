@@ -754,8 +754,9 @@ Before submitting, the tool reads the assignment's rubric and grading settings.
 It submits nothing if those settings cannot be read or
 `use_rubric_for_grading` is not explicitly true. Attach the rubric with
 `associate_rubric(..., use_for_grading=true)` or configure it in Canvas first.
-After submission, success requires Canvas's returned assessment and grade to
-confirm the requested result. An unconfirmed result may already have saved an
+After submission, success requires a returned grade and a score matching the
+expected total for a complete rubric assessment, excluding outcome-only criteria.
+An unconfirmed result may already have saved an
 assessment; check Canvas before retrying.
 
 **Parameters:**
@@ -820,8 +821,9 @@ Grade multiple submissions concurrently.
 - For any rubric-based grade, it first reads the rubric and grading settings;
   an unreadable assignment or `use_rubric_for_grading` other than true stops
   the entire batch before any grade is submitted
-- A rubric grade counts as successful only when Canvas's response confirms
-  the assessment and grade; unconfirmed entries are reported as failed even
+- A rubric grade counts as successful only when Canvas returns a grade and
+  a score matching the expected total for a complete rubric assessment, excluding
+  outcome-only criteria; unconfirmed entries are reported as failed even
   though an assessment may have been saved, so check Canvas before retrying
 - Use `dry_run=true` to preview grades before applying
 - For custom bulk grading logic that can return selected output, consider `execute_typescript` with `bulkGrade` from the code execution API
@@ -1212,6 +1214,11 @@ Start a new discussion forum.
 #### `update_discussion_topic`
 Edit an existing discussion topic or announcement (title, body, publish state, etc.).
 
+Every update first reads the topic through REST. Anonymous topics are refused
+without sending an update; open them in the Canvas UI to edit them. If REST
+returns 404 but the topic is still listed, the tool explains that it exists
+and REST does not serve it. The optional GraphQL fallback is read-only.
+
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `topic_id`: Discussion topic ID
@@ -1228,7 +1235,7 @@ Edit an existing discussion topic or announcement (title, body, publish state, e
 - `find` / `replace` (optional): Edit one fragment of the current message instead of sending `message`. `find` must occur exactly once in the freshly fetched message; on zero or several matches the tool refuses and reports the count. `replace` may be empty to delete the fragment. Supplying `message` as well is an error.
 - `require` (optional): List of strings that must already be present in the current message (for example, to confirm an earlier edit is still in place), else the tool refuses.
 
-**Guarded edits (issue 419):** with any of the guards the tool fetches the topic, runs the checks, writes once, then reads it back. It reports success only if the read-back proves the write: the stored message equals the message the write should have produced (for find/replace, the fetched message with the one substitution), compared after whitespace normalization only, so dropped attributes and lost unrelated content both count, and every other field you asked to change reads back with the value sent. It prints the old and new body SHA-256. Anything it cannot establish, including HTML that Canvas rewrote, is reported as unconfirmed, never as success. With none of the guards the call behaves exactly as before.
+**Guarded edits (issue 419):** with any of the guards the tool uses the preflight topic read, runs the checks, writes once, then reads it back. It reports success only if the read-back proves the write: the stored message equals the message the write should have produced (for find/replace, the fetched message with the one substitution), compared after whitespace normalization only, so dropped attributes and lost unrelated content both count, and every other field you asked to change reads back with the value sent. It prints the old and new body SHA-256. Anything it cannot establish, including HTML that Canvas rewrote, is reported as unconfirmed, never as success. Without guards, ordinary topic updates still use the preflight read but do not add read-back verification.
 
 **Example:**
 ```
