@@ -83,7 +83,9 @@ class TestUpdateDiscussionTopic:
         )
 
         mock_canvas_api['get_course_id'].assert_called_once_with("badm_350_120251")
-        mock_canvas_api['make_canvas_request'].assert_called_once()
+        assert [call.args[0] for call in mock_canvas_api['make_canvas_request'].call_args_list] == [
+            "get", "put",
+        ]
 
         call_args = mock_canvas_api['make_canvas_request'].call_args
         assert call_args[0][0] == "put"
