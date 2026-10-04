@@ -536,7 +536,7 @@
           "description": "Optional student-visible overall feedback; omit unless explicitly requested. Each call appends a new comment."
         }
       ],
-      "returns": "Verified grade submission, refusal if rubric grading settings cannot be confirmed, or an unconfirmed-result warning",
+      "returns": "Canvas response with grade/score consistent with the complete requested rubric total, refusal if rubric grading settings cannot be confirmed, or an unconfirmed-result warning; persistence and publication are not read back",
       "examples": [
         "Grade student 123's submission with 80 points on criterion _8027"
       ]
