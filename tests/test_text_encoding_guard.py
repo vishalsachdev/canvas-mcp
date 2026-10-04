@@ -24,6 +24,9 @@ forces a non-UTF-8 default to show what the guard is protecting against.
 
 Binary modes carry no encoding, so ``open(p, "rb")``, ``os.open`` and
 ``os.fdopen(fd, "wb")`` are not flagged.
+
+This is a source heuristic for common direct calls and literal import aliases,
+not a proof of dynamic bindings or forwarded keyword arguments.
 """
 
 from __future__ import annotations
@@ -94,9 +97,18 @@ def _is_binary(node: ast.Call, mode_arg: int, default: str = "r") -> bool:
 
 
 def scan_source(source: str, filename: str) -> list[TextIOSite]:
-    """Every text read/write in ``source`` that does not name an encoding."""
+    """Recognized text I/O calls that do not name an encoding."""
     sites: list[TextIOSite] = []
     tree = ast.parse(source)
+
+    imports: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imports[alias.asname or alias.name] = alias.name
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            for alias in node.names:
+                imports[alias.asname or alias.name] = f"{node.module}.{alias.name}"
 
     enclosing: dict[int, str] = {}
     for node in ast.walk(tree):
@@ -108,10 +120,26 @@ def scan_source(source: str, filename: str) -> list[TextIOSite]:
         if not isinstance(node, ast.Call) or _has_encoding(node):
             continue
 
-        if (
-            isinstance(node.func, ast.Attribute) and node.func.attr == "NamedTemporaryFile"
-            or isinstance(node.func, ast.Name) and node.func.id == "NamedTemporaryFile"
-        ):
+        qualified = ""
+        if isinstance(node.func, ast.Name):
+            qualified = imports.get(node.func.id, node.func.id)
+        elif isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+            owner = node.func.value.id
+            qualified = f"{imports.get(owner, owner)}.{node.func.attr}"
+
+        if qualified == "os.open":
+            continue
+        if qualified in {"io.open", "builtins.open", "gzip.open", "bz2.open", "lzma.open"}:
+            compressed = qualified.split(".")[0] in {"gzip", "bz2", "lzma"}
+            mode = _mode_of(node, mode_arg=1, default="rb" if compressed else "r")
+            if mode is not None and ("t" not in mode if compressed else "b" in mode):
+                continue
+            call = f"open({mode!r})"
+        elif qualified == "os.fdopen":
+            if _is_binary(node, mode_arg=1):
+                continue
+            call = f"fdopen({_mode_of(node, mode_arg=1)!r})"
+        elif qualified.rsplit(".", 1)[-1] == "NamedTemporaryFile":
             if _is_binary(node, mode_arg=0, default="w+b"):
                 continue
             call = f"NamedTemporaryFile({_mode_of(node, mode_arg=0, default='w+b')!r})"
@@ -119,23 +147,10 @@ def scan_source(source: str, filename: str) -> list[TextIOSite]:
             attr = node.func.attr
             if attr in TEXT_READ_WRITE_METHODS:
                 call = f"{attr}()"
-            elif attr == "fdopen":
-                owner = node.func.value
-                if not (isinstance(owner, ast.Name) and owner.id == "os"):
-                    continue
-                if _is_binary(node, mode_arg=1):
-                    continue
-                call = f"fdopen({_mode_of(node, mode_arg=1)!r})"
             elif attr == "open":
-                # Path.open() / p.open(); os.open is low-level, not text I/O.
-                owner = node.func.value
-                if isinstance(owner, ast.Name) and owner.id == "os":
-                    continue
-                module = owner.id if isinstance(owner, ast.Name) else ""
-                compressed = module in {"gzip", "bz2", "lzma"}
-                mode_arg = 1 if compressed or module in {"io", "builtins"} else 0
-                mode = _mode_of(node, mode_arg, default="rb" if compressed else "r")
-                if mode is not None and ("t" not in mode if compressed else "b" in mode):
+                # Path.open() / p.open(); known module functions were handled above.
+                mode = _mode_of(node, mode_arg=0)
+                if mode is not None and "b" in mode:
                     continue
                 call = f"open({mode!r})"
             else:
@@ -251,6 +266,25 @@ gzip.open("blob.gz", "r")
 '''
     assert [s.call for s in scan_source(source, "sample.py")] == [
         "open('w')", "open('wt')",
+    ]
+
+
+def test_guard_resolves_imported_text_io_aliases() -> None:
+    source = '''
+import gzip as gz
+import io as streamio
+from gzip import open as gzopen
+from tempfile import NamedTemporaryFile as temporary
+gz.open("blob.gz", "wt")
+streamio.open("blob.txt", "w")
+gzopen("blob.gz", "wt")
+temporary(mode="w")
+gz.open("blob.gz", "rb")
+gzopen("blob.gz")
+temporary()
+'''
+    assert [s.call for s in scan_source(source, "sample.py")] == [
+        "open('wt')", "open('w')", "open('wt')", "NamedTemporaryFile('w')",
     ]
 
 
