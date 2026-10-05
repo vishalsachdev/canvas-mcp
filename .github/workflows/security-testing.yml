@@ -184,7 +184,7 @@ jobs:
         continue-on-error: true
       
       - name: TruffleHog scan
-        uses: trufflesecurity/trufflehog@88524578ce32e1a8521c29dd38af9d9200ff92cc # main@2026-08-10
+        uses: trufflesecurity/trufflehog@59e3b04e820c4cad30462696ac497853a5f7679c # main@2026-08-10
         with:
           path: ./
           base: main
