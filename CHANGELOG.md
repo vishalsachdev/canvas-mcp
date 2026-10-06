@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Student group tools (read-only, student profile).** `list_my_groups` lists
+  the groups you belong to with the course ID and group ID, `get_group_members`
+  lists a group's members (names and user IDs, never emails), and
+  `list_group_files` lists a group's files. Each group-scoped tool re-reads
+  `/users/self/groups` first and refuses a group you are not in, even where
+  Canvas would allow the read. Discussions and announcements in a group are read
+  with the existing discussion tools' `group_id` (`list_discussion_topics` with
+  `include_announcements=True`, then `get_discussion_with_replies`); `list_my_groups`
+  prints the IDs and the call to make. Group topic records
+  (`/groups/{id}/discussion_topics`) are written by group members, so they are
+  anonymized in the `full` tier, which also covers the discussion tools' `group_id`
+  path; `group_category_id` marks a record as a group, so a group's own name is
+  no longer rewritten as a student pseudonym on `/users/self/groups`, and the
+  discussion `/view` `participants` list is treated as people. Group names,
+  descriptions, file names and member names are fenced as untrusted Canvas content.
 - **`raw_dates` on `list_assignments`, `get_assignment_details` and
   `get_discussion_topic_details`** (opt-in, default output unchanged). Appends a
   JSON block with `due_at`, `unlock_at`, `lock_at`, `updated_at`, `all_dates` and,
