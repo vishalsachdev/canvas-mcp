@@ -118,6 +118,24 @@ class TestAnonymizationTierMapping:
         assert _endpoint_anonymization_mode(endpoint) == ANONYMIZE_FREE_TEXT
 
     @pytest.mark.parametrize("endpoint", [
+        "/search/recipients",
+        "/search/recipients?search=smith&context=course_1",
+        "/SEARCH/RECIPIENTS",
+    ])
+    def test_recipient_search_is_free_text_tier(self, endpoint):
+        """The Inbox address book: names must survive so a student can find
+        their instructor, but avatars and direct identifiers must not."""
+        assert _endpoint_anonymization_mode(endpoint) == ANONYMIZE_FREE_TEXT
+
+    @pytest.mark.parametrize("endpoint", [
+        "/search/all_courses",
+        "/search/recipients/extra",
+        "/courses/1/search/recipients",
+    ])
+    def test_recipient_rule_is_an_exact_path(self, endpoint):
+        assert _endpoint_anonymization_mode(endpoint) != ANONYMIZE_FREE_TEXT
+
+    @pytest.mark.parametrize("endpoint", [
         "/courses/123/pages",
         "/courses/123/pages/syllabus",
         "/courses/123/pages/intro?include[]=body",
