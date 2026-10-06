@@ -1,12 +1,12 @@
-"""Course codes with spaces work in the file tools and the upstream tools.
+"""Course codes with spaces work in the file tools and in get_course_id tools.
 
 Course codes often contain spaces (``COMPSCI 161``). The file tools
-(read_course_file, download_course_file,
-list_course_files) resolve through ``resolve_numeric_course_id``: the code is
-found in the caller's course list and only the numeric ID reaches a request
-path; anything that resolves to no course is refused with ``Could not find
-course`` before any file request. Other tools resolve through
-``get_course_id``, which now also looks a code up in the course list on a miss.
+(read_course_file, download_course_file, list_course_files) resolve through
+``resolve_numeric_course_id``: the code is found in the caller's course list
+and only the numeric ID reaches a request path; anything that resolves to no
+course is refused with ``Could not find course`` before any file request.
+Tools that still use ``get_course_id`` (covered here by
+get_my_submission_status) also look a code up in the course list on a miss.
 
 Every test runs the real resolver on a cold course cache; only the Canvas
 boundary is replaced.

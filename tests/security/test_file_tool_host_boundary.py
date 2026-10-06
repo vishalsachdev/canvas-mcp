@@ -232,8 +232,7 @@ class TestUploadRefusedOverHttp:
         ) as storage, patch(
             "canvas_mcp.tools.files.validate_file_for_upload"
         ) as validate, patch(
-            "canvas_mcp.tools.files.resolve_numeric_course_id",
-            new=AsyncMock(return_value=("60366", None)),
+            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
         ):
             upload = get_tool_function("upload_course_file")
             result = await upload("badm_350", str(secret))
@@ -251,8 +250,7 @@ class TestUploadRefusedOverHttp:
         with patch(
             "canvas_mcp.tools.files.is_http_request_active", return_value=True
         ), patch(
-            "canvas_mcp.tools.files.resolve_numeric_course_id",
-            new=AsyncMock(return_value=("60366", None)),
+            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
         ):
             upload = get_tool_function("upload_course_file")
             missing = await upload("badm_350", str(tmp_path / "does-not-exist"))
