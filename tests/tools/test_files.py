@@ -694,16 +694,16 @@ class TestDownloadCourseFile:
     @pytest.fixture
     def mock_download_api(self):
         """Fixture to mock APIs needed for download_course_file."""
-        with patch('canvas_mcp.tools.files.get_course_id') as mock_get_id, \
+        with patch('canvas_mcp.tools.files.resolve_numeric_course_id') as mock_get_id, \
              patch('canvas_mcp.tools.files.get_course_code') as mock_get_code, \
              patch('canvas_mcp.tools.files.make_canvas_request') as mock_request, \
              patch('canvas_mcp.tools.files.canvas_authenticated_client') as mock_client:
 
-            mock_get_id.return_value = "60366"
+            mock_get_id.return_value = ("60366", None)
             mock_get_code.return_value = "badm_350_120251"
 
             yield {
-                'get_course_id': mock_get_id,
+                'resolve_numeric_course_id': mock_get_id,
                 'get_course_code': mock_get_code,
                 'make_canvas_request': mock_request,
                 '_get_http_client': mock_client,
@@ -894,16 +894,16 @@ class TestReadCourseFile:
     @pytest.fixture
     def mock_read_api(self):
         """Fixture to mock APIs needed for read_course_file."""
-        with patch('canvas_mcp.tools.files.get_course_id') as mock_get_id, \
+        with patch('canvas_mcp.tools.files.resolve_numeric_course_id') as mock_get_id, \
              patch('canvas_mcp.tools.files.get_course_code') as mock_get_code, \
              patch('canvas_mcp.tools.files.make_canvas_request') as mock_request, \
              patch('canvas_mcp.tools.files.canvas_authenticated_client') as mock_client:
 
-            mock_get_id.return_value = "60366"
+            mock_get_id.return_value = ("60366", None)
             mock_get_code.return_value = "badm_350_120251"
 
             yield {
-                'get_course_id': mock_get_id,
+                'resolve_numeric_course_id': mock_get_id,
                 'get_course_code': mock_get_code,
                 'make_canvas_request': mock_request,
                 '_get_http_client': mock_client,
@@ -1173,15 +1173,15 @@ class TestListCourseFiles:
     @pytest.fixture
     def mock_list_api(self):
         """Fixture to mock APIs needed for list_course_files."""
-        with patch('canvas_mcp.tools.files.get_course_id') as mock_get_id, \
+        with patch('canvas_mcp.tools.files.resolve_numeric_course_id') as mock_get_id, \
              patch('canvas_mcp.tools.files.get_course_code') as mock_get_code, \
              patch('canvas_mcp.tools.files.fetch_all_paginated_results') as mock_fetch:
 
-            mock_get_id.return_value = "60366"
+            mock_get_id.return_value = ("60366", None)
             mock_get_code.return_value = "badm_350_120251"
 
             yield {
-                'get_course_id': mock_get_id,
+                'resolve_numeric_course_id': mock_get_id,
                 'get_course_code': mock_get_code,
                 'fetch_all_paginated_results': mock_fetch,
             }
