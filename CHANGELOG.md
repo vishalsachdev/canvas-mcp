@@ -41,6 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   body equal to the expected body after whitespace-only normalization, every
   other requested field as sent); otherwise it is reported unconfirmed. Calls without the new
   parameters send exactly the same requests as before.
+- **Student "what's new" feed (read-only, student profile).**
+  `list_my_announcements` lists announcements across all active courses in one
+  call (default last 14 days, optional course filter), and
+  `get_my_activity_stream` summarises the Canvas activity stream by kind
+  (announcements, discussions, conversations, grades and submission comments,
+  notifications). Canvas-authored text is fenced. Previews that are shortened
+  name the tool that returns the full text.
 
 ### Fixed
 
