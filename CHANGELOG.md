@@ -44,6 +44,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Full-content reads no longer cut text without saying so.**
+  `get_discussion_with_replies` returns whole entries and replies (they were cut
+  at 200 and 150 characters), `list_discussion_entries` with
+  `include_full_content=True` returns whole replies (they were cut at 200), and
+  `get_rubric` shows whole criterion and rating descriptions (they were cut at
+  200 and 100), block-fenced as untrusted Canvas content. `get_syllabus` stays
+  complete by default; its optional `max_chars` cap is kept, and a cut is always
+  marked with `[truncated at N characters]`. The reading tools
+  (`get_page_content`, `get_syllabus`, `get_front_page`,
+  `get_assignment_details`, `get_discussion_topic_details`,
+  `get_discussion_entry_details`, `get_discussion_with_replies`,
+  `list_discussion_entries`, `get_conversation_details`, `get_my_submission`,
+  `get_rubric`, `get_rubric_assessment`) now declare
+  `anthropic/maxResultSizeChars: 500000` in `tools/list`, so Claude Code
+  delivers a large result whole instead of capping it near 25k tokens; other
+  clients ignore the key.
+- Previews now say they are previews: `list_discussion_entries` without
+  `include_full_content` names that parameter, `list_rubrics` points to
+  `get_rubric` when it shortened a description, and
+  `get_course_content_overview` names `get_syllabus`, `list_pages` and
+  `list_modules` when it shows only a preview or the first few items.
 - `assign_peer_review` no longer creates a placeholder submission. It scanned
   one page (100) of submissions for the reviewee and, on a miss, POSTed a
   placeholder on the student's behalf, so in a large assignment a truncated read

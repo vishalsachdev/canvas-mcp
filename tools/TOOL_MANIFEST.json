@@ -198,7 +198,8 @@
       "returns": "Full assignment details including description, due date, submission types; with raw_dates, also a JSON dates block",
       "examples": [
         "Show me details for assignment 456 in course 123"
-      ]
+      ],
+      "notes": "Never cut; declares anthropic/maxResultSizeChars=500000 so Claude Code delivers the whole result."
     },
     {
       "name": "list_submissions",
@@ -642,7 +643,7 @@
     {
       "name": "get_syllabus",
       "category": "shared",
-      "description": "Get the complete Canvas Syllabus tab content for a course, untruncated (unlike the overview preview)",
+      "description": "Get the complete Canvas Syllabus tab content for a course; complete by default (unlike the overview preview), cut only by the optional max_chars cap, which is disclosed",
       "parameters": [
         {
           "name": "course_identifier",
@@ -665,11 +666,12 @@
           "description": "Optional cap per section; truncation is explicitly marked. None = no truncation"
         }
       ],
-      "returns": "Full syllabus body with no silent truncation",
+      "returns": "Full syllabus body; when max_chars cuts it, an explicit [truncated at N characters] marker",
       "examples": [
         "Get the full syllabus for BADM 350 including the grading policy",
         "Show me the raw HTML of the CS101 syllabus"
-      ]
+      ],
+      "notes": "Complete unless max_chars is passed; declares anthropic/maxResultSizeChars=500000 so Claude Code delivers the whole result."
     },
     {
       "name": "update_syllabus",
@@ -804,6 +806,20 @@
           "description": "Discussion topic ID"
         },
         {
+          "name": "include_full_content",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Return the complete text of every entry and reply (default: False, which shows short previews)"
+        },
+        {
+          "name": "include_replies",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Fetch replies for each entry (default: False)"
+        },
+        {
           "name": "group_id",
           "type": "string | integer",
           "required": false,
@@ -813,7 +829,8 @@
       "returns": "List of discussion posts with authors and content",
       "examples": [
         "Show me posts in the Week 5 discussion"
-      ]
+      ],
+      "notes": "Default output previews each post and says so; with include_full_content=True every entry and reply is complete. Declares anthropic/maxResultSizeChars=500000 so Claude Code delivers the whole result."
     },
     {
       "name": "update_discussion_topic",
@@ -1027,7 +1044,8 @@
       "examples": [
         "Did my essay go through?",
         "How many attempts do I have left?"
-      ]
+      ],
+      "notes": "Never cut; declares anthropic/maxResultSizeChars=500000 so Claude Code delivers the whole result."
     },
     {
       "name": "submit_assignment",
@@ -2459,7 +2477,7 @@
       "examples": [
         "Show me the rubric attached to the final project"
       ],
-      "notes": "Accepts either rubric_id or assignment_id (at least one required). If both provided, uses rubric_id (more specific)."
+      "notes": "Accepts either rubric_id or assignment_id (at least one required). If both provided, uses rubric_id (more specific). Never cut; declares anthropic/maxResultSizeChars=500000 so Claude Code delivers the whole result."
     },
     {
       "name": "get_rubric_assessment",
@@ -2488,7 +2506,8 @@
       "returns": "Rubric scores and comments for the student's submission",
       "examples": [
         "What rubric scores did student 123 get on the essay?"
-      ]
+      ],
+      "notes": "Never cut; declares anthropic/maxResultSizeChars=500000 so Claude Code delivers the whole result."
     },
     {
       "name": "identify_problematic_peer_reviews",
@@ -3244,7 +3263,8 @@
       "returns": "Full conversation thread with all messages and participants",
       "examples": [
         "Show me the full thread of conversation 555"
-      ]
+      ],
+      "notes": "Never cut; declares anthropic/maxResultSizeChars=500000 so Claude Code delivers the whole result."
     },
     {
       "name": "get_course_content_overview",
@@ -3348,7 +3368,8 @@
       "returns": "Entry text plus all replies with authors and timestamps",
       "examples": [
         "Show me entry 42 in the Week 3 discussion, with its replies"
-      ]
+      ],
+      "notes": "Never cut; declares anthropic/maxResultSizeChars=500000 so Claude Code delivers the whole result."
     },
     {
       "name": "get_discussion_topic_details",
@@ -3384,12 +3405,13 @@
       "returns": "Topic metadata and full message body; with raw_dates, also a JSON dates block",
       "examples": [
         "Show the details of the 'Introductions' discussion topic"
-      ]
+      ],
+      "notes": "Never cut; declares anthropic/maxResultSizeChars=500000 so Claude Code delivers the whole result."
     },
     {
       "name": "get_discussion_with_replies",
       "category": "shared",
-      "description": "Enhanced function to get discussion entries with optional reply fetching.",
+      "description": "Read every entry of a discussion in full, optionally with all replies, never cut",
       "parameters": [
         {
           "name": "course_identifier",
@@ -3420,7 +3442,8 @@
       "returns": "All discussion entries with nested replies in one call",
       "examples": [
         "Get the whole Week 3 discussion including replies"
-      ]
+      ],
+      "notes": "Never cut; declares anthropic/maxResultSizeChars=500000 so Claude Code delivers the whole result."
     },
     {
       "name": "get_front_page",
@@ -3437,7 +3460,8 @@
       "returns": "Front page title and full content body",
       "examples": [
         "What's on the course front page?"
-      ]
+      ],
+      "notes": "Never cut; declares anthropic/maxResultSizeChars=500000 so Claude Code delivers the whole result."
     },
     {
       "name": "get_page_content",
@@ -3460,7 +3484,8 @@
       "returns": "Full HTML content body of the page",
       "examples": [
         "Show me the content of the 'Course Policies' page"
-      ]
+      ],
+      "notes": "Never cut; declares anthropic/maxResultSizeChars=500000 so Claude Code delivers the whole result."
     },
     {
       "name": "get_page_details",
