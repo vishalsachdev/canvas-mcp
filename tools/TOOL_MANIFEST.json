@@ -121,6 +121,60 @@
       ]
     },
     {
+      "name": "get_my_assignment_scores",
+      "category": "student",
+      "description": "List your score and status on every assignment in a course, grouped by assignment group with weights and drop rules",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        }
+      ],
+      "returns": "Per assignment group: weight (if weighted) and drop rules; per assignment: score / points possible, status (graded, missing, late, excused, unsubmitted, pending review, grade not posted, not counted toward final grade), and due date",
+      "examples": [
+        "Show my scores in CS 161",
+        "Which assignments am I missing in course 12345?"
+      ]
+    },
+    {
+      "name": "calculate_grade_scenarios",
+      "category": "student",
+      "description": "Recompute your course grade the way Canvas does, compare it with Canvas's own score, apply what-if scores, and find the percentage needed on remaining work to reach a target",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "hypothetical_scores",
+          "type": "object",
+          "required": false,
+          "description": "What-if points by assignment ID, e.g. {\"12345\": 18}"
+        },
+        {
+          "name": "target_percent",
+          "type": "number",
+          "required": false,
+          "description": "Target course percentage (0-200); not with target_letter"
+        },
+        {
+          "name": "target_letter",
+          "type": "string",
+          "required": false,
+          "description": "Target letter grade from the scheme in use, e.g. \"A-\"; not with target_percent"
+        }
+      ],
+      "returns": "Computed current and final grade with letters next to Canvas's reported scores (disagreement flagged), per-group breakdown with dropped assignments, what-if results, uniform percent needed on remaining ungraded assignments, the letter scheme used and its source, and caveats",
+      "examples": [
+        "What's my grade in Math 2B if I get 18/20 on the next quiz?",
+        "What do I need on the rest of the assignments to get an A- in CS 161?"
+      ]
+    },
+    {
       "name": "get_my_peer_reviews_todo",
       "category": "student",
       "description": "List peer reviews you need to complete",

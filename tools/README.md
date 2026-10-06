@@ -276,6 +276,66 @@ View your current grades across all enrolled courses.
 
 **Returns:** Current grade, percentage, and enrollment status for each course.
 
+#### `get_my_assignment_scores`
+List your score and status on every assignment in one course, grouped by
+assignment group.
+
+**Parameters:**
+- `course_identifier` (required): Course code or Canvas ID
+
+**Example:**
+```
+"Show my scores in CS 161"
+"Which assignments am I missing in course 12345?"
+```
+
+**Returns:** For each assignment group, its weight (when the course weights
+groups) and drop rules; for each assignment, score / points possible, status
+(graded, missing, late, excused, unsubmitted, submitted but not graded, pending
+review, grade not posted yet, not counted toward the final grade), assignment ID
+and due date. Reads `GET /courses/:id` and
+`GET /courses/:id/assignment_groups?include[]=assignments&include[]=submission`.
+
+#### `calculate_grade_scenarios`
+Recompute your course grade the way Canvas does, try what-if scores, and find
+the percentage you need on the remaining work.
+
+**Parameters:**
+- `course_identifier` (required): Course code or Canvas ID
+- `hypothetical_scores` (optional): What-if points by assignment ID, e.g. `{"12345": 18}`
+- `target_percent` (optional): Target course percentage (0-200)
+- `target_letter` (optional): Target letter from the scheme in use, e.g. `"A-"` (not with `target_percent`)
+
+**Example:**
+```
+"What's my grade in Math 2B if I get 18/20 on the next quiz?"
+"What do I need on the rest of the assignments to get an A- in CS 161?"
+```
+
+**Returns:** The computed current grade (graded work only) and final grade
+(ungraded counted as 0), each with a letter and next to Canvas's own
+`computed_current_score` / `computed_final_score`, with any disagreement
+flagged; a per-group breakdown including which assignments the drop rules
+removed; what-if results; the single percentage needed on every remaining
+assignment to reach the target (or that it is already secured, needs extra
+credit, or is out of reach); which letter scheme was used and where it came
+from; and caveats.
+
+**How it calculates:** weighted groups (groups with nothing graded are left out
+and the rest rescaled to 100% when their weights total less), or total points
+when groups are not weighted; drop lowest/highest and never-drop rules using
+Canvas's best-ratio method; excused, `omit_from_final_grade` and ungraded
+assignments excluded from the current grade; unposted results (including an
+unposted excusal) count as ungraded, as in Canvas's student-visible score.
+Scores are rounded as Canvas rounds them before a letter is assigned (and in
+points first for a points-based scheme). Letters come from the scheme Canvas
+returns with `include[]=grading_scheme` (the course's own, else the
+institution default), then the grading standards API, falling back to
+Canvas's default scheme when neither is readable. A suspected final grade
+override is pointed out. Not reproduced: grading-period weighting, override
+scores, unposted scores and assignments Canvas does not show you. When a group
+drops both lowest and highest scores the target search is approximate.
+
 ---
 
 ### Peer Review Management

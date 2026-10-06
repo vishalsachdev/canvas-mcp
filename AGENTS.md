@@ -28,9 +28,9 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 
 ```
 # In .env:
-CANVAS_ROLE=student    # ~37 tools (student + shared)
-CANVAS_ROLE=educator   # 92 tools (educator + shared)
-CANVAS_ROLE=all        # Default profile; 98 tools by default, 103 with all feature-gated tools enabled
+CANVAS_ROLE=student    # 40 tools by default (student + shared), 43 with every student write tool enabled
+CANVAS_ROLE=educator   # 93 tools (educator + shared)
+CANVAS_ROLE=all        # Default profile; 101 tools by default, 106 with all feature-gated tools enabled
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
@@ -46,6 +46,8 @@ Personal academic tracking uses Canvas "self" endpoints. Shared course-content t
 | `get_my_todo_items` | Canvas TODO list |
 | `get_my_submission_status` | What's submitted vs missing |
 | `get_my_course_grades` | Current grades across courses |
+| `get_my_assignment_scores` | Every assignment's score and status in one course, by assignment group (weights, drop rules) |
+| `calculate_grade_scenarios` | Recompute your grade the way Canvas does (compared with Canvas's own score), try what-if scores, and get the percentage needed on remaining work for a target % or letter |
 | `get_my_peer_reviews_todo` | Pending peer reviews to complete |
 | `get_my_submission` | Your submission for one assignment, with attempts used |
 
@@ -231,6 +233,18 @@ Is it a simple query?
 3. "What peer reviews do I need to do?"
    → get_my_peer_reviews_todo()
 ```
+
+### Student: What Do I Need on the Final?
+```
+1. "Show my scores in CS 161"
+   → get_my_assignment_scores(course_identifier="CS 161")   # assignment IDs for what-ifs
+
+2. "What if I get 18/20 on quiz 5, and what do I need for an A-?"
+   → calculate_grade_scenarios(course_identifier="CS 161",
+        hypothetical_scores={"12345": 18}, target_letter="A-")
+```
+Both are read-only. The calculator reports Canvas's own current score next to its
+recomputation; when they disagree, trust Canvas and read the caveats it lists.
 
 ### Educator: Check Assignment Progress
 ```

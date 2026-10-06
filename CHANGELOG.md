@@ -41,6 +41,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   body equal to the expected body after whitespace-only normalization, every
   other requested field as sent); otherwise it is reported unconfirmed. Calls without the new
   parameters send exactly the same requests as before.
+- **Student grade insight (read-only).** `get_my_assignment_scores` lists every
+  assignment's score and status in a course, grouped by assignment group with
+  weights and drop rules. `calculate_grade_scenarios` recomputes the course grade
+  the way Canvas does (weighted or total points, drop lowest/highest and
+  never-drop, excused and omitted work), shows it next to Canvas's own current
+  score and flags disagreement, applies what-if scores, and reports the uniform
+  percentage needed on remaining work for a target percentage or letter. Both
+  register for the student and all profiles; the arithmetic is in
+  `core/grade_calc.py`.
 
 ### Fixed
 
