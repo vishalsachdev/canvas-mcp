@@ -107,6 +107,9 @@ ADDITIVE = {
     "send_conversation",
     "send_peer_review_followup_campaign",
     "send_peer_review_inbox_messages",
+    # Student Inbox writes: each adds a message, nothing is replaced.
+    "send_message",
+    "reply_to_conversation",
     "mark_conversations_read",
     # Writes a new local file and refuses an existing path (O_EXCL), so it
     # never replaces anything; a repeat fails without writing.
@@ -144,6 +147,10 @@ NOT_IDEMPOTENT = {
     "send_conversation",
     "send_peer_review_followup_campaign",
     "send_peer_review_inbox_messages",
+    # A repeat sends a second message (send_message always starts a new
+    # conversation; a reply appends another message).
+    "send_message",
+    "reply_to_conversation",
     # Default on_duplicate="rename" makes a NEW file on every call.
     "upload_course_file",
     # mode="append"/"prepend" adds the same block again on every repeat.

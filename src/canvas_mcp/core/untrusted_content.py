@@ -64,6 +64,7 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "download_course_file": _fenced("fence_untrusted_inline"),
     "extract_peer_review_dataset": _fenced("fence_untrusted_fields"),
     "fetch_ufixit_report": _fenced("fence_untrusted"),
+    "find_message_recipients": _fenced("_recipient_match"),
     "format_accessibility_summary": _fenced(
         "already fenced by parse_ufixit_violations"
     ),

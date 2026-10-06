@@ -1048,6 +1048,44 @@
       "notes": "Never cut; declares anthropic/maxResultSizeChars=500000 so Claude Code delivers the whole result."
     },
     {
+      "name": "find_message_recipients",
+      "category": "student",
+      "description": "Find people you can message in a course (instructors, TAs, classmates) and their Canvas user IDs, for use with send_message. Individual people only.",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "search",
+          "type": "string",
+          "required": false,
+          "description": "Part of a name to match; omit to list everyone you can message. While data anonymization is on, a search matches course staff only"
+        },
+        {
+          "name": "role",
+          "type": "string",
+          "required": false,
+          "default": "any",
+          "description": "\"any\", \"staff\" (teachers, TAs, designers), \"teacher\", \"ta\", or \"student\""
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "default": 25,
+          "description": "Maximum matches to return (1-50)"
+        }
+      ],
+      "returns": "Matching people with user_id, fenced display name, and their roles in the course. While data anonymization is on, only course staff are named; everyone else gets the same Student_<hash> pseudonym used elsewhere, and a name search returns course staff only (Canvas matches it against real names). Reads at most a few pages, and says when more may match",
+      "examples": [
+        "What is my professor's user ID in CS 101?",
+        "Find the TAs for this course"
+      ]
+    },
+    {
       "name": "submit_assignment",
       "category": "student_write",
       "description": "Submit your own assignment. Consumes an attempt. Requires a confirmation token from a preview call.",
@@ -1173,6 +1211,80 @@
         "Mark the week 3 reading as done"
       ],
       "notes": "Disabled unless the operator lists it in STUDENT_WRITE_TOOLS."
+    },
+    {
+      "name": "send_message",
+      "category": "student_write",
+      "description": "Send a new Canvas Inbox message from you to 1-5 specific people in a course. Two-step: preview + confirmation_token, then confirm with identical arguments.",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID the message is about"
+        },
+        {
+          "name": "recipient_ids",
+          "type": "array",
+          "required": true,
+          "description": "1-5 numeric Canvas user IDs from find_message_recipients; course_/section_/group_ addresses are refused"
+        },
+        {
+          "name": "subject",
+          "type": "string",
+          "required": true,
+          "description": "Message subject (max 255 chars)"
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "description": "Message text (max 10,000 chars)"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Token from the preview call; omit to preview"
+        }
+      ],
+      "returns": "Without a token: a preview naming each recipient and their course role, plus a confirmation_token (nothing sent). With a valid token: the ID of the one new conversation shared by all recipients",
+      "examples": [
+        "Email my CS 101 professor asking about the midterm regrade",
+        "Yes, send it"
+      ],
+      "notes": "Disabled unless the operator lists it in STUDENT_WRITE_TOOLS (and ALLOWED_WRITE_TOOLS, where set, allows it); an instructor can block it per course. No attachments, no bulk or course-wide messages. Every recipient must be someone Canvas lets you message in that course."
+    },
+    {
+      "name": "reply_to_conversation",
+      "category": "student_write",
+      "description": "Reply to a Canvas Inbox conversation you are already part of. Reaches only the people already in it (at most 5). Two-step: preview + confirmation_token, then confirm.",
+      "parameters": [
+        {
+          "name": "conversation_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Canvas conversation ID (from list_conversations)"
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "description": "Reply text (max 10,000 chars)"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Token from the preview call; omit to preview"
+        }
+      ],
+      "returns": "Without a token: a preview of who the reply reaches plus a confirmation_token (nothing sent). With a valid token: the new message ID",
+      "examples": [
+        "Reply to my TA saying thanks, I'll come to office hours",
+        "Yes, send the reply"
+      ],
+      "notes": "Disabled unless the operator lists it in STUDENT_WRITE_TOOLS; the conversation's course policy applies. Previewing never marks the conversation read. Refused for conversations with more than 5 other people."
     },
     {
       "name": "list_code_api_modules",

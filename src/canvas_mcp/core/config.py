@@ -25,6 +25,10 @@ STUDENT_WRITE_TOOL_NAMES = frozenset({
     "submit_assignment",
     "comment_on_my_submission",
     "mark_module_item_done",
+    # Inbox (tools/student_messaging.py). Preview-then-confirm, explicit
+    # recipients only, narrower than the educator send_conversation.
+    "send_message",
+    "reply_to_conversation",
 })
 
 

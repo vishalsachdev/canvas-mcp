@@ -17,7 +17,13 @@ STUDENT_ONLY_TOOLS = {
     "get_my_course_grades",
     "get_my_todo_items",
     "get_my_peer_reviews_todo",
+    # Inbox recipient lookup is read-only and always on; its send/reply
+    # siblings are STUDENT_WRITE_TOOLS-gated (see test below).
+    "find_message_recipients",
 }
+
+# Student write tools stay out of every default registry.
+STUDENT_MESSAGING_WRITE_TOOLS = {"send_message", "reply_to_conversation"}
 
 SHARED_TOOLS = {
     # courses
@@ -195,17 +201,41 @@ class TestRoleFiltering:
         assert "check_enrollment" not in await _get_tool_names(mcp)
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("role", ["student", "educator", "all"])
+    async def test_student_messaging_writes_absent_by_default(self, role, monkeypatch):
+        monkeypatch.delenv("STUDENT_WRITE_TOOLS", raising=False)
+        mcp = FastMCP(name=f"test-{role}")
+        register_all_tools(mcp, role=role)
+        tools = await _get_tool_names(mcp)
+        assert not STUDENT_MESSAGING_WRITE_TOOLS & tools
+
+    @pytest.mark.asyncio
+    async def test_student_messaging_writes_follow_student_write_tools(self, monkeypatch):
+        """Opt-in registers them for students only, never via the educator profile."""
+        from canvas_mcp.core.config import reset_config
+
+        monkeypatch.setenv("STUDENT_WRITE_TOOLS", "send_message,reply_to_conversation")
+        reset_config()
+        student = FastMCP(name="test-student")
+        register_all_tools(student, role="student")
+        assert STUDENT_MESSAGING_WRITE_TOOLS <= await _get_tool_names(student)
+
+        educator = FastMCP(name="test-educator")
+        register_all_tools(educator, role="educator")
+        assert not STUDENT_MESSAGING_WRITE_TOOLS & await _get_tool_names(educator)
+
+    @pytest.mark.asyncio
     async def test_student_tool_count(self):
-        """Student role should have approximately 37 tools."""
+        """Student role should have approximately 39 tools (no write tools enabled)."""
         mcp = FastMCP(name="test-student")
         register_all_tools(mcp, role="student")
         tools = await _get_tool_names(mcp)
-        assert 25 <= len(tools) <= 40, f"Expected ~37 student tools, got {len(tools)}: {sorted(tools)}"
+        assert 30 <= len(tools) <= 45, f"Expected ~39 student tools, got {len(tools)}: {sorted(tools)}"
 
     @pytest.mark.asyncio
     async def test_educator_tool_count(self):
-        """Educator role should have approximately 88 tools."""
+        """Educator role should have approximately 93 tools."""
         mcp = FastMCP(name="test-educator")
         register_all_tools(mcp, role="educator")
         tools = await _get_tool_names(mcp)
-        assert 75 <= len(tools) <= 95, f"Expected ~88 educator tools, got {len(tools)}: {sorted(tools)}"
+        assert 80 <= len(tools) <= 100, f"Expected ~93 educator tools, got {len(tools)}: {sorted(tools)}"

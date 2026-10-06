@@ -62,6 +62,7 @@ from .tools import (
     register_shared_file_tools,
     register_shared_messaging_tools,
     register_shared_module_tools,
+    register_student_messaging_tools,
     register_student_tools,
     register_student_write_tools,
 )
@@ -452,6 +453,9 @@ def register_all_tools(mcp: FastMCP, role: str = "all") -> None:
         # Tier 1 writes register only for tools the operator named in
         # STUDENT_WRITE_TOOLS (default: none). See tools/student_write.py.
         register_student_write_tools(mcp)
+        # Inbox: recipient lookup is always on; send_message and
+        # reply_to_conversation are STUDENT_WRITE_TOOLS-gated like the rest.
+        register_student_messaging_tools(mcp)
 
     # Educator-specific tools
     if role in ("educator", "all"):
@@ -583,7 +587,7 @@ def main() -> None:
         "--role",
         choices=["student", "educator", "all"],
         default=None,
-        help="Tool profile: student (~37 tools), educator (~88 tools), all (default: all)"
+        help="Tool profile: student (~39 tools), educator (~93 tools), all (default: all)"
     )
     parser.add_argument(
         "--list-grants",
