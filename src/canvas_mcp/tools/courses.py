@@ -27,6 +27,7 @@ from ..core.guarded_edit import (
     check_require,
     validate_guard,
 )
+from ..core.tool_results import FULL_CONTENT_TOOL_META
 from ..core.untrusted_content import (
     FENCE_LEAK_ERROR,
     contains_fence_markers,
@@ -331,16 +332,20 @@ def register_course_tools(mcp: FastMCP) -> None:
         course_display = response.get("course_code", course_identifier)
         return f"Course Details for {course_display}:\n\n" + "\n".join(details)
 
-    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
+    @mcp.tool(
+        annotations=ToolAnnotations(read_only_hint=True), meta=FULL_CONTENT_TOOL_META
+    )
     @validate_params
     async def get_syllabus(course_identifier: str | int,
                            output_format: str = "text",
                            max_chars: int | None = None) -> str:
-        """Get the complete Canvas Syllabus tab content for a course, untruncated.
+        """Get the complete Canvas Syllabus tab content for a course.
 
         Unlike get_course_content_overview (which returns only a ~1000-char
         preview), this returns the full syllabus body so later sections such as
         grading policies, weighting, and final-exam details remain accessible.
+        The syllabus is complete by default; it is cut only if you pass
+        max_chars, and a cut is always marked with "[truncated at N characters]".
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -463,6 +468,11 @@ def register_course_tools(mcp: FastMCP) -> None:
                             f"    {fence_untrusted(title, 'page title')} "
                             f"(Updated: {updated})"
                         )
+                    if len(sorted_pages) > 5:
+                        pages_summary.append(
+                            "    (5 most recent shown; list_pages lists every page and "
+                            "get_page_content reads one in full.)"
+                        )
 
                 overview_sections.append("\n".join(pages_summary))
 
@@ -531,6 +541,11 @@ def register_course_tools(mcp: FastMCP) -> None:
                         modules_summary.append(
                             f"    {fence_untrusted_inline(name, 'module name')} (Status: {state})"
                         )
+                    if len(modules) > 3:
+                        modules_summary.append(
+                            "    (First 3 shown; list_modules lists every module and "
+                            "list_module_items its contents.)"
+                        )
 
                 overview_sections.append("\n".join(modules_summary))
 
@@ -550,8 +565,10 @@ def register_course_tools(mcp: FastMCP) -> None:
                     # Clean the HTML content
                     clean_syllabus = strip_html_tags(syllabus_body)
 
-                    # For overview, limit to first 1000 characters
-                    if len(clean_syllabus) > 1000:
+                    # An overview shows only the first 1000 characters, and
+                    # says where the rest is.
+                    cut = len(clean_syllabus) > 1000
+                    if cut:
                         clean_syllabus = clean_syllabus[:1000] + "..."
 
                     indented = "\n".join(
@@ -562,6 +579,11 @@ def register_course_tools(mcp: FastMCP) -> None:
                         # Course-authored free text (issue 239): fence it.
                         fence_untrusted(indented, "course syllabus (preview)")
                     ]
+                    if cut:
+                        syllabus_summary.append(
+                            "  (Preview of the first 1000 characters; get_syllabus "
+                            "returns the complete syllabus.)"
+                        )
 
                     overview_sections.append("\n".join(syllabus_summary))
                 else:
@@ -636,7 +658,9 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
         course_display = await get_course_code(course_id) or course_identifier
         return f"Pages for Course {course_display}:\n\n" + "\n".join(pages_info)
 
-    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
+    @mcp.tool(
+        annotations=ToolAnnotations(read_only_hint=True), meta=FULL_CONTENT_TOOL_META
+    )
     @validate_params
     async def get_page_content(course_identifier: str | int, page_url_or_id: str) -> str:
         """Get the full content body of a specific page.
@@ -777,7 +801,9 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
+    @mcp.tool(
+        annotations=ToolAnnotations(read_only_hint=True), meta=FULL_CONTENT_TOOL_META
+    )
     @validate_params
     async def get_front_page(course_identifier: str | int) -> str:
         """Get the front page content for a course.

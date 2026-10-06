@@ -9,6 +9,7 @@ from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from ..core.client import make_canvas_request
+from ..core.tool_results import FULL_CONTENT_TOOL_META
 from ..core.untrusted_content import (
     FENCE_LEAK_ERROR,
     UNTRUSTED_NOTICE,
@@ -400,7 +401,9 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
             print(f"Error listing conversations: {str(e)}", file=sys.stderr)
             return {"error": f"Failed to list conversations: {str(e)}"}
 
-    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
+    @mcp.tool(
+        annotations=ToolAnnotations(read_only_hint=True), meta=FULL_CONTENT_TOOL_META
+    )
     @validate_params
     async def get_conversation_details(
         conversation_id: str | int,
