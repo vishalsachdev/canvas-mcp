@@ -146,6 +146,55 @@
       ]
     },
     {
+      "name": "list_quizzes",
+      "category": "student",
+      "description": "List Classic quizzes and New Quizzes in one of your courses (read-only; never opens a quiz or reads questions)",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        }
+      ],
+      "returns": "Classic quizzes (quiz ID, type, due/open/close dates, time limit, allowed attempts, points, published, lock state) and New Quizzes found among assignments (assignment ID, dates, points), each with your submission state",
+      "examples": [
+        "What quizzes do I have in CS 161?",
+        "When is my next quiz due?"
+      ]
+    },
+    {
+      "name": "get_quiz_details",
+      "category": "student",
+      "description": "Get one quiz's settings and your own attempts (used, remaining, kept score); read-only",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "quiz_id",
+          "type": "string | integer",
+          "required": false,
+          "description": "Classic quiz ID (pass exactly one of quiz_id or assignment_id)"
+        },
+        {
+          "name": "assignment_id",
+          "type": "string | integer",
+          "required": false,
+          "description": "Assignment ID of a New Quiz, or of a graded Classic quiz"
+        }
+      ],
+      "returns": "Classic quiz metadata plus your attempts used/remaining, kept score, in-progress attempt and per-attempt scores; for New Quizzes, the Canvas assignment record and your gradebook submission, with a note that New Quizzes settings and attempt history are not available to students via the REST API",
+      "examples": [
+        "How many attempts do I have left on Quiz 3?",
+        "What was my kept score on the midterm practice quiz?"
+      ],
+      "notes": "Never cut; declares anthropic/maxResultSizeChars=500000 so Claude Code delivers the whole result."
+    },
+    {
       "name": "list_assignments",
       "category": "educator",
       "description": "List all assignments for a course",
