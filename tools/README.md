@@ -2239,8 +2239,9 @@ Create a new discussion post.
 
 ### Complete content (no truncation)
 
-Tools whose job is to return one complete piece of Canvas content never cut it,
-and declare `_meta: {"anthropic/maxResultSizeChars": 500000}` in `tools/list`
+Tools whose job is to return one complete piece of Canvas content never cut it
+(`list_discussion_entries` shows short previews unless you pass
+`include_full_content=true`), and declare `_meta: {"anthropic/maxResultSizeChars": 500000}` in `tools/list`
 (Claude Code's ceiling; without it Claude Code caps a tool result near 25k
 tokens). Other clients ignore the key. The tools: `get_page_content`,
 `get_syllabus`, `get_front_page`, `get_assignment_details`,
