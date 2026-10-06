@@ -90,6 +90,15 @@ DESTRUCTIVE = {
     "delete_assignment_with_confirmation",
     "delete_announcements_by_criteria",
     "bulk_delete_announcements",
+    # Student calendar/planner: replaces a note's text Canvas keeps no history
+    # of, or removes the caller's own note/event.
+    "update_planner_note",
+    "delete_planner_note",
+    "delete_personal_calendar_event",
+    # Not the mark_conversations_read benign-toggle exception: Canvas syncs a
+    # planner override to the item's "Mark as done" module requirement, so
+    # complete=False un-completes module progress and can re-lock modules.
+    "mark_planner_item_complete",
 }
 
 # Additive: each call adds something and removes nothing.
@@ -111,6 +120,9 @@ ADDITIVE = {
     # Writes a new local file and refuses an existing path (O_EXCL), so it
     # never replaces anything; a repeat fails without writing.
     "download_course_file",
+    # Student calendar/planner: a new note or personal event, nothing replaced.
+    "create_planner_note",
+    "create_personal_calendar_event",
 }
 
 # Repeating the call with the same arguments produces a duplicate.
@@ -151,6 +163,9 @@ NOT_IDEMPOTENT = {
     # Default filename is timestamped to the second, so each repeat writes a
     # NEW report file.
     "generate_peer_review_report",
+    # Each call creates another note / event.
+    "create_planner_note",
+    "create_personal_calendar_event",
 }
 
 
@@ -248,7 +263,9 @@ async def test_repeatable_tools_declare_idempotency_honestly():
     for name in ("update_assignment", "update_module", "update_discussion_topic",
                  "update_rubric", "edit_page_content", "delete_page", "bulk_delete_announcements",
                  "delete_announcements_by_criteria", "delete_assignment_with_confirmation",
-                 "extract_peer_review_dataset"):
+                 "extract_peer_review_dataset", "update_planner_note",
+                 "delete_planner_note", "delete_personal_calendar_event",
+                 "mark_planner_item_complete"):
         assert tools[name].annotations.idempotent_hint is True, (
             f"{name} converges on the same end state when repeated"
         )
@@ -325,6 +342,7 @@ FULL_CONTENT_TOOLS = {
     "list_discussion_entries",
     "get_conversation_details",
     "get_my_submission",
+    "get_calendar_event",
     "get_rubric",
     "get_rubric_assessment",
 }
