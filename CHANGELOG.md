@@ -83,6 +83,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   REST; a readable topic marked anonymous is also refused. Neither path sends
   an update or a GraphQL request. Guarded edits reuse the preflight read;
   ordinary updates add one REST read before their existing write.
+- **Windows support.** The full test suite now passes on Windows.
+  - `TIMEZONE` works on Windows: `tzdata` is installed there only (a Windows
+    platform marker), because Windows has no IANA time zone database and every
+    date fell back to UTC with a warning. Nothing changes on Linux or macOS.
+  - `reset_audit_state()` closes the audit handlers instead of dropping them, so
+    `audit.jsonl` is no longer left open (a leaked descriptor everywhere, and a
+    file Windows could not delete or rename).
+  - `.githooks/commit-msg` runs the first of `python3` and `python` that really
+    is Python 3.8 or newer. On Windows `python3` is usually the Microsoft Store
+    alias, which exits non-zero and used to reject every commit unscanned. With
+    no working Python the hook now skips with a message, as it already did for
+    a missing checker; CI is the backstop.
+  - Tests no longer assume POSIX: symlink tests fall back to a directory
+    junction or skip with a stated reason where Windows refuses symlinks,
+    permission-bit assertions skip on Windows, the audit tests clean up in the
+    right order, two subprocess tests pin UTF-8 and no longer depend on a global
+    `tsx`, and the `TIMEZONE` conversion tests run whenever the zone resolves
+    and assert the `-05:00` offset that `format_date` documents.
+
+### Changed
+
+- CI runs the suite on Python 3.14 (Ubuntu) and on Windows with Python 3.14,
+  with `PYTHONUTF8=1`. The required `test-enhancements` check now also depends
+  on the Windows job.
 
 ## [1.13.0] — 2026-09-27
 
