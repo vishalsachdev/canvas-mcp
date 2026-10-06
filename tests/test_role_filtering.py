@@ -17,6 +17,9 @@ STUDENT_ONLY_TOOLS = {
     "get_my_course_grades",
     "get_my_todo_items",
     "get_my_peer_reviews_todo",
+    # cross-course "what's new" feed (tools/student_feed.py)
+    "list_my_announcements",
+    "get_my_activity_stream",
 }
 
 SHARED_TOOLS = {
@@ -196,16 +199,16 @@ class TestRoleFiltering:
 
     @pytest.mark.asyncio
     async def test_student_tool_count(self):
-        """Student role should have approximately 37 tools."""
+        """Student role should have approximately 40 tools."""
         mcp = FastMCP(name="test-student")
         register_all_tools(mcp, role="student")
         tools = await _get_tool_names(mcp)
-        assert 25 <= len(tools) <= 40, f"Expected ~37 student tools, got {len(tools)}: {sorted(tools)}"
+        assert 30 <= len(tools) <= 50, f"Expected ~40 student tools, got {len(tools)}: {sorted(tools)}"
 
     @pytest.mark.asyncio
     async def test_educator_tool_count(self):
-        """Educator role should have approximately 88 tools."""
+        """Educator role should have approximately 93 tools."""
         mcp = FastMCP(name="test-educator")
         register_all_tools(mcp, role="educator")
         tools = await _get_tool_names(mcp)
-        assert 75 <= len(tools) <= 95, f"Expected ~88 educator tools, got {len(tools)}: {sorted(tools)}"
+        assert 80 <= len(tools) <= 100, f"Expected ~93 educator tools, got {len(tools)}: {sorted(tools)}"
