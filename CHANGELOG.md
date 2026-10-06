@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Student Inbox messaging.** `find_message_recipients` (read-only, always
+  on) looks up the people a student can message in a course and their user
+  IDs. `send_message` and `reply_to_conversation` are new student write tools,
+  off unless named in `STUDENT_WRITE_TOOLS` and subject to the per-course
+  syllabus policy and `ALLOWED_WRITE_TOOLS`. Both preview first and need a
+  single-use confirmation token bound to the recipients, subject and body.
+  To keep GHSA-hmr8 closed for students, recipients must be 1-5 individual
+  user IDs that Canvas lets the student message in that course (course,
+  section and group addresses are refused), replies reach only a
+  conversation's existing audience of at most 5 people, there are no
+  attachments or bulk sends, and text carrying UNTRUSTED CANVAS CONTENT
+  markers is refused.
+- `/search/recipients` responses now use the same `free_text` anonymization
+  tier as `/conversations`: avatars and direct identifiers are removed. The
+  address book lists a whole course, so while `ENABLE_DATA_ANONYMIZATION` is
+  on, `find_message_recipients` and the `send_message` preview name only
+  course staff and show everyone else under the same `Student_<hash>`
+  pseudonym the `/courses/:id/users` tier uses. A name search then asks only
+  the course's staff sub-contexts (Canvas matches `search` against real
+  names, so a classmate's pseudonym would otherwise reveal whose it is) and
+  returns course staff only. Known limitation, documented in
+  `core/anonymization.py`: pseudonyms depend only on the user ID, so a person
+  named as staff in one shared course is not anonymous where they are a
+  student.
 - **`raw_dates` on `list_assignments`, `get_assignment_details` and
   `get_discussion_topic_details`** (opt-in, default output unchanged). Appends a
   JSON block with `due_at`, `unlock_at`, `lock_at`, `updated_at`, `all_dates` and,
