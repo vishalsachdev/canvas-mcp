@@ -8,7 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![skills.sh](https://img.shields.io/badge/skills.sh-canvas--mcp-blue)](https://skills.sh)
 
-MCP server for Canvas LMS with **up to 103 tools** and **8 agent skills**. Designed for Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh); setup and capabilities vary by client.
+MCP server for Canvas LMS with **up to 113 tools** and **8 agent skills**. Designed for Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh); setup and capabilities vary by client.
 
 ## Quick Start
 
@@ -36,7 +36,7 @@ See [Agent Skills](#-agent-skills) for the list. If your agent is Claude Code, t
   See CLAUDE.md "Documentation Maintenance" for full guidelines.
 -->
 
-Canvas MCP provides **up to 103 tools** for interacting with Canvas LMS; the default profile registers fewer, and optional feature-gated tools can raise the total to 103. Tools are organized by user type:
+Canvas MCP provides **up to 113 tools** for interacting with Canvas LMS; the default profile registers fewer, and optional feature-gated tools can raise the total to 113. Tools are organized by user type:
 
 <details>
 <summary><strong>Student Tools</strong> (click to expand)</summary>
@@ -48,6 +48,9 @@ Canvas MCP provides **up to 103 tools** for interacting with Canvas LMS; the def
 | `get_my_submission_status` | Submitted vs missing | "Have I submitted everything?" |
 | `get_my_course_grades` | Current grades | "What are my grades?" |
 | `get_my_peer_reviews_todo` | Pending peer reviews | "What peer reviews do I need to do?" |
+| `list_calendar_events` | Calendar events and due dates across courses | "What is on my calendar next week?" |
+| `get_calendar_event` | One calendar event in full | "Show me the details of that exam event" |
+| `list_planner_notes` | Your own planner notes | "What notes are on my planner this week?" |
 
 </details>
 
