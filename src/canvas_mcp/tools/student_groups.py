@@ -20,7 +20,7 @@ groups) and refuses a group that is not on it. That costs one extra request
 per call and fails closed: if the membership list cannot be read, nothing else
 is requested.
 
-Privacy (CLAUDE.md "Privacy")
+Privacy
 -----------------------------
 - ``/groups/{id}/users`` is a roster of classmates. It stays at the client
   layer's ``full`` anonymization tier (``core/client.py``, the ``users``

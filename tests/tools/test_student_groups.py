@@ -29,7 +29,7 @@ MODULE = "canvas_mcp.tools.student_groups"
 MY_GROUP = {
     "id": 7,
     "name": "Team Rocket",
-    "description": "<p>ICS 33 final project</p>",
+    "description": "<p>CS 101 final project</p>",
     "avatar_url": None,
     "group_category_id": 12,
     "members_count": 4,
@@ -103,7 +103,7 @@ async def run_tool(tool_name: str, routes: dict[str, Any], *, anonymize: bool = 
     fake = FakeCanvas(routes)
     with (
         patch(f"{MODULE}.fetch_all_paginated_results", side_effect=fake.fetch),
-        patch(f"{MODULE}.get_course_code", new=AsyncMock(return_value="ICS 33")),
+        patch(f"{MODULE}.get_course_code", new=AsyncMock(return_value="CS 101")),
         patch(f"{MODULE}.resolve_numeric_course_id", new=AsyncMock(return_value=("101", None))),
         patch(f"{MODULE}.get_config",
               return_value=SimpleNamespace(enable_data_anonymization=anonymize)),
@@ -192,12 +192,12 @@ class TestListMyGroups:
         assert fake.calls == [("get", "/users/self/groups", {"per_page": 100})]
         assert "Your groups (2)" in result
         assert "Team Rocket" in result and "Study Buddies" in result
-        assert "ICS 33" in result
+        assert "CS 101" in result
         assert "ID: 7" in result
         assert "Group category ID: 12" in result
         assert "Members: 4" in result
         # HTML stripped, description shown.
-        assert "ICS 33 final project" in result
+        assert "CS 101 final project" in result
         assert "<p>" not in result
 
     @pytest.mark.asyncio
@@ -222,7 +222,7 @@ class TestListMyGroups:
         account_group = {
             "id": 9, "name": "Hiking Club", "group_category_id": 40,
             "members_count": 20, "context_type": "Account",
-            "context_name": "UC Irvine", "avatar_url": None,
+            "context_name": "Example University", "avatar_url": None,
         }
         result, _ = await run_tool("list_my_groups", {"/users/self/groups": [account_group]})
         assert "Course ID" not in result
@@ -233,7 +233,7 @@ class TestListMyGroups:
         result, fake = await run_tool(
             "list_my_groups",
             {"/users/self/groups": [MY_GROUP, OTHER_COURSE_GROUP]},
-            course_identifier="ICS 33",
+            course_identifier="CS 101",
         )
         assert fake.params_for("/users/self/groups") == {
             "per_page": 100,
@@ -253,7 +253,7 @@ class TestListMyGroups:
             "list_my_groups", {"/users/self/groups": [OTHER_COURSE_GROUP]},
             course_identifier=101,
         )
-        assert "not in any groups in ICS 33" in result
+        assert "not in any groups in CS 101" in result
 
     @pytest.mark.asyncio
     async def test_canvas_error_is_reported(self):
@@ -268,10 +268,10 @@ class TestListMyGroups:
         account_group = {
             "id": 9, "name": "Hiking Club", "group_category_id": 40,
             "members_count": 20, "context_type": "Account",
-            "context_name": "UC Irvine", "avatar_url": None,
+            "context_name": "Example University", "avatar_url": None,
         }
         result, _ = await run_tool("list_my_groups", {"/users/self/groups": [account_group]})
-        assert "UC Irvine" in result
+        assert "Example University" in result
         assert result.count(FENCE_TEXT_START) >= 2
 
     @pytest.mark.asyncio
@@ -296,7 +296,7 @@ class TestListMyGroups:
 
 MEMBERS = [
     {"id": 501, "name": "Jane Classmate", "sortable_name": "Classmate, Jane",
-     "short_name": "Jane", "email": "jane@uci.edu", "login_id": "janec",
+     "short_name": "Jane", "email": "jane@example.edu", "login_id": "janec",
      "sis_user_id": "12345678"},
     {"id": 502, "name": "Sam Teammate", "short_name": "Sam"},
 ]
@@ -326,7 +326,7 @@ class TestGetGroupMembers:
         )
         assert "Jane Classmate" in result and "ID: 501" in result
         assert "Sam Teammate" in result and "ID: 502" in result
-        assert "jane@uci.edu" not in result
+        assert "jane@example.edu" not in result
         assert "janec" not in result
         assert "12345678" not in result
         assert "Members of" in result and "(2)" in result
@@ -483,7 +483,7 @@ def real_client(monkeypatch):
     monkeypatch.setattr(f"{MODULE}.get_config", lambda: config)
     monkeypatch.setattr(cm, "get_request_credentials", lambda: None)
     monkeypatch.setattr(cm, "is_http_request_active", lambda: False)
-    monkeypatch.setattr(f"{MODULE}.get_course_code", AsyncMock(return_value="ICS 33"))
+    monkeypatch.setattr(f"{MODULE}.get_course_code", AsyncMock(return_value="CS 101"))
     return cm
 
 
@@ -528,7 +528,7 @@ class TestRealClientBehavior:
             return httpx.Response(500, json={"error": "unexpected"})
 
         result = await _run_with_transport(real_client, handler, "get_group_members", group_id=7)
-        for real in ("Jane Classmate", "Sam Teammate", "jane@uci.edu", "janec", "12345678"):
+        for real in ("Jane Classmate", "Sam Teammate", "jane@example.edu", "janec", "12345678"):
             assert real not in result
         assert "Student_" in result
         assert "ID: 501" in result  # IDs are preserved for follow-up calls
@@ -564,11 +564,19 @@ class TestRealClientBehavior:
 
 @pytest.fixture
 def cold_course_cache(monkeypatch):
-    """Empty course caches; refresh_course_cache rebinds them, monkeypatch restores."""
-    from canvas_mcp.core import cache
+    """Empty course caches; refresh_course_cache rebinds them, monkeypatch restores.
+
+    The suite stubs the cache's course-list read so no test reaches a real
+    Canvas; these tests run the real read against the mock transport instead.
+    """
+    from canvas_mcp.core import cache, client
 
     monkeypatch.setattr(cache, "course_code_to_id_cache", {})
     monkeypatch.setattr(cache, "id_to_course_code_cache", {})
+    monkeypatch.setattr(cache, "course_records_cache", [])
+    monkeypatch.setattr(
+        cache, "fetch_all_paginated_results", client.fetch_all_paginated_results
+    )
     return cache
 
 
@@ -596,11 +604,11 @@ class TestListMyGroupsCourseResolution:
     async def test_course_code_with_spaces_on_cold_cache(self, real_client, cold_course_cache):
         seen: list[str] = []
         handler = _course_filter_handler(
-            seen, courses=[{"id": 101, "course_code": "COMPSCI 161"},
-                           {"id": 202, "course_code": "ICS 6B"}],
+            seen, courses=[{"id": 101, "course_code": "CS 161"},
+                           {"id": 202, "course_code": "MATH 20"}],
         )
         result = await _run_with_transport(
-            real_client, handler, "list_my_groups", course_identifier="COMPSCI 161"
+            real_client, handler, "list_my_groups", course_identifier="CS 161"
         )
         assert "Team Rocket" in result
         assert "Study Buddies" not in result
@@ -616,30 +624,30 @@ class TestListMyGroupsCourseResolution:
         cold_course_cache.course_code_to_id_cache["OLD 1"] = "999"
         seen: list[str] = []
         handler = _course_filter_handler(
-            seen, courses=[{"id": 101, "course_code": "COMPSCI 161"}]
+            seen, courses=[{"id": 101, "course_code": "CS 161"}]
         )
         result = await _run_with_transport(
-            real_client, handler, "list_my_groups", course_identifier=" compsci 161 "
+            real_client, handler, "list_my_groups", course_identifier=" cs 161 "
         )
         assert "Team Rocket" in result
         assert "Study Buddies" not in result
         assert seen.count("/api/v1/courses") == 1
-        assert not any("compsci" in path.lower() for path in seen)
+        assert not any("cs 161" in path.lower() for path in seen)
 
     @pytest.mark.asyncio
     async def test_sis_course_id_is_resolved_by_canvas(self, real_client, cold_course_cache):
         seen: list[str] = []
         handler = _course_filter_handler(seen, sis={
-            "/api/v1/courses/sis_course_id:2026F-ICS33":
-                httpx.Response(200, json={"id": 101, "course_code": "ICS 33"}),
+            "/api/v1/courses/sis_course_id:2026F-CS101":
+                httpx.Response(200, json={"id": 101, "course_code": "CS 101"}),
         })
         result = await _run_with_transport(
             real_client, handler, "list_my_groups",
-            course_identifier="sis_course_id:2026F-ICS33",
+            course_identifier="sis_course_id:2026F-CS101",
         )
         assert "Team Rocket" in result
         assert "Study Buddies" not in result
-        assert "/api/v1/courses/sis_course_id:2026F-ICS33" in seen
+        assert "/api/v1/courses/sis_course_id:2026F-CS101" in seen
 
     @pytest.mark.asyncio
     async def test_underscore_code_found_after_cache_refresh(self, real_client, cold_course_cache):
@@ -648,22 +656,22 @@ class TestListMyGroupsCourseResolution:
         cold_course_cache.course_code_to_id_cache["old_course_1"] = "999"
         seen: list[str] = []
         handler = _course_filter_handler(
-            seen, courses=[{"id": 202, "course_code": "ics_6b_fall"}]
+            seen, courses=[{"id": 202, "course_code": "math_20_fall"}]
         )
         result = await _run_with_transport(
-            real_client, handler, "list_my_groups", course_identifier="ics_6b_fall"
+            real_client, handler, "list_my_groups", course_identifier="math_20_fall"
         )
         assert "Study Buddies" in result
         assert "Team Rocket" not in result
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("identifier", ["ICS 99", "sis_course_id:NOPE", "no_such_course"])
+    @pytest.mark.parametrize("identifier", ["CS 999", "sis_course_id:NOPE", "no_such_course"])
     async def test_unresolvable_course_is_an_error_not_an_empty_answer(
         self, real_client, cold_course_cache, identifier
     ):
         seen: list[str] = []
         handler = _course_filter_handler(
-            seen, courses=[{"id": 101, "course_code": "COMPSCI 161"}]
+            seen, courses=[{"id": 101, "course_code": "CS 161"}]
         )
         result = await _run_with_transport(
             real_client, handler, "list_my_groups", course_identifier=identifier
@@ -703,12 +711,12 @@ class TestGroupMembersReviewFixes:
 class TestGroupDescriptionScrubbed:
     @pytest.mark.asyncio
     async def test_group_description_scrubbed_when_anonymization_is_on(self):
-        group = dict(MY_GROUP, description="Call Jane at 949-555-1234 jane@uci.edu")
+        group = dict(MY_GROUP, description="Call Jane at 415-555-1234 jane@example.edu")
         result, _ = await run_tool("list_my_groups", {"/users/self/groups": [group]},
                                    anonymize=True)
-        assert "949-555-1234" not in result and "jane@uci.edu" not in result
+        assert "415-555-1234" not in result and "jane@example.edu" not in result
         off, _ = await run_tool("list_my_groups", {"/users/self/groups": [group]})
-        assert "949-555-1234" in off
+        assert "415-555-1234" in off
 
 
 class TestGroupFileContentType:
@@ -747,15 +755,15 @@ class TestRealClientGroupTopicPii:
         (the 'groups' + 'discussion_topics' rule in core/client.py)."""
         cm = real_client
         topic = {
-            "id": 55, "title": "Plan", "message": "<p>Text me at 949-555-1234 or jane@uci.edu</p>",
+            "id": 55, "title": "Plan", "message": "<p>Text me at 415-555-1234 or jane@example.edu</p>",
             "user_name": "Jane Classmate",
             "author": {"id": 501, "display_name": "Jane Classmate"},
         }
         view = {
             "participants": [{"id": 501, "display_name": "Jane Classmate"}],
-            "view": [{"id": 900, "user_id": 501, "message": "call 949-555-1234"}],
+            "view": [{"id": 900, "user_id": 501, "message": "call 415-555-1234"}],
             "new_entries": [{"id": 920, "user_id": 501, "parent_id": None,
-                             "message": "new: 714-555-0000"}],
+                             "message": "new: 510-555-0000"}],
         }
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -783,7 +791,7 @@ class TestRealClientGroupTopicPii:
 
         for payload in (record, tree, listing):
             dumped = json.dumps(payload)
-            for leaked in ("949-555-1234", "jane@uci.edu", "714-555-0000", "Jane Classmate"):
+            for leaked in ("415-555-1234", "jane@example.edu", "510-555-0000", "Jane Classmate"):
                 assert leaked not in dumped, leaked
         assert record["id"] == 55 and record["author"]["id"] == 501  # IDs survive
         assert tree["view"][0]["user_id"] == 501

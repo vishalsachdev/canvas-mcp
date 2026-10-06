@@ -19,6 +19,14 @@ STUDENT_ONLY_TOOLS = {
     "get_my_peer_reviews_todo",
 }
 
+# Read-only tools scoped to the caller's own groups (tools/student_groups.py).
+# Student profile only: educators already have the course-wide list_groups.
+STUDENT_GROUP_TOOLS = {
+    "list_my_groups",
+    "get_group_members",
+    "list_group_files",
+}
+
 SHARED_TOOLS = {
     # courses
     "list_courses",
@@ -98,6 +106,22 @@ class TestRoleFiltering:
             assert tool in tools, f"Student role should include {tool}"
 
     @pytest.mark.asyncio
+    async def test_student_role_includes_group_tools(self):
+        mcp = FastMCP(name="test-student")
+        register_all_tools(mcp, role="student")
+        tools = await _get_tool_names(mcp)
+        missing = STUDENT_GROUP_TOOLS - tools
+        assert not missing, f"Student role should include group tools {sorted(missing)}"
+
+    @pytest.mark.asyncio
+    async def test_educator_role_excludes_student_group_tools(self):
+        mcp = FastMCP(name="test-educator")
+        register_all_tools(mcp, role="educator")
+        tools = await _get_tool_names(mcp)
+        leaked = STUDENT_GROUP_TOOLS & tools
+        assert not leaked, f"Educator role should NOT include {sorted(leaked)}"
+
+    @pytest.mark.asyncio
     async def test_student_role_includes_shared_tools(self):
         mcp = FastMCP(name="test-student")
         register_all_tools(mcp, role="student")
@@ -142,7 +166,9 @@ class TestRoleFiltering:
         mcp = FastMCP(name="test-all")
         register_all_tools(mcp, role="all")
         tools = await _get_tool_names(mcp)
-        all_expected = STUDENT_ONLY_TOOLS | SHARED_TOOLS | EDUCATOR_ONLY_SAMPLE
+        all_expected = (
+            STUDENT_ONLY_TOOLS | STUDENT_GROUP_TOOLS | SHARED_TOOLS | EDUCATOR_ONLY_SAMPLE
+        )
         for tool in all_expected:
             assert tool in tools, f"'all' role should include {tool}"
 
@@ -196,16 +222,16 @@ class TestRoleFiltering:
 
     @pytest.mark.asyncio
     async def test_student_tool_count(self):
-        """Student role should have approximately 37 tools."""
+        """Student role should have approximately 41 tools (no write tools enabled)."""
         mcp = FastMCP(name="test-student")
         register_all_tools(mcp, role="student")
         tools = await _get_tool_names(mcp)
-        assert 25 <= len(tools) <= 40, f"Expected ~37 student tools, got {len(tools)}: {sorted(tools)}"
+        assert 30 <= len(tools) <= 50, f"Expected ~41 student tools, got {len(tools)}: {sorted(tools)}"
 
     @pytest.mark.asyncio
     async def test_educator_tool_count(self):
-        """Educator role should have approximately 88 tools."""
+        """Educator role should have approximately 93 tools."""
         mcp = FastMCP(name="test-educator")
         register_all_tools(mcp, role="educator")
         tools = await _get_tool_names(mcp)
-        assert 75 <= len(tools) <= 95, f"Expected ~88 educator tools, got {len(tools)}: {sorted(tools)}"
+        assert 80 <= len(tools) <= 100, f"Expected ~93 educator tools, got {len(tools)}: {sorted(tools)}"
