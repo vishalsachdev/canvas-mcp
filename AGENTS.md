@@ -453,10 +453,16 @@ Canvas MCP accepts multiple identifier formats:
 | Format | Example | Notes |
 |--------|---------|-------|
 | Canvas ID | `12345` | Numeric course ID |
-| Course code | `badm_350_120251_246794` | SIS course code |
-| SIS ID | `sis_course_id:ABC123` | If configured |
+| Course code | `badm_350_120251_246794` or `COMPSCI 161` | Matched against your courses; spaces allowed |
+| Course name | `Design and Analysis of Algorithms` | Matched against your courses |
+| SIS ID | `sis_course_id:ABC123` or `ABC123` | If configured |
 
-The server automatically resolves identifiers to Canvas IDs.
+The server automatically resolves identifiers to Canvas IDs. Course codes, names
+and SIS IDs are matched against your course list, ignoring case and surrounding
+whitespace; a value that matches more than one of your courses is refused with
+the candidate IDs, so pass the numeric ID then. Tools that put the course in a
+request path (for example `list_course_files`) refuse an identifier that matches
+no course instead of sending it to Canvas.
 
 ## Privacy and Anonymization
 
