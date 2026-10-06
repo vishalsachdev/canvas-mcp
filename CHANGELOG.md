@@ -106,7 +106,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - CI runs the suite on Python 3.14 (Ubuntu) and on Windows with Python 3.14,
   with `PYTHONUTF8=1`. The required `test-enhancements` check now also depends
-  on the Windows job.
+  on the Windows job. The package metadata now declares Python 3.14.
 
 ## [1.13.0] — 2026-09-27
 
