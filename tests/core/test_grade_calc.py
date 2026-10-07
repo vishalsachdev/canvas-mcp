@@ -558,6 +558,20 @@ class TestMalformedPayloadsFailClosed:
             [_group(rules={"drop_lowest": -1})],
             [_group(rules={"drop_highest": 1.5})],
             [_group(rules={"never_drop": "101"})],
+            [_group(rules={"never_drop": [None]})],
+            [_group(rules={"never_drop": ["abc"]})],
+            [_group(rules={"never_drop": [True]})],
+            [_group(group_weight="heavy")],
+            [_group(group_weight=True)],
+            [_group(group_weight=float("nan"))],
+            [_group(group_weight=-1)],
+            [_group(assignments=[{"id": 1, "points_possible": "ten"}])],
+            [_group(assignments=[{"id": 1, "points_possible": -5}])],
+            [_group(assignments=[{"id": 1, "points_possible": 5, "submission": {"score": "A"}}])],
+            [_group(assignments=[{"id": 1, "points_possible": 5, "submission": {"score": True}}])],
+            [_group(id=7), _group(id=" 7")],  # duplicate group ID
+            [_group(assignments=[{"id": 1}, {"id": 1}])],  # duplicate assignment ID
+            [_group(id=7, assignments=[{"id": 1}]), _group(id=8, assignments=[{"id": "1"}])],
         ],
     )
     def test_malformed_group_data_raises(self, groups_json):
@@ -585,6 +599,21 @@ class TestMalformedPayloadsFailClosed:
     def test_own_submission_never_unwraps_a_list(self):
         assert gc.own_submission({"submission": [{"score": 4}]}) is None
         assert gc.own_submission({"submission": {"score": 4}}) == {"score": 4}
+
+    def test_null_numeric_fields_stay_allowed(self):
+        # Canvas sends null for an unweighted group's weight, an assignment
+        # without points and an ungraded submission; those are not malformed.
+        groups, items = gc.build_grade_model([
+            _group(group_weight=None, assignments=[
+                {"id": 1, "points_possible": None, "submission": {"score": None}},
+            ]),
+        ])
+        assert groups[0].weight == 0.0
+        assert (items[0].points_possible, items[0].score) == (0.0, None)
+
+    def test_never_drop_ids_are_normalized_like_assignment_ids(self):
+        groups, _ = gc.build_grade_model([_group(rules={"never_drop": [101, " 102\n", "103"]})])
+        assert groups[0].never_drop == frozenset({"101", "102", "103"})
 
     def test_integer_valued_float_drop_counts_are_accepted(self):
         groups, _ = gc.build_grade_model([_group(rules={"drop_lowest": 2.0, "drop_highest": None})])

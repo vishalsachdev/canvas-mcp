@@ -94,6 +94,7 @@ def course_json(**overrides):
         "course_code": "CS 161",
         "name": "Design and Analysis of Algorithms",
         "apply_assignment_group_weights": True,
+        "restrict_quantitative_data": False,
         "grading_standard_id": 0,
         "grading_scheme": [["A", 0.94], ["A-", 0.9], ["B+", 0.87], ["B", 0.84], ["B-", 0.8],
                            ["C+", 0.77], ["C", 0.74], ["C-", 0.7], ["D+", 0.67], ["D", 0.64],
@@ -685,6 +686,61 @@ class TestFailClosed:
         # The assignment groups are never read, and no number is shown.
         assert [e for _, e, _, _ in fake.calls] == ["/courses/123"]
         assert "%" not in result
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("tool", ["get_my_assignment_scores", "calculate_grade_scenarios"])
+    @pytest.mark.parametrize("flag", ["absent", None, 0, ""])
+    async def test_unknown_restriction_state_is_refused(self, tool, flag):
+        course = course_json()
+        if flag == "absent":
+            del course["restrict_quantitative_data"]
+        else:
+            course["restrict_quantitative_data"] = flag
+        fake = FakeCanvas(course=course)
+        result = await run(tool, fake, course_identifier="123")
+        assert result.startswith("Error: Canvas did not say whether this course restricts")
+        assert [e for _, e, _, _ in fake.calls] == ["/courses/123"]
+        assert "%" not in result
+
+    @pytest.mark.asyncio
+    async def test_scores_tool_prints_the_normalized_assignment_id(self):
+        groups = weighted_groups()
+        groups[0]["assignments"][0]["id"] = " 11\n"
+        result = await run("get_my_assignment_scores", FakeCanvas(groups=groups), course_identifier="123")
+        assert "(ID 11)" in result
+        assert " 11\n" not in result
+
+    @pytest.mark.asyncio
+    async def test_scenarios_tool_matches_what_if_ids_after_normalizing(self):
+        groups = weighted_groups()
+        groups[1]["assignments"][1]["id"] = " 22\n"
+        result = await run(
+            "calculate_grade_scenarios", FakeCanvas(groups=groups),
+            course_identifier="123", hypothetical_scores={"22": 90},
+        )
+        assert "What-if current grade: 87.00% (B+)" in result
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("tool", ["get_my_assignment_scores", "calculate_grade_scenarios"])
+    @pytest.mark.parametrize(
+        "mutate",
+        [
+            lambda g: g[0].update(group_weight="heavy"),
+            lambda g: g[0].update(group_weight=-5),
+            lambda g: g[0]["assignments"][0].update(points_possible="ten"),
+            lambda g: g[0]["assignments"][0]["submission"].update(score="A"),
+            lambda g: g[0].update(rules={"never_drop": [None]}),
+            lambda g: g[0].update(rules={"never_drop": ["x"]}),
+            lambda g: g[1].update(id=1),
+            lambda g: g[1]["assignments"][0].update(id=11),
+        ],
+    )
+    async def test_non_numeric_or_duplicate_data_is_refused_not_defaulted(self, tool, mutate):
+        groups = weighted_groups()
+        mutate(groups)
+        result = await run(tool, FakeCanvas(groups=groups), course_identifier="123")
+        assert result.startswith("Error: Canvas returned assignment data this tool cannot trust")
+        assert "Nothing was computed" in result
 
     @pytest.mark.asyncio
     async def test_scores_tool_asks_canvas_for_the_restriction_flag(self):

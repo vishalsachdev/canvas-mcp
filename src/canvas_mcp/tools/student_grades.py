@@ -57,6 +57,11 @@ _RESTRICTED_MESSAGE = (
     "withholds the points and scores this tool needs. It will not estimate them or "
     "show numbers the course hides; check Canvas for your grade."
 )
+_UNKNOWN_RESTRICTION_MESSAGE = (
+    "Error: Canvas did not say whether this course restricts quantitative grade data "
+    "for students, so this tool cannot tell whether the scores it needs are withheld. "
+    "It will not guess; check Canvas for your grade."
+)
 MAX_HYPOTHETICAL_SCORES = 500
 # Upper bound on one what-if score, in points. Far above any real assignment
 # (extra credit included) and small enough that sums of 500 of them stay
@@ -145,9 +150,12 @@ async def _load_course(
         detail = course.get("error") if isinstance(course, dict) else course
         return f"Error fetching course {course_identifier}: {detail}"
     # Fail closed: with quantitative data restricted, Canvas nulls the numbers
-    # the arithmetic needs (and the course chose not to show them).
-    if course.get("restrict_quantitative_data"):
-        return _RESTRICTED_MESSAGE
+    # the arithmetic needs (and the course chose not to show them). Only an
+    # explicit false proves the course is unrestricted; an absent, null or
+    # otherwise unreadable flag is an unknown state and is refused too.
+    restricted = course.get("restrict_quantitative_data")
+    if restricted is not False:
+        return _RESTRICTED_MESSAGE if restricted else _UNKNOWN_RESTRICTION_MESSAGE
 
     groups = await fetch_all_paginated_results(
         f"/courses/{course_id}/assignment_groups",
@@ -356,10 +364,12 @@ def _render_scores_report(data: _CourseData) -> str:
         lines.append("\nNo assignment groups are visible in this course.")
         return "\n".join(lines)
 
+    weights = {rules.group_id: rules.weight for rules in data.groups}
     for group in data.groups_json:
         header = f"\n== {fence_untrusted_inline(group.get('name') or 'Unnamed group', 'assignment group name')}"
         if weighted:
-            header += f" | weight {_fmt(_number(group.get('group_weight')) or 0.0)}%"
+            weight = weights.get(gc.canvas_id(group.get("id")) or "", 0.0)
+            header += f" | weight {_fmt(weight)}%"
         rules = _rules_text(group)
         if rules:
             header += f" | {rules}"
@@ -380,7 +390,7 @@ def _render_scores_report(data: _CourseData) -> str:
             name = fence_untrusted_inline(assignment.get("name") or "Unnamed assignment", "assignment name")
             due_text = _due_text(assignment.get("due_at"))
             lines.append(
-                f"  - {name} (ID {assignment.get('id')}): {_score_text(assignment, submission)}"
+                f"  - {name} (ID {gc.canvas_id(assignment.get('id'))}): {_score_text(assignment, submission)}"
                 f" | {', '.join(statuses)} | due {due_text}"
             )
 
@@ -446,12 +456,16 @@ def _render_grade_scenarios(
     course = data.course
     weighted = course.get("apply_assignment_group_weights") is True
     groups, items = data.groups, data.items
-    group_names = {str(g.get("id")): str(g.get("name") or "Unnamed group") for g in data.groups_json}
+    group_names = {
+        group_id: str(g.get("name") or "Unnamed group")
+        for g in data.groups_json
+        if (group_id := gc.canvas_id(g.get("id"))) is not None
+    }
     assignments: dict[str, dict[str, Any]] = {
-        str(a.get("id")): a
+        assignment_id: a
         for g in data.groups_json
         for a in g.get("assignments") or []
-        if isinstance(a, dict) and a.get("id") is not None
+        if isinstance(a, dict) and (assignment_id := gc.canvas_id(a.get("id"))) is not None
     }
     names = {aid: str(a.get("name") or f"assignment {aid}") for aid, a in assignments.items()}
 
