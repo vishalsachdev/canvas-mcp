@@ -2,8 +2,9 @@
 
 Both tools are read-only and answer only about the caller. They read
 
-- ``GET /courses/:id`` for ``apply_assignment_group_weights`` and, with
-  ``include[]=total_scores``, Canvas's own current/final score for the
+- ``GET /courses/:id`` for ``apply_assignment_group_weights``, the
+  ``restrict_quantitative_data`` flag (both tools refuse such a course) and,
+  with ``include[]=total_scores``, Canvas's own current/final score for the
   caller's student enrollment; and
 - ``GET /courses/:id/assignment_groups?include[]=assignments&include[]=submission``
   for group weights, drop rules, assignments, and the caller's own
@@ -13,6 +14,9 @@ Neither path carries a ``users``/``submissions``/``enrollments`` route
 segment, so the client applies no anonymization tier to them: the embedded
 submission is the caller's own (``include[]=submission`` returns the current
 user's submission), and no roster is requested.
+
+Both tools fail closed: data that is not the documented shape, a restricted
+course, or a letter target without a known scheme is refused, not guessed.
 
 The arithmetic lives in ``core/grade_calc.py``. This module fetches, picks a
 letter scheme, and formats. Group names, assignment names, grading standard
@@ -31,7 +35,7 @@ from mcp.types import ToolAnnotations
 from ..core import grade_calc as gc
 from ..core.cache import resolve_numeric_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
-from ..core.dates import format_date
+from ..core.dates import format_date, parse_date
 from ..core.tool_results import FULL_CONTENT_TOOL_META
 from ..core.untrusted_content import fence_untrusted_inline
 from ..core.validation import coerce_canvas_id, validate_params
@@ -46,6 +50,13 @@ COURSE_INCLUDES = [
     "grading_scheme",
     "restrict_quantitative_data",
 ]
+# Both tools read the restriction flag so they can refuse before computing.
+SCORES_COURSE_INCLUDES = ["restrict_quantitative_data"]
+_RESTRICTED_MESSAGE = (
+    "Error: this course restricts quantitative grade data for students, so Canvas "
+    "withholds the points and scores this tool needs. It will not estimate them or "
+    "show numbers the course hides; check Canvas for your grade."
+)
 MAX_HYPOTHETICAL_SCORES = 500
 # Upper bound on one what-if score, in points. Far above any real assignment
 # (extra credit included) and small enough that sums of 500 of them stay
@@ -64,6 +75,9 @@ class _CourseData:
     course_id: str
     course: dict[str, Any]
     groups_json: list[dict[str, Any]]
+    # The validated calculation model built from groups_json.
+    groups: list[gc.GroupRules]
+    items: list[gc.GradedItem]
     display: str
 
 
@@ -130,6 +144,10 @@ async def _load_course(
     if not isinstance(course, dict) or "error" in course:
         detail = course.get("error") if isinstance(course, dict) else course
         return f"Error fetching course {course_identifier}: {detail}"
+    # Fail closed: with quantitative data restricted, Canvas nulls the numbers
+    # the arithmetic needs (and the course chose not to show them).
+    if course.get("restrict_quantitative_data"):
+        return _RESTRICTED_MESSAGE
 
     groups = await fetch_all_paginated_results(
         f"/courses/{course_id}/assignment_groups",
@@ -140,11 +158,23 @@ async def _load_course(
     if not isinstance(groups, list):
         return "Error fetching assignment groups: unexpected response from Canvas."
 
+    # Never drop an entry that does not parse: a grade built from a shortened
+    # list would look authoritative and be wrong.
+    try:
+        model_groups, model_items = gc.build_grade_model(groups)
+    except gc.MalformedGradeData as exc:
+        return (
+            f"Error: Canvas returned assignment data this tool cannot trust ({exc}). "
+            "Nothing was computed."
+        )
+
     display = course.get("course_code") or course.get("name") or course_id
     return _CourseData(
         course_id=course_id,
         course=course,
-        groups_json=[g for g in groups if isinstance(g, dict)],
+        groups_json=groups,
+        groups=model_groups,
+        items=model_items,
         display=str(display),
     )
 
@@ -157,6 +187,10 @@ class _Scheme:
     source: str
     points_based: bool = False
     scaling_factor: float | None = None
+    # True when the letters are a stand-in (Canvas's default scheme used because
+    # the course's real scheme is unknown or unreadable). Such a scheme is fine
+    # for context but must not decide a target letter.
+    is_guess: bool = False
 
     def letter(self, percent: float | None) -> str | None:
         return gc.letter_for_percent(
@@ -191,6 +225,7 @@ async def _resolve_letter_scheme(course_id: str, course: dict[str, Any]) -> _Sch
     from_include = _scheme_from(course, "grading_scheme", "points_based_grading_scheme", "")
 
     if from_include is not None:
+        guess = False
         if "grading_standard_id" not in course:
             source = (
                 "the scheme Canvas returned for this course (Canvas did not say whether the "
@@ -205,6 +240,7 @@ async def _resolve_letter_scheme(course_id: str, course: dict[str, Any]) -> _Sch
                     "Canvas returned no institution default, so Canvas may show you no letter "
                     "grade; letters here are for reference only."
                 )
+                guess = True
             else:
                 source = (
                     "the course or institution default scheme, as returned by Canvas (the "
@@ -215,7 +251,11 @@ async def _resolve_letter_scheme(course_id: str, course: dict[str, Any]) -> _Sch
         else:
             source = "the course's own grading scheme (from the course record)."
         return _Scheme(
-            from_include.entries, source, from_include.points_based, from_include.scaling_factor
+            from_include.entries,
+            source,
+            from_include.points_based,
+            from_include.scaling_factor,
+            is_guess=guess,
         )
 
     if no_standard:
@@ -223,7 +263,7 @@ async def _resolve_letter_scheme(course_id: str, course: dict[str, Any]) -> _Sch
             "Canvas default scheme. Canvas returned no scheme and the course itself has no "
             "grading scheme enabled; Canvas may apply an institution default or show you no "
             "letter grade, so letters here are for reference only."
-        ))
+        ), is_guess=True)
     if str(standard_id) == "0":
         return _Scheme(gc.CANVAS_DEFAULT_SCHEME, "Canvas default scheme (the scheme this course uses).")
 
@@ -251,7 +291,7 @@ async def _resolve_letter_scheme(course_id: str, course: dict[str, Any]) -> _Sch
         f"Canvas default scheme as a FALLBACK: the course uses {which}, "
         "which could not be read with your token (it is probably defined at the "
         "institution level). Letters here may differ from what Canvas shows you."
-    ))
+    ), is_guess=True)
 
 
 def _score_text(assignment: Mapping[str, Any], submission: Mapping[str, Any] | None) -> str:
@@ -266,6 +306,15 @@ def _score_text(assignment: Mapping[str, Any], submission: Mapping[str, Any] | N
     if points > 0:
         return f"{_fmt(score)}/{_fmt(points)} ({score / points * 100:.1f}%)"
     return f"{_fmt(score)} pts (0 points possible: extra credit)"
+
+
+def _due_text(due: Any) -> str:
+    """A due date Canvas sent, only when it parses; raw text is never echoed."""
+    if not due:
+        return "no due date"
+    if not isinstance(due, str) or parse_date(due) is None:
+        return "an unreadable due date"
+    return format_date(due)
 
 
 def _rules_text(group: dict[str, Any]) -> str:
@@ -288,11 +337,15 @@ def _render_scores_report(data: _CourseData) -> str:
     """Group-by-group listing of the caller's scores. Fences Canvas text."""
     weighted = data.course.get("apply_assignment_group_weights") is True
     lines = [f"Assignment scores for {data.display}"]
-    lines.append(
-        "Grade weighting: by assignment group (weights below)"
-        if weighted
-        else "Grade weighting: none, the course grade is total points earned / total points possible"
-    )
+    if "apply_assignment_group_weights" not in data.course:
+        weighting = "Grade weighting: not reported by Canvas, so group weights are not shown as applied"
+    elif weighted:
+        weighting = "Grade weighting: by assignment group (weights below)"
+    else:
+        weighting = (
+            "Grade weighting: none, the course grade is total points earned / total points possible"
+        )
+    lines.append(weighting)
     lines.append(
         "Only assignments Canvas shows you are listed; unposted grades show as "
         "'grade not posted yet'."
@@ -325,8 +378,7 @@ def _render_scores_report(data: _CourseData) -> str:
                 key = status.split(" (")[0]
                 counts[key] = counts.get(key, 0) + 1
             name = fence_untrusted_inline(assignment.get("name") or "Unnamed assignment", "assignment name")
-            due = assignment.get("due_at")
-            due_text = format_date(due) if due else "no due date"
+            due_text = _due_text(assignment.get("due_at"))
             lines.append(
                 f"  - {name} (ID {assignment.get('id')}): {_score_text(assignment, submission)}"
                 f" | {', '.join(statuses)} | due {due_text}"
@@ -393,7 +445,7 @@ def _render_grade_scenarios(
     """Compute and format the report. Fences Canvas text."""
     course = data.course
     weighted = course.get("apply_assignment_group_weights") is True
-    groups, items = gc.build_grade_model(data.groups_json)
+    groups, items = data.groups, data.items
     group_names = {str(g.get("id")): str(g.get("name") or "Unnamed group") for g in data.groups_json}
     assignments: dict[str, dict[str, Any]] = {
         str(a.get("id")): a
@@ -596,12 +648,19 @@ def _caveats(
         "still add assignments or change weights, drop rules, or scores.",
     ]
     hidden = 0
+    no_record = 0
     for group in data.groups_json:
         for assignment in group.get("assignments") or []:
-            if not isinstance(assignment, dict):
-                continue
-            if gc.grade_not_posted(gc.own_submission(assignment)):
+            submission = gc.own_submission(assignment)
+            if submission is None:
+                no_record += 1
+            elif gc.grade_not_posted(submission):
                 hidden += 1
+    if no_record:
+        caveats.append(
+            f"{no_record} assignment(s) came back with no submission record of yours. They "
+            "count as ungraded here, and a target treats them as still to be scored."
+        )
     if hidden:
         caveats.append(
             f"{hidden} assignment(s) are graded or excused but not posted. Canvas hides those "
@@ -637,6 +696,11 @@ def _caveats(
             "No student enrollment with scores came back for you in this course, so "
             "there is no Canvas total to compare with."
         )
+    elif _number(enrollment.get("computed_current_score")) is None:
+        caveats.append(
+            "Canvas sent no current score for you (it sends none while nothing is graded "
+            "yet), so the computed grade could not be checked against Canvas."
+        )
     if enrollment and enrollment.get("has_grading_periods"):
         period = enrollment.get("current_grading_period_title")
         period_score = _number(enrollment.get("current_period_computed_current_score"))
@@ -648,11 +712,6 @@ def _caveats(
             "This course uses grading periods. Canvas may weight periods or report one "
             "period only; this tool does not reproduce grading-period weighting and covers "
             f"every assignment returned for the course.{detail}"
-        )
-    if course.get("restrict_quantitative_data"):
-        caveats.append(
-            "This course restricts quantitative grade data for students, so Canvas may "
-            "show you letters only and some scores here may be missing."
         )
     if disagreements:
         caveats.append(
@@ -672,8 +731,10 @@ def _caveats(
 
 def _parse_hypotheticals(raw: object) -> tuple[dict[str, float], str | None]:
     # ``raw`` is typed loosely on purpose: direct callers bypass FastMCP's
-    # schema validation, so the isinstance check below is a real guard.
-    if not raw:
+    # schema validation, so the isinstance check below is a real guard. Only
+    # None and an empty object mean "no what-ifs"; any other falsy value (0, "",
+    # [], False) is a malformed request, not something to ignore silently.
+    if raw is None:
         return {}, None
     if not isinstance(raw, dict):
         return {}, "Error: hypothetical_scores must be an object of {assignment_id: score}."
@@ -716,7 +777,7 @@ def register_student_grade_tools(mcp: FastMCP) -> None:
         Args:
             course_identifier: Course code or Canvas ID
         """
-        data = await _load_course(course_identifier, None)
+        data = await _load_course(course_identifier, SCORES_COURSE_INCLUDES)
         if isinstance(data, str):
             return data
         return _render_scores_report(data)
@@ -766,8 +827,7 @@ def register_student_grade_tools(mcp: FastMCP) -> None:
         if isinstance(data, str):
             return data
 
-        _, items = gc.build_grade_model(data.groups_json)
-        known = {item.assignment_id for item in items}
+        known = {item.assignment_id for item in data.items}
         unknown = sorted(set(hypothetical) - known, key=lambda a: (len(a), a))
         if unknown:
             return (
@@ -780,6 +840,13 @@ def register_student_grade_tools(mcp: FastMCP) -> None:
         target: float | None = target_percent
         target_note = ""
         if target_letter is not None:
+            # Fail closed: a stand-in scheme could name the wrong cutoff for the
+            # letter, so a letter target is refused rather than guessed.
+            if scheme.is_guess:
+                return (
+                    "Error: cannot resolve target_letter because the course's real letter "
+                    f"scheme is unknown. {scheme.source} Use target_percent instead."
+                )
             found = gc.find_letter(target_letter, scheme.entries)
             if found is None:
                 available = ", ".join(_letter_label(name) for name, _ in scheme.entries)

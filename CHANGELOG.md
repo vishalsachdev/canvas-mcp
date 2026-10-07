@@ -49,7 +49,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   score and flags disagreement, applies what-if scores, and reports the uniform
   percentage needed on remaining work for a target percentage or letter. Both
   register for the student and all profiles; the arithmetic is in
-  `core/grade_calc.py`.
+  `core/grade_calc.py`. Both fail closed: they refuse a course that restricts
+  quantitative data, assignment data that is not the documented shape, and
+  submissions that arrive as a list (an observer token); a letter target is
+  refused when the course's real letter scheme is unknown.
 
 ### Fixed
 

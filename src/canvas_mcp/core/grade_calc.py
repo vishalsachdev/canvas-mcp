@@ -631,17 +631,12 @@ def _number(value: Any) -> float | None:
 def own_submission(assignment: Mapping[str, Any]) -> Mapping[str, Any] | None:
     """The caller's submission embedded by ``include[]=submission``.
 
-    Canvas embeds one object for a student. A list appears for observers;
-    only an unambiguous single entry is used.
+    Canvas embeds one object for a student. Anything else (absent, null, or a
+    list, which Canvas sends for observer tokens and which would describe the
+    observed students, not the caller) is not the caller's own submission.
     """
     submission = assignment.get("submission")
-    if isinstance(submission, Mapping):
-        return submission
-    if isinstance(submission, list) and len(submission) == 1:
-        only = submission[0]
-        if isinstance(only, Mapping):
-            return only
-    return None
+    return submission if isinstance(submission, Mapping) else None
 
 
 def is_unposted(submission: Mapping[str, Any] | None) -> bool:
@@ -738,33 +733,98 @@ def submission_statuses(
     return labels
 
 
+class MalformedGradeData(ValueError):
+    """Canvas sent assignment-group data the grade model cannot trust.
+
+    Raised instead of skipping the offending entry: a grade computed from a
+    silently shortened list of groups, assignments or rules would look
+    authoritative and be wrong.
+    """
+
+
+def _canvas_id(value: Any) -> str | None:
+    """A Canvas object ID as its digit string, else None."""
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        return None
+    text = str(value).strip()
+    return text if text.isascii() and text.isdigit() else None
+
+
+def _drop_count(rules: Mapping[str, Any], key: str, group_id: str) -> int:
+    value = rules.get(key)
+    if value is None:
+        return 0
+    number = _number(value)
+    if number is None or number < 0 or number != int(number):
+        raise MalformedGradeData(
+            f"assignment group {group_id} has an unreadable {key} rule: {value!r}"
+        )
+    return int(number)
+
+
 def build_grade_model(
     groups_json: Sequence[Mapping[str, Any]],
 ) -> tuple[list[GroupRules], list[GradedItem]]:
     """Turn ``/assignment_groups?include[]=assignments&include[]=submission``
-    into the calculation model. IDs become strings."""
+    into the calculation model. IDs become strings.
+
+    Raises ``MalformedGradeData`` when the payload is not the shape Canvas
+    documents: a group or assignment that is not an object or has no numeric
+    ID, assignments that are not a list, unreadable drop rules, or a
+    submission that is not the caller's single object.
+    """
     groups: list[GroupRules] = []
     items: list[GradedItem] = []
     for group in groups_json:
-        if not isinstance(group, Mapping) or group.get("id") is None:
-            continue
-        group_id = str(group["id"])
-        rules = group.get("rules") or {}
-        if not isinstance(rules, Mapping):
+        if not isinstance(group, Mapping):
+            raise MalformedGradeData("an assignment group entry is not an object")
+        group_id = _canvas_id(group.get("id"))
+        if group_id is None:
+            raise MalformedGradeData(
+                f"an assignment group has no numeric ID (got {group.get('id')!r})"
+            )
+        rules = group.get("rules")
+        if rules is None:
             rules = {}
-        never_drop = rules.get("never_drop") or []
+        if not isinstance(rules, Mapping):
+            raise MalformedGradeData(f"assignment group {group_id} has unreadable drop rules")
+        never_drop = rules.get("never_drop")
+        if never_drop is None:
+            never_drop = []
+        if not isinstance(never_drop, list):
+            raise MalformedGradeData(
+                f"assignment group {group_id} has an unreadable never_drop rule"
+            )
         groups.append(
             GroupRules(
                 group_id=group_id,
                 weight=_number(group.get("group_weight")) or 0.0,
-                drop_lowest=int(_number(rules.get("drop_lowest")) or 0),
-                drop_highest=int(_number(rules.get("drop_highest")) or 0),
+                drop_lowest=_drop_count(rules, "drop_lowest", group_id),
+                drop_highest=_drop_count(rules, "drop_highest", group_id),
                 never_drop=frozenset(str(a) for a in never_drop if a is not None),
             )
         )
-        for assignment in group.get("assignments") or []:
-            if not isinstance(assignment, Mapping) or assignment.get("id") is None:
-                continue
+        assignments = group.get("assignments")
+        if not isinstance(assignments, list):
+            raise MalformedGradeData(f"assignment group {group_id} did not list its assignments")
+        for assignment in assignments:
+            if not isinstance(assignment, Mapping):
+                raise MalformedGradeData(
+                    f"an assignment entry in group {group_id} is not an object"
+                )
+            assignment_id = _canvas_id(assignment.get("id"))
+            if assignment_id is None:
+                raise MalformedGradeData(
+                    f"an assignment in group {group_id} has no numeric ID "
+                    f"(got {assignment.get('id')!r})"
+                )
+            raw_submission = assignment.get("submission")
+            if raw_submission is not None and not isinstance(raw_submission, Mapping):
+                raise MalformedGradeData(
+                    f"assignment {assignment_id} came back with submissions as a list or "
+                    "other non-object, which Canvas does for observer tokens; this tool "
+                    "reports only your own submissions"
+                )
             submission = own_submission(assignment)
             # Canvas's student-visible grade treats an unposted submission as
             # never graded: no score and no excusal.
@@ -772,7 +832,7 @@ def build_grade_model(
             score = _number(submission.get("score")) if submission and not unposted else None
             items.append(
                 GradedItem(
-                    assignment_id=str(assignment["id"]),
+                    assignment_id=assignment_id,
                     group_id=group_id,
                     points_possible=max(_number(assignment.get("points_possible")) or 0.0, 0.0),
                     score=score,

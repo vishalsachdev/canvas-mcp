@@ -336,6 +336,15 @@ override is pointed out. Not reproduced: grading-period weighting, override
 scores, unposted scores and assignments Canvas does not show you. When a group
 drops both lowest and highest scores the target search is approximate.
 
+**Refuses instead of guessing (both tools):** a course that restricts
+quantitative data for students (Canvas withholds the numbers); assignment-group
+data that is not the documented shape (an entry without a numeric ID,
+unreadable drop rules, assignments not listed), which is never trimmed to fit;
+and submissions that arrive as a list, which Canvas sends for observer tokens
+and which describe other people. `calculate_grade_scenarios` also refuses
+`target_letter` when the course's real letter scheme is unknown (Canvas's
+default scheme is only a stand-in then); use `target_percent`.
+
 ---
 
 ### Peer Review Management
