@@ -522,9 +522,26 @@ async def _format_stream_item(
     unread = " [UNREAD]" if item.get("read_state") is False else ""
     lines = [f"• {where} | {type_label} | {when}{unread}"]
 
+    course_id = _canvas_id(item.get("course_id"))
+    if course_id:
+        lines.append(f"  Course ID: {course_id}")
+    if item_type in ("DiscussionTopic", "Announcement"):
+        topic_id = _canvas_id(item.get("discussion_topic_id"))
+        if item_type == "Announcement" and topic_id is None:
+            topic_id = _canvas_id(item.get("announcement_id"))
+        if topic_id:
+            lines.append(f"  Topic ID: {topic_id}")
+    elif item_type == "Conversation":
+        conversation_id = _canvas_id(item.get("conversation_id"))
+        if conversation_id:
+            lines.append(f"  Conversation ID: {conversation_id}")
+
     if item_type == "Submission":
         raw_assignment = item.get("assignment")
         assignment: dict[str, Any] = raw_assignment if isinstance(raw_assignment, dict) else {}
+        assignment_id = _canvas_id(assignment.get("id"))
+        if assignment_id:
+            lines.append(f"  Assignment ID: {assignment_id}")
         name = assignment.get("name") or item.get("title") or "Unnamed assignment"
         lines.append(f"  Assignment: {fence_untrusted_inline(name, 'assignment name')}")
         score, grade = item.get("score"), item.get("grade")
