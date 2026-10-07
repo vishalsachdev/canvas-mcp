@@ -302,11 +302,16 @@ def test_main_never_fails_the_hook(monkeypatch, capsys):
 
 def test_script_runs_as_a_process_in_print_mode(monkeypatch):
     """End to end through the interpreter, with network failing fast."""
+    # The brief prints an em dash. With an emptied environment a Windows child
+    # writes its stdout pipe in the ANSI code page (cp1252), so pin UTF-8 on
+    # both ends instead of relying on the platform default.
     env = {"PATH": "/nonexistent", "GITHUB_SESSION_BRIEF_REPO": "o/r",
-           "HTTPS_PROXY": "http://127.0.0.1:9", "https_proxy": "http://127.0.0.1:9"}
+           "HTTPS_PROXY": "http://127.0.0.1:9", "https_proxy": "http://127.0.0.1:9",
+           "PYTHONIOENCODING": "utf-8"}
     result = subprocess.run(
         [sys.executable, str(Path(brief.__file__)), "--print"],
-        capture_output=True, text=True, timeout=60, env=env, check=False,
+        capture_output=True, text=True, encoding="utf-8", timeout=60, env=env,
+        check=False,
     )
     assert result.returncode == 0
     assert result.stdout.startswith("## GitHub brief — o/r")

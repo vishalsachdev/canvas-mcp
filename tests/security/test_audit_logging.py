@@ -209,6 +209,52 @@ class TestAuditFileHandling:
                     assert "data_access" in content
                 finally:
                     cfg_mod._config = old
+                    # Release audit.jsonl before TemporaryDirectory deletes it.
+                    # The autouse fixture resets too, but only after this block
+                    # has already tried to remove the directory.
+                    reset_audit_state()
+
+    def test_reset_releases_audit_file(self, tmp_path):
+        """reset_audit_state() must close the file handler, not just drop it.
+
+        An unclosed RotatingFileHandler keeps audit.jsonl open: a leaked
+        descriptor on every platform, and on Windows a sharing lock that stops
+        anything from deleting or rotating the file until the interpreter exits.
+        """
+        from logging.handlers import RotatingFileHandler
+
+        with patch.dict(os.environ, {
+            "LOG_ACCESS_EVENTS": "true",
+            "LOG_EXECUTION_EVENTS": "false",
+            "CANVAS_API_TOKEN": "test",
+            "AUDIT_LOG_DIR": str(tmp_path),
+        }):
+            from canvas_mcp.core import config as cfg_mod
+            old = cfg_mod._config
+            cfg_mod._config = None
+            try:
+                init_audit_logging()
+                log_data_access("GET", "/courses/1", "success")
+
+                file_handlers = [
+                    h for h in _audit_logger.handlers
+                    if isinstance(h, RotatingFileHandler)
+                ]
+                assert len(file_handlers) == 1
+                stream = file_handlers[0].stream
+                assert stream is not None and not stream.closed
+
+                reset_audit_state()
+
+                assert _audit_logger.handlers == []
+                assert stream.closed, "reset dropped the handler without closing audit.jsonl"
+                # On Windows this raises PermissionError (WinError 32) while the
+                # handle is still open; elsewhere it confirms nothing recreated it.
+                audit_file = tmp_path / "audit.jsonl"
+                audit_file.unlink()
+                assert not audit_file.exists()
+            finally:
+                cfg_mod._config = old
 
     def test_audit_file_rotation_config(self):
         """Verify RotatingFileHandler is configured with 10 MB, 5 backups."""
@@ -240,6 +286,8 @@ class TestAuditFileHandling:
                     assert handler.backupCount == 5
                 finally:
                     cfg_mod._config = old
+                    # Release audit.jsonl before TemporaryDirectory deletes it.
+                    reset_audit_state()
 
 
 if __name__ == "__main__":

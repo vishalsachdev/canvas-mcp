@@ -19,7 +19,7 @@ import tempfile
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from ..core.cache import get_course_code, get_course_id
+from ..core.cache import get_course_code, get_course_id, resolve_numeric_course_id
 from ..core.client import (
     canvas_authenticated_client,
     fetch_all_paginated_results,
@@ -78,7 +78,9 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
                 "read_course_file instead, which returns the content in the response."
             )
 
-        course_id = await get_course_id(course_identifier)
+        course_id, course_error = await resolve_numeric_course_id(course_identifier)
+        if course_id is None:
+            return f"Error: {course_error}"
 
         # Get file metadata from Canvas API
         file_info = await make_canvas_request(
@@ -117,6 +119,10 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
         # runs and break every local download there. O_EXCL alone still refuses
         # an existing path, including a pre-planted symlink, which is the bulk
         # of the protection.
+        # The 0o600 mode is owner-only on POSIX. Windows has no permission bits:
+        # the mode only sets the read-only attribute, and access follows the ACL
+        # inherited from save_dir (the default, the per-user temp dir, is
+        # private to that user).
         open_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
         try:
             fd = os.open(save_path, open_flags, 0o600)
@@ -196,7 +202,9 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
         effective_max_mb = min(float(max_size_mb), server_max_mb)
         max_size_bytes = int(effective_max_mb * 1024 * 1024)
 
-        course_id = await get_course_id(course_identifier)
+        course_id, course_error = await resolve_numeric_course_id(course_identifier)
+        if course_id is None:
+            return f"Error: {course_error}"
 
         # Get file metadata from Canvas API
         file_info = await make_canvas_request(
@@ -279,7 +287,9 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
         if order not in ("asc", "desc"):
             return f"Invalid order: '{order}'. Must be 'asc' or 'desc'."
 
-        course_id = await get_course_id(course_identifier)
+        course_id, course_error = await resolve_numeric_course_id(course_identifier)
+        if course_id is None:
+            return f"Error: {course_error}"
 
         params = {
             "per_page": 100,

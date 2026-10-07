@@ -26,6 +26,33 @@ def reset_config_between_tests(monkeypatch):
     reset_config()
 
 
+@pytest.fixture(autouse=True)
+def isolated_course_cache(monkeypatch):
+    """Start every test with an empty course cache and restore it afterwards.
+
+    ``refresh_course_cache`` rebinds the module globals, so a test that
+    refreshes it would otherwise leak its synthetic courses into later tests
+    and change how ``resolve_numeric_course_id`` answers there. The course-list
+    read that a missed lookup makes is stubbed to return no courses, so a test
+    that does not supply a list never reaches a real Canvas; tests that need
+    one patch ``canvas_mcp.core.cache.fetch_all_paginated_results``.
+    """
+    from canvas_mcp.core import cache
+
+    monkeypatch.setattr(cache, "course_code_to_id_cache", {})
+    monkeypatch.setattr(cache, "id_to_course_code_cache", {})
+    monkeypatch.setattr(cache, "course_records_cache", [])
+    # The refresh-on-miss rate limit and its shared in-flight refresh, so one
+    # test's refresh never suppresses the next test's.
+    monkeypatch.setattr(cache, "_last_refresh_at", None)
+    monkeypatch.setattr(cache, "_refresh_task", None)
+    # A lookup that misses re-reads the course list. A test that does not
+    # supply its own course list must never reach a real Canvas for it, so the
+    # read answers "no courses" unless the test patches it.
+    monkeypatch.setattr(cache, "fetch_all_paginated_results", AsyncMock(return_value=[]))
+    return cache
+
+
 @pytest.fixture
 def mock_canvas_request():
     """Mock Canvas API request function."""

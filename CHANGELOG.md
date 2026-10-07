@@ -65,6 +65,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `get_rubric` when it shortened a description, and
   `get_course_content_overview` names `get_syllabus`, `list_pages` and
   `list_modules` when it shows only a preview or the first few items.
+- **Course codes with spaces, course names and bare SIS IDs now resolve.**
+  `get_course_id` only recognised codes containing an underscore, so a course
+  addressed as `COMPSCI 161`, by its name, or by its SIS ID was sent to Canvas
+  as typed and failed. A lookup that finds nothing in the cache now re-reads
+  the course list once (shared between concurrent callers, and not more often
+  than every 30 seconds, so a typo or garbage input cannot page through
+  `/courses` on every call) and matches the identifier against course code,
+  SIS ID and name, ignoring case and surrounding whitespace. An identifier
+  that names more than one of your courses is never guessed at. `get_course_id`
+  keeps its old pass-through for an identifier that matches nothing or several.
+- **`resolve_numeric_course_id`, a resolver that never returns an unvalidated
+  string.** It returns `(course_id, None)` or `(None, error)`, so its result is
+  safe in a request path. `sis_course_id:<token>` is looked up only when the
+  token is a single plain path segment (no `/`, backslash, `?`, `#`, `%`,
+  `..`, whitespace or control characters); any other value is refused without
+  a request. `list_course_files`, `read_course_file` and
+  `download_course_file` use it, so a course identifier such as `1/users/503`
+  or `../accounts/1` is refused with `Could not find course` before any file
+  request is made.
 - `assign_peer_review` no longer creates a placeholder submission. It scanned
   one page (100) of submissions for the reviewee and, on a miss, POSTed a
   placeholder on the student's behalf, so in a large assignment a truncated read
@@ -104,6 +123,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   REST; a readable topic marked anonymous is also refused. Neither path sends
   an update or a GraphQL request. Guarded edits reuse the preflight read;
   ordinary updates add one REST read before their existing write.
+- **Windows support.** The full test suite now passes on Windows.
+  - `TIMEZONE` works on Windows: `tzdata` is installed there only (a Windows
+    platform marker), because Windows has no IANA time zone database and every
+    date fell back to UTC with a warning. Nothing changes on Linux or macOS.
+  - `reset_audit_state()` closes the audit handlers instead of dropping them, so
+    `audit.jsonl` is no longer left open (a leaked descriptor everywhere, and a
+    file Windows could not delete or rename).
+  - `.githooks/commit-msg` runs the first of `python3` and `python` that really
+    is Python 3.8 or newer. On Windows `python3` is usually the Microsoft Store
+    alias, which exits non-zero and used to reject every commit unscanned. With
+    no working Python the hook now rejects the commit with an installation/PATH
+    hint; the explicit `ALLOW_CLOSING_KEYWORD=1` bypass still works. A missing
+    checker file still skips the check, with CI as that case's backstop.
+  - Tests no longer assume POSIX: symlink tests fall back to a directory
+    junction or skip with a stated reason where Windows refuses symlinks,
+    permission-bit assertions skip on Windows, the audit tests clean up in the
+    right order, two subprocess tests pin UTF-8 and no longer depend on a global
+    `tsx`, and the `TIMEZONE` conversion tests run whenever the zone resolves
+    and assert the `-05:00` offset that `format_date` documents.
+
+### Changed
+
+- CI runs the suite on Python 3.14 (Ubuntu) and on Windows with Python 3.14,
+  with `PYTHONUTF8=1`. The required `test-enhancements` check now also depends
+  on the Windows job. The package metadata now declares Python 3.14.
 
 ## [1.13.0] — 2026-09-27
 
