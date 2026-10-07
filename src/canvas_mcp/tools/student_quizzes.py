@@ -66,7 +66,44 @@ def _label(labels: dict[str, str], raw: Any, default: str) -> str:
 
 
 def _quiz_type_label(raw: Any) -> str:
-    return _label(_QUIZ_TYPE_LABELS, raw, raw if isinstance(raw, str) and raw else "unknown type")
+    """A quiz type's label; an unrecognised value is fenced, never echoed raw."""
+    if isinstance(raw, str) and raw and raw not in _QUIZ_TYPE_LABELS:
+        return fence_untrusted_inline(raw, "quiz type")
+    return _label(_QUIZ_TYPE_LABELS, raw, "unknown type")
+
+
+_PLAIN_NUMBER = re.compile(r"[0-9]+(?:\.[0-9]+)?")
+
+
+def _plain(value: object) -> str:
+    """Render a Canvas ID, count or limit that is expected to be a plain number.
+
+    Numbers and digit strings pass through. Anything else (a field Canvas
+    should never fill with text) is fenced inline instead of being echoed raw,
+    so a free-text value in a numeric field cannot reach the model unmarked.
+    """
+    if value is None:
+        return "unknown"
+    if isinstance(value, int | float):
+        return str(value)
+    if isinstance(value, str) and _PLAIN_NUMBER.fullmatch(value):
+        return value
+    return fence_untrusted_inline(value, "unexpected value from Canvas")
+
+
+def _when(value: object) -> str:
+    """Format a Canvas timestamp; one that does not parse is fenced, not echoed raw."""
+    if isinstance(value, str) and parse_date(value) is not None:
+        return format_date(value)
+    return fence_untrusted_inline(value, "unparseable date from Canvas")
+
+
+def _link(value: object) -> str | None:
+    """A Canvas link safe to print on one line, or None to leave it out."""
+    if isinstance(value, str) and re.fullmatch(r"https?://\S+", value):
+        return value
+    return None
+
 
 # QuizSubmission states that represent a finished attempt. "untaken" is an
 # attempt in progress; "settings_only" is a placeholder Canvas creates when an
@@ -201,7 +238,8 @@ def _is_classic_quiz_assignment(assignment: dict[str, Any]) -> bool:
 
 def _due_sort_key(record: dict[str, Any]) -> tuple[int, datetime]:
     """Earliest due date first; undated items last."""
-    due = parse_date(record.get("due_at"))
+    raw = record.get("due_at")
+    due = parse_date(raw) if isinstance(raw, str) else None
     if due is None:
         return (1, datetime.max.replace(tzinfo=UTC))
     return (0, due)
@@ -210,16 +248,16 @@ def _due_sort_key(record: dict[str, Any]) -> tuple[int, datetime]:
 def _fmt_points(value: object) -> str:
     if isinstance(value, float) and value.is_integer():
         return str(int(value))
-    return str(value)
+    return _plain(value)
 
 
 def _date_line(record: dict[str, Any]) -> str:
-    due = format_date(record["due_at"]) if record.get("due_at") else "no due date"
+    due = _when(record["due_at"]) if record.get("due_at") else "no due date"
     parts = [f"Due: {due}"]
     if record.get("unlock_at"):
-        parts.append(f"Opens: {format_date(record['unlock_at'])}")
+        parts.append(f"Opens: {_when(record['unlock_at'])}")
     if record.get("lock_at"):
-        parts.append(f"Closes: {format_date(record['lock_at'])}")
+        parts.append(f"Closes: {_when(record['lock_at'])}")
     return " | ".join(parts)
 
 
@@ -232,7 +270,7 @@ def _attempts_allowed(value: object) -> str:
         return "not reported"
     if isinstance(value, int) and value < 0:
         return "unlimited"
-    return str(value)
+    return _plain(value)
 
 
 def _lock_line(record: dict[str, Any]) -> str | None:
@@ -262,7 +300,7 @@ def _describe_assignment_submission(
         return "excused"
     parts = []
     if submission.get("submitted_at"):
-        parts.append(f"submitted {format_date(submission['submitted_at'])}")
+        parts.append(f"submitted {_when(submission['submitted_at'])}")
     else:
         parts.append("not submitted")
     if submission.get("workflow_state") == "pending_review":
@@ -283,12 +321,12 @@ def _classic_quiz_block(
 ) -> list[str]:
     title = fence_untrusted_inline(quiz.get("title") or "Untitled quiz", "quiz title")
     quiz_type = _quiz_type_label(quiz.get("quiz_type"))
-    head = f"  Quiz ID: {quiz.get('id')} | Type: {quiz_type}"
+    head = f"  Quiz ID: {_plain(quiz.get('id'))} | Type: {quiz_type}"
     if quiz.get("published") is not None:
         head += f" | Published: {_yes_no(quiz.get('published'))}"
     time_limit = quiz.get("time_limit")
     details = [
-        f"Time limit: {time_limit} min" if time_limit else "Time limit: none",
+        f"Time limit: {_plain(time_limit)} min" if time_limit else "Time limit: none",
         f"Attempts allowed: {_attempts_allowed(quiz.get('allowed_attempts'))}",
     ]
     if quiz.get("points_possible") is not None:
@@ -309,7 +347,7 @@ def _classic_quiz_block(
 
 def _new_quiz_block(assignment: dict[str, Any]) -> list[str]:
     name = fence_untrusted_inline(assignment.get("name") or "Untitled quiz", "quiz title")
-    head = f"  Assignment ID: {assignment.get('id')}"
+    head = f"  Assignment ID: {_plain(assignment.get('id'))}"
     if assignment.get("points_possible") is not None:
         head += f" | Points: {_fmt_points(assignment['points_possible'])}"
     if assignment.get("published") is not None:
@@ -403,11 +441,11 @@ def _attempt_summary(
 
     for number in sorted(in_progress):
         current = in_progress[number]
-        line = f"In progress: attempt {current.get('attempt')}"
+        line = f"In progress: attempt {_plain(current.get('attempt'))}"
         if current.get("started_at"):
-            line += f", started {format_date(current['started_at'])}"
+            line += f", started {_when(current['started_at'])}"
         if current.get("end_at"):
-            line += f", must be submitted by {format_date(current['end_at'])}"
+            line += f", must be submitted by {_when(current['end_at'])}"
         if current.get("overdue_and_needs_submission"):
             line += " (past its end time; Canvas will submit it automatically)"
         lines.append(line)
@@ -426,11 +464,11 @@ def _attempt_summary(
             score_text = (
                 f"score {_fmt_points(score)}{total}" if score is not None else "score not available"
             )
-            entry = f"  • Attempt {record.get('attempt')}: {score_text}"
+            entry = f"  • Attempt {_plain(record.get('attempt'))}: {score_text}"
             if record.get("workflow_state") == "pending_review":
                 entry += ", pending review"
             if record.get("finished_at"):
-                entry += f", finished {format_date(record['finished_at'])}"
+                entry += f", finished {_when(record['finished_at'])}"
             spent = record.get("time_spent")
             if isinstance(spent, int | float):
                 entry += (
@@ -528,7 +566,8 @@ def register_student_quiz_tools(mcp: FastMCP) -> None:
                 for shell in shells:
                     name = fence_untrusted_inline(shell.get("name") or "Untitled quiz", "quiz title")
                     lines.append(f"• {name}")
-                    lines.append(f"  Quiz ID: {shell.get('quiz_id')} | Assignment ID: {shell.get('id')}")
+                    lines.append(f"  Quiz ID: {_plain(shell.get('quiz_id'))} | "
+                        f"Assignment ID: {_plain(shell.get('id'))}")
                     lines.append(f"  {_date_line(shell)}")
                     lines.append(
                         "  Your submission: "
@@ -627,15 +666,17 @@ def register_student_quiz_tools(mcp: FastMCP) -> None:
                 if description:
                     lines.append("Description:")
                     lines.append(fence_untrusted(description, "quiz description"))
-                attempt = (assignment.get("submission") or {}).get("attempt")
+                own_submission = assignment.get("submission")
+                attempt = own_submission.get("attempt") if isinstance(own_submission, dict) else None
                 if attempt:
                     lines.append(
-                        f"Canvas submission attempt number: {attempt} (as recorded "
+                        f"Canvas submission attempt number: {_plain(attempt)} (as recorded "
                         "in the Canvas gradebook; it may not match the New Quizzes "
                         "attempt count)"
                     )
-                if assignment.get("html_url"):
-                    lines.append(f"Open in Canvas: {assignment['html_url']}")
+                link = _link(assignment.get("html_url"))
+                if link:
+                    lines.append(f"Open in Canvas: {link}")
                 lines.append("")
                 lines.append(_NEW_QUIZZES_NOTE)
                 return "\n".join(lines)
@@ -666,24 +707,31 @@ def register_student_quiz_tools(mcp: FastMCP) -> None:
         lines = [
             f"Classic quiz in {course_display}: "
             f"{fence_untrusted_inline(quiz.get('title') or 'Untitled quiz', 'quiz title')}",
-            f"Quiz ID: {quiz.get('id')} | Type: {quiz_type}"
-            + (f" | Assignment ID: {quiz['assignment_id']}" if quiz.get("assignment_id") else ""),
+            f"Quiz ID: {_plain(quiz.get('id'))} | Type: {quiz_type}"
+            + (
+                f" | Assignment ID: {_plain(quiz['assignment_id'])}"
+                if quiz.get("assignment_id") else ""
+            ),
             _date_line(quiz),
         ]
         time_limit = quiz.get("time_limit")
         settings = [
-            f"Time limit: {time_limit} min" if time_limit else "Time limit: none",
+            f"Time limit: {_plain(time_limit)} min" if time_limit else "Time limit: none",
             f"Attempts allowed: {_attempts_allowed(quiz.get('allowed_attempts'))}",
         ]
         if quiz.get("points_possible") is not None:
             settings.append(f"Points: {_fmt_points(quiz['points_possible'])}")
         if quiz.get("question_count") is not None:
-            settings.append(f"Questions: {quiz['question_count']}")
+            settings.append(f"Questions: {_plain(quiz['question_count'])}")
         lines.append(" | ".join(settings))
         if quiz.get("allowed_attempts") not in (None, 1) and quiz.get("scoring_policy"):
             lines.append(
                 "Scoring: "
-                + _label(_SCORING_POLICY_LABELS, quiz["scoring_policy"], str(quiz["scoring_policy"]))
+                + _label(
+                    _SCORING_POLICY_LABELS,
+                    quiz["scoring_policy"],
+                    fence_untrusted_inline(quiz["scoring_policy"], "scoring policy"),
+                )
             )
         if quiz.get("published") is not None:
             lines.append(f"Published: {_yes_no(quiz.get('published'))}")
@@ -711,8 +759,9 @@ def register_student_quiz_tools(mcp: FastMCP) -> None:
         if description:
             lines.append("Description:")
             lines.append(fence_untrusted(description, "quiz description"))
-        if quiz.get("html_url"):
-            lines.append(f"Open in Canvas: {quiz['html_url']}")
+        quiz_link = _link(quiz.get("html_url"))
+        if quiz_link:
+            lines.append(f"Open in Canvas: {quiz_link}")
 
         lines.append("")
         lines.append("Your attempts:")
@@ -790,6 +839,15 @@ def register_student_quiz_tools(mcp: FastMCP) -> None:
 
         records = [r for r in response.get("quiz_submissions") or [] if isinstance(r, dict)]
         own = [r for r in records if str(r.get("user_id")) == my_id]
+        if records and not own and live is None:
+            # Canvas returned attempt records but none can be tied to the caller.
+            # Reporting "not started, N remaining" from that would be a guess
+            # about the student's attempts, so nothing is claimed.
+            lines.append(
+                "Canvas returned quiz submission records, but none could be matched "
+                "to you, so your attempts were not reported."
+            )
+            return "\n".join(lines)
         lines.extend(_attempt_summary(own, quiz, live))
         if len(own) < len(records):
             lines.append(
