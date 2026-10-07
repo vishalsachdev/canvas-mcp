@@ -56,6 +56,9 @@ Personal academic tracking uses Canvas "self" endpoints. Shared course-content t
 | `get_group_members` | Members of one of your groups (no emails) |
 | `list_group_files` | Files stored in one of your groups |
 
+Shared discussion reads, including the course-wide group listing, require group
+membership in every tool profile unless Canvas explicitly grants `manage_grades`
+or `read_as_admin`. Missing or malformed permission data never grants staff access.
 The group tools only read groups you are a member of; they check your membership
 before every call and refuse other groups even when Canvas would allow the read.
 | `list_quizzes` | Classic quizzes and New Quizzes in a course: dates, limits, your submission state (read-only) |

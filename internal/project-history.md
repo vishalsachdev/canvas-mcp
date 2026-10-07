@@ -24,7 +24,6 @@ canvas-mcp/
 ├── src/canvas_mcp/        # Main application code
 │   ├── core/             # Core utilities (client, config, validation)
 │   ├── tools/            # MCP tool implementations (up to 122 tools across 21 files)
-│   ├── tools/            # MCP tool implementations (up to 122 tools across 21 files)
 │   ├── resources/        # MCP resources and prompts
 │   └── server.py         # FastMCP server entry point
 ├── skills/               # Agent skills for skills.sh (8 skills)

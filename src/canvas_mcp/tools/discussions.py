@@ -78,6 +78,20 @@ def _is_permission_error(error_text: str) -> bool:
     return any(marker.lower() in lowered for marker in _PERMISSION_ERROR_MARKERS)
 
 
+async def _has_staff_group_access(course_id: str) -> bool:
+    """Profiles select tools; only explicit Canvas permissions establish staff access."""
+    staff_access = False
+    if getattr(get_config(), "canvas_role", "all") != "student":
+        permissions = await make_canvas_request(
+            "get", f"/courses/{course_id}/permissions",
+            params={"permissions[]": ["manage_grades", "read_as_admin"]},
+        )
+        staff_access = isinstance(permissions, dict) and "error" not in permissions and any(
+            permissions.get(key) is True for key in ("manage_grades", "read_as_admin")
+        )
+    return staff_access
+
+
 async def _discussion_prefix(
     course_id: str, group_id: str | int | None
 ) -> tuple[str, str | None]:
@@ -87,8 +101,8 @@ async def _discussion_prefix(
     /groups/{id}/discussion_topics only. They have no course-level parent, so
     the /courses/{id}/... endpoints never return them. The group must belong to
     the course, so a group id cannot be used to read outside the course the
-    caller named. In the student profile, the caller must also belong to the
-    group; Canvas permissions alone may allow reads of sibling groups.
+    caller named. Without explicitly confirmed staff permissions, the caller
+    must belong to the group in every profile; Canvas can allow sibling reads.
 
     Returns:
         (prefix, error): prefix such as "/courses/1" or "/groups/2", and an
@@ -104,9 +118,11 @@ async def _discussion_prefix(
         return "", f"Error: group_id must be a numeric Canvas group ID, got {group_id!r}."
     group_id = canonical_group_id
 
-    if getattr(get_config(), "canvas_role", "all") == "student":
+    staff_access = await _has_staff_group_access(course_id)
+    if not staff_access:
         # Canvas may allow sibling/self-signup group reads without membership.
-        # Reuse the fresh, paginated, fail-closed gate of the student group tools.
+        # Tool profiles do not establish the caller's role. Only explicit staff
+        # permissions bypass the fresh, paginated, fail-closed membership gate.
         from .student_groups import _require_membership
 
         _, _, membership_error = await _require_membership(group_id)
@@ -544,11 +560,31 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         """
         course_id = await get_course_id(course_identifier)
 
+        numeric_course_id = coerce_canvas_id(course_id)
+        if numeric_course_id is None:
+            return "Error: could not resolve a numeric Canvas course ID."
+        course_id = numeric_course_id
+        member_ids: set[str] | None = None
+        if not await _has_staff_group_access(course_id):
+            from .student_groups import _fetch_my_groups
+
+            memberships = await _fetch_my_groups()
+            if isinstance(memberships, dict):
+                return "Error: could not confirm your group memberships; nothing was read."
+            member_ids = {
+                str(g.get("id")) for g in memberships
+                if coerce_canvas_id(str(g.get("id"))) is not None
+            }
+
         groups = await fetch_all_paginated_results(
             f"/courses/{course_id}/groups", {"per_page": 100}
         )
+        if isinstance(groups, list) and member_ids is not None:
+            groups = [g for g in groups if isinstance(g, dict) and str(g.get("id")) in member_ids]
         if isinstance(groups, dict) and "error" in groups:
-            return f"Error fetching groups: {groups['error']}"
+            return f"Error fetching groups: {fence_untrusted_inline(str(groups['error'])[:200], 'Canvas error')}"
+        if not isinstance(groups, list):
+            return "Error fetching groups: unexpected response from Canvas."
         if group_category_id is not None:
             groups = [
                 g for g in groups

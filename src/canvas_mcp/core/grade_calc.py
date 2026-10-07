@@ -374,7 +374,8 @@ class TargetResult:
     remaining_ids: tuple[str, ...]
     remaining_points: float
     # Lowest uniform percent (0.01 resolution) that reaches the target, or
-    # None when even ``max_percent`` does not.
+    # None when the search finds no solution. With non_monotone=True this
+    # is indeterminate: a narrow passing interval may have been missed.
     required_percent: float | None
     projected_at_zero: float | None
     projected_at_full: float | None
