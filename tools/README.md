@@ -320,6 +320,57 @@ course this caller cannot see.
 
 ---
 
+### Groups
+
+Read-only tools for the Canvas groups you belong to (project teams, study
+groups). Every tool except `list_my_groups` first checks `/users/self/groups`
+and refuses a group you are not a member of, even if Canvas would let your
+token read it. Group names, descriptions and file names are fenced as untrusted
+Canvas content.
+
+A group's discussions and announcements are read with the shared discussion
+tools, which take the optional `group_id`: `list_discussion_topics(course_identifier,
+group_id=..., include_announcements=True)` lists them, and
+`get_discussion_with_replies(course_identifier, topic_id, include_replies=True,
+group_id=...)` reads one with its replies (see [Discussions](#discussions)).
+`list_my_groups` prints the numeric course ID and group ID those calls need.
+
+#### `list_my_groups`
+List your groups with their course, course ID, group category ID and member
+count, and how to read a group's discussions with the discussion tools above.
+Groups that belong to an account rather than a course have no course ID.
+
+**Parameters:**
+- `course_identifier` (optional): Only show your groups in this course (course
+  code, `sis_course_id:...` or numeric ID). A course that cannot be found is
+  reported as an error, not as "no groups".
+
+**Example:**
+```
+"Which project team am I on in BADM 350?"
+```
+
+#### `get_group_members`
+List the members of one of your groups: name and Canvas user ID. Emails, login
+IDs and SIS IDs are never shown. Students whose enrollment is inactive are left
+out (`exclude_inactive`). With `ENABLE_DATA_ANONYMIZATION` on (the default),
+classmates' names appear as stable pseudonyms.
+
+**Parameters:**
+- `group_id` (required): Canvas group ID from `list_my_groups`
+
+#### `list_group_files`
+List the files stored in one of your groups. A group with files turned off
+returns a clear permission message.
+
+**Parameters:**
+- `group_id` (required): Canvas group ID
+- `search_term` (optional): Part of a file name (2+ characters)
+- `sort` (optional): `name`, `size`, `created_at`, `updated_at` (default) or `content_type`
+- `order` (optional): `asc` or `desc` (default)
+
+---
+
 ### Academic Performance
 
 #### `get_my_course_grades`
