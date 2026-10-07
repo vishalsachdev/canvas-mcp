@@ -492,15 +492,15 @@ class TestListMyAnnouncementsFailures:
         assert "C0" not in warning and "course_1000" not in warning
 
     @pytest.mark.asyncio
-    async def test_same_4xx_for_every_course_stops_fanning_out(self):
-        """A 403 that every single-course retry repeats is request-wide."""
+    async def test_same_4xx_for_every_course_is_reported_per_chunk(self):
+        """A 403 repeated by every singleton is request-wide within that chunk."""
         courses = [{"id": 1000 + i, "course_code": f"C{i}"} for i in range(CONTEXT_CODE_CHUNK_SIZE * 3)]
         fake = FakeCanvas()
         fake.route("/courses", courses)
         fake.route("/announcements", lambda r: httpx.Response(403, json={"status": "unauthorized"}))
         result = await run(fake, "list_my_announcements")
-        # First chunk + its single-course retries, then one request per later chunk.
-        assert len(fake.to("/announcements")) == 1 + CONTEXT_CODE_CHUNK_SIZE + 2
+        # Every chunk gets its own singleton retries.
+        assert len(fake.to("/announcements")) == 3 * (1 + CONTEXT_CODE_CHUNK_SIZE)
         assert result.startswith("Error fetching announcements")
         assert "403" in result
         assert "course_1000" not in result
@@ -1292,3 +1292,17 @@ async def test_submission_full_read_ids_reject_unvalidated_values():
     assert 'attack' not in result
     assert 'Course ID:' not in result
     assert 'Assignment ID:' not in result
+
+@pytest.mark.asyncio
+async def test_later_failed_chunk_still_recovers_readable_announcements():
+    fake = FakeCanvas()
+    fake.route('/courses', [{'id': i, 'course_code': f'C{i}'} for i in range(101, 121)])
+    def response(request):
+        codes = codes_param(request)
+        if len(codes) > 1 or codes[0] != 'course_120':
+            return httpx.Response(403, json={'status': 'unauthorized'})
+        return httpx.Response(200, json=[announcement(9, 120, '2026-09-28T00:00:00Z', title='Recovered')])
+    fake.route('/announcements', response)
+    result = await run(fake, 'list_my_announcements')
+    assert 'Recovered' in result
+    assert len(fake.to('/announcements')) == 22

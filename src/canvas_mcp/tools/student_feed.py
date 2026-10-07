@@ -68,10 +68,9 @@ _PLAIN_GRADE = re.compile(
 _HTTP_STATUS = re.compile(r"^HTTP error: (\d{3})\b")
 
 #: Statuses for which a failed multi-course /announcements request is retried
-#: one course at a time. Canvas is not known to produce these per course: the
-#: endpoint has no per-course authorization and silently omits courses the
-#: caller cannot read (``api_find_all`` filters rather than raising), so this
-#: fallback is defensive. Server errors, 429 after the client's own retries,
+#: one course at a time. A multi-course permission failure can hide readable
+#: courses in the same chunk, so each failed chunk gets its own fallback.
+#: Server errors, 429 after the client's own retries,
 #: and transport failures concern the whole request and are never fanned out.
 _PER_COURSE_RETRY_STATUSES = frozenset({400, 401, 403, 404})
 
@@ -395,12 +394,11 @@ async def _fetch_announcements(
     Only a chunk that fails with a status in ``_PER_COURSE_RETRY_STATUSES`` is
     retried course by course (defensive; see that constant). If every
     single-course retry repeats the chunk's status, the failure is treated as
-    request-wide and later chunks are not fanned out.
+    request-wide for that chunk only; later chunks retry independently.
     """
     found: list[dict] = []
     course_failures: list[tuple[str, str]] = []
     request_failures: list[tuple[list[str], str]] = []
-    request_wide = False
 
     async def fetch(codes: list[str]) -> list[dict] | str:
         result = await fetch_all_paginated_results(
@@ -419,7 +417,7 @@ async def _fetch_announcements(
             found.extend(result)
             continue
         status = _http_status(result)
-        if status not in _PER_COURSE_RETRY_STATUSES or request_wide:
+        if status not in _PER_COURSE_RETRY_STATUSES:
             request_failures.append((chunk, result))
             continue
         if len(chunk) == 1:
@@ -427,7 +425,6 @@ async def _fetch_announcements(
             continue
         singles = [(code, await fetch([code])) for code in chunk]
         if all(isinstance(r, str) and _http_status(r) == status for _, r in singles):
-            request_wide = True
             request_failures.append((chunk, result))
             continue
         for code, single in singles:
