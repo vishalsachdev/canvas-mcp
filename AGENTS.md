@@ -28,9 +28,9 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 
 ```
 # In .env:
-CANVAS_ROLE=student    # 47 tools by default (student + shared), 50 with every student write tool enabled
+CANVAS_ROLE=student    # 50 tools by default (student + shared), 59 with every student write tool enabled
 CANVAS_ROLE=educator   # 93 tools by default, 95 with every gated tool enabled
-CANVAS_ROLE=all        # Default profile; 108 tools by default, 113 with all feature-gated tools enabled
+CANVAS_ROLE=all        # Default profile; 111 tools by default, 122 with all feature-gated tools enabled
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
@@ -63,6 +63,9 @@ The group tools only read groups you are a member of; they check your membership
 before every call and refuse other groups even when Canvas would allow the read.
 | `list_quizzes` | Classic quizzes and New Quizzes in a course: dates, limits, your submission state (read-only) |
 | `get_quiz_details` | One quiz's settings plus your own attempts used/remaining and kept score from the latest record (read-only; earlier history and New Quizzes details are limited) |
+| `list_calendar_events` | Calendar across courses, personal and group calendars: events and due dates |
+| `get_calendar_event` | One calendar event in full |
+| `list_planner_notes` | Your own planner notes (personal to-dos) in a date window |
 
 ### Student Write Tools (off by default)
 Let an agent act on Canvas for the student rather than only read. **None of these
@@ -74,8 +77,14 @@ instructor can still block them in their own course.
 | `submit_assignment` | Submit your own assignment (text, URL, or any file type) |
 | `comment_on_my_submission` | Comment on your own submission |
 | `mark_module_item_done` | Mark a module item done for yourself |
+| `create_planner_note` | Add a note to your own planner |
+| `update_planner_note` | Change one of your planner notes (preview, then token) |
+| `delete_planner_note` | Delete one of your planner notes (preview, then token) |
+| `mark_planner_item_complete` | Tick or untick an item in your own planner; for course content this also syncs its "Mark as done" module requirement, so `mark_module_item_done` must be permitted too |
+| `create_personal_calendar_event` | Add an event to your personal calendar |
+| `delete_personal_calendar_event` | Delete an event from your personal calendar (preview, then token) |
 
-Three things to know before using them:
+Four things to know before using them:
 
 1. **They may not exist.** Operators enable them individually via
    `STUDENT_WRITE_TOOLS`, which defaults to empty. A disabled tool is absent
@@ -89,6 +98,10 @@ Three things to know before using them:
    single-use and dies if the content or attempt count changed, so do not cache
    or reuse one. Submitting spends an attempt the student may not be able to
    recover.
+4. **Planner and personal-calendar deletes and note edits are two calls too.**
+   Show the preview, then confirm with the token. These tools only touch the
+   student's own notes and personal calendar; course, group and appointment
+   events are refused, so do not retry those with other IDs.
 
 Quiz-taking is deliberately not offered. Group assignments are refused, because
 submitting would bind classmates who never agreed to it.

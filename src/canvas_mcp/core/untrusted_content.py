@@ -75,6 +75,7 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     ),
     "get_assignment_analytics": _fenced("fence_untrusted_inline"),
     "get_assignment_details": _fenced("fence_untrusted"),
+    "get_calendar_event": _fenced("_format_event"),
     "get_conversation_details": _fenced("_fence_conversation_fields"),
     "get_course_content_overview": _fenced("fence_untrusted"),
     "get_content_migration_status": _fenced("fence_untrusted"),
@@ -120,6 +121,7 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "identify_problematic_peer_reviews": _fenced("fence_untrusted_fields"),
     "list_announcements": _fenced("fence_untrusted"),
     "list_assignments": _fenced("fence_untrusted_inline"),
+    "list_calendar_events": _fenced("_format_event"),
     "list_code_api_modules": _safe(
         "Returns metadata from bundled local TypeScript modules, not Canvas content."
     ),
@@ -140,6 +142,7 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "list_pages": _fenced("fence_untrusted"),
     "list_peer_reviews": _fenced("fence_untrusted_inline"),
     "list_quizzes": _fenced("fence_untrusted_inline"),
+    "list_planner_notes": _fenced("_format_note"),
     "list_rubrics": _fenced("fence_untrusted_inline"),
     "list_submissions": _deferred(
         "Returns IDs, timestamps, scores/grade labels, and course code; no unrestricted author free text."

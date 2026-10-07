@@ -1122,7 +1122,7 @@
           "description": "Only count active enrollments"
         }
       ],
-      "returns": "Yes/no plus minimal enrollment metadata (state, role, matched field) — never the roster",
+      "returns": "Yes/no plus minimal enrollment metadata (state, role, matched field) \u2014 never the roster",
       "notes": "Data-minimizing roster-membership check for external access gating. Requires a teacher-scoped token; a student token yields a clean Canvas 403."
     },
     {
@@ -1616,7 +1616,7 @@
       "examples": [
         "Delete announcements 101, 102, and 103 from BADM 350"
       ],
-      "notes": "Permanent — Canvas may retain a recycle-bin copy depending on admin settings."
+      "notes": "Permanent \u2014 Canvas may retain a recycle-bin copy depending on admin settings."
     },
     {
       "name": "bulk_update_pages",
@@ -1659,7 +1659,7 @@
         "Publish all draft pages in the course",
         "Unpublish these five pages"
       ],
-      "notes": "Settings only — this tool cannot rename pages or change page content. Use edit_page_content to change a page's body."
+      "notes": "Settings only \u2014 this tool cannot rename pages or change page content. Use edit_page_content to change a page's body."
     },
     {
       "name": "create_discussion_topic",
@@ -1954,7 +1954,7 @@
       "examples": [
         "Import these three rubrics from CSV"
       ],
-      "notes": "Uses Canvas's native rubric CSV import endpoint, then polls the import job until it reaches a terminal workflow_state. A ``Rubric Name`` column is REQUIRED — Canvas rejects the import without it and creates nothing. Required format (repeat the rating triple per rating level; a distinct Rubric Name per row creates multiple rubrics):: Rubric Name,Criteria Name,Criteria Description,Criteria Enable Range,Rating Name,Rating Description,Rating Points     Essay Rubric,Clarity,Is the argument clear,false,Excellent,Very clear,10 Two Canvas behaviours to be aware of: - Imported rubrics land in the ``Draft`` state and are **not** returned   by ``list_rubrics`` / ``GET /courses/:id/rubrics``, though they do   appear on the course Rubrics page. An empty ``list_rubrics`` result is   not evidence the import failed. - ``succeeded_with_errors`` is a terminal state, not a transient one, and   can mean zero rubrics were created."
+      "notes": "Uses Canvas's native rubric CSV import endpoint, then polls the import job until it reaches a terminal workflow_state. A ``Rubric Name`` column is REQUIRED \u2014 Canvas rejects the import without it and creates nothing. Required format (repeat the rating triple per rating level; a distinct Rubric Name per row creates multiple rubrics):: Rubric Name,Criteria Name,Criteria Description,Criteria Enable Range,Rating Name,Rating Description,Rating Points     Essay Rubric,Clarity,Is the argument clear,false,Excellent,Very clear,10 Two Canvas behaviours to be aware of: - Imported rubrics land in the ``Draft`` state and are **not** returned   by ``list_rubrics`` / ``GET /courses/:id/rubrics``, though they do   appear on the course Rubrics page. An empty ``list_rubrics`` result is   not evidence the import failed. - ``succeeded_with_errors`` is a terminal state, not a transient one, and   can mean zero rubrics were created."
     },
     {
       "name": "create_student_anonymization_map",
@@ -2007,7 +2007,7 @@
       "examples": [
         "Delete the 'Old Exam Info' announcement, but show me it first"
       ],
-      "notes": "Permanent — Canvas may retain a recycle-bin copy depending on admin settings."
+      "notes": "Permanent \u2014 Canvas may retain a recycle-bin copy depending on admin settings."
     },
     {
       "name": "delete_announcements_by_criteria",
@@ -2043,7 +2043,7 @@
       "examples": [
         "Delete all announcements older than 90 days (preview first)"
       ],
-      "notes": "Permanent — Canvas may retain a recycle-bin copy depending on admin settings."
+      "notes": "Permanent \u2014 Canvas may retain a recycle-bin copy depending on admin settings."
     },
     {
       "name": "delete_module",
@@ -2132,7 +2132,7 @@
           "name": "require_title_match",
           "type": "string",
           "required": false,
-          "description": "Safety check — only delete if page title matches exactly"
+          "description": "Safety check \u2014 only delete if page title matches exactly"
         },
         {
           "name": "confirmation_token",
@@ -2145,7 +2145,7 @@
       "examples": [
         "Delete the outdated 'Fall 2024 Schedule' page"
       ],
-      "notes": "Permanent — Canvas may retain a recycle-bin copy depending on admin settings."
+      "notes": "Permanent \u2014 Canvas may retain a recycle-bin copy depending on admin settings."
     },
     {
       "name": "edit_page_content",
@@ -4077,6 +4077,342 @@
       "examples": [
         "What files has my group uploaded?"
       ]
+    },
+    {
+      "name": "list_calendar_events",
+      "category": "student",
+      "description": "List your Canvas calendar across active courses, your personal calendar and your groups: events and assignment due dates",
+      "parameters": [
+        {
+          "name": "start_date",
+          "type": "string",
+          "required": false,
+          "description": "Window start, YYYY-MM-DD or ISO 8601 with an offset (default: today)"
+        },
+        {
+          "name": "end_date",
+          "type": "string",
+          "required": false,
+          "description": "Window end, inclusive (default: start + days); the window may span at most 366 days"
+        },
+        {
+          "name": "days",
+          "type": "integer",
+          "required": false,
+          "default": 14,
+          "description": "Look-ahead when end_date is omitted (max 366)"
+        },
+        {
+          "name": "course_identifier",
+          "type": "string",
+          "required": false,
+          "description": "Only this course's calendar"
+        },
+        {
+          "name": "event_type",
+          "type": "string",
+          "required": false,
+          "default": "all",
+          "description": "event, assignment, or all"
+        },
+        {
+          "name": "include_descriptions",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Include event descriptions"
+        }
+      ],
+      "returns": "Entries in date order with time, calendar, location and event/assignment ID",
+      "examples": [
+        "What's on my calendar this week?",
+        "When is the CS 161 midterm?"
+      ],
+      "notes": "Context codes are sent 10 per request (the Canvas limit). Use get_my_upcoming_assignments for submission status."
+    },
+    {
+      "name": "get_calendar_event",
+      "category": "student",
+      "description": "Get one calendar event in full, including its description",
+      "parameters": [
+        {
+          "name": "event_id",
+          "type": "string",
+          "required": true,
+          "description": "Numeric calendar event ID"
+        }
+      ],
+      "returns": "Title, time, calendar, location, address, description, series/appointment flags, Canvas link",
+      "examples": [
+        "Where is the review session?"
+      ],
+      "notes": "Never cut; declares anthropic/maxResultSizeChars=500000 so Claude Code delivers the whole result."
+    },
+    {
+      "name": "list_planner_notes",
+      "category": "student",
+      "description": "List your own planner notes (personal to-do items) in a date window",
+      "parameters": [
+        {
+          "name": "start_date",
+          "type": "string",
+          "required": false,
+          "description": "Window start, YYYY-MM-DD or ISO 8601 with an offset (default: today)"
+        },
+        {
+          "name": "end_date",
+          "type": "string",
+          "required": false,
+          "description": "Window end, inclusive (default: start + days); the window may span at most 366 days"
+        },
+        {
+          "name": "days",
+          "type": "integer",
+          "required": false,
+          "default": 14,
+          "description": "Look-ahead when end_date is omitted (max 366)"
+        },
+        {
+          "name": "course_identifier",
+          "type": "string",
+          "required": false,
+          "description": "Only notes linked to this course"
+        }
+      ],
+      "returns": "Notes in date order with title, to-do date, course, note ID and details",
+      "examples": [
+        "What's on my to-do list for next week?"
+      ]
+    },
+    {
+      "name": "create_planner_note",
+      "category": "student_write",
+      "description": "Add a note to your own Canvas planner",
+      "parameters": [
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "description": "Note title"
+        },
+        {
+          "name": "todo_date",
+          "type": "string",
+          "required": true,
+          "description": "Day it shows on, YYYY-MM-DD"
+        },
+        {
+          "name": "details",
+          "type": "string",
+          "required": false,
+          "description": "Note text"
+        },
+        {
+          "name": "course_identifier",
+          "type": "string",
+          "required": false,
+          "description": "Course to file it under"
+        },
+        {
+          "name": "linked_object_type",
+          "type": "string",
+          "required": false,
+          "description": "announcement, assignment, discussion_topic, wiki_page or quiz"
+        },
+        {
+          "name": "linked_object_id",
+          "type": "string",
+          "required": false,
+          "description": "ID of that object in the same course"
+        }
+      ],
+      "returns": "The created note",
+      "examples": [
+        "Remind me to start the lab report on Friday"
+      ],
+      "notes": "Disabled unless the operator lists it in STUDENT_WRITE_TOOLS. A course-linked note is subject to that course's agent policy."
+    },
+    {
+      "name": "update_planner_note",
+      "category": "student_write",
+      "description": "Change one of your own planner notes. Requires a confirmation token from a preview call.",
+      "parameters": [
+        {
+          "name": "note_id",
+          "type": "string",
+          "required": true,
+          "description": "Planner note ID"
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": false,
+          "description": "New title"
+        },
+        {
+          "name": "details",
+          "type": "string",
+          "required": false,
+          "description": "New note text (replaces the old text)"
+        },
+        {
+          "name": "todo_date",
+          "type": "string",
+          "required": false,
+          "description": "New day, YYYY-MM-DD"
+        },
+        {
+          "name": "course_identifier",
+          "type": "string",
+          "required": false,
+          "description": "Move the note to this course"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Token from the preview call; omit to preview"
+        }
+      ],
+      "returns": "A preview plus token on the first call; the updated note on the second",
+      "examples": [
+        "Move my 'read chapter 4' note to Thursday"
+      ],
+      "notes": "Disabled unless the operator lists it in STUDENT_WRITE_TOOLS. Refuses notes that are not the caller's."
+    },
+    {
+      "name": "delete_planner_note",
+      "category": "student_write",
+      "description": "Delete one of your own planner notes. Requires a confirmation token from a preview call.",
+      "parameters": [
+        {
+          "name": "note_id",
+          "type": "string",
+          "required": true,
+          "description": "Planner note ID"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Token from the preview call; omit to preview"
+        }
+      ],
+      "returns": "A preview plus token on the first call; confirmation on the second",
+      "examples": [
+        "Delete my note about the cancelled lab"
+      ],
+      "notes": "Disabled unless the operator lists it in STUDENT_WRITE_TOOLS. Refuses notes that are not the caller's."
+    },
+    {
+      "name": "mark_planner_item_complete",
+      "category": "student_write",
+      "description": "Tick or untick an item in your own Canvas planner",
+      "parameters": [
+        {
+          "name": "plannable_type",
+          "type": "string",
+          "required": true,
+          "description": "assignment, quiz, discussion_topic, announcement, wiki_page, planner_note or calendar_event"
+        },
+        {
+          "name": "plannable_id",
+          "type": "string",
+          "required": true,
+          "description": "The item's Canvas ID"
+        },
+        {
+          "name": "course_identifier",
+          "type": "string",
+          "required": false,
+          "description": "The item's course (required for course content)"
+        },
+        {
+          "name": "complete",
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "True to mark complete, False to unmark"
+        }
+      ],
+      "returns": "Confirmation of the new planner state",
+      "examples": [
+        "Check off the week 5 reading in my planner"
+      ],
+      "notes": "Disabled unless the operator lists it in STUDENT_WRITE_TOOLS. Does not submit anything, but for course content Canvas syncs the item's \"Mark as done\" module requirement (unmarking reverses it), so mark_module_item_done must also be enabled and allowed by the course policy."
+    },
+    {
+      "name": "create_personal_calendar_event",
+      "category": "student_write",
+      "description": "Add an event to your own personal Canvas calendar",
+      "parameters": [
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "description": "Event title"
+        },
+        {
+          "name": "start_at",
+          "type": "string",
+          "required": true,
+          "description": "Start, ISO 8601 (or YYYY-MM-DD with all_day)"
+        },
+        {
+          "name": "end_at",
+          "type": "string",
+          "required": false,
+          "description": "End, same format"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "description": "Description"
+        },
+        {
+          "name": "location_name",
+          "type": "string",
+          "required": false,
+          "description": "Location"
+        },
+        {
+          "name": "all_day",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "All-day event"
+        }
+      ],
+      "returns": "The created event",
+      "examples": [
+        "Put a study session on my calendar Tuesday 3-5pm"
+      ],
+      "notes": "Disabled unless the operator lists it in STUDENT_WRITE_TOOLS. Always the caller's own user calendar; never a course or group calendar."
+    },
+    {
+      "name": "delete_personal_calendar_event",
+      "category": "student_write",
+      "description": "Delete an event from your own personal Canvas calendar. Requires a confirmation token from a preview call.",
+      "parameters": [
+        {
+          "name": "event_id",
+          "type": "string",
+          "required": true,
+          "description": "Calendar event ID"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Token from the preview call; omit to preview"
+        }
+      ],
+      "returns": "A preview plus token on the first call; confirmation on the second",
+      "examples": [
+        "Remove the study session I added for Tuesday"
+      ],
+      "notes": "Disabled unless the operator lists it in STUDENT_WRITE_TOOLS. Course, group and appointment-reservation events are refused; only one occurrence of a repeating event is deleted."
     }
   ],
   "workflows": [

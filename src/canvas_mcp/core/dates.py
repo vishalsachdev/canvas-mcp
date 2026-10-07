@@ -49,6 +49,11 @@ def _output_tz() -> datetime.tzinfo:
     return tz
 
 
+def output_timezone() -> datetime.tzinfo:
+    """The configured ``TIMEZONE`` (``datetime.UTC`` when unset or unknown)."""
+    return _output_tz()
+
+
 def parse_date(date_str: str | None) -> datetime.datetime | None:
     """Parse a date string into a datetime object.
 

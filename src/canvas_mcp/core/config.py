@@ -25,6 +25,14 @@ STUDENT_WRITE_TOOL_NAMES = frozenset({
     "submit_assignment",
     "comment_on_my_submission",
     "mark_module_item_done",
+    # Calendar and planner (tools/student_calendar.py). Personal state only:
+    # notes, planner check-marks and events on the caller's own calendar.
+    "create_planner_note",
+    "update_planner_note",
+    "delete_planner_note",
+    "mark_planner_item_complete",
+    "create_personal_calendar_event",
+    "delete_personal_calendar_event",
 })
 
 

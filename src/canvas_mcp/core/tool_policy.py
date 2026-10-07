@@ -55,7 +55,7 @@ class Effect(StrEnum):
 
 
 TOOL_EFFECTS: dict[str, Effect] = {
-    # --- READ (67) ---
+    # --- READ (70) ---
     "analyze_peer_review_quality": Effect.READ,
     "calculate_grade_scenarios": Effect.READ,
     "check_enrollment": Effect.READ,
@@ -65,6 +65,7 @@ TOOL_EFFECTS: dict[str, Effect] = {
     "get_anonymization_status": Effect.READ,
     "get_assignment_analytics": Effect.READ,
     "get_assignment_details": Effect.READ,
+    "get_calendar_event": Effect.READ,
     "get_content_migration_status": Effect.READ,
     "get_conversation_details": Effect.READ,
     "get_course_content_overview": Effect.READ,
@@ -100,6 +101,7 @@ TOOL_EFFECTS: dict[str, Effect] = {
     "identify_problematic_peer_reviews": Effect.READ,
     "list_announcements": Effect.READ,
     "list_assignments": Effect.READ,
+    "list_calendar_events": Effect.READ,
     "list_code_api_modules": Effect.READ,
     "list_conversations": Effect.READ,
     "list_course_files": Effect.READ,
@@ -116,6 +118,7 @@ TOOL_EFFECTS: dict[str, Effect] = {
     "list_pages": Effect.READ,
     "list_peer_reviews": Effect.READ,
     "list_quizzes": Effect.READ,
+    "list_planner_notes": Effect.READ,
     "list_rubrics": Effect.READ,
     "list_submissions": Effect.READ,
     "list_users": Effect.READ,
@@ -123,7 +126,7 @@ TOOL_EFFECTS: dict[str, Effect] = {
     "read_course_file": Effect.READ,
     "scan_course_content_accessibility": Effect.READ,
     "search_canvas_tools": Effect.READ,
-    # --- CANVAS_WRITE (41) ---
+    # --- CANVAS_WRITE (47) ---
     "add_module_item": Effect.CANVAS_WRITE,
     "assign_peer_review": Effect.CANVAS_WRITE,
     "associate_rubric": Effect.CANVAS_WRITE,
@@ -137,6 +140,8 @@ TOOL_EFFECTS: dict[str, Effect] = {
     "create_discussion_topic": Effect.CANVAS_WRITE,
     "create_module": Effect.CANVAS_WRITE,
     "create_page": Effect.CANVAS_WRITE,
+    "create_personal_calendar_event": Effect.CANVAS_WRITE,
+    "create_planner_note": Effect.CANVAS_WRITE,
     "create_rubric": Effect.CANVAS_WRITE,
     "create_rubric_from_csv": Effect.CANVAS_WRITE,
     "delete_announcement_with_confirmation": Effect.CANVAS_WRITE,
@@ -145,11 +150,14 @@ TOOL_EFFECTS: dict[str, Effect] = {
     "delete_module": Effect.CANVAS_WRITE,
     "delete_module_item": Effect.CANVAS_WRITE,
     "delete_page": Effect.CANVAS_WRITE,
+    "delete_personal_calendar_event": Effect.CANVAS_WRITE,
+    "delete_planner_note": Effect.CANVAS_WRITE,
     "edit_page_content": Effect.CANVAS_WRITE,
     "fix_accessibility_issues": Effect.CANVAS_WRITE,
     "grade_with_rubric": Effect.CANVAS_WRITE,
     "mark_conversations_read": Effect.CANVAS_WRITE,
     "mark_module_item_done": Effect.CANVAS_WRITE,
+    "mark_planner_item_complete": Effect.CANVAS_WRITE,
     "post_discussion_entry": Effect.CANVAS_WRITE,
     "reply_to_discussion_entry": Effect.CANVAS_WRITE,
     "send_bulk_messages_from_list": Effect.CANVAS_WRITE,
@@ -162,6 +170,7 @@ TOOL_EFFECTS: dict[str, Effect] = {
     "update_module": Effect.CANVAS_WRITE,
     "update_module_item": Effect.CANVAS_WRITE,
     "update_page_settings": Effect.CANVAS_WRITE,
+    "update_planner_note": Effect.CANVAS_WRITE,
     "update_rubric": Effect.CANVAS_WRITE,
     "update_syllabus": Effect.CANVAS_WRITE,
     "upload_course_file": Effect.CANVAS_WRITE,

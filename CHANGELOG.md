@@ -93,6 +93,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   by the assignment API's `is_quiz_lti_assignment` flag (not
   `is_quiz_assignment`, which marks Classic quizzes); their settings and attempt
   history are not exposed to students by the REST API, and the tools say so.
+- **Student calendar and planner tools.** Student profile only.
+  `list_calendar_events` shows the Canvas calendar across the student's active
+  courses, their personal calendar and their groups (assignment due dates
+  included, batched to Canvas's 10 calendars per request), `get_calendar_event`
+  returns one event in full, and `list_planner_notes` lists the student's own
+  planner notes. These add what `get_my_upcoming_assignments` cannot show:
+  lectures, exams, office hours, personal events and the student's own to-dos.
+  Event and note text is fenced as untrusted content, and the reads never expose
+  other people (`user` and `child_events` are dropped).
+- **Calendar and planner writes, off by default.** `create_planner_note`,
+  `update_planner_note`, `delete_planner_note`, `mark_planner_item_complete`,
+  `create_personal_calendar_event` and `delete_personal_calendar_event` exist
+  only when the operator names them in `STUDENT_WRITE_TOOLS`. They act only on
+  the caller's own notes and `user_<id>` calendar; a note or planner item tied
+  to a course follows that course's agent policy; updates and deletes are two
+  calls (preview, then a single-use token); course, group and appointment
+  events are refused. `mark_planner_item_complete` on course content also needs
+  `mark_module_item_done` permitted, because Canvas syncs the planner override to
+  that module requirement, and it is marked destructive for the same reason.
 
 ### Fixed
 

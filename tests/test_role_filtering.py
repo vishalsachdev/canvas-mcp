@@ -12,12 +12,16 @@ async def _get_tool_names(mcp: FastMCP) -> set[str]:
 
 
 STUDENT_ONLY_TOOLS = {
-    # Read-only quiz awareness; registered only for the student profile.
-    "list_quizzes",
-    "get_quiz_details",
+    # calendar and planner reads (tools/student_calendar.py)
+    "list_calendar_events",
+    "get_calendar_event",
+    "list_planner_notes",
     # student grade insight (read-only, caller-scoped)
     "get_my_assignment_scores",
     "calculate_grade_scenarios",
+    # Read-only quiz awareness; registered only for the student profile.
+    "list_quizzes",
+    "get_quiz_details",
     "get_my_upcoming_assignments",
     "get_my_submission_status",
     "get_my_course_grades",
@@ -34,6 +38,17 @@ STUDENT_GROUP_TOOLS = {
     "list_my_groups",
     "get_group_members",
     "list_group_files",
+}
+
+# Calendar/planner writes: student profile only, and only when the operator
+# names them in STUDENT_WRITE_TOOLS.
+STUDENT_CALENDAR_WRITE_TOOLS = {
+    "create_planner_note",
+    "update_planner_note",
+    "delete_planner_note",
+    "mark_planner_item_complete",
+    "create_personal_calendar_event",
+    "delete_personal_calendar_event",
 }
 
 SHARED_TOOLS = {
@@ -231,11 +246,11 @@ class TestRoleFiltering:
 
     @pytest.mark.asyncio
     async def test_student_tool_count(self):
-        """Student role should have approximately 41 tools (no write tools enabled)."""
+        """Student role should have 50 tools (no write tools enabled)."""
         mcp = FastMCP(name="test-student")
         register_all_tools(mcp, role="student")
         tools = await _get_tool_names(mcp)
-        assert 30 <= len(tools) <= 50, f"Expected ~41 student tools, got {len(tools)}: {sorted(tools)}"
+        assert len(tools) == 50, f"Expected 50 student tools, got {len(tools)}: {sorted(tools)}"
 
     @pytest.mark.asyncio
     async def test_educator_tool_count(self):

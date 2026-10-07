@@ -79,6 +79,15 @@ is the archetypal benign toggle. Over-flagging costs real signal: a client that
 prompts for everything trains users to click through the prompts that matter. Revisit
 if a client ever surfaces these hints differently.
 
+`mark_planner_item_complete` looks like the same toggle but is **not** covered by
+that exception, and is marked destructive. Canvas's planner-override create and
+update both call `sync_module_requirement_done`, so ticking course content also
+completes its "Mark as done" module requirement, and `complete=False` un-completes
+it and re-evaluates progression, which can re-lock later modules. That is course
+progress, not personal display state. For the same reason the tool requires
+`mark_module_item_done` to be permitted (operator ceiling and course policy) for
+course content, so a course that excludes that tool cannot have it bypassed.
+
 Idempotency is a separate axis, and it is judged on the tool's **whole effect, not
 just its primary resource**. A tool is non-idempotent if *any* supported input makes
 a repeat produce an additional external effect — the hint is per-tool, and a host
