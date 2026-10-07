@@ -58,6 +58,7 @@ def _deferred(rationale: str) -> ReadToolContentPolicy:
 # silently shrinking when a tool is added or its fencing path is removed.
 READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "analyze_peer_review_quality": _fenced("fence_untrusted_fields"),
+    "calculate_grade_scenarios": _fenced("_render_grade_scenarios"),
     "check_enrollment": _safe(
         "Returns only yes, no, or indeterminate enrollment state; no Canvas-authored text."
     ),
@@ -85,6 +86,9 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "get_discussion_topic_details": _fenced("fence_untrusted"),
     "get_discussion_with_replies": _fenced("fence_untrusted"),
     "get_front_page": _fenced("fence_untrusted"),
+    "get_my_activity_stream": _fenced("_format_stream_item"),
+    "get_group_members": _fenced("fence_untrusted_inline"),
+    "get_my_assignment_scores": _fenced("_render_scores_report"),
     "get_my_course_grades": _deferred(
         "Returns the caller's numeric grades with course name/code, the documented course-identity exception."
     ),
@@ -127,9 +131,12 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "list_discussion_entries": _fenced("fence_untrusted"),
     "list_discussion_topics": _fenced("fence_untrusted"),
     "list_group_discussion_topics": _fenced("fence_untrusted"),
+    "list_group_files": _fenced("fence_untrusted_inline"),
     "list_groups": _fenced("fence_untrusted_inline"),
     "list_module_items": _fenced("fence_untrusted_inline"),
     "list_modules": _fenced("fence_untrusted_inline"),
+    "list_my_announcements": _fenced("_format_announcement"),
+    "list_my_groups": _fenced("fence_untrusted", "_group_label"),
     "list_pages": _fenced("fence_untrusted"),
     "list_peer_reviews": _fenced("fence_untrusted_inline"),
     "list_quizzes": _fenced("fence_untrusted_inline"),

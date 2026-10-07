@@ -14,10 +14,10 @@ Canvas has two quiz engines, and they surface differently to a student token:
   /courses/:id/quizzes/:id/submission`` returns the caller's live quiz record
   (including the ``settings_only`` record that holds extra attempts granted
   before a first attempt), and ``GET /courses/:id/quizzes/:id/submissions``
-  returns the caller's attempt history when the caller can only submit.
-  The plural route is never called with grading rights: for a grader it pages
-  through every student's records and queues Canvas's job that grades their
-  overdue in-progress attempts (QuizSubmissionsApiController#index).
+  can return attempt history but also trigger grading.
+  The plural route is never called: it queues Canvas's job that grades
+  overdue in-progress attempts for both students and graders
+  (QuizSubmissionsApiController#index). Only the latest attempt is available.
 - **New Quizzes** live in a separate LTI service. To Canvas they are assignments
   whose external tool is the Quizzes LTI tool, which the assignment serializer
   marks with ``is_quiz_lti_assignment: true`` (canvas-lms
@@ -204,8 +204,7 @@ _ATTEMPTS_UNAUTHORIZED = (
 # Canvas permission names taken to put the quiz-submissions index on its grader
 # branch (QuizSubmissionsApiController#index): grading a course's quizzes is
 # governed by manage_grades, and viewing every student's grades by
-# view_all_grades. This is the project's reading of that controller; it could
-# not be re-checked against the canvas-lms source offline. A student must have
+# view_all_grades (canvas-lms controller source checked 2026-10-07). A student must have
 # both explicitly denied, so a missing or unclear answer fails closed.
 _GRADING_PERMISSIONS = ("manage_grades", "view_all_grades")
 
@@ -475,11 +474,10 @@ def _attempt_summary(
 ) -> list[str]:
     """Attempts used/remaining, kept score, in-progress state and history.
 
-    ``history`` is what the plural submissions route returns to a student:
-    every submitted attempt, or ONLY the in-progress record while an attempt is
-    running (``QuizSubmissionsApiController#index``). ``live`` is the caller's
-    current record from the singular route, the only one that returns a
-    ``settings_only`` record (extra attempts granted before a first attempt).
+    Both inputs contain only the caller's current record from the singular
+    route, including a ``settings_only`` record when extra attempts were
+    granted before the first attempt. No prior history is requested: the
+    plural submissions GET queues grading even for a student's own attempt.
 
     ``attempts_left`` is Canvas's own figure (``allowed_attempts - attempt +
     extra_attempts``, or -1 for unlimited) and is preferred over recomputing it,
@@ -719,7 +717,7 @@ def register_student_quiz_tools(mcp: FastMCP) -> None:
         quiz_id: str | int | None = None,
         assignment_id: str | int | None = None,
     ) -> str:
-        """Get one quiz's settings and YOUR OWN attempts (used, remaining, kept score).
+        """Get one quiz's settings and YOUR OWN latest attempt (used, remaining, kept score).
 
         Read-only. It never starts an attempt and never reads questions or
         answers. Pass exactly one of quiz_id (a Classic quiz, as listed by
@@ -872,12 +870,9 @@ def register_student_quiz_tools(mcp: FastMCP) -> None:
         lines.append("")
         lines.append("Your attempts:")
 
-        # Grading rights put the plural submissions route on its grader branch:
-        # it pages through every visible student's records and queues
-        # Quizzes::OutstandingQuizSubmissionManager#grade_by_ids on them, which
-        # finalizes other students' overdue in-progress attempts. A read-only
-        # tool must not trigger that, so the caller's rights are checked first
-        # and anything but a clear "no" stops here.
+        # Keep this student-only tool conservative for staff and ambiguous
+        # permissions. The singular route is caller-scoped; the plural route
+        # is never used because it queues grading even for student callers.
         permissions = await make_canvas_request(
             "get",
             f"/courses/{course_id}/permissions",
@@ -927,41 +922,22 @@ def register_student_quiz_tools(mcp: FastMCP) -> None:
             (r for r in current_records if str(r.get("user_id")) == my_id),
             None,
         )
-
-        # For a caller who can only submit, Canvas returns that caller's own
-        # attempts as one unpaginated list: the in-progress attempt alone, or
-        # every submitted attempt (QuizSubmissionsApiController#index).
-        # Records are still filtered to the caller's id as a safety net.
-        response = await make_canvas_request(
-            "get", f"/courses/{course_id}/quizzes/{checked_id}/submissions"
-        )
-        if _is_error(response) or not isinstance(response, dict):
-            detail = response.get("error") if isinstance(response, dict) else response
-            lines.append(
-                _explain_error(
-                    detail, "your quiz attempts", unauthorized=_ATTEMPTS_UNAUTHORIZED
-                )
-            )
-            return "\n".join(lines)
-
-        records = _quiz_submission_records(response)
-        if records is None:
+        if current_records and live is None:
+            # A live record that cannot be tied to the caller is unknown,
+            # even when the separate history route would return no records.
             lines.append(_UNREADABLE_ATTEMPTS)
             return "\n".join(lines)
-        own = [r for r in records if str(r.get("user_id")) == my_id]
-        if records and not own and live is None:
-            # Canvas returned attempt records but none can be tied to the caller.
-            # Reporting "not started, N remaining" from that would be a guess
-            # about the student's attempts, so nothing is claimed.
-            lines.append(
-                "Canvas returned quiz submission records, but none could be matched "
-                "to you, so your attempts were not reported."
-            )
-            return "\n".join(lines)
+
+        # The plural submissions GET queues grading even for a student's own
+        # overdue attempt. Read only the singular live record; prior attempts
+        # cannot be fetched safely through that route.
+        own = [live] if live is not None else []
         lines.extend(_attempt_summary(own, quiz, live))
-        if len(own) < len(records):
-            lines.append(
-                "Canvas also returned quiz submission records belonging to "
-                "other users; they are not shown."
-            )
+        if len(current_records) > len(own):
+            lines.append("Canvas also returned quiz submission records belonging to other users; they are not shown.")
+        lines.append(
+            "Only your current/latest attempt is shown. Earlier attempt history "
+            "is unavailable here: Canvas's history endpoint can automatically "
+            "submit and grade overdue attempts, so this read-only tool does not call it."
+        )
         return "\n".join(lines)
