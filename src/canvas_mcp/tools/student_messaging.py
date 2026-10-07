@@ -176,6 +176,17 @@ def _body_error(body: str) -> str | None:
     return None
 
 
+def _subject_error(subject: str) -> str | None:
+    """Student-side subject check: a blank-looking subject is not a subject.
+
+    The shared outbound validation only rejects an empty string, so a subject
+    of spaces would otherwise pass and produce a message with no visible title.
+    """
+    if not subject or not subject.strip():
+        return "subject is required"
+    return None
+
+
 async def _resolve_course(
     course_identifier: str | int,
 ) -> tuple[str, str] | str:
@@ -378,10 +389,15 @@ def _conversation_course_ids(conversation: dict[str, Any]) -> set[str]:
     Fails closed: if any course key is not a plain numeric ID, the answer is
     the empty set ("no course could be identified"), never just the keys that
     parsed, because a dropped course is a course whose policy was not checked.
+    The same holds for a ``context_code`` that names a course but not by a
+    plain numeric ID: it is not skipped in favour of ``audience_contexts``.
     """
-    match = _COURSE_CONTEXT.match(str(conversation.get("context_code") or ""))
+    context_code = str(conversation.get("context_code") or "")
+    match = _COURSE_CONTEXT.match(context_code)
     if match:
         return {match.group(1)}
+    if context_code.startswith("course_"):
+        return set()
     contexts = conversation.get("audience_contexts")
     courses = contexts.get("courses") if isinstance(contexts, dict) else None
     if not isinstance(courses, dict):
@@ -462,7 +478,13 @@ async def _load_reply_target(
     # audience is therefore the union of ``audience`` and ``participants``,
     # never less than what Canvas will actually reach.
     audience: list[str] = []
-    raw_ids = list(conversation.get("audience") or []) + [p.get("id") for p in participants]
+    listed_audience = conversation.get("audience")
+    if listed_audience is None:
+        listed_audience = []
+    if not isinstance(listed_audience, list):
+        # Not iterated: a string would be read one character at a time.
+        return f"Conversation {conversation_id} has an unexpected audience."
+    raw_ids = listed_audience + [p.get("id") for p in participants]
     for raw in raw_ids:
         user_id = coerce_canvas_id(raw if raw is not None else "")
         if user_id is None:
@@ -653,8 +675,10 @@ def register_student_messaging_tools(mcp: FastMCP) -> None:
             # (subject length, empty body, fence markers), plus the student
             # body rules shared with reply_to_conversation (whitespace-only and
             # over-long bodies).
-            validation_error = _body_error(body) or _validate_outbound_message(
-                parsed, subject, body, "sync"
+            validation_error = (
+                _subject_error(subject)
+                or _body_error(body)
+                or _validate_outbound_message(parsed, subject, body, "sync")
             )
             if validation_error:
                 return {"error": validation_error, "nothing_sent": True}

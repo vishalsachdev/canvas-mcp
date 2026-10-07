@@ -21,8 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversation's existing audience of at most 5 people, there are no
   attachments or bulk sends, and text carrying UNTRUSTED CANVAS CONTENT
   markers is refused. The checks fail closed: a reply is refused when the
-  conversation's course cannot be fully identified (while course policies are
-  on) or when Canvas flags it `cannot_reply` in any form.
+  conversation's course cannot be fully identified, including a malformed
+  `context_code` (while course policies are on), when the audience is not a
+  list, or when Canvas flags it `cannot_reply` in any form. A blank subject is
+  refused.
 - `/search/recipients` responses now use the same `free_text` anonymization
   tier as `/conversations`: avatars and direct identifiers are removed. The
   address book lists a whole course, so while `ENABLE_DATA_ANONYMIZATION` is

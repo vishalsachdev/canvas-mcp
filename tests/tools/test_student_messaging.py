@@ -676,6 +676,8 @@ class TestSendMessage:
     @pytest.mark.asyncio
     @pytest.mark.parametrize("subject,body", [
         ("", "Body"), ("x" * 256, "Body"), ("Hi", ""), ("Hi", "   "), ("Hi", " \n\t "),
+        pytest.param("   ", "Body", id="whitespace-only-subject"),
+        pytest.param(" \n\t ", "Body", id="whitespace-only-subject-with-newline"),
         pytest.param("Hi", "x" * (MAX_BODY_CHARS + 1), id="over-length-body"),
     ])
     async def test_subject_and_body_validation(self, canvas, subject, body):
@@ -990,6 +992,31 @@ class TestReplyToConversation:
         tools = await _tools()
         result = await tools["reply_to_conversation"]("77", "Thanks")
         assert "not tied to a course" in result["error"]
+        assert result["nothing_sent"] is True
+        assert "confirmation_token" not in result
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("context_code", ["course_abc", "course_", "course_12/users"])
+    async def test_unreadable_course_context_code_is_not_skipped(self, canvas, context_code):
+        """A context_code that names a course badly must not fall back to the
+        audience_contexts courses, whose (allowing) policy would then decide."""
+        canvas.conversations["77"] = _conversation(
+            context_code=context_code,
+            audience_contexts={"courses": {COURSE: ["StudentEnrollment"]}, "groups": {}},
+        )
+        tools = await _tools()
+        result = await tools["reply_to_conversation"]("77", "Thanks")
+        assert "not tied to a course" in result["error"]
+        assert result["nothing_sent"] is True
+        assert "confirmation_token" not in result
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("audience", ["501", {"501": True}, 501])
+    async def test_non_list_audience_is_refused(self, canvas, audience):
+        canvas.conversations["77"] = _conversation(audience=audience)
+        tools = await _tools()
+        result = await tools["reply_to_conversation"]("77", "Thanks")
+        assert "unexpected audience" in result["error"]
         assert result["nothing_sent"] is True
         assert "confirmation_token" not in result
 
