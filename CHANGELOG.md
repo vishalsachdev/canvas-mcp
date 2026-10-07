@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   A blank `course_identifier` on `list_my_groups` is an error rather than a
   silent "all courses", and a failed Canvas request reports only its HTTP status
   (any other failure text is truncated and fenced), never the response body.
+  A file's content type is printed only when it is a short ASCII MIME token with a
+  registered top-level type (classmates control the value); anything else shows as
+  "unknown type".
 - **`raw_dates` on `list_assignments`, `get_assignment_details` and
   `get_discussion_topic_details`** (opt-in, default output unchanged). Appends a
   JSON block with `due_at`, `unlock_at`, `lock_at`, `updated_at`, `all_dates` and,

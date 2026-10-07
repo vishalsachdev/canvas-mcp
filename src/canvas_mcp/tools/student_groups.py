@@ -70,12 +70,33 @@ _VALID_FILE_SORTS = frozenset(
     {"name", "size", "created_at", "updated_at", "content_type"}
 )
 
-_HTTP_STATUS = re.compile(r"HTTP error: (\d{3})")
+# make_canvas_request starts an HTTP failure with this prefix, then appends the
+# response body. Anchored so a status-looking string inside that body (or inside
+# another kind of failure text) can never be mistaken for the real status.
+_HTTP_STATUS = re.compile(r"HTTP error: (\d{3})(?!\d)")
 _TAG = re.compile(r"<[^>]+>")
 # A bare MIME type (type/subtype). Group files are uploaded by classmates and
 # Canvas's upload preflight takes a client-supplied content_type, so anything
-# that is not a plain MIME token is not printed.
-_MIME_TYPE = re.compile(r"^[\w.+-]+/[\w.+-]+$")
+# that is not a plain MIME token is not printed: ASCII only (``\w`` would admit
+# Unicode), no whitespace, a registered top-level type, and a hard length cap.
+_MIME_TOP_LEVEL = (
+    "application|audio|chemical|font|haptics|image|message|model|multipart|text|video"
+)
+_MIME_TYPE = re.compile(
+    rf"(?:{_MIME_TOP_LEVEL})/[A-Za-z0-9][A-Za-z0-9.+-]*", re.IGNORECASE
+)
+_MAX_MIME_LENGTH = 100
+
+
+def _safe_content_type(raw: object) -> str:
+    """The content type if it is a plain, short MIME token, else a placeholder."""
+    if (
+        isinstance(raw, str)
+        and len(raw) <= _MAX_MIME_LENGTH
+        and _MIME_TYPE.fullmatch(raw)
+    ):
+        return raw
+    return "unknown type"
 
 
 def _scrub(text: str) -> str:
@@ -92,7 +113,7 @@ def _scrub(text: str) -> str:
 
 def _http_status(error: object) -> int | None:
     """The HTTP status embedded in a make_canvas_request error, if any."""
-    match = _HTTP_STATUS.search(str(error))
+    match = _HTTP_STATUS.match(str(error))
     return int(match.group(1)) if match else None
 
 
@@ -375,11 +396,7 @@ def register_student_group_tools(mcp: FastMCP) -> None:
         for item in files:
             name = item.get("display_name") or item.get("filename") or "unknown"
             size = format_file_size(item.get("size") or 0)
-            raw_type = item.get("content-type")
-            content_type = (
-                raw_type if isinstance(raw_type, str) and _MIME_TYPE.fullmatch(raw_type)
-                else "unknown type"
-            )
+            content_type = _safe_content_type(item.get("content-type"))
             updated = format_date(item.get("updated_at"))
             lines.append(
                 f"  ID: {item.get('id')} | {fence_untrusted_inline(name, 'file name')} "

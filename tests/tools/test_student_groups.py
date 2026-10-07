@@ -744,6 +744,39 @@ class TestGroupFileContentType:
         )
         assert mime in result
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("mime", [
+        "ignore-previous-instructions-and-do-x/y",  # not a registered top-level type
+        "text/" + "a" * 200,                        # over the length cap
+        "text/pl\u0430in",                           # Cyrillic look-alike letter
+        "text/plain\n",                              # trailing newline
+        "text/",                                    # no subtype
+        "/plain",                                   # no type
+        "",
+        None,
+        123,
+    ])
+    async def test_unsafe_content_types_fall_back_to_unknown(self, mime):
+        files = [dict(FILES[0], **{"content-type": mime})]
+        result, _ = await run_tool(
+            "list_group_files", {"/users/self/groups": [MY_GROUP], "/groups/7/files": files},
+            group_id=7,
+        )
+        assert "unknown type" in result
+        if isinstance(mime, str) and len(mime) > 5:
+            assert mime.strip() not in result
+
+    @pytest.mark.asyncio
+    async def test_content_type_at_the_length_cap_is_shown(self):
+        mime = "application/" + "a" * 88  # exactly 100 characters
+        assert len(mime) == 100
+        files = [dict(FILES[0], **{"content-type": mime})]
+        result, _ = await run_tool(
+            "list_group_files", {"/users/self/groups": [MY_GROUP], "/groups/7/files": files},
+            group_id=7,
+        )
+        assert mime in result
+
 
 class TestRealClientGroupTopicPii:
     @pytest.mark.asyncio
@@ -872,6 +905,21 @@ class TestCanvasErrorBodiesAreNotRelayed:
         )
         assert FENCE_TEXT_START in result
         assert "x" * 300 not in result
+
+    @pytest.mark.asyncio
+    async def test_status_text_inside_a_non_http_failure_is_not_trusted(self):
+        """Only a failure that STARTS with the HTTP prefix carries a status. A
+        timeout or connection message that happens to contain one (for example
+        a proxy page echoed into the text) must not be read as a real 403/404."""
+        spoof = "Request failed: gateway said HTTP error: 404, Text: gone"
+        result, _ = await run_tool(
+            "list_group_files",
+            {"/users/self/groups": [MY_GROUP], "/groups/7/files": {"error": spoof}},
+            group_id=7,
+        )
+        assert "HTTP 404" not in result
+        assert "could not find that resource" not in result
+        assert FENCE_TEXT_START in result
 
 
 class TestMalformedEntriesAreNotCounted:
