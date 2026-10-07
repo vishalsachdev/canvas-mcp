@@ -1674,3 +1674,95 @@ class TestCalendarEventCoursePolicy:
                 plannable_type="calendar_event", plannable_id=9)
         assert result.startswith("✅")
         policy.assert_not_awaited()
+
+
+class TestFailClosedOnUnknownState:
+    """A policy or ownership check never passes because its input was missing.
+
+    Each case below once read "I could not tell" as "there is nothing to check".
+    """
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("event", "extra_routes"),
+        [
+            ({"id": 9, "title": "Mystery"}, {}),
+            ({"id": 9, "context_code": "", "effective_context_code": None}, {}),
+            ({"id": 9, "context_code": "group_5"},
+             {("get", "/groups/5"): {"id": 5, "name": "G"}}),
+            ({"id": 9, "context_code": "group_5"},
+             {("get", "/groups/5"): {"id": 5, "context_type": "Elsewhere"}}),
+        ],
+    )
+    async def test_event_with_no_provable_owner_is_refused(
+        self, event: dict, extra_routes: dict
+    ) -> None:
+        tools = write_tools()
+        fake = FakeCanvas(routes={("get", "/calendar_events/9"): event, **extra_routes},
+                          paginated={"/planner/overrides": []})
+        policy = AsyncMock(return_value=(True, ""))
+        with canvas(fake), patch(f"{MOD}.check_student_write_allowed", new=policy):
+            result = await tools["mark_planner_item_complete"](
+                plannable_type="calendar_event", plannable_id=9)
+        assert result.startswith("❌")
+        assert "cannot be checked" in result
+        assert fake.writes() == [] and fake.paged == []
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("bad_course", ["abc", "100/assignments/1", "0x10"])
+    @pytest.mark.parametrize("tool", ["update_planner_note", "delete_planner_note",
+                                      "mark_planner_item_complete"])
+    async def test_note_naming_an_unusable_course_skips_no_policy_check(
+        self, tool: str, bad_course: str
+    ) -> None:
+        tools = write_tools()
+        fake = FakeCanvas(
+            routes={("get", "/planner_notes/5"): _note(course_id=bad_course)},
+            paginated={"/planner/overrides": []},
+        )
+        policy = AsyncMock(return_value=(True, ""))
+        args: dict[str, Any] = {"note_id": 5}
+        if tool == "update_planner_note":
+            args["title"] = "New"
+        if tool == "mark_planner_item_complete":
+            args = {"plannable_type": "planner_note", "plannable_id": 5}
+        with canvas(fake), patch(f"{MOD}.check_student_write_allowed", new=policy):
+            result = await tools[tool](**args)
+        assert result.startswith("❌")
+        assert "course policy cannot be checked" in result
+        assert "Confirmation token" not in result
+        assert fake.writes() == [] and fake.paged == []
+        # Nothing was authorised on the strength of an id nobody validated.
+        policy.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("response_context", [None, "course_100", "user_99"])
+    async def test_event_not_confirmed_on_the_personal_calendar(
+        self, response_context: str | None
+    ) -> None:
+        tools = write_tools()
+        created: dict[str, Any] = {"id": 12, "title": "Study"}
+        if response_context is not None:
+            created["context_code"] = response_context
+        fake = FakeCanvas(routes={("post", "/calendar_events"): created})
+        with canvas(fake):
+            result = await tools["create_personal_calendar_event"](
+                title="Study", start_at="2026-10-06T15:00:00-07:00")
+        assert "✅" not in result
+        assert "could not confirm" in result.lower() or "unconfirmed" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_moving_a_note_to_a_course_is_not_reported_done_unless_it_landed(self) -> None:
+        tools = write_tools()
+        # Canvas answers 200 but leaves the note filed under its old course.
+        fake = FakeCanvas(routes={
+            ("get", "/planner_notes/5"): _note(course_id=100),
+            ("put", "/planner_notes/5"): _note(course_id=100),
+        })
+        policy = AsyncMock(return_value=(True, ""))
+        with canvas(fake), patch(f"{MOD}.check_student_write_allowed", new=policy):
+            token = _token(await tools["update_planner_note"](note_id=5, course_identifier=200))
+            result = await tools["update_planner_note"](
+                note_id=5, course_identifier=200, confirmation_token=token)
+        assert "✅" not in result
+        assert len(fake.writes()) == 1
