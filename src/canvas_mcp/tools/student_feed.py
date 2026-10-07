@@ -56,13 +56,13 @@ CONTEXT_CODE_CHUNK_SIZE = 10
 MAX_LIMIT = 200
 MAX_PREVIEW_CHARS = 2000
 
-_CONTEXT_CODE = re.compile(r"^course_(\d+)$")
+_CONTEXT_CODE = re.compile(r"course_(\d+)")
 # Grade-shaped tokens shown as-is: letter grades ("A-"), numbers and
 # percentages ("92.5", "85%"), and Canvas's fixed pass/fail and excused words.
 # Letter-grade text comes from instructor-named grading-scheme entries, so
 # anything else is rendered through the inline fence.
 _PLAIN_GRADE = re.compile(
-    r"^(?:[A-F][+-]?|\d{1,4}(?:\.\d{1,2})?%?|complete|incomplete|pass|fail|EX)$",
+    r"(?:[A-F][+-]?|\d{1,4}(?:\.\d{1,2})?%?|complete|incomplete|pass|fail|EX)",
     re.IGNORECASE,
 )
 _HTTP_STATUS = re.compile(r"^HTTP error: (\d{3})\b")
@@ -74,7 +74,45 @@ _HTTP_STATUS = re.compile(r"^HTTP error: (\d{3})\b")
 #: fallback is defensive. Server errors, 429 after the client's own retries,
 #: and transport failures concern the whole request and are never fanned out.
 _PER_COURSE_RETRY_STATUSES = frozenset({400, 401, 403, 404})
-_PLAIN_CATEGORY = re.compile(r"^[A-Za-z &/\-]{1,40}$")
+
+#: Notification categories Canvas defines for its notification preferences.
+#: Anything outside this set goes through the inline fence, so free text placed
+#: in the field cannot pass as a plain label.
+_KNOWN_CATEGORIES = frozenset(
+    {
+        "Account Notification",
+        "Added To Conversation",
+        "Administrative",
+        "Alert",
+        "All Submissions",
+        "Announcement",
+        "Announcement Created By You",
+        "Appointment Availability",
+        "Appointment Cancellations",
+        "Appointment Signups",
+        "Blueprint Sync",
+        "Calendar",
+        "Content Link Error",
+        "Conversation Message",
+        "Course Activities",
+        "Course Content",
+        "Discussion",
+        "DiscussionEntry",
+        "Due Date",
+        "Files",
+        "Grading",
+        "Invitation",
+        "Late Grading",
+        "Membership Update",
+        "Migration",
+        "Other",
+        "Recording Ready",
+        "Registration",
+        "ReportedReply",
+        "Student Content",
+        "Summaries",
+    }
+)
 
 #: Activity-stream item ``type`` -> display category, in display order.
 _STREAM_CATEGORIES: list[tuple[str, tuple[str, ...]]] = [
@@ -263,7 +301,7 @@ def _as_count(value: Any) -> int:
 
 def _grade_label(value: Any) -> str:
     text = str(value)
-    if _PLAIN_GRADE.match(text):
+    if _PLAIN_GRADE.fullmatch(text):
         return text
     return fence_untrusted_inline(text, "grade text")
 
@@ -522,7 +560,7 @@ async def _format_stream_item(
         if item_type == "Message" and item.get("notification_category"):
             category = str(item["notification_category"])
             # Canvas-defined ("Due Date", "Grading"); fenced if it is ever not.
-            if not _PLAIN_CATEGORY.match(category):
+            if category not in _KNOWN_CATEGORIES:
                 category = fence_untrusted_inline(category, "notification category")
             lines.append(f"  Category: {category}")
         if item_type in ("DiscussionTopic", "Announcement"):
@@ -706,7 +744,7 @@ def register_student_feed_tools(mcp: FastMCP) -> None:
         if course_failures:
             failed = []
             for code, err in course_failures:
-                match = _CONTEXT_CODE.match(code)
+                match = _CONTEXT_CODE.fullmatch(code)
                 label = await _course_label(match.group(1), codes) if match else code
                 failed.append(f"  • {label}: {err}\n")
             failure_note += (
@@ -738,7 +776,7 @@ def register_student_feed_tools(mcp: FastMCP) -> None:
             f"{len(ordered)} found\n"
         ]
         for announcement in ordered[:limit]:
-            match = _CONTEXT_CODE.match(str(announcement.get("context_code") or ""))
+            match = _CONTEXT_CODE.fullmatch(str(announcement.get("context_code") or ""))
             course_display = (
                 await _course_label(match.group(1), codes) if match else "Unknown course"
             )
