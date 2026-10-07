@@ -48,6 +48,9 @@ Canvas MCP provides **up to 107 tools** for interacting with Canvas LMS; the def
 | `get_my_submission_status` | Submitted vs missing | "Have I submitted everything?" |
 | `get_my_course_grades` | Current grades | "What are my grades?" |
 | `get_my_peer_reviews_todo` | Pending peer reviews | "What peer reviews do I need to do?" |
+| `list_my_groups` | Your groups, with course and group IDs | "Which project team am I on in BADM 350?" |
+| `get_group_members` | Members of one of your groups (no emails) | "Who is in my project group?" |
+| `list_group_files` | Files stored in one of your groups | "What files has my group uploaded?" |
 
 </details>
 

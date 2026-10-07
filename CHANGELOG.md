@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no longer rewritten as a student pseudonym on `/users/self/groups`, and the
   discussion `/view` `participants` list is treated as people. Group names,
   descriptions, file names and member names are fenced as untrusted Canvas content.
+  A blank `course_identifier` on `list_my_groups` is an error rather than a
+  silent "all courses", and a failed Canvas request reports only its HTTP status
+  (any other failure text is truncated and fenced), never the response body.
 - **`raw_dates` on `list_assignments`, `get_assignment_details` and
   `get_discussion_topic_details`** (opt-in, default output unchanged). Appends a
   JSON block with `due_at`, `unlock_at`, `lock_at`, `updated_at`, `all_dates` and,
