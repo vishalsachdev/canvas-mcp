@@ -170,9 +170,8 @@ async def test_reply_wire_body_carries_no_identity_override():
             "5", "Thanks", confirmation_token=preview["confirmation_token"]
         )
     guard.assert_called_once_with(sent[0])
-    # Only the body: no recipients[] (delivery is the previewed participants,
-    # Canvas's default), no included_messages, no attachments.
-    assert set(sent[0]) == {"body"}
+    # Bound recipients only: no included_messages, attachments or impersonation.
+    assert sent[0] == {"body": "Thanks", "recipients[]": ["2"]}
 
 
 @pytest.mark.asyncio

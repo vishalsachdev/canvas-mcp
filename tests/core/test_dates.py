@@ -52,6 +52,17 @@ def test_format_date_uses_z_when_timezone_explicitly_utc(monkeypatch):
     assert dates.format_date("2026-05-28T23:59:00Z") == "2026-05-28T23:59:00Z"
 
 
+def test_output_timezone_is_utc_when_unset(monkeypatch):
+    monkeypatch.delenv("TIMEZONE", raising=False)
+    assert dates.output_timezone() is datetime.UTC
+
+
+def test_output_timezone_is_the_configured_zone(monkeypatch):
+    pytest.importorskip("tzdata")  # Windows requires the tzdata package
+    monkeypatch.setenv("TIMEZONE", "America/Chicago")
+    assert str(dates.output_timezone()) == "America/Chicago"
+
+
 def test_format_date_converts_to_configured_timezone(monkeypatch):
     _require_zone("America/Chicago")
     monkeypatch.setenv("TIMEZONE", "America/Chicago")

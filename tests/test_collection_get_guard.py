@@ -40,6 +40,9 @@ SINGLE_OBJECT_PATHS: dict[str, str] = {
     "{}/discussion_topics/{}/entry_list": "ID-filtered by ids[]: returns exactly the entries asked for",
     "/conversations/unread_count": "one count object",
     "/courses/{}/permissions": "one permissions map",
+    "/courses/{}/quizzes/{}/submission": (
+        "Get the quiz submission: one object wrapping the caller's own live record"
+    ),
 }
 
 # (file under tools/, function) -> "test file::test name" proving the reader

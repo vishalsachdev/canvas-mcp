@@ -473,10 +473,8 @@ async def _load_reply_target(
     if conversation.get("cannot_reply"):
         return "Canvas does not allow replies to this conversation."
 
-    # The reply is sent without recipients[], so Canvas delivers it to every
-    # current participant. The previewed (and fingerprinted, and capped)
-    # audience is therefore the union of ``audience`` and ``participants``,
-    # never less than what Canvas will actually reach.
+    # Preview and explicitly address the union of audience and participants.
+    # The reply cannot inherit participants added after this GET.
     audience: list[str] = []
     listed_audience = conversation.get("audience")
     if listed_audience is None:
@@ -901,17 +899,11 @@ def register_student_messaging_tools(mcp: FastMCP) -> None:
                 if not allowed:
                     return {"error": f"❌ Reply blocked. {reason}", "nothing_sent": True}
 
-                # No recipients[]: Canvas then delivers to the conversation's
-                # current participants, which is exactly the audience just
-                # re-read, previewed and bound into the token. Sending
-                # recipients[] would add nothing a prompt could exploit (only
-                # a participant can add people, and they already get the
-                # reply) but makes Canvas run its student active-enrollment
-                # check on every listed person (get_invalid_recipients), so a
-                # reply to any thread with a dropped classmate or last term's
-                # TA would be refused with 401. No included_messages, no
-                # attachments.
-                data: dict[str, Any] = {"body": body}
+                # Pin delivery to the token-bound audience: omitting recipients
+                # would include people added after the last conversation GET.
+                # Canvas may reject explicit recipients with inactive enrollment;
+                # fail closed rather than retry with its expanding default.
+                data: dict[str, Any] = {"body": body, "recipients[]": audience}
                 assert_no_identity_override(data)
 
                 outcome = WriteOutcome.MAY_HAVE_WRITTEN

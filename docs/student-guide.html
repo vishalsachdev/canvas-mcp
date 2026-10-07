@@ -218,6 +218,9 @@ ENABLE_DATA_ANONYMIZATION=false</code></pre>
                             <li><code>get_my_upcoming_assignments</code> - View assignments due soon</li>
                             <li><code>get_my_todo_items</code> - Your Canvas TODO list</li>
                             <li><code>get_my_submission_status</code> - Check what you've submitted</li>
+                            <li><code>list_calendar_events</code> - Your calendar in date order: course events, personal events, group events and assignment due dates</li>
+                            <li><code>get_calendar_event</code> - One calendar event in full, including its description</li>
+                            <li><code>list_planner_notes</code> - Your own planner notes (personal to-do items) in a date window</li>
                         </ul>
 
                         <h3>Academic Performance</h3>
@@ -247,6 +250,8 @@ ENABLE_DATA_ANONYMIZATION=false</code></pre>
                             <li><code>list_discussion_topics</code> - View discussion forums</li>
                         </ul>
 
+                        <h3>Turning Work In (off by default)</h3>
+                        <p>Everything above is read-only. Canvas MCP can also submit, comment and manage your own planner and personal calendar on your behalf, but those tools stay unregistered unless whoever set up the server names them in <code>STUDENT_WRITE_TOOLS</code> &mdash; and your instructor can restrict them further per course.</p>
                         <h3>Inbox (Shared Tools)</h3>
                         <ul class="tool-list">
                             <li><code>list_conversations</code> - Read your Canvas Inbox</li>
@@ -260,6 +265,12 @@ ENABLE_DATA_ANONYMIZATION=false</code></pre>
                             <li><code>submit_assignment</code> - Submit a file, URL, or text entry (always previews first, then asks you to confirm)</li>
                             <li><code>comment_on_my_submission</code> - Add a comment to your own submission</li>
                             <li><code>mark_module_item_done</code> - Mark a module item complete</li>
+                            <li><code>create_planner_note</code> - Add a note to your Canvas planner</li>
+                            <li><code>update_planner_note</code> - Change one of your planner notes (previews first, then asks you to confirm)</li>
+                            <li><code>delete_planner_note</code> - Delete one of your planner notes (previews first, then asks you to confirm)</li>
+                            <li><code>mark_planner_item_complete</code> - Tick or untick a planner item</li>
+                            <li><code>create_personal_calendar_event</code> - Add an event to your personal calendar</li>
+                            <li><code>delete_personal_calendar_event</code> - Delete an event from your personal calendar (previews first, then asks you to confirm)</li>
                             <li><code>send_message</code> - Send a new Inbox message to 1-5 people in a course (always previews first, then asks you to confirm)</li>
                             <li><code>reply_to_conversation</code> - Reply to an Inbox conversation you are already in (always previews first, then asks you to confirm)</li>
                         </ul>

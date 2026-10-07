@@ -260,10 +260,13 @@ def _endpoint_anonymization_mode(endpoint: str) -> str:
     Intentionally NOT matched at all:
     - /groups listings — carry group names, not student names; generic
       anonymization would mangle them. Membership goes via /groups/{id}/users,
-      which the '/users' rule covers.
-    - /discussion_topics listings (incl. announcements) — typically
-      instructor-authored; student content lives under the content endpoints
-      matched below.
+      which the '/users' rule covers. (/users/self/groups IS matched, by its
+      'users' segment; group records survive the full tier because
+      'group_category_id' is a non-person marker in core/anonymization.py.)
+    - COURSE /discussion_topics listings and records (incl. announcements) —
+      typically instructor-authored; student content lives under the content
+      endpoints matched below. GROUP topics (/groups/{id}/discussion_topics...)
+      ARE matched (full tier): group members author them.
     - /submissions/self — the caller's OWN submission. Anonymizing it redacts
       body/url/attachments, so a student cannot read back what they submitted
       (issue #166). Only the literal 'self' sub-route is excluded; any other
@@ -293,6 +296,13 @@ def _endpoint_anonymization_mode(endpoint: str) -> str:
     if 'discussion_topics' in segments and _has_route_segment(
         segments, {'entries', 'view', 'entry_list', 'replies'}
     ):
+        return ANONYMIZE_FULL
+
+    # Group discussion topics (and group announcements, which are topics) are
+    # written by group members: any student in the group can start one, so the
+    # topic record's message, user_name and author block are student data. This
+    # is the rule that protects the discussion tools' group_id path.
+    if 'discussion_topics' in segments and _has_route_segment(segments, {'groups'}):
         return ANONYMIZE_FULL
 
     # Endpoints whose responses contain student records

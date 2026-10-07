@@ -408,6 +408,15 @@ def test_acceptance_replay_real_history():
     )
 
 
+def _git_for_windows_bash(git_path: Path) -> Path | None:
+    """The bash.exe that ships beside ``git_path``, or None if there is none."""
+    for root in git_path.parents:
+        for candidate in (root / "usr" / "bin" / "bash.exe", root / "bin" / "bash.exe"):
+            if candidate.is_file():
+                return candidate
+    return None
+
+
 def _hook_shell() -> tuple[str, dict[str, str]]:
     """The bash and minimal environment git would run the hook with.
 
@@ -424,13 +433,23 @@ def _hook_shell() -> tuple[str, dict[str, str]]:
     if git is None:
         pytest.skip("git is not on PATH, so there is no Git for Windows bash")
     git_path = Path(git).resolve()
-    for root in git_path.parents:
-        for candidate in (root / "usr" / "bin" / "bash.exe", root / "bin" / "bash.exe"):
-            if candidate.is_file():
-                path = os.pathsep.join([str(Path(sys.executable).parent), str(git_path.parent)])
-                env = {"PATH": path, "SYSTEMROOT": os.environ.get("SYSTEMROOT", r"C:\Windows")}
-                return str(candidate), env
-    pytest.skip(f"no Git for Windows bash found beside {git_path}")
+    bash = _git_for_windows_bash(git_path)
+    if bash is None:
+        pytest.skip(f"no Git for Windows bash found beside {git_path}")
+    path = os.pathsep.join([str(Path(sys.executable).parent), str(git_path.parent)])
+    env = {"PATH": path, "SYSTEMROOT": os.environ.get("SYSTEMROOT", r"C:\Windows")}
+    return str(bash), env
+
+
+def test_git_for_windows_bash_lookup_reports_absence_explicitly(tmp_path):
+    git = tmp_path / "Git" / "cmd" / "git.exe"
+    git.parent.mkdir(parents=True)
+    assert _git_for_windows_bash(git) is None
+
+    bash = tmp_path / "Git" / "usr" / "bin" / "bash.exe"
+    bash.parent.mkdir(parents=True)
+    bash.write_text("", encoding="utf-8")
+    assert _git_for_windows_bash(git) == bash
 
 
 def test_hook_is_executable_and_rejects_the_incident(tmp_path):

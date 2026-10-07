@@ -826,15 +826,39 @@ class TestReplyToConversation:
         assert result["recipient_ids"] == ["501", "502"]
         [post] = canvas.posts()
         assert post.url.path == f"{API}/conversations/77/add_message"
-        # No recipients[]: Canvas delivers to the current participants, which
-        # are exactly the previewed audience bound into the token.
-        assert canvas.form(post) == {"body": ["Thanks"]}
+        assert canvas.form(post) == {"body": ["Thanks"], "recipients[]": ["501", "502"]}
 
     @pytest.mark.asyncio
-    async def test_reply_reaches_a_thread_with_someone_no_longer_enrolled(self, canvas):
-        """Last term's TA (601) is still a participant but not a current user of
-        the course. Canvas refuses a student's add_message with 401 only when
-        recipients[] lists them; the default audience is delivered."""
+    async def test_reply_does_not_expand_during_final_policy_check(self, canvas: FakeCanvas) -> None:
+        tools = await _tools()
+        preview = await tools["reply_to_conversation"]("77", "Private medical detail")
+        original_check = student_messaging.check_student_write_allowed
+        checks = 0
+
+        async def check(course_id: str, tool_name: str) -> tuple[bool, str]:
+            nonlocal checks
+            checks += 1
+            if checks == 2:
+                canvas.conversations["77"]["audience"].append(503)
+                canvas.conversations["77"]["participants"].append({"id": 503})
+            return await original_check(course_id, tool_name)
+
+        with patch.object(student_messaging, "check_student_write_allowed", check):
+            result = await tools["reply_to_conversation"](
+                "77", "Private medical detail", preview["confirmation_token"]
+            )
+        assert result["success"] is True
+        [post] = canvas.posts()
+        # Explicit recipients pin delivery even if the thread grows after GET.
+        assert canvas.form(post) == {
+            "body": ["Private medical detail"], "recipients[]": ["501"],
+        }
+        assert result["recipient_ids"] == ["501"]
+
+    @pytest.mark.asyncio
+    async def test_reply_to_inactive_participant_fails_closed_without_default_retry(self, canvas):
+        """Canvas may refuse explicit recipients with inactive enrollment.
+        Never retry without the bound recipients to bypass that rejection."""
         canvas.conversations["77"] = _conversation(
             audience=[501, 601],
             participants=[{"id": ME}, {"id": 501, "name": "Ada"}, {"id": 601, "name": "Old TA"}],
@@ -845,8 +869,10 @@ class TestReplyToConversation:
         result = await tools["reply_to_conversation"](
             "77", "Thanks", confirmation_token=preview["confirmation_token"]
         )
-        assert result["success"] is True
-        assert len(canvas.posts()) == 1
+        assert result["nothing_sent"] is True
+        assert "error" in result
+        [post] = canvas.posts()
+        assert canvas.form(post)["recipients[]"] == ["501", "601"]
 
     @pytest.mark.asyncio
     async def test_participants_missing_from_audience_are_still_previewed_and_counted(self, canvas):
