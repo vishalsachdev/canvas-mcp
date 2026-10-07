@@ -28,9 +28,9 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 
 ```
 # In .env:
-CANVAS_ROLE=student    # 41 tools by default (student + shared), 50 with every student write tool enabled
-CANVAS_ROLE=educator   # 93 tools (educator + shared)
-CANVAS_ROLE=all        # Default profile; 102 tools by default, 113 with all feature-gated tools enabled
+CANVAS_ROLE=student    # 50 tools by default (student + shared), 59 with every student write tool enabled
+CANVAS_ROLE=educator   # 93 tools by default, 95 with every gated tool enabled
+CANVAS_ROLE=all        # Default profile; 111 tools by default, 122 with all feature-gated tools enabled
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
@@ -46,8 +46,20 @@ Personal academic tracking uses Canvas "self" endpoints. Shared course-content t
 | `get_my_todo_items` | Canvas TODO list |
 | `get_my_submission_status` | What's submitted vs missing |
 | `get_my_course_grades` | Current grades across courses |
+| `get_my_assignment_scores` | Every assignment's score and status in one course, by assignment group (weights, drop rules) |
+| `calculate_grade_scenarios` | Recompute your grade the way Canvas does (compared with Canvas's own score), try what-if scores, and get the percentage needed on remaining work for a target % or letter |
 | `get_my_peer_reviews_todo` | Pending peer reviews to complete |
 | `get_my_submission` | Your submission for one assignment, with attempts used |
+| `list_my_announcements` | Announcements across ALL active courses (default last 14 days); `list_announcements` is per-course |
+| `get_my_activity_stream` | Recent activity feed grouped by kind: announcements, discussions, conversations, grades/comments (course activity only; no group or non-course inbox items) |
+| `list_my_groups` | Groups you belong to, with course, course ID and member count. To read a group's discussions or announcements, pass its course ID and group ID to `list_discussion_topics(course_identifier, group_id=..., include_announcements=True)` and `get_discussion_with_replies(course_identifier, topic_id, include_replies=True, group_id=...)` |
+| `get_group_members` | Members of one of your groups (no emails) |
+| `list_group_files` | Files stored in one of your groups |
+
+The group tools only read groups you are a member of; they check your membership
+before every call and refuse other groups even when Canvas would allow the read.
+| `list_quizzes` | Classic quizzes and New Quizzes in a course: dates, limits, your submission state (read-only) |
+| `get_quiz_details` | One quiz's settings plus your own attempts used/remaining and kept score from the latest record (read-only; earlier history and New Quizzes details are limited) |
 | `list_calendar_events` | Calendar across courses, personal and group calendars: events and due dates |
 | `get_calendar_event` | One calendar event in full |
 | `list_planner_notes` | Your own planner notes (personal to-dos) in a date window |
@@ -235,6 +247,9 @@ Is it a simple query?
 
 ### Student: Weekly Planning
 ```
+0. "What's new in my classes?"
+   → list_my_announcements() / get_my_activity_stream()
+
 1. "What assignments do I have due this week?"
    → get_my_upcoming_assignments(days=7)
 
@@ -244,6 +259,18 @@ Is it a simple query?
 3. "What peer reviews do I need to do?"
    → get_my_peer_reviews_todo()
 ```
+
+### Student: What Do I Need on the Final?
+```
+1. "Show my scores in CS 161"
+   → get_my_assignment_scores(course_identifier="CS 161")   # assignment IDs for what-ifs
+
+2. "What if I get 18/20 on quiz 5, and what do I need for an A-?"
+   → calculate_grade_scenarios(course_identifier="CS 161",
+        hypothetical_scores={"12345": 18}, target_letter="A-")
+```
+Both are read-only. The calculator reports Canvas's own current score next to its
+recomputation; when they disagree, trust Canvas and read the caveats it lists.
 
 ### Educator: Check Assignment Progress
 ```
@@ -381,6 +408,7 @@ usual cause).
 - Access data outside user's Canvas permissions
 - Bypass Canvas API rate limits
 - Access other students' data (for student users)
+- Take quizzes, start quiz attempts, or read quiz questions and answers (quiz tools are read-only awareness)
 - Modify Canvas system configuration
 
 ### Known Canvas API Limitations
@@ -488,7 +516,16 @@ ENABLE_DATA_ANONYMIZATION=true
 This converts student names to anonymous IDs (e.g., `Student_a8f7e23d`) before data reaches the AI. A local mapping file allows educators to correlate IDs with real students.
 
 ### For Students
-No anonymization needed - students only access their own data via Canvas "self" endpoints.
+Most student tools read only your own data via Canvas "self" endpoints. The group
+tools are the exception: they show classmates in groups you belong to.
+`get_group_members` lists their names and Canvas user IDs; `list_group_files` shows
+the names of files they uploaded. A group's discussions are read with the shared
+discussion tools' `group_id`, which show classmates' posts and topic bodies and name
+the authors. Emails, login IDs and SIS IDs are never shown. With
+`ENABLE_DATA_ANONYMIZATION` on, classmates' names appear as pseudonyms (IDs stay
+real), and emails, phone numbers and SSNs are redacted from group discussion posts
+and topic bodies and from group descriptions. File names, group names and topic
+titles are shown as Canvas returns them.
 
 ## Additional Resources
 

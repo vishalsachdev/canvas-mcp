@@ -342,6 +342,8 @@ FULL_CONTENT_TOOLS = {
     "list_discussion_entries",
     "get_conversation_details",
     "get_my_submission",
+    "get_my_assignment_scores",
+    "get_quiz_details",
     "get_calendar_event",
     "get_rubric",
     "get_rubric_assessment",

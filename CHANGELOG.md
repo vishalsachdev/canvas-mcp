@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Student group tools (read-only, student profile).** `list_my_groups` lists
+  the groups you belong to with the course ID and group ID, `get_group_members`
+  lists a group's members (names and user IDs, never emails), and
+  `list_group_files` lists a group's files. Each group-scoped tool re-reads
+  `/users/self/groups` first and refuses a group you are not in, even where
+  Canvas would allow the read. Discussions and announcements in a group are read
+  with the existing discussion tools' `group_id` (`list_discussion_topics` with
+  `include_announcements=True`, then `get_discussion_with_replies`); `list_my_groups`
+  prints the IDs and the call to make. Group topic records
+  (`/groups/{id}/discussion_topics`) are written by group members, so they are
+  anonymized in the `full` tier, which also covers the discussion tools' `group_id`
+  path; `group_category_id` marks a record as a group, so a group's own name is
+  no longer rewritten as a student pseudonym on `/users/self/groups`, and the
+  discussion `/view` `participants` list is treated as people. Group names,
+  descriptions, file names and member names are fenced as untrusted Canvas content.
+  A blank `course_identifier` on `list_my_groups` is an error rather than a
+  silent "all courses", and a failed Canvas request reports only its HTTP status
+  (any other failure text is truncated and fenced), never the response body.
+  A file's content type is printed only when it is a short ASCII MIME token with a
+  registered top-level type (classmates control the value); anything else shows as
+  "unknown type".
 - **`raw_dates` on `list_assignments`, `get_assignment_details` and
   `get_discussion_topic_details`** (opt-in, default output unchanged). Appends a
   JSON block with `due_at`, `unlock_at`, `lock_at`, `updated_at`, `all_dates` and,
@@ -41,6 +62,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   body equal to the expected body after whitespace-only normalization, every
   other requested field as sent); otherwise it is reported unconfirmed. Calls without the new
   parameters send exactly the same requests as before.
+- **Student "what's new" feed (read-only, student profile).**
+  `list_my_announcements` lists announcements across all active courses in one
+  call (default last 14 days, optional course filter), and
+  `get_my_activity_stream` summarises the Canvas activity stream by kind
+  (announcements, discussions, conversations, grades and submission comments,
+  notifications). Canvas-authored text is fenced. Previews that are shortened
+  name the tool that returns the full text.
+- **Student grade insight (read-only).** `get_my_assignment_scores` lists every
+  assignment's score and status in a course, grouped by assignment group with
+  weights and drop rules. `calculate_grade_scenarios` recomputes the course grade
+  the way Canvas does (weighted or total points, drop lowest/highest and
+  never-drop, excused and omitted work), shows it next to Canvas's own current
+  score and flags disagreement, applies what-if scores, and reports the uniform
+  percentage needed on remaining work for a target percentage or letter. Both
+  register for the student and all profiles; the arithmetic is in
+  `core/grade_calc.py`. Both fail closed: they refuse a course that restricts
+  quantitative data or does not say whether it does, assignment data that is not
+  the documented shape (including non-numeric weights, points or scores and
+  duplicate IDs), and
+  submissions that arrive as a list (an observer token); a letter target is
+  refused when the course's real letter scheme is unknown.
+- **Read-only quiz awareness for students** (student slice of issue 172):
+  `list_quizzes` lists a course's Classic quizzes and New Quizzes with dates,
+  limits and your submission state; `get_quiz_details` shows one quiz's settings
+  plus your own attempts used/remaining and kept score from the latest record.
+  Earlier attempt history is unavailable: its GET endpoint triggers grading of
+  overdue attempts even for students, so the read-only tool never calls it. Neither tool takes a
+  quiz, starts an attempt, or reads questions or answers. New Quizzes are found
+  by the assignment API's `is_quiz_lti_assignment` flag (not
+  `is_quiz_assignment`, which marks Classic quizzes); their settings and attempt
+  history are not exposed to students by the REST API, and the tools say so.
 - **Student calendar and planner tools.** Student profile only.
   `list_calendar_events` shows the Canvas calendar across the student's active
   courses, their personal calendar and their groups (assignment due dates

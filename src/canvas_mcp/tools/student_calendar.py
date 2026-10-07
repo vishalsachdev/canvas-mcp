@@ -1301,6 +1301,19 @@ def register_student_calendar_tools(mcp: FastMCP) -> None:
             override_id = (
                 coerce_canvas_id(existing.get("id", "")) if existing is not None else None
             )
+            # Pagination may outlast a policy grant. Recheck both permissions
+            # after reading the overrides, immediately before the mutation.
+            policy_error = await _course_policy_error(
+                courses, "mark_planner_item_complete", "Update"
+            )
+            if policy_error:
+                return policy_error
+            module_error = await _course_policy_error(
+                module_courses, "mark_module_item_done", "Update"
+            )
+            if module_error:
+                return module_error
+
             if override_id is not None:
                 assert existing is not None
                 # Canvas's update sets dismissed from the request

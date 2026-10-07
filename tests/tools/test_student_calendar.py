@@ -1766,3 +1766,37 @@ class TestFailClosedOnUnknownState:
                 note_id=5, course_identifier=200, confirmation_token=token)
         assert "✅" not in result
         assert len(fake.writes()) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("revoked_tool", ["mark_planner_item_complete", "mark_module_item_done"])
+@pytest.mark.parametrize("existing_override", [False, True])
+async def test_planner_completion_rechecks_policy_after_override_pagination(
+    revoked_tool: str, existing_override: bool,
+) -> None:
+    tools = write_tools()
+    revoked = False
+
+    def overrides(_: dict[str, Any]) -> list[dict[str, Any]]:
+        nonlocal revoked
+        revoked = True
+        return [{
+            "id": 9, "plannable_type": "assignment", "plannable_id": 42,
+            "marked_complete": False, "dismissed": False,
+        }] if existing_override else []
+
+    async def policy(course_id: str, tool_name: str) -> tuple[bool, str]:
+        return not (revoked and tool_name == revoked_tool), "Instructor revoked this write"
+
+    fake = FakeCanvas(
+        routes={
+            ("get", "/courses/123/assignments/42"): {"id": 42, "name": "Assignment"},
+            ("post", "/planner/overrides"): {"marked_complete": True},
+            ("put", "/planner/overrides/9"): {"marked_complete": True},
+        },
+        paginated={"/planner/overrides": overrides},
+    )
+    with canvas(fake), patch(f"{MOD}.check_student_write_allowed", policy):
+        result = await tools["mark_planner_item_complete"]("assignment", 42, 123)
+    assert "blocked" in result
+    assert fake.writes() == []
