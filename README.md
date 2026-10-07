@@ -8,7 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![skills.sh](https://img.shields.io/badge/skills.sh-canvas--mcp-blue)](https://skills.sh)
 
-MCP server for Canvas LMS with **up to 106 tools** and **8 agent skills**. Designed for Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh); setup and capabilities vary by client.
+MCP server for Canvas LMS with **up to 111 tools** and **8 agent skills**. Designed for Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh); setup and capabilities vary by client.
 
 ## Quick Start
 
@@ -36,7 +36,7 @@ See [Agent Skills](#-agent-skills) for the list. If your agent is Claude Code, t
   See CLAUDE.md "Documentation Maintenance" for full guidelines.
 -->
 
-Canvas MCP provides **up to 106 tools** for interacting with Canvas LMS; the default profile registers fewer, and optional feature-gated tools can raise the total to 106. Tools are organized by user type:
+Canvas MCP provides **up to 111 tools** for interacting with Canvas LMS; the default profile registers fewer, and optional feature-gated tools can raise the total to 111. Tools are organized by user type:
 
 <details>
 <summary><strong>Student Tools</strong> (click to expand)</summary>
@@ -48,6 +48,11 @@ Canvas MCP provides **up to 106 tools** for interacting with Canvas LMS; the def
 | `get_my_submission_status` | Submitted vs missing | "Have I submitted everything?" |
 | `get_my_course_grades` | Current grades | "What are my grades?" |
 | `get_my_peer_reviews_todo` | Pending peer reviews | "What peer reviews do I need to do?" |
+| `list_my_announcements` | Announcements across all active courses | "What did my professors announce this week?" |
+| `get_my_activity_stream` | Recent activity grouped by kind | "What's new in Canvas?" |
+| `list_my_groups` | Your groups, with course and group IDs | "Which project team am I on in BADM 350?" |
+| `get_group_members` | Members of one of your groups (no emails) | "Who is in my project group?" |
+| `list_group_files` | Files stored in one of your groups | "What files has my group uploaded?" |
 
 </details>
 

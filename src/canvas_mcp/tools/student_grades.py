@@ -172,7 +172,8 @@ async def _load_course(
         model_groups, model_items = gc.build_grade_model(groups)
     except gc.MalformedGradeData as exc:
         return (
-            f"Error: Canvas returned assignment data this tool cannot trust ({exc}). "
+            "Error: Canvas returned assignment data this tool cannot trust "
+            f"({fence_untrusted_inline(str(exc), 'malformed grade data')}). "
             "Nothing was computed."
         )
 

@@ -120,6 +120,63 @@ grade if any, and submission comments.
 
 ---
 
+### What's New (cross-course feed)
+
+#### `list_my_announcements`
+List announcements across **all** your active courses in one call, newest first.
+Cross-course by design: for one course's full announcement history use the shared
+[`list_announcements`](#list_announcements) tool instead.
+
+**Parameters:**
+- `course_identifier` (optional): Course code or Canvas ID to show only that course (omit it for every course; a blank value is refused rather than treated as "all")
+- `start_date` (optional): Earliest post date, `YYYY-MM-DD`, `MM/DD/YYYY` or ISO 8601 (default: 14 days before `end_date`)
+- `end_date` (optional): Latest post date (default: now). Date-only values are whole days in your Canvas
+  account's time zone (Canvas applies the day boundaries); ISO timestamps are exact
+- `limit` (optional): Maximum announcements to show, 1-200 (default 50)
+- `preview_chars` (optional): Body preview length, 0-2000 (default 400; `0` = titles only). A shortened preview says so and names `get_discussion_topic_details`, which reads the whole announcement
+
+**Example:**
+```
+"What did my professors announce this week?"
+"Show announcements from BADM 350 since September 1"
+```
+
+**Returns:** Course code, post date, unread flag, author, title and a plain-text body
+preview (all Canvas-authored text fenced as untrusted). Canvas silently omits courses
+you cannot read, so an empty answer for a numeric course ID that is not among your
+active courses says it may also mean you have no access. Announcements Canvas returns
+for courses that were not asked for are not shown (a warning counts them). If a request
+fails (for example a Canvas server error), the announcements that did load are shown
+with a warning that results may be incomplete. Timestamps, IDs, counts and links that
+are not in the expected form are reported as unknown or fenced, never printed as they came.
+
+---
+
+#### `get_my_activity_stream`
+Your recent Canvas activity across all active courses: the dashboard "Recent Activity"
+feed, grouped by kind. Reading it does not mark anything read. Group activity and inbox
+messages not tied to a course are not included (Canvas limits the feed to active courses).
+
+**Parameters:**
+- `item_type` (optional): `all` (default), `announcements`, `discussions`, `conversations`,
+  `submissions` (grades and submission comments) or `notifications`
+- `limit` (optional): Maximum items to show, 1-200 (default 30)
+- `include_summary` (optional): Also show per-kind total and unread counts (default `true`)
+- `preview_chars` (optional): Preview length per item, 0-2000 (default 300)
+
+**Example:**
+```
+"What's new in Canvas?"
+"Did I get any new grades or feedback?"
+```
+
+**Returns:** Per-kind counts with unread totals, then the newest items grouped as
+announcements, discussions, inbox conversations, grades & submission comments,
+notifications and other activity. With data anonymization on (the default), names and
+contact details inside this feed are pseudonymised like any other `/users/...` response.
+
+---
+
 ### Student Write Tools
 
 > **Off by default.** These tools only exist if the server operator enabled them
@@ -260,6 +317,57 @@ breath. Authorship cannot be established from a student's own token.
 Anything ambiguous denies: a malformed policy, contradictory directives (an
 `agent_writes: deny` appended under an earlier `allow`), a failed read, or a
 course this caller cannot see.
+
+---
+
+### Groups
+
+Read-only tools for the Canvas groups you belong to (project teams, study
+groups). Every tool except `list_my_groups` first checks `/users/self/groups`
+and refuses a group you are not a member of, even if Canvas would let your
+token read it. Group names, descriptions and file names are fenced as untrusted
+Canvas content.
+
+A group's discussions and announcements are read with the shared discussion
+tools, which take the optional `group_id`: `list_discussion_topics(course_identifier,
+group_id=..., include_announcements=True)` lists them, and
+`get_discussion_with_replies(course_identifier, topic_id, include_replies=True,
+group_id=...)` reads one with its replies (see [Discussions](#discussions)).
+`list_my_groups` prints the numeric course ID and group ID those calls need.
+
+#### `list_my_groups`
+List your groups with their course, course ID, group category ID and member
+count, and how to read a group's discussions with the discussion tools above.
+Groups that belong to an account rather than a course have no course ID.
+
+**Parameters:**
+- `course_identifier` (optional): Only show your groups in this course (course
+  code, `sis_course_id:...` or numeric ID). A course that cannot be found is
+  reported as an error, not as "no groups".
+
+**Example:**
+```
+"Which project team am I on in BADM 350?"
+```
+
+#### `get_group_members`
+List the members of one of your groups: name and Canvas user ID. Emails, login
+IDs and SIS IDs are never shown. Students whose enrollment is inactive are left
+out (`exclude_inactive`). With `ENABLE_DATA_ANONYMIZATION` on (the default),
+classmates' names appear as stable pseudonyms.
+
+**Parameters:**
+- `group_id` (required): Canvas group ID from `list_my_groups`
+
+#### `list_group_files`
+List the files stored in one of your groups. A group with files turned off
+returns a clear permission message.
+
+**Parameters:**
+- `group_id` (required): Canvas group ID
+- `search_term` (optional): Part of a file name (2+ characters)
+- `sort` (optional): `name`, `size`, `created_at`, `updated_at` (default) or `content_type`
+- `order` (optional): `asc` or `desc` (default)
 
 ---
 
@@ -2324,6 +2432,7 @@ marked `[truncated at N characters]`.
 Listing and overview tools may still preview long text, but only where a
 full-content tool exists, and the output names it when a preview was shortened
 (`get_course_content_overview` -> `get_syllabus`, `list_pages`, `list_modules`;
+`list_my_announcements` and `get_my_activity_stream` -> the item's own tool;
 `list_rubrics` -> `get_rubric`; `list_discussion_entries` without
 `include_full_content` -> `include_full_content=True`).
 

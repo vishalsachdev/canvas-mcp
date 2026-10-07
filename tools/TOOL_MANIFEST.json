@@ -1102,6 +1102,92 @@
       "notes": "Never cut; declares anthropic/maxResultSizeChars=500000 so Claude Code delivers the whole result."
     },
     {
+      "name": "list_my_announcements",
+      "category": "student",
+      "description": "List announcements across ALL your active courses in one call (cross-course; use list_announcements for one course's full history). Defaults to the last 14 days.",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": false,
+          "description": "Course code or Canvas ID to show only that course"
+        },
+        {
+          "name": "start_date",
+          "type": "string",
+          "required": false,
+          "description": "Earliest post date, YYYY-MM-DD, MM/DD/YYYY or ISO 8601 (default: 14 days before end_date); a date-only value starts at midnight in your Canvas time zone"
+        },
+        {
+          "name": "end_date",
+          "type": "string",
+          "required": false,
+          "description": "Latest post date, same formats (default: now); a date-only value includes that whole day in your Canvas time zone"
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "default": 50,
+          "description": "Maximum announcements to show (1-200)"
+        },
+        {
+          "name": "preview_chars",
+          "type": "integer",
+          "required": false,
+          "default": 400,
+          "description": "Characters of body text to preview per announcement (0-2000; 0 = titles only)"
+        }
+      ],
+      "returns": "Announcements newest first with course code, post date, unread flag, author, fenced title and body preview, and a warning when Canvas returned an error for some courses (results may be incomplete)",
+      "examples": [
+        "What did my professors announce this week?",
+        "Any new announcements in my classes?",
+        "Show announcements from BADM 350 since September 1"
+      ]
+    },
+    {
+      "name": "get_my_activity_stream",
+      "category": "student",
+      "description": "Your recent Canvas activity across all active courses (the dashboard Recent Activity feed), grouped by kind: announcements, discussions, inbox conversations, grades and submission comments, notifications. Group activity and inbox messages not tied to a course are not included. Read-only; does not mark anything read.",
+      "parameters": [
+        {
+          "name": "item_type",
+          "type": "string",
+          "required": false,
+          "default": "all",
+          "description": "One of all, announcements, discussions, conversations, submissions, notifications"
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "default": 30,
+          "description": "Maximum items to show (1-200)"
+        },
+        {
+          "name": "include_summary",
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Also show per-kind total and unread counts"
+        },
+        {
+          "name": "preview_chars",
+          "type": "integer",
+          "required": false,
+          "default": 300,
+          "description": "Characters of text to preview per item (0-2000; 0 = titles only)"
+        }
+      ],
+      "returns": "Per-kind counts with unread totals, then the newest items grouped by kind with course code, unread flag, fenced titles and previews, grades and latest submission comment",
+      "examples": [
+        "What's new in Canvas?",
+        "Did I get any new grades or feedback?",
+        "Catch me up on my classes"
+      ]
+    },
+    {
       "name": "submit_assignment",
       "category": "student_write",
       "description": "Submit your own assignment. Consumes an attempt. Requires a confirmation token from a preview call.",
@@ -3869,6 +3955,78 @@
       "returns": "Created reply details including ID",
       "examples": [
         "Reply to Alice's discussion post with this feedback"
+      ]
+    },
+    {
+      "name": "list_my_groups",
+      "category": "student",
+      "description": "List the Canvas groups you belong to, with course, course ID, group category ID and member count. Read a group's discussions and announcements with list_discussion_topics and get_discussion_with_replies using the course ID and group_id printed here",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": false,
+          "description": "Only show your groups in this course (course code or Canvas ID)"
+        }
+      ],
+      "returns": "Each group's name, ID, course code, course ID, group category ID, member count and description, plus how to read its discussions with the shared discussion tools",
+      "examples": [
+        "What groups am I in?",
+        "Which project team am I on in BADM 350?"
+      ]
+    },
+    {
+      "name": "get_group_members",
+      "category": "student",
+      "description": "List the members of one of your groups. Only groups you belong to; never shows emails",
+      "parameters": [
+        {
+          "name": "group_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Canvas group ID from list_my_groups (must be a group you belong to)"
+        }
+      ],
+      "returns": "Member names (pseudonymized when data anonymization is on) and Canvas user IDs",
+      "examples": [
+        "Who is in my project group?"
+      ]
+    },
+    {
+      "name": "list_group_files",
+      "category": "student",
+      "description": "List the files stored in one of your groups",
+      "parameters": [
+        {
+          "name": "group_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Canvas group ID from list_my_groups (must be a group you belong to)"
+        },
+        {
+          "name": "search_term",
+          "type": "string",
+          "required": false,
+          "description": "Only files whose name contains this text (2+ characters)"
+        },
+        {
+          "name": "sort",
+          "type": "string",
+          "required": false,
+          "default": "updated_at",
+          "description": "name, size, created_at, updated_at or content_type"
+        },
+        {
+          "name": "order",
+          "type": "string",
+          "required": false,
+          "default": "desc",
+          "description": "asc or desc"
+        }
+      ],
+      "returns": "File IDs, names, sizes, content types and update dates",
+      "examples": [
+        "What files has my group uploaded?"
       ]
     }
   ],

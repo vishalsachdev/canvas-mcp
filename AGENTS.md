@@ -28,9 +28,9 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 
 ```
 # In .env:
-CANVAS_ROLE=student    # 40 tools by default (student + shared), 43 with every student write tool enabled
-CANVAS_ROLE=educator   # 93 tools (educator + shared)
-CANVAS_ROLE=all        # Default profile; 101 tools by default, 106 with all feature-gated tools enabled
+CANVAS_ROLE=student    # 45 tools by default (student + shared), 48 with every student write tool enabled
+CANVAS_ROLE=educator   # 93 tools by default, 95 with every gated tool enabled
+CANVAS_ROLE=all        # Default profile; 106 tools by default, 111 with all feature-gated tools enabled
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
@@ -50,6 +50,14 @@ Personal academic tracking uses Canvas "self" endpoints. Shared course-content t
 | `calculate_grade_scenarios` | Recompute your grade the way Canvas does (compared with Canvas's own score), try what-if scores, and get the percentage needed on remaining work for a target % or letter |
 | `get_my_peer_reviews_todo` | Pending peer reviews to complete |
 | `get_my_submission` | Your submission for one assignment, with attempts used |
+| `list_my_announcements` | Announcements across ALL active courses (default last 14 days); `list_announcements` is per-course |
+| `get_my_activity_stream` | Recent activity feed grouped by kind: announcements, discussions, conversations, grades/comments (course activity only; no group or non-course inbox items) |
+| `list_my_groups` | Groups you belong to, with course, course ID and member count. To read a group's discussions or announcements, pass its course ID and group ID to `list_discussion_topics(course_identifier, group_id=..., include_announcements=True)` and `get_discussion_with_replies(course_identifier, topic_id, include_replies=True, group_id=...)` |
+| `get_group_members` | Members of one of your groups (no emails) |
+| `list_group_files` | Files stored in one of your groups |
+
+The group tools only read groups you are a member of; they check your membership
+before every call and refuse other groups even when Canvas would allow the read.
 
 ### Student Write Tools (off by default)
 Let an agent act on Canvas for the student rather than only read. **None of these
@@ -224,6 +232,9 @@ Is it a simple query?
 
 ### Student: Weekly Planning
 ```
+0. "What's new in my classes?"
+   → list_my_announcements() / get_my_activity_stream()
+
 1. "What assignments do I have due this week?"
    → get_my_upcoming_assignments(days=7)
 
@@ -489,7 +500,16 @@ ENABLE_DATA_ANONYMIZATION=true
 This converts student names to anonymous IDs (e.g., `Student_a8f7e23d`) before data reaches the AI. A local mapping file allows educators to correlate IDs with real students.
 
 ### For Students
-No anonymization needed - students only access their own data via Canvas "self" endpoints.
+Most student tools read only your own data via Canvas "self" endpoints. The group
+tools are the exception: they show classmates in groups you belong to.
+`get_group_members` lists their names and Canvas user IDs; `list_group_files` shows
+the names of files they uploaded. A group's discussions are read with the shared
+discussion tools' `group_id`, which show classmates' posts and topic bodies and name
+the authors. Emails, login IDs and SIS IDs are never shown. With
+`ENABLE_DATA_ANONYMIZATION` on, classmates' names appear as pseudonyms (IDs stay
+real), and emails, phone numbers and SSNs are redacted from group discussion posts
+and topic bodies and from group descriptions. File names, group names and topic
+titles are shown as Canvas returns them.
 
 ## Additional Resources
 

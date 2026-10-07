@@ -340,6 +340,30 @@ class TestRefreshRateLimit:
         assert canvas.list_reads == 1
 
     @pytest.mark.asyncio
+    async def test_the_in_flight_refresh_is_tracked_only_while_it_runs(self, canvas, monkeypatch):
+        loop = asyncio.get_running_loop()
+        assert cache._refresh_in_flight(loop) is None
+
+        gate = asyncio.Event()
+        inner = canvas.paginate
+
+        async def slow_paginate(endpoint: str, params: dict[str, Any] | None = None, **kw: Any):
+            await gate.wait()
+            return await inner(endpoint, params, **kw)
+
+        monkeypatch.setattr(cache, "fetch_all_paginated_results", slow_paginate)
+        lookup = asyncio.ensure_future(resolve_numeric_course_id("COMPSCI 161"))
+        await asyncio.sleep(0)
+        running = cache._refresh_in_flight(loop)
+        assert running is not None and not running.done()
+
+        gate.set()
+        assert await lookup == ("4242", None)
+        # A finished refresh is never handed to a later miss to await.
+        assert cache._refresh_in_flight(loop) is None
+        assert canvas.list_reads == 1
+
+    @pytest.mark.asyncio
     async def test_a_failed_read_is_retried_on_the_next_miss(self, canvas):
         canvas.courses = {"error": "HTTP error: 500"}
         _, error = await resolve_numeric_course_id("COMPSCI 161")

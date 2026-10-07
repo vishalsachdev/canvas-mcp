@@ -753,3 +753,17 @@ class TestUnposted:
     )
     def test_statuses(self, sub, expected):
         assert gc.submission_statuses({}, sub) == expected
+
+
+@pytest.mark.parametrize("field", ["excused", "missing", "late"])
+def test_malformed_submission_booleans_are_refused(field):
+    assignment = {"id": 101, "points_possible": 10, "submission": {"score": 0, field: "false"}}
+    with pytest.raises(gc.MalformedGradeData, match="boolean"):
+        gc.build_grade_model([_group(assignments=[assignment])])
+
+
+@pytest.mark.parametrize("field", ["published", "omit_from_final_grade"])
+def test_malformed_assignment_booleans_are_refused(field):
+    assignment = {"id": 101, "points_possible": 10, field: "false"}
+    with pytest.raises(gc.MalformedGradeData, match="boolean"):
+        gc.build_grade_model([_group(assignments=[assignment])])

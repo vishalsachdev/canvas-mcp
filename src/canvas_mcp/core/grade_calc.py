@@ -781,6 +781,13 @@ def _drop_count(rules: Mapping[str, Any], key: str, group_id: str) -> int:
     return int(number)
 
 
+def _check_boolean_fields(payload: Mapping[str, Any], fields: Sequence[str], label: str) -> None:
+    """Reject malformed flags instead of treating text such as 'false' as true."""
+    for field in fields:
+        if field in payload and not isinstance(payload[field], bool):
+            raise MalformedGradeData(f"{label} {field} is not a boolean: {payload[field]!r}")
+
+
 def build_grade_model(
     groups_json: Sequence[Mapping[str, Any]],
 ) -> tuple[list[GroupRules], list[GradedItem]]:
@@ -860,6 +867,9 @@ def build_grade_model(
             if assignment_id in seen_assignments:
                 raise MalformedGradeData(f"assignment {assignment_id} appears more than once")
             seen_assignments.add(assignment_id)
+            _check_boolean_fields(
+                assignment, ("published", "omit_from_final_grade"), f"assignment {assignment_id}"
+            )
             points_possible = _checked_number(
                 assignment.get("points_possible"),
                 f"assignment {assignment_id} points_possible",
@@ -873,6 +883,10 @@ def build_grade_model(
                     "reports only your own submissions"
                 )
             submission = own_submission(assignment)
+            if submission is not None:
+                _check_boolean_fields(
+                    submission, ("excused", "missing", "late"), f"assignment {assignment_id} submission"
+                )
             # Canvas's student-visible grade treats an unposted submission as
             # never graded: no score and no excusal.
             unposted = is_unposted(submission)
