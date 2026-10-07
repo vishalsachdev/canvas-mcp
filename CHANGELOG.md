@@ -69,6 +69,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (announcements, discussions, conversations, grades and submission comments,
   notifications). Canvas-authored text is fenced. Previews that are shortened
   name the tool that returns the full text.
+- **Student grade insight (read-only).** `get_my_assignment_scores` lists every
+  assignment's score and status in a course, grouped by assignment group with
+  weights and drop rules. `calculate_grade_scenarios` recomputes the course grade
+  the way Canvas does (weighted or total points, drop lowest/highest and
+  never-drop, excused and omitted work), shows it next to Canvas's own current
+  score and flags disagreement, applies what-if scores, and reports the uniform
+  percentage needed on remaining work for a target percentage or letter. Both
+  register for the student and all profiles; the arithmetic is in
+  `core/grade_calc.py`. Both fail closed: they refuse a course that restricts
+  quantitative data or does not say whether it does, assignment data that is not
+  the documented shape (including non-numeric weights, points or scores and
+  duplicate IDs), and
+  submissions that arrive as a list (an observer token); a letter target is
+  refused when the course's real letter scheme is unknown.
 
 ### Fixed
 

@@ -12,6 +12,9 @@ async def _get_tool_names(mcp: FastMCP) -> set[str]:
 
 
 STUDENT_ONLY_TOOLS = {
+    # student grade insight (read-only, caller-scoped)
+    "get_my_assignment_scores",
+    "calculate_grade_scenarios",
     "get_my_upcoming_assignments",
     "get_my_submission_status",
     "get_my_course_grades",

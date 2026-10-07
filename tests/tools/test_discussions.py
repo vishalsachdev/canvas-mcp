@@ -803,6 +803,8 @@ class TestGroupDiscussionReads:
     @staticmethod
     def _group_aware_request(group_course_id="60366"):
         async def request(method, path, **kwargs):
+            if path == "/courses/60366/permissions":
+                return {"manage_grades": True, "read_as_admin": False}
             if path == "/groups/298062":
                 return {"id": 298062, "course_id": group_course_id}
             if path.endswith("/discussion_topics/814175"):
@@ -923,6 +925,10 @@ class TestListGroupDiscussionTopics:
         "/groups/294537/discussion_topics": [],
     }
 
+    @pytest.fixture(autouse=True)
+    def _confirmed_staff(self, mock_canvas_api):
+        mock_canvas_api['make_canvas_request'].return_value = {"manage_grades": True, "read_as_admin": False}
+
     def _fetch(self):
         async def fetch(path, params=None):
             if path == "/courses/60366/groups":
@@ -1016,6 +1022,7 @@ class TestAnonymousTopics:
 
     @pytest.mark.asyncio
     async def test_group_list_shows_anonymous_state(self, mock_canvas_api):
+        mock_canvas_api['make_canvas_request'].return_value = {"manage_grades": True, "read_as_admin": False}
         async def fetch(path, params=None):
             if path == "/courses/60366/groups":
                 return [{"id": 298062, "name": "B", "group_category_id": 1}]
@@ -1123,6 +1130,8 @@ class TestAnonymousTopics:
     @pytest.mark.asyncio
     async def test_group_topic_404_checks_the_group_list(self, mock_canvas_api):
         async def request(method, path, **kwargs):
+            if path == "/courses/60366/permissions":
+                return {"manage_grades": True, "read_as_admin": False}
             if path == "/groups/298062":
                 return {"id": 298062, "course_id": "60366"}
             if path == "/groups/298062/discussion_topics/555":
