@@ -498,3 +498,44 @@ def test_hook_skips_a_python3_that_does_not_run(tmp_path):
     )
     assert blocked.returncode == 1, blocked.stderr
     assert "#172" in blocked.stderr
+
+
+@pytest.mark.parametrize("candidate_status", [None, 1, 9009])
+def test_hook_rejects_commit_without_usable_python(tmp_path, candidate_status):
+    """Unavailable, too-old and broken interpreters cannot bypass prevention."""
+    bash, env = _hook_shell()
+    bash = shutil.which(bash) or bash
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    git = shutil.which("git")
+    assert git is not None
+    # Git remains available, but neither real Python is reachable on PATH.
+    # Copy instead of symlink so this also works without Windows privileges.
+    git_stub = bin_dir / "git"
+    git_stub.write_text(
+        f'#!/bin/sh\nexec "{Path(git).as_posix()}" "$@"\n', encoding="utf-8", newline="\n"
+    )
+    git_stub.chmod(0o755)
+    if candidate_status is not None:
+        for name in ("python3", "python"):
+            stub = bin_dir / name
+            stub.write_text(
+                f"#!/bin/sh\nexit {candidate_status}\n", encoding="utf-8", newline="\n"
+            )
+            stub.chmod(0o755)
+    env["PATH"] = str(bin_dir)
+    msg = tmp_path / "COMMIT_EDITMSG"
+    msg.write_text(INCIDENT_COMMIT_MSG, encoding="utf-8")
+    result = subprocess.run(
+        [bash, str(REPO_ROOT / ".githooks" / "commit-msg"), str(msg)],
+        cwd=REPO_ROOT, capture_output=True, text=True, errors="replace", env=env,
+    )
+    assert result.returncode != 0, "a commit was accepted without scanning its message"
+    assert "Python" in result.stderr
+
+    env["ALLOW_CLOSING_KEYWORD"] = "1"
+    bypassed = subprocess.run(
+        [bash, str(REPO_ROOT / ".githooks" / "commit-msg"), str(msg)],
+        cwd=REPO_ROOT, capture_output=True, text=True, errors="replace", env=env,
+    )
+    assert bypassed.returncode == 0, bypassed.stderr

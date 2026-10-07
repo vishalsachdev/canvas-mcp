@@ -8,6 +8,9 @@
 # Bypass:   ALLOW_CLOSING_KEYWORD=1 git commit ...
 set -euo pipefail
 
+# The documented explicit bypass works even when Python is unavailable.
+[ "${ALLOW_CLOSING_KEYWORD:-}" = "1" ] && exit 0
+
 repo_root="$(git rev-parse --show-toplevel)"
 checker="$repo_root/scripts/check_closing_keywords.py"
 
@@ -36,10 +39,10 @@ for candidate in python3 python; do
     break
   fi
 done
-# Same rule as a missing checker: fail open, CI is the backstop.
+# Never accept an unchecked commit merely because interpreter discovery failed.
 if [ -z "$python" ]; then
-  echo "commit-msg: no working Python 3 found; closing-keyword check skipped (CI still runs it)." >&2
-  exit 0
+  echo "commit-msg: no usable Python >=3.8 found; commit rejected. Install Python and add python3 or python to PATH, then retry. Explicit bypass: ALLOW_CLOSING_KEYWORD=1 git commit ..." >&2
+  exit 1
 fi
 
 # shellcheck disable=SC2086
