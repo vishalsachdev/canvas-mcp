@@ -326,13 +326,22 @@ def _http_status(error: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
+def _failure_reason(error: object) -> str:
+    """Show HTTP status only; fence and bound other untrusted failure details."""
+    text = str(error)
+    status = _http_status(text)
+    if status is not None:
+        return f"HTTP {status}"
+    return fence_untrusted_inline(text.strip()[:200] or "no detail", "Canvas error")
+
+
 async def _fetch_active_courses() -> list[dict] | str:
     """The caller's active-enrollment courses, or an error string."""
     courses = await fetch_all_paginated_results(
         "/courses", params={"enrollment_state": "active", "per_page": 100}
     )
     if isinstance(courses, dict) and "error" in courses:
-        return f"Error fetching your courses: {courses['error']}"
+        return f"Error fetching your courses: {_failure_reason(courses['error'])}"
     if not isinstance(courses, list):
         return "Error fetching your courses: unexpected response from Canvas."
     return [c for c in courses if isinstance(c, dict)]
@@ -701,8 +710,8 @@ def register_student_feed_tools(mcp: FastMCP) -> None:
 
         failed_count = len(course_failures) + sum(len(chunk) for chunk, _ in request_failures)
         if failed_count and failed_count >= len(course_ids) and not in_scope:
-            details = [err for _, err in request_failures] + [
-                f"{code}: {err}" for code, err in course_failures
+            details = [_failure_reason(err) for _, err in request_failures] + [
+                f"{code}: {_failure_reason(err)}" for code, err in course_failures
             ]
             detail = "; ".join(list(dict.fromkeys(details))[:5])
             return f"Error fetching announcements: {detail}"
@@ -736,7 +745,7 @@ def register_student_feed_tools(mcp: FastMCP) -> None:
         failure_note = ""
         if request_failures:
             missed = sum(len(chunk) for chunk, _ in request_failures)
-            errors = "; ".join(list(dict.fromkeys(err for _, err in request_failures))[:3])
+            errors = "; ".join(list(dict.fromkeys(_failure_reason(err) for _, err in request_failures))[:3])
             failure_note += (
                 f"\n⚠️  Canvas returned an error for the announcements of {missed} of "
                 f"{len(course_ids)} courses ({errors}); results may be incomplete.\n"
@@ -746,7 +755,7 @@ def register_student_feed_tools(mcp: FastMCP) -> None:
             for code, err in course_failures:
                 match = _CONTEXT_CODE.fullmatch(code)
                 label = await _course_label(match.group(1), codes) if match else code
-                failed.append(f"  • {label}: {err}\n")
+                failed.append(f"  • {label}: {_failure_reason(err)}\n")
             failure_note += (
                 "\n⚠️  Could not read announcements for:\n" + "".join(failed)
                 + "Those courses may have announcements not shown here.\n"
@@ -824,7 +833,7 @@ def register_student_feed_tools(mcp: FastMCP) -> None:
             params={"only_active_courses": True, "per_page": 100},
         )
         if isinstance(items, dict) and "error" in items:
-            return f"Error fetching your activity stream: {items['error']}"
+            return f"Error fetching your activity stream: {_failure_reason(items['error'])}"
         if not isinstance(items, list):
             return "Error fetching your activity stream: unexpected response from Canvas."
         items = [i for i in items if isinstance(i, dict)]
@@ -858,7 +867,7 @@ def register_student_feed_tools(mcp: FastMCP) -> None:
                     if isinstance(summary, dict) and "error" in summary
                     else "unexpected response from Canvas"
                 )
-                output.append(f"⚠️  Activity summary unavailable: {detail}\n")
+                output.append(f"⚠️  Activity summary unavailable: {_failure_reason(detail)}\n")
 
         if item_type != "all":
             wanted = _TYPE_FILTERS[item_type]
