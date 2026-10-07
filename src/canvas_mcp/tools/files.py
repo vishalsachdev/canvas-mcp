@@ -19,7 +19,7 @@ import tempfile
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from ..core.cache import get_course_code, get_course_id
+from ..core.cache import get_course_code, get_course_id, resolve_numeric_course_id
 from ..core.client import (
     canvas_authenticated_client,
     fetch_all_paginated_results,
@@ -78,7 +78,9 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
                 "read_course_file instead, which returns the content in the response."
             )
 
-        course_id = await get_course_id(course_identifier)
+        course_id, course_error = await resolve_numeric_course_id(course_identifier)
+        if course_id is None:
+            return f"Error: {course_error}"
 
         # Get file metadata from Canvas API
         file_info = await make_canvas_request(
@@ -200,7 +202,9 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
         effective_max_mb = min(float(max_size_mb), server_max_mb)
         max_size_bytes = int(effective_max_mb * 1024 * 1024)
 
-        course_id = await get_course_id(course_identifier)
+        course_id, course_error = await resolve_numeric_course_id(course_identifier)
+        if course_id is None:
+            return f"Error: {course_error}"
 
         # Get file metadata from Canvas API
         file_info = await make_canvas_request(
@@ -283,7 +287,9 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
         if order not in ("asc", "desc"):
             return f"Invalid order: '{order}'. Must be 'asc' or 'desc'."
 
-        course_id = await get_course_id(course_identifier)
+        course_id, course_error = await resolve_numeric_course_id(course_identifier)
+        if course_id is None:
+            return f"Error: {course_error}"
 
         params = {
             "per_page": 100,

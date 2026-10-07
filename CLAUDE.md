@@ -21,6 +21,7 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 - Tools use `@mcp.tool()` with `@validate_params`, and every tool carries annotations (`tests/test_tool_metadata.py` fails a bare decorator).
 - All Canvas calls are async and go through `make_canvas_request()`; paginate every list endpoint.
 - Course identifiers are `str | int` resolved with `get_course_id()`; dates go out through `format_date()`.
+  Code that needs a numeric course ID (paths, context codes, comparisons) uses `resolve_numeric_course_id()`, which returns `(id, error)` and never yields an unvalidated string. `get_course_id()` matches the same way but keeps its pass-through fallback on a miss.
 - Canvas POST/PUT needs `use_form_data=True`, `/conversations` included.
 - Errors: dict tools return an `"error"` key; string tools return `"Error ..."`. `modules.py` and `accessibility.py` return JSON-stringified errors; keep the local convention.
 - Privacy: student IDs preserved, names anonymized at the client layer (`_should_anonymize_endpoint()`); a new endpoint must be checked against the tier rules.
