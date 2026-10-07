@@ -48,6 +48,8 @@ Canvas MCP provides **up to 106 tools** for interacting with Canvas LMS; the def
 | `get_my_submission_status` | Submitted vs missing | "Have I submitted everything?" |
 | `get_my_course_grades` | Current grades | "What are my grades?" |
 | `get_my_peer_reviews_todo` | Pending peer reviews | "What peer reviews do I need to do?" |
+| `list_quizzes` | Classic and New Quizzes in a course, with dates and your submission state (read-only) | "What quizzes do I have in CS 161?" |
+| `get_quiz_details` | One quiz's settings plus your attempts used and remaining (read-only) | "How many attempts do I have left on Quiz 3?" |
 
 </details>
 

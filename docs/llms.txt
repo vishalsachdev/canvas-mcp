@@ -39,7 +39,7 @@ Canvas MCP provides tools in these categories:
 - Modules: list_modules, create_module, update_module, delete_module
 - Pages: list_pages, create_page, edit_page_content, get_page_content
 - Rubrics: list_rubrics, get_rubric, create_rubric, associate_rubric, grade_with_rubric
-- Student self-service: get_my_upcoming_assignments, get_my_course_grades, get_my_todo_items, get_my_peer_reviews_todo
+- Student self-service: get_my_upcoming_assignments, get_my_course_grades, get_my_todo_items, get_my_peer_reviews_todo, list_quizzes, get_quiz_details
 
 ## Use Cases
 
