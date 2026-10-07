@@ -128,7 +128,7 @@ Cross-course by design: for one course's full announcement history use the share
 [`list_announcements`](#list_announcements) tool instead.
 
 **Parameters:**
-- `course_identifier` (optional): Course code or Canvas ID to show only that course
+- `course_identifier` (optional): Course code or Canvas ID to show only that course (omit it for every course; a blank value is refused rather than treated as "all")
 - `start_date` (optional): Earliest post date, `YYYY-MM-DD`, `MM/DD/YYYY` or ISO 8601 (default: 14 days before `end_date`)
 - `end_date` (optional): Latest post date (default: now). Date-only values are whole days in your Canvas
   account's time zone (Canvas applies the day boundaries); ISO timestamps are exact
@@ -143,8 +143,12 @@ Cross-course by design: for one course's full announcement history use the share
 
 **Returns:** Course code, post date, unread flag, author, title and a plain-text body
 preview (all Canvas-authored text fenced as untrusted). Canvas silently omits courses
-you cannot read. If a request fails (for example a Canvas server error), the
-announcements that did load are shown with a warning that results may be incomplete.
+you cannot read, so an empty answer for a numeric course ID that is not among your
+active courses says it may also mean you have no access. Announcements Canvas returns
+for courses that were not asked for are not shown (a warning counts them). If a request
+fails (for example a Canvas server error), the announcements that did load are shown
+with a warning that results may be incomplete. Timestamps, IDs, counts and links that
+are not in the expected form are reported as unknown or fenced, never printed as they came.
 
 ---
 

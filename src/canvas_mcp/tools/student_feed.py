@@ -100,6 +100,46 @@ ActivityType = Literal[
 ]
 
 
+def _stamp(value: Any) -> datetime | None:
+    """A Canvas timestamp as a datetime; None for anything that is not one."""
+    return parse_date(value) if isinstance(value, str) else None
+
+
+def _when(value: Any) -> str:
+    """A Canvas timestamp for display.
+
+    ``format_date`` hands back a string it cannot parse unchanged, which would
+    put an arbitrary Canvas-supplied value in the output unfenced, so anything
+    that is not a timestamp is reported as unknown instead.
+    """
+    return format_date(value) if _stamp(value) is not None else "unknown date"
+
+
+_PLAIN_URL = re.compile(r"https?://\S+")
+
+
+def _link(value: Any) -> str | None:
+    """A Canvas link for display: as-is when it is one plain URL, else fenced."""
+    if not isinstance(value, str) or not value:
+        return None
+    if _PLAIN_URL.fullmatch(value):
+        return value
+    return fence_untrusted_inline(value, "link")
+
+
+def _count_label(value: Any) -> int | None:
+    """A Canvas count as an int, or None when it is anything else."""
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+#: Every ``type`` Canvas gives an activity stream item that is printed as it is.
+#: Collaborations and web conferences have no category of their own and are
+#: listed as other activity.
+_KNOWN_STREAM_TYPES = frozenset(
+    {t for _, types in _STREAM_CATEGORIES for t in types} | {"Collaboration", "WebConference"}
+)
+
+
 def _category_for(item_type: Any) -> str:
     for label, types in _STREAM_CATEGORIES:
         if item_type in types:
@@ -284,6 +324,13 @@ async def _course_label(
     return label
 
 
+def _canvas_id(value: Any) -> str | None:
+    """A Canvas object ID as digits, or None when the value is not one."""
+    if value is None or isinstance(value, bool):
+        return None
+    return coerce_canvas_id(value)
+
+
 def _chunks(items: list[str], size: int) -> list[list[str]]:
     return [items[i:i + size] for i in range(0, len(items), size)]
 
@@ -354,7 +401,7 @@ def _format_announcement(
         or "Unknown author"
     )
     title = announcement.get("title") or "Untitled announcement"
-    posted = format_date(announcement.get("posted_at") or announcement.get("created_at"))
+    posted = _when(announcement.get("posted_at") or announcement.get("created_at"))
     unread = " [UNREAD]" if announcement.get("read_state") == "unread" else ""
 
     lines = [
@@ -362,9 +409,11 @@ def _format_announcement(
         f"  Title: {fence_untrusted_inline(title, 'announcement title')}",
         f"  Author: {fence_untrusted_inline(author_name, 'announcement author')}",
     ]
-    ref = f"  ID: {announcement.get('id')}"
-    if announcement.get("html_url"):
-        ref += f" | Link: {announcement['html_url']}"
+    announcement_id = _canvas_id(announcement.get("id"))
+    ref = f"  ID: {announcement_id or 'unavailable'}"
+    link = _link(announcement.get("html_url"))
+    if link:
+        ref += f" | Link: {link}"
     lines.append(ref)
     if preview_chars > 0:
         body = _preview(announcement.get("message"), preview_chars)
@@ -388,15 +437,14 @@ def _latest_conversation_message(item: dict) -> Any:
         return None
     ordered = sorted(
         messages,
-        key=lambda m: parse_date(str(m.get("created_at") or ""))
-        or datetime.min.replace(tzinfo=UTC),
+        key=lambda m: _stamp(m.get("created_at")) or datetime.min.replace(tzinfo=UTC),
     )
     return ordered[-1].get("message")
 
 
 def _stream_item_sort_key(item: dict) -> datetime:
     return (
-        parse_date(item.get("updated_at") or item.get("created_at"))
+        _stamp(item.get("updated_at") or item.get("created_at"))
         or datetime.min.replace(tzinfo=UTC)
     )
 
@@ -405,6 +453,13 @@ async def _format_stream_item(
     item: dict, codes: dict[str, str], preview_chars: int
 ) -> str:
     item_type = item.get("type") or "Unknown"
+    # Only Canvas's own type names are printed as they are; anything else is
+    # Canvas-supplied text and is fenced like any other.
+    type_label = (
+        item_type
+        if item_type == "Unknown" or item_type in _KNOWN_STREAM_TYPES
+        else fence_untrusted_inline(str(item_type), "activity item type")
+    )
     if item.get("course_id") is not None:
         # Labelled from the caller's course list only: a per-item lookup would
         # cost a request (or two) per item for any course not in that list.
@@ -416,9 +471,9 @@ async def _format_stream_item(
         where = f"group {group}" if group else "a group"
     else:
         where = "no course"
-    when = format_date(item.get("updated_at") or item.get("created_at"))
+    when = _when(item.get("updated_at") or item.get("created_at"))
     unread = " [UNREAD]" if item.get("read_state") is False else ""
-    lines = [f"• {where} | {item_type} | {when}{unread}"]
+    lines = [f"• {where} | {type_label} | {when}{unread}"]
 
     if item_type == "Submission":
         raw_assignment = item.get("assignment")
@@ -444,13 +499,13 @@ async def _format_stream_item(
         if comments:
             latest = max(
                 comments,
-                key=lambda c: parse_date(c.get("created_at")) or datetime.min.replace(tzinfo=UTC),
+                key=lambda c: _stamp(c.get("created_at")) or datetime.min.replace(tzinfo=UTC),
             )
             author = latest.get("author_name") or "Unknown commenter"
             lines.append(
                 f"  Comments: {len(comments)} (latest by "
                 f"{fence_untrusted_inline(author, 'comment author')}, "
-                f"{format_date(latest.get('created_at'))})"
+                f"{_when(latest.get('created_at'))})"
             )
             if preview_chars > 0:
                 text = _preview(latest.get("comment"), preview_chars)
@@ -461,8 +516,9 @@ async def _format_stream_item(
     else:
         title = item.get("title") or "(no title)"
         lines.append(f"  Title: {fence_untrusted_inline(title, 'activity item title')}")
-        if item_type == "Conversation" and item.get("participant_count") is not None:
-            lines.append(f"  Participants: {item.get('participant_count')}")
+        participants = _count_label(item.get("participant_count"))
+        if item_type == "Conversation" and participants is not None:
+            lines.append(f"  Participants: {participants}")
         if item_type == "Message" and item.get("notification_category"):
             category = str(item["notification_category"])
             # Canvas-defined ("Due Date", "Grading"); fenced if it is ever not.
@@ -470,7 +526,7 @@ async def _format_stream_item(
                 category = fence_untrusted_inline(category, "notification category")
             lines.append(f"  Category: {category}")
         if item_type in ("DiscussionTopic", "Announcement"):
-            replies = item.get("total_root_discussion_entries")
+            replies = _count_label(item.get("total_root_discussion_entries"))
             if replies is not None:
                 lines.append(f"  Replies: {replies}")
             if item.get("require_initial_post") and item.get("user_has_posted") is False:
@@ -487,8 +543,9 @@ async def _format_stream_item(
                 if _preview_was_cut(source, preview_chars):
                     lines.append(_cut_note(_FULL_TEXT_TOOL.get(item_type)))
 
-    if item.get("html_url"):
-        lines.append(f"  Link: {item['html_url']}")
+    link = _link(item.get("html_url"))
+    if link:
+        lines.append(f"  Link: {link}")
     return "\n".join(lines) + "\n"
 
 
@@ -549,7 +606,16 @@ def register_student_feed_tools(mcp: FastMCP) -> None:
             codes[cid] = course.get("course_code") or course.get("name") or f"course {cid}"
             course_ids.append(cid)
 
-        filtered = course_identifier is not None and bool(str(course_identifier).strip())
+        # A blank filter is refused rather than read as "no filter": the caller
+        # asked to narrow the list, and silently widening it to every course
+        # would hide that the value was not understood.
+        if course_identifier is not None and not str(course_identifier).strip():
+            return (
+                "Error: course_identifier is blank. Omit it to list every active "
+                "course, or pass a course code or numeric Canvas ID."
+            )
+        filtered = course_identifier is not None
+        unlisted_target = False
         if filtered:
             wanted = str(course_identifier).strip()
             # A numeric ID is used as given, even for a course that is no
@@ -572,6 +638,10 @@ def register_student_feed_tools(mcp: FastMCP) -> None:
                     "Pass its numeric Canvas course ID instead."
                 )
             course_ids = [target]
+            # Canvas omits courses the caller cannot read instead of refusing
+            # them, so for an ID outside the active list an empty answer is
+            # ambiguous and is reported as such below.
+            unlisted_target = target not in codes
         elif not course_ids:
             return "You have no active courses, so there are no announcements to show."
 
@@ -584,8 +654,15 @@ def register_student_feed_tools(mcp: FastMCP) -> None:
             [f"course_{cid}" for cid in course_ids], window_params
         )
 
+        # Only announcements of the courses that were asked for are shown. The
+        # endpoint should never return others; if it does, they are counted and
+        # reported, not displayed and not silently dropped.
+        requested = {f"course_{cid}" for cid in course_ids}
+        in_scope = [a for a in announcements if a.get("context_code") in requested]
+        out_of_scope = len(announcements) - len(in_scope)
+
         failed_count = len(course_failures) + sum(len(chunk) for chunk, _ in request_failures)
-        if failed_count and failed_count >= len(course_ids) and not announcements:
+        if failed_count and failed_count >= len(course_ids) and not in_scope:
             details = [err for _, err in request_failures] + [
                 f"{code}: {err}" for code, err in course_failures
             ]
@@ -593,13 +670,20 @@ def register_student_feed_tools(mcp: FastMCP) -> None:
             return f"Error fetching announcements: {detail}"
 
         # A course listed in two chunks or retried must not show twice.
+        # An announcement without an ID cannot be matched with another, so it
+        # is kept rather than merged into one.
         unique: dict[str, dict] = {}
-        for announcement in announcements:
-            key = f"{announcement.get('context_code')}:{announcement.get('id')}"
+        for position, announcement in enumerate(in_scope):
+            announcement_id = _canvas_id(announcement.get("id"))
+            key = (
+                f"{announcement.get('context_code')}:{announcement_id}"
+                if announcement_id
+                else f"unidentified:{position}"
+            )
             unique.setdefault(key, announcement)
         ordered = sorted(
             unique.values(),
-            key=lambda a: parse_date(a.get("posted_at") or a.get("created_at"))
+            key=lambda a: _stamp(a.get("posted_at") or a.get("created_at"))
             or datetime.min.replace(tzinfo=UTC),
             reverse=True,
         )
@@ -630,9 +714,23 @@ def register_student_feed_tools(mcp: FastMCP) -> None:
                 + "Those courses may have announcements not shown here.\n"
             )
 
+        if out_of_scope:
+            failure_note += (
+                f"\n⚠️  Ignored {out_of_scope} announcement(s) Canvas returned for "
+                "courses that were not asked for.\n"
+            )
+
         if not ordered:
+            access_note = ""
+            if unlisted_target:
+                access_note = (
+                    f"\n⚠️  {scope} is not among your active courses (it may be "
+                    "concluded), and Canvas leaves out courses you cannot read "
+                    "instead of refusing them, so this may also mean you have no "
+                    "access to it.\n"
+                )
             return (
-                f"No announcements in {scope} from {window_text}." + failure_note
+                f"No announcements in {scope} from {window_text}." + access_note + failure_note
             )
 
         lines = [
@@ -717,7 +815,11 @@ def register_student_feed_tools(mcp: FastMCP) -> None:
                     output.append("  No recent activity.")
                 output.append("")
             else:
-                detail = summary.get("error") if isinstance(summary, dict) else summary
+                detail = (
+                    summary["error"]
+                    if isinstance(summary, dict) and "error" in summary
+                    else "unexpected response from Canvas"
+                )
                 output.append(f"⚠️  Activity summary unavailable: {detail}\n")
 
         if item_type != "all":
@@ -740,6 +842,10 @@ def register_student_feed_tools(mcp: FastMCP) -> None:
                 cid = coerce_canvas_id(raw_id) if raw_id is not None else None
                 if cid is not None:
                     codes[cid] = course.get("course_code") or course.get("name") or f"course {cid}"
+
+        if isinstance(courses, str):
+            # Only the labels degrade: say so instead of showing bare IDs unexplained.
+            output.append(f"⚠️  {courses} Courses are shown by ID instead of code.\n")
 
         grouped: dict[str, list[dict]] = {}
         for item in shown:
