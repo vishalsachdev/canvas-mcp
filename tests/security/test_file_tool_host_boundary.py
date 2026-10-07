@@ -94,7 +94,8 @@ class TestDownloadRefusedOverHttp:
         ), patch(
             "canvas_mcp.tools.files.make_canvas_request", new_callable=AsyncMock
         ) as request, patch(
-            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
+            "canvas_mcp.tools.files.resolve_numeric_course_id",
+            new=AsyncMock(return_value=("60366", None)),
         ):
             download = get_tool_function("download_course_file")
             result = await download("badm_350", 12345, save_directory=str(tmp_path))
@@ -115,7 +116,8 @@ class TestDownloadRefusedOverHttp:
             "canvas_mcp.tools.files.make_canvas_request",
             new=AsyncMock(return_value=FILE_INFO),
         ), patch(
-            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
+            "canvas_mcp.tools.files.resolve_numeric_course_id",
+            new=AsyncMock(return_value=("60366", None)),
         ), patch(
             "canvas_mcp.tools.files.get_course_code",
             new=AsyncMock(return_value="badm_350"),
@@ -144,7 +146,8 @@ class TestDownloadDoesNotClobber:
             "canvas_mcp.tools.files.make_canvas_request",
             new=AsyncMock(return_value=FILE_INFO),
         ), patch(
-            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
+            "canvas_mcp.tools.files.resolve_numeric_course_id",
+            new=AsyncMock(return_value=("60366", None)),
         ), patch(
             "canvas_mcp.tools.files.canvas_authenticated_client"
         ) as client:
@@ -171,7 +174,8 @@ class TestDownloadDoesNotClobber:
             "canvas_mcp.tools.files.make_canvas_request",
             new=AsyncMock(return_value=FILE_INFO),
         ), patch(
-            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
+            "canvas_mcp.tools.files.resolve_numeric_course_id",
+            new=AsyncMock(return_value=("60366", None)),
         ), patch(
             "canvas_mcp.tools.files.canvas_authenticated_client"
         ) as client:
@@ -197,7 +201,8 @@ class TestDownloadDoesNotClobber:
             "canvas_mcp.tools.files.make_canvas_request",
             new=AsyncMock(return_value=FILE_INFO),
         ), patch(
-            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
+            "canvas_mcp.tools.files.resolve_numeric_course_id",
+            new=AsyncMock(return_value=("60366", None)),
         ), patch(
             "canvas_mcp.tools.files.canvas_authenticated_client"
         ) as client:
@@ -265,7 +270,8 @@ class TestDownloadPermissions:
             "canvas_mcp.tools.files.make_canvas_request",
             new=AsyncMock(return_value=FILE_INFO),
         ), patch(
-            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
+            "canvas_mcp.tools.files.resolve_numeric_course_id",
+            new=AsyncMock(return_value=("60366", None)),
         ), patch(
             "canvas_mcp.tools.files.canvas_authenticated_client"
         ) as client:
@@ -311,7 +317,8 @@ class TestDownloadIsPortable:
             "canvas_mcp.tools.files.make_canvas_request",
             new=AsyncMock(return_value=FILE_INFO),
         ), patch(
-            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
+            "canvas_mcp.tools.files.resolve_numeric_course_id",
+            new=AsyncMock(return_value=("60366", None)),
         ), patch(
             "canvas_mcp.tools.files.get_course_code",
             new=AsyncMock(return_value="badm_350"),
@@ -338,7 +345,8 @@ class TestDownloadIsPortable:
             "canvas_mcp.tools.files.make_canvas_request",
             new=AsyncMock(return_value=FILE_INFO),
         ), patch(
-            "canvas_mcp.tools.files.get_course_id", new=AsyncMock(return_value="60366")
+            "canvas_mcp.tools.files.resolve_numeric_course_id",
+            new=AsyncMock(return_value=("60366", None)),
         ), patch(
             "canvas_mcp.tools.files.canvas_authenticated_client"
         ) as client:

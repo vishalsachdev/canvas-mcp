@@ -44,6 +44,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Course codes with spaces, course names and bare SIS IDs now resolve.**
+  `get_course_id` only recognised codes containing an underscore, so a course
+  addressed as `COMPSCI 161`, by its name, or by its SIS ID was sent to Canvas
+  as typed and failed. A lookup that finds nothing in the cache now re-reads
+  the course list once (shared between concurrent callers, and not more often
+  than every 30 seconds, so a typo or garbage input cannot page through
+  `/courses` on every call) and matches the identifier against course code,
+  SIS ID and name, ignoring case and surrounding whitespace. An identifier
+  that names more than one of your courses is never guessed at. `get_course_id`
+  keeps its old pass-through for an identifier that matches nothing or several.
+- **`resolve_numeric_course_id`, a resolver that never returns an unvalidated
+  string.** It returns `(course_id, None)` or `(None, error)`, so its result is
+  safe in a request path. `sis_course_id:<token>` is looked up only when the
+  token is a single plain path segment (no `/`, backslash, `?`, `#`, `%`,
+  `..`, whitespace or control characters); any other value is refused without
+  a request. `list_course_files`, `read_course_file` and
+  `download_course_file` use it, so a course identifier such as `1/users/503`
+  or `../accounts/1` is refused with `Could not find course` before any file
+  request is made.
 - `assign_peer_review` no longer creates a placeholder submission. It scanned
   one page (100) of submissions for the reviewee and, on a miss, POSTed a
   placeholder on the student's behalf, so in a large assignment a truncated read
