@@ -62,6 +62,22 @@ async def refresh_course_cache() -> bool:
     return True
 
 
+def _refresh_in_flight(loop: asyncio.AbstractEventLoop) -> asyncio.Task[bool] | None:
+    """The refresh that is still running on ``loop``, if there is one."""
+    task = _refresh_task
+    if task is not None and not task.done() and task.get_loop() is loop:
+        return task
+    return None
+
+
+def _start_refresh(loop: asyncio.AbstractEventLoop) -> asyncio.Task[bool]:
+    """Start a course-cache refresh and record it for concurrent misses to share."""
+    global _refresh_task
+    task = loop.create_task(refresh_course_cache())
+    _refresh_task = task
+    return task
+
+
 async def _refresh_after_miss() -> bool:
     """Refresh the course cache because a lookup missed; False if that failed.
 
@@ -69,18 +85,15 @@ async def _refresh_after_miss() -> bool:
     succeeded within ``REFRESH_ON_MISS_INTERVAL_SECONDS``: the cache is then
     as current as a new read would make it, so a repeated miss costs nothing.
     """
-    global _refresh_task
     loop = asyncio.get_running_loop()
-    task = _refresh_task
-    if task is not None and not task.done() and task.get_loop() is loop:
-        return await asyncio.shield(task)
-    if (
-        _last_refresh_at is not None
-        and time.monotonic() - _last_refresh_at < REFRESH_ON_MISS_INTERVAL_SECONDS
-    ):
-        return True
-    task = loop.create_task(refresh_course_cache())
-    _refresh_task = task
+    task = _refresh_in_flight(loop)
+    if task is None:
+        if (
+            _last_refresh_at is not None
+            and time.monotonic() - _last_refresh_at < REFRESH_ON_MISS_INTERVAL_SECONDS
+        ):
+            return True
+        task = _start_refresh(loop)
     # Shielded so a caller that is cancelled does not cancel the refresh the
     # other callers are waiting on.
     return await asyncio.shield(task)

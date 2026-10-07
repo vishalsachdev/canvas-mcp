@@ -17,6 +17,9 @@ STUDENT_ONLY_TOOLS = {
     "get_my_course_grades",
     "get_my_todo_items",
     "get_my_peer_reviews_todo",
+    # cross-course "what's new" feed (tools/student_feed.py)
+    "list_my_announcements",
+    "get_my_activity_stream",
 }
 
 # Read-only tools scoped to the caller's own groups (tools/student_groups.py).

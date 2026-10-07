@@ -28,9 +28,9 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 
 ```
 # In .env:
-CANVAS_ROLE=student    # 41 tools by default (student + shared), 44 with every student write tool enabled
+CANVAS_ROLE=student    # 43 tools by default (student + shared), 46 with every student write tool enabled
 CANVAS_ROLE=educator   # 93 tools (educator + shared)
-CANVAS_ROLE=all        # Default profile; 102 tools by default, 107 with all feature-gated tools enabled
+CANVAS_ROLE=all        # Default profile; 104 tools by default, 109 with all feature-gated tools enabled
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
@@ -48,6 +48,8 @@ Personal academic tracking uses Canvas "self" endpoints. Shared course-content t
 | `get_my_course_grades` | Current grades across courses |
 | `get_my_peer_reviews_todo` | Pending peer reviews to complete |
 | `get_my_submission` | Your submission for one assignment, with attempts used |
+| `list_my_announcements` | Announcements across ALL active courses (default last 14 days); `list_announcements` is per-course |
+| `get_my_activity_stream` | Recent activity feed grouped by kind: announcements, discussions, conversations, grades/comments (course activity only; no group or non-course inbox items) |
 | `list_my_groups` | Groups you belong to, with course, course ID and member count. To read a group's discussions or announcements, pass its course ID and group ID to `list_discussion_topics(course_identifier, group_id=..., include_announcements=True)` and `get_discussion_with_replies(course_identifier, topic_id, include_replies=True, group_id=...)` |
 | `get_group_members` | Members of one of your groups (no emails) |
 | `list_group_files` | Files stored in one of your groups |
@@ -228,6 +230,9 @@ Is it a simple query?
 
 ### Student: Weekly Planning
 ```
+0. "What's new in my classes?"
+   → list_my_announcements() / get_my_activity_stream()
+
 1. "What assignments do I have due this week?"
    → get_my_upcoming_assignments(days=7)
 

@@ -120,6 +120,63 @@ grade if any, and submission comments.
 
 ---
 
+### What's New (cross-course feed)
+
+#### `list_my_announcements`
+List announcements across **all** your active courses in one call, newest first.
+Cross-course by design: for one course's full announcement history use the shared
+[`list_announcements`](#list_announcements) tool instead.
+
+**Parameters:**
+- `course_identifier` (optional): Course code or Canvas ID to show only that course (omit it for every course; a blank value is refused rather than treated as "all")
+- `start_date` (optional): Earliest post date, `YYYY-MM-DD`, `MM/DD/YYYY` or ISO 8601 (default: 14 days before `end_date`)
+- `end_date` (optional): Latest post date (default: now). Date-only values are whole days in your Canvas
+  account's time zone (Canvas applies the day boundaries); ISO timestamps are exact
+- `limit` (optional): Maximum announcements to show, 1-200 (default 50)
+- `preview_chars` (optional): Body preview length, 0-2000 (default 400; `0` = titles only). A shortened preview says so and names `get_discussion_topic_details`, which reads the whole announcement
+
+**Example:**
+```
+"What did my professors announce this week?"
+"Show announcements from BADM 350 since September 1"
+```
+
+**Returns:** Course code, post date, unread flag, author, title and a plain-text body
+preview (all Canvas-authored text fenced as untrusted). Canvas silently omits courses
+you cannot read, so an empty answer for a numeric course ID that is not among your
+active courses says it may also mean you have no access. Announcements Canvas returns
+for courses that were not asked for are not shown (a warning counts them). If a request
+fails (for example a Canvas server error), the announcements that did load are shown
+with a warning that results may be incomplete. Timestamps, IDs, counts and links that
+are not in the expected form are reported as unknown or fenced, never printed as they came.
+
+---
+
+#### `get_my_activity_stream`
+Your recent Canvas activity across all active courses: the dashboard "Recent Activity"
+feed, grouped by kind. Reading it does not mark anything read. Group activity and inbox
+messages not tied to a course are not included (Canvas limits the feed to active courses).
+
+**Parameters:**
+- `item_type` (optional): `all` (default), `announcements`, `discussions`, `conversations`,
+  `submissions` (grades and submission comments) or `notifications`
+- `limit` (optional): Maximum items to show, 1-200 (default 30)
+- `include_summary` (optional): Also show per-kind total and unread counts (default `true`)
+- `preview_chars` (optional): Preview length per item, 0-2000 (default 300)
+
+**Example:**
+```
+"What's new in Canvas?"
+"Did I get any new grades or feedback?"
+```
+
+**Returns:** Per-kind counts with unread totals, then the newest items grouped as
+announcements, discussions, inbox conversations, grades & submission comments,
+notifications and other activity. With data anonymization on (the default), names and
+contact details inside this feed are pseudonymised like any other `/users/...` response.
+
+---
+
 ### Student Write Tools
 
 > **Off by default.** These tools only exist if the server operator enabled them
@@ -2306,6 +2363,7 @@ marked `[truncated at N characters]`.
 Listing and overview tools may still preview long text, but only where a
 full-content tool exists, and the output names it when a preview was shortened
 (`get_course_content_overview` -> `get_syllabus`, `list_pages`, `list_modules`;
+`list_my_announcements` and `get_my_activity_stream` -> the item's own tool;
 `list_rubrics` -> `get_rubric`; `list_discussion_entries` without
 `include_full_content` -> `include_full_content=True`).
 

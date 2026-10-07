@@ -62,6 +62,7 @@ from .tools import (
     register_shared_file_tools,
     register_shared_messaging_tools,
     register_shared_module_tools,
+    register_student_feed_tools,
     register_student_group_tools,
     register_student_tools,
     register_student_write_tools,
@@ -450,6 +451,8 @@ def register_all_tools(mcp: FastMCP, role: str = "all") -> None:
     # Student-specific tools
     if role in ("student", "all"):
         register_student_tools(mcp)
+        # Cross-course announcements and activity stream (read-only).
+        register_student_feed_tools(mcp)
         # Read-only, scoped to groups the caller belongs to (tools/student_groups.py).
         register_student_group_tools(mcp)
         # Tier 1 writes register only for tools the operator named in
@@ -586,7 +589,7 @@ def main() -> None:
         "--role",
         choices=["student", "educator", "all"],
         default=None,
-        help="Tool profile: student (~41 tools), educator (~93 tools), all (default: all)"
+        help="Tool profile: student (~43 tools), educator (~93 tools), all (default: all)"
     )
     parser.add_argument(
         "--list-grants",
