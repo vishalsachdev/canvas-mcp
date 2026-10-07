@@ -142,9 +142,9 @@ Content access tools available to all authenticated users.
 | `get_my_enrollments` | What am I enrolled in, and as what role? Needs no roster permission |
 | `list_courses` | Enrolled courses (includes your own role in each) |
 | `get_course_details` | Course info and syllabus (includes your own role) |
-| `get_syllabus` | Full Syllabus tab content, untruncated (text/html/both). Educators write it with `update_syllabus` |
+| `get_syllabus` | Full Syllabus tab content (text/html/both), complete by default; the optional `max_chars` cap is the only way it is cut, and a cut is marked `[truncated at N characters]`. Educators write it with `update_syllabus` |
 | `list_pages` | Course pages |
-| `get_page_content` | Read page content |
+| `get_page_content` | Read page content, complete |
 | `edit_page_content` | Replace a page body (and optionally title). Optional guards: `expect_updated_at`, `find`/`replace` instead of `new_content`, `require` (see Guarded edits) |
 | `update_page_settings` | Publish/unpublish, set front page, editing roles |
 | `bulk_update_pages` | Update multiple pages at once |
@@ -159,7 +159,7 @@ Content access tools available to all authenticated users.
 | `list_discussion_topics` | Discussion forums (discussions only; set `include_announcements` to also list announcements). Shows `Anonymity:` when Canvas reports an `anonymous_state`. Canvas REST returns 404 for anonymous topics; by default the read tools explain this and link to Canvas. Set `DISCUSSION_GRAPHQL_ENABLED=true` to enable the read-only GraphQL fallback |
 | `list_group_discussion_topics` | Topics inside every group space, including topics students started in a group (pass `group_id` to the other discussion read tools to read them) |
 | `get_discussion_topic_details` | One topic's details; `raw_dates=True` appends the topic's dates and, for a graded discussion, its assignment and checkpoint dates. On a GraphQL fallback, `raw_dates=True` reports unavailable date metadata and unknown grading status. Prints the message's SHA-256 for `update_discussion_topic`'s `expect_body_sha256` |
-| `list_discussion_entries` | Posts in a discussion |
+| `list_discussion_entries` | Posts in a discussion. Previews by default and says so; `include_full_content=True` returns every post (and every reply with `include_replies=True`) complete |
 | `post_discussion_entry` | Add a discussion post |
 | `reply_to_discussion_entry` | Reply to a post |
 

@@ -14,6 +14,7 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, truncate_text
+from ..core.tool_results import FULL_CONTENT_TOOL_META
 from ..core.untrusted_content import (
     FENCE_LEAK_ERROR,
     contains_fence_markers,
@@ -885,7 +886,9 @@ async def _ensure_course_bookmark(response: Any, course_id: str | int) -> str:
 def register_rubric_tools(mcp: FastMCP) -> None:
     """Register all rubric-related MCP tools."""
 
-    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
+    @mcp.tool(
+        annotations=ToolAnnotations(read_only_hint=True), meta=FULL_CONTENT_TOOL_META
+    )
     @validate_params
     async def get_rubric(course_identifier: str | int,
                          rubric_id: str | int | None = None,
@@ -982,7 +985,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                     result += f"  Points: {points}\n"
 
                     if long_description and long_description != description:
-                        result += f"  Description: {fence_untrusted_inline(truncate_text(long_description, 200), 'rubric criterion description')}\n"
+                        result += f"  Description:\n{fence_untrusted(long_description, 'rubric criterion description')}\n"
 
                     if ratings:
                         sorted_ratings = sorted(ratings, key=lambda x: x.get("points", 0), reverse=True)
@@ -994,7 +997,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
                             rating_long_desc = rating.get("long_description", "")
                             if rating_long_desc and rating_long_desc != rating_desc:
-                                result += f"    {fence_untrusted_inline(truncate_text(rating_long_desc, 100), 'rubric rating description')}\n"
+                                result += f"{fence_untrusted(rating_long_desc, 'rubric rating description')}\n"
 
                     result += "\n"
             else:
@@ -1057,7 +1060,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             result += f"  Points: {points}\n"
 
             if long_description and long_description != description:
-                result += f"  Description: {fence_untrusted_inline(truncate_text(long_description, 200), 'rubric criterion description')}\n"
+                result += f"  Description:\n{fence_untrusted(long_description, 'rubric criterion description')}\n"
 
             if ratings:
                 sorted_ratings = sorted(ratings, key=lambda x: x.get("points", 0), reverse=True)
@@ -1069,7 +1072,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
                     rating_long_desc = rating.get("long_description", "")
                     if rating_long_desc and rating_long_desc != rating_desc:
-                        result += f"    {fence_untrusted_inline(truncate_text(rating_long_desc, 100), 'rubric rating description')}\n"
+                        result += f"{fence_untrusted(rating_long_desc, 'rubric rating description')}\n"
 
             total_points += points
             result += "\n"
@@ -1078,7 +1081,9 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
+    @mcp.tool(
+        annotations=ToolAnnotations(read_only_hint=True), meta=FULL_CONTENT_TOOL_META
+    )
     @validate_params
     async def get_rubric_assessment(course_identifier: str | int,
                                              assignment_id: str | int,
@@ -1337,6 +1342,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         course_display = await get_course_code(course_id) or course_identifier
 
         result = f"All Rubrics for Course {course_display}:\n\n"
+        shortened = False
 
         for i, rubric in enumerate(rubrics, 1):
             rubric_id = rubric.get("id", "N/A")
@@ -1366,8 +1372,10 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                     result += f"\n{j}. {fence_untrusted_inline(description, 'rubric criterion description')} (ID: {criterion_id}) - {points} points\n"
 
                     if long_description and long_description != description:
-                        # Truncate long descriptions to keep output manageable
+                        # A listing shortens long descriptions; the footer
+                        # names get_rubric, which shows them whole.
                         truncated_desc = truncate_text(long_description, 150)
+                        shortened = shortened or truncated_desc != long_description
                         result += f"   Description: {fence_untrusted_inline(truncated_desc, 'rubric criterion description')}\n"
 
                     if ratings:
@@ -1385,6 +1393,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                             rating_long_desc = rating.get("long_description", "")
                             if rating_long_desc and rating_long_desc != rating_description:
                                 truncated_rating_desc = truncate_text(rating_long_desc, 100)
+                                shortened = shortened or truncated_rating_desc != rating_long_desc
                                 result += f"     {fence_untrusted_inline(truncated_rating_desc, 'rubric rating description')}\n"
                     else:
                         result += "   No rating scale defined for this criterion.\n"
@@ -1397,6 +1406,11 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         result += "=" * 80 + "\n"
         result += f"Total Rubrics Found: {len(rubrics)}\n"
 
+        if shortened:
+            result += (
+                "\nSome long descriptions above are shortened (ending in '...'); "
+                "get_rubric with the rubric ID shows them in full.\n"
+            )
         if include_criteria:
             result += "\nNote: Use the criterion and rating IDs shown above with the grade_with_rubric tool.\n"
             result += "Example: {\"criterion_id\": {\"points\": X, \"comments\": \"...\", \"rating_id\": \"rating_id\"}}\n"

@@ -21,6 +21,7 @@ from ..core.guarded_edit import (
 )
 from ..core.logging import log_warning
 from ..core.raw_dates import render_raw_dates, topic_raw_dates
+from ..core.tool_results import FULL_CONTENT_TOOL_META
 from ..core.untrusted_content import (
     FENCE_LEAK_ERROR,
     contains_fence_markers,
@@ -51,6 +52,14 @@ ANNOUNCEMENT_PERMISSION_FALLBACK_WARNING = (
     "fallback; announcements require instructor/TA permissions in this "
     "course. Report this to the user instead."
 )
+
+
+def _discussion_text(message: Any) -> str:
+    """A discussion post's complete text with its markup removed, never cut."""
+    if not isinstance(message, str) or not message:
+        return "[No content]"
+    text = re.sub(r"<[^>]+>", "", message).strip()
+    return text or "[Content contains only HTML/formatting]"
 
 # Substrings that show up in make_canvas_request's {"error": ...} payload
 # for an authorization failure (see core/client.py: "HTTP error: 401/403,
@@ -633,7 +642,9 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         course_display = await get_course_code(course_id) or course_identifier
         return f"Announcements for Course {course_display}:\n\n" + "\n".join(announcements_info)
 
-    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
+    @mcp.tool(
+        annotations=ToolAnnotations(read_only_hint=True), meta=FULL_CONTENT_TOOL_META
+    )
     @validate_params
     async def get_discussion_topic_details(course_identifier: str | int,
                                          topic_id: str | int,
@@ -750,7 +761,9 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
+    @mcp.tool(
+        annotations=ToolAnnotations(read_only_hint=True), meta=FULL_CONTENT_TOOL_META
+    )
     @validate_params
     async def list_discussion_entries(course_identifier: str | int,
                                     topic_id: str | int,
@@ -762,7 +775,8 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         Args:
             course_identifier: Course code or Canvas ID
             topic_id: Discussion topic ID
-            include_full_content: Fetch full content for each entry (default: False)
+            include_full_content: Return the complete text of every entry and
+                reply (default: False, which shows short previews)
             include_replies: Fetch replies for each entry (default: False)
             group_id: Canvas group ID, to read a discussion inside a group
                 space instead of the course (default: None). Discussions that
@@ -934,12 +948,17 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                         reply_created = format_date(reply.get("created_at"))
                         reply_msg = reply.get("message", "")
 
-                        # Clean reply message
+                        # Clean reply message. With include_full_content the
+                        # reply is shown whole, like the entry it answers;
+                        # otherwise it is a one-line preview.
                         if reply_msg:
-                            reply_clean = re.sub(r'<[^>]+>', '', reply_msg)
-                            if len(reply_clean) > 200:
-                                reply_clean = reply_clean[:200] + "..."
-                            reply_clean = reply_clean.replace("\n", " ").strip()
+                            reply_clean = re.sub(r'<[^>]+>', '', reply_msg).strip()
+                            if not include_full_content:
+                                if len(reply_clean) > 200:
+                                    reply_clean = reply_clean[:200] + "..."
+                                reply_clean = reply_clean.replace("\n", " ").strip()
+                            if not reply_clean:
+                                reply_clean = "[Content contains only HTML/formatting]"
                         else:
                             reply_clean = "[No content]"
 
@@ -983,7 +1002,10 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
         # Add helpful footer information
         footer = ""
         if not include_full_content:
-            footer += "\n💡 Tip: Use include_full_content=True to get complete post content in one call"
+            footer += (
+                "\n💡 Tip: Previews above are shortened. Use include_full_content=True "
+                "to get the complete text of every post and reply in one call"
+            )
         if not include_replies:
             footer += "\n💡 Tip: Use include_replies=True to fetch all replies"
 
@@ -994,7 +1016,9 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             + footer
         )
 
-    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
+    @mcp.tool(
+        annotations=ToolAnnotations(read_only_hint=True), meta=FULL_CONTENT_TOOL_META
+    )
     @validate_params
     async def get_discussion_entry_details(course_identifier: str | int,
                                          topic_id: str | int,
@@ -1202,20 +1226,20 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
+    @mcp.tool(
+        annotations=ToolAnnotations(read_only_hint=True), meta=FULL_CONTENT_TOOL_META
+    )
     @validate_params
     async def get_discussion_with_replies(course_identifier: str | int,
                                         topic_id: str | int,
                                         include_replies: bool = False,
                                         group_id: str | int | None = None) -> str:
-        """Read a discussion topic's title and a preview of every entry.
+        """Read every entry of a discussion in full, optionally with all replies.
 
-        Returns the topic title (not its body) and each top-level entry's author,
-        post time, and a text preview cut to 200 characters; with
-        include_replies=True each entry's replies are fetched too, also as
-        previews. For full entry text use list_discussion_entries with
-        include_full_content=True, and get_discussion_entry_details for a single
-        entry.
+        Returns the topic title (not its body; get_discussion_topic_details has
+        that) and each top-level entry's author, post time, and complete text,
+        never cut; with include_replies=True each entry's replies are fetched
+        too, also complete. get_discussion_entry_details reads a single entry.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -1274,20 +1298,14 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             message = entry.get("message", "")
             created_at = format_date(entry.get("created_at"))
 
-            # Clean up message for display
-            if message:
-                message_preview = re.sub(r'<[^>]+>', '', message)
-                if len(message_preview) > 200:
-                    message_preview = message_preview[:200] + "..."
-                message_preview = message_preview.replace("\n", " ").strip()
-            else:
-                message_preview = "[No content]"
+            # Markup is dropped; the text itself is shown whole.
+            message_text = _discussion_text(message)
 
             result += f"📝 Entry {entry_id} by {fence_untrusted_inline(user_name, 'author name')}\n"
             result += f"   Posted: {created_at}\n"
             result += (
-                "   Content: "
-                f"{fence_untrusted(message_preview, 'discussion entry by a course participant')}\n"
+                "   Content:\n"
+                f"{fence_untrusted(message_text, 'discussion entry by a course participant')}\n"
             )
 
             # Handle replies
@@ -1327,18 +1345,10 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                         reply_created = format_date(reply.get("created_at"))
                         reply_msg = reply.get("message", "")
 
-                        # Clean reply message
-                        if reply_msg:
-                            reply_preview = re.sub(r'<[^>]+>', '', reply_msg)
-                            if len(reply_preview) > 150:
-                                reply_preview = reply_preview[:150] + "..."
-                            reply_preview = reply_preview.replace("\n", " ").strip()
-                        else:
-                            reply_preview = "[No content]"
-
+                        reply_text = _discussion_text(reply_msg)
                         result += (
-                            f"      └─ Reply {i} by {fence_untrusted_inline(reply_user, 'author name')} ({reply_created}): "
-                            f"{fence_untrusted(reply_preview, 'discussion reply by a course participant')}\n"
+                            f"      └─ Reply {i} by {fence_untrusted_inline(reply_user, 'author name')} ({reply_created}):\n"
+                            f"{fence_untrusted(reply_text, 'discussion reply by a course participant')}\n"
                         )
                 else:
                     recent_count = len(entry.get("recent_replies", []))

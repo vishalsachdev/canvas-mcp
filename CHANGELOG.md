@@ -44,6 +44,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Full-content reads no longer cut text without saying so.**
+  `get_discussion_with_replies` returns whole entries and replies (they were cut
+  at 200 and 150 characters), `list_discussion_entries` with
+  `include_full_content=True` returns whole replies (they were cut at 200), and
+  `get_rubric` shows whole criterion and rating descriptions (they were cut at
+  200 and 100), block-fenced as untrusted Canvas content. `get_syllabus` stays
+  complete by default; its optional `max_chars` cap is kept, and a cut is always
+  marked with `[truncated at N characters]`. The reading tools
+  (`get_page_content`, `get_syllabus`, `get_front_page`,
+  `get_assignment_details`, `get_discussion_topic_details`,
+  `get_discussion_entry_details`, `get_discussion_with_replies`,
+  `list_discussion_entries`, `get_conversation_details`, `get_my_submission`,
+  `get_rubric`, `get_rubric_assessment`) now declare
+  `anthropic/maxResultSizeChars: 500000` in `tools/list`, so Claude Code
+  delivers a large result whole instead of capping it near 25k tokens; other
+  clients ignore the key.
+- Previews now say they are previews: `list_discussion_entries` without
+  `include_full_content` names that parameter, `list_rubrics` points to
+  `get_rubric` when it shortened a description, and
+  `get_course_content_overview` names `get_syllabus`, `list_pages` and
+  `list_modules` when it shows only a preview or the first few items.
 - **Course codes with spaces, course names and bare SIS IDs now resolve.**
   `get_course_id` only recognised codes containing an underscore, so a course
   addressed as `COMPSCI 161`, by its name, or by its SIS ID was sent to Canvas
@@ -112,8 +133,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `.githooks/commit-msg` runs the first of `python3` and `python` that really
     is Python 3.8 or newer. On Windows `python3` is usually the Microsoft Store
     alias, which exits non-zero and used to reject every commit unscanned. With
-    no working Python the hook now skips with a message, as it already did for
-    a missing checker; CI is the backstop.
+    no working Python the hook now rejects the commit with an installation/PATH
+    hint; the explicit `ALLOW_CLOSING_KEYWORD=1` bypass still works. A missing
+    checker file still skips the check, with CI as that case's backstop.
   - Tests no longer assume POSIX: symlink tests fall back to a directory
     junction or skip with a stated reason where Windows refuses symlinks,
     permission-bit assertions skip on Windows, the audit tests clean up in the

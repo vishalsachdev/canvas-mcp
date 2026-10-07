@@ -309,3 +309,34 @@ async def test_list_courses_boolean_parameters_have_descriptions():
 
     assert "concluded" in properties["include_concluded"]["description"].lower()
     assert "active" in properties["include_all"]["description"].lower()
+
+
+# Tools whose job is to return one complete piece of Canvas content. Each must
+# tell Claude Code it may return a large result (anthropic/maxResultSizeChars),
+# or the client caps it near 25k tokens and the model sees a cut document.
+FULL_CONTENT_TOOLS = {
+    "get_page_content",
+    "get_syllabus",
+    "get_front_page",
+    "get_assignment_details",
+    "get_discussion_topic_details",
+    "get_discussion_entry_details",
+    "get_discussion_with_replies",
+    "list_discussion_entries",
+    "get_conversation_details",
+    "get_my_submission",
+    "get_rubric",
+    "get_rubric_assessment",
+}
+
+
+@pytest.mark.asyncio
+async def test_full_content_tools_declare_the_large_result_size_on_the_wire():
+    async with Client(_registry()) as client:
+        tools = {tool.name: tool for tool in await client.list_tools()}
+
+    missing = FULL_CONTENT_TOOLS - tools.keys()
+    assert not missing, f"full-content tools not registered: {sorted(missing)}"
+    for name in sorted(FULL_CONTENT_TOOLS):
+        meta = tools[name].meta or {}
+        assert meta.get("anthropic/maxResultSizeChars") == 500_000, name
