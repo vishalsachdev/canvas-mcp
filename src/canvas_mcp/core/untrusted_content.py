@@ -109,6 +109,7 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "get_peer_review_comments": _fenced("fence_untrusted_fields"),
     "get_peer_review_completion_analytics": _fenced("_fence_peer_review_names"),
     "get_peer_review_followup_list": _fenced("_fence_peer_review_names"),
+    "get_quiz_details": _fenced("fence_untrusted"),
     "get_rubric": _fenced("fence_untrusted_inline"),
     "get_rubric_assessment": _fenced("fence_untrusted_inline"),
     "get_student_analytics": _fenced("fence_untrusted_inline"),
@@ -138,6 +139,7 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "list_my_groups": _fenced("fence_untrusted", "_group_label"),
     "list_pages": _fenced("fence_untrusted"),
     "list_peer_reviews": _fenced("fence_untrusted_inline"),
+    "list_quizzes": _fenced("fence_untrusted_inline"),
     "list_rubrics": _fenced("fence_untrusted_inline"),
     "list_submissions": _deferred(
         "Returns IDs, timestamps, scores/grade labels, and course code; no unrestricted author free text."

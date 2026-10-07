@@ -12,6 +12,9 @@ async def _get_tool_names(mcp: FastMCP) -> set[str]:
 
 
 STUDENT_ONLY_TOOLS = {
+    # Read-only quiz awareness; registered only for the student profile.
+    "list_quizzes",
+    "get_quiz_details",
     # student grade insight (read-only, caller-scoped)
     "get_my_assignment_scores",
     "calculate_grade_scenarios",

@@ -28,9 +28,9 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 
 ```
 # In .env:
-CANVAS_ROLE=student    # 45 tools by default (student + shared), 48 with every student write tool enabled
+CANVAS_ROLE=student    # 47 tools by default (student + shared), 50 with every student write tool enabled
 CANVAS_ROLE=educator   # 93 tools by default, 95 with every gated tool enabled
-CANVAS_ROLE=all        # Default profile; 106 tools by default, 111 with all feature-gated tools enabled
+CANVAS_ROLE=all        # Default profile; 108 tools by default, 113 with all feature-gated tools enabled
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
@@ -61,6 +61,8 @@ membership in every tool profile unless Canvas explicitly grants `manage_grades`
 or `read_as_admin`. Missing or malformed permission data never grants staff access.
 The group tools only read groups you are a member of; they check your membership
 before every call and refuse other groups even when Canvas would allow the read.
+| `list_quizzes` | Classic quizzes and New Quizzes in a course: dates, limits, your submission state (read-only) |
+| `get_quiz_details` | One quiz's settings plus your own attempts used/remaining and kept score from the latest record (read-only; earlier history and New Quizzes details are limited) |
 
 ### Student Write Tools (off by default)
 Let an agent act on Canvas for the student rather than only read. **None of these
@@ -396,6 +398,7 @@ usual cause).
 - Access data outside user's Canvas permissions
 - Bypass Canvas API rate limits
 - Access other students' data (for student users)
+- Take quizzes, start quiz attempts, or read quiz questions and answers (quiz tools are read-only awareness)
 - Modify Canvas system configuration
 
 ### Known Canvas API Limitations

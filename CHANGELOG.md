@@ -83,6 +83,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   duplicate IDs), and
   submissions that arrive as a list (an observer token); a letter target is
   refused when the course's real letter scheme is unknown.
+- **Read-only quiz awareness for students** (student slice of issue 172):
+  `list_quizzes` lists a course's Classic quizzes and New Quizzes with dates,
+  limits and your submission state; `get_quiz_details` shows one quiz's settings
+  plus your own attempts used/remaining and kept score from the latest record.
+  Earlier attempt history is unavailable: its GET endpoint triggers grading of
+  overdue attempts even for students, so the read-only tool never calls it. Neither tool takes a
+  quiz, starts an attempt, or reads questions or answers. New Quizzes are found
+  by the assignment API's `is_quiz_lti_assignment` flag (not
+  `is_quiz_assignment`, which marks Classic quizzes); their settings and attempt
+  history are not exposed to students by the REST API, and the tools say so.
 
 ### Fixed
 

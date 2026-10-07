@@ -326,6 +326,7 @@ FULL_CONTENT_TOOLS = {
     "get_conversation_details",
     "get_my_submission",
     "get_my_assignment_scores",
+    "get_quiz_details",
     "get_rubric",
     "get_rubric_assessment",
 }
