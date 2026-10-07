@@ -1,12 +1,14 @@
 """Course caching system for Canvas API."""
 
 import asyncio
+import re
 import time
 from collections.abc import Iterable, Mapping
 from typing import Any
 
 from .client import fetch_all_paginated_results, make_canvas_request
 from .logging import log_error, log_info
+from .untrusted_content import fence_untrusted_inline
 from .validation import coerce_canvas_id, validate_params
 
 # Global cache for course codes to IDs
@@ -299,6 +301,15 @@ def is_safe_sis_course_form(identifier: str) -> bool:
     )
 
 
+def _lookup_failure_reason(error: object) -> str:
+    """Keep untrusted Canvas lookup response bodies out of diagnostics."""
+    text = str(error)
+    status = re.match(r"HTTP error: (\d{3})(?!\d)", text)
+    if status:
+        return f"HTTP {status.group(1)}"
+    return fence_untrusted_inline(text.strip()[:200] or "no detail", "Canvas error")
+
+
 async def resolve_numeric_course_id(
     course_identifier: str | int,
     *,
@@ -357,7 +368,7 @@ async def resolve_numeric_course_id(
         course = await make_canvas_request("get", f"/courses/{raw}")
         if not isinstance(course, dict) or "error" in course:
             detail = course.get("error") if isinstance(course, dict) else course
-            return None, f"{not_found}: {detail}"
+            return None, f"{not_found}: {_lookup_failure_reason(detail)}"
         found = coerce_canvas_id(course.get("id", ""))
         return (found, None) if found is not None else (None, not_found)
 
