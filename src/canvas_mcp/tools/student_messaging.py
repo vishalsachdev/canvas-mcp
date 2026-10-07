@@ -374,6 +374,10 @@ def _conversation_course_ids(conversation: dict[str, Any]) -> set[str]:
     Prefers the conversation's own ``context_code``; otherwise falls back to
     the documented ``audience_contexts.courses`` (the courses shared with the
     other participants). Every course found must allow the reply.
+
+    Fails closed: if any course key is not a plain numeric ID, the answer is
+    the empty set ("no course could be identified"), never just the keys that
+    parsed, because a dropped course is a course whose policy was not checked.
     """
     match = _COURSE_CONTEXT.match(str(conversation.get("context_code") or ""))
     if match:
@@ -382,7 +386,10 @@ def _conversation_course_ids(conversation: dict[str, Any]) -> set[str]:
     courses = contexts.get("courses") if isinstance(contexts, dict) else None
     if not isinstance(courses, dict):
         return set()
-    return {cid for cid in (coerce_canvas_id(key) for key in courses) if cid}
+    course_ids = {coerce_canvas_id(key) for key in courses}
+    if None in course_ids:
+        return set()
+    return {cid for cid in course_ids if cid}
 
 
 async def _check_courses_allowed(
@@ -392,8 +399,9 @@ async def _check_courses_allowed(
     if not course_ids:
         if get_config().course_agent_policy_enabled:
             return False, (
-                "This conversation is not tied to a course, so the course's "
-                "agent policy cannot be checked. Reply in Canvas instead."
+                "This conversation is not tied to a course (or its course could "
+                "not be identified), so the course's agent policy cannot be "
+                "checked. Reply in Canvas instead."
             )
         # Policy disabled: only the operator ceiling applies, and
         # check_student_write_allowed answers that without reading a course.
@@ -444,7 +452,9 @@ async def _load_reply_target(
             f"You are not a participant in conversation {conversation_id}, so "
             "you cannot reply to it."
         )
-    if conversation.get("cannot_reply") is True:
+    # Any truthy value blocks; only an absent or false flag lets a reply
+    # through, so an unexpected shape (a string, a number) is never read as "ok".
+    if conversation.get("cannot_reply"):
         return "Canvas does not allow replies to this conversation."
 
     # The reply is sent without recipients[], so Canvas delivers it to every

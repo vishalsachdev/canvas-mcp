@@ -951,6 +951,49 @@ class TestReplyToConversation:
         assert "does not allow replies" in result["error"]
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("flag", [True, "true", "false", 1, "yes", ["x"]])
+    async def test_any_truthy_cannot_reply_value_blocks(self, canvas, flag):
+        """Only an absent or false flag lets a reply through, never an odd shape."""
+        canvas.conversations["77"] = _conversation(cannot_reply=flag)
+        tools = await _tools()
+        result = await tools["reply_to_conversation"]("77", "Thanks")
+        assert "does not allow replies" in result["error"]
+        assert "confirmation_token" not in result
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("flag", [False, None, 0])
+    async def test_falsy_cannot_reply_value_still_previews(self, canvas, flag):
+        canvas.conversations["77"] = _conversation(cannot_reply=flag)
+        tools = await _tools()
+        preview = await tools["reply_to_conversation"]("77", "Thanks")
+        assert preview["preview"] is True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("bad_key", ["abc", "12/users", "", "course_123"])
+    async def test_unparseable_audience_course_key_fails_closed(self, canvas, bad_key):
+        """A course key that cannot be read must not be skipped while the rest pass.
+
+        COURSE allows agent writes here, so before this was fixed the one
+        parseable key alone decided the policy and the unreadable one was
+        silently dropped.
+        """
+        canvas.conversations["77"] = _conversation(
+            context_code=None,
+            audience_contexts={
+                "courses": {
+                    COURSE: ["StudentEnrollment"],
+                    bad_key: ["StudentEnrollment"],
+                },
+                "groups": {},
+            },
+        )
+        tools = await _tools()
+        result = await tools["reply_to_conversation"]("77", "Thanks")
+        assert "not tied to a course" in result["error"]
+        assert result["nothing_sent"] is True
+        assert "confirmation_token" not in result
+
+    @pytest.mark.asyncio
     async def test_monologue_has_no_one_to_reply_to(self, canvas):
         canvas.conversations["77"] = _conversation(audience=[ME], participants=[{"id": ME}])
         tools = await _tools()
