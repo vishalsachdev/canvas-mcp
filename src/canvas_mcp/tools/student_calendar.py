@@ -51,6 +51,7 @@ from __future__ import annotations
 import datetime as dt
 import re
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -281,15 +282,42 @@ def _resolve_window(
 # --- Identity and course resolution -----------------------------------------
 
 
-async def _my_user_id() -> tuple[str | None, str | None]:
-    """The caller's numeric Canvas user id, or an error message."""
+async def _my_user_profile() -> tuple[dict | None, str | None]:
+    """The caller's profile with a validated numeric id, or an error."""
     me = await make_canvas_request("get", "/users/self")
     if not isinstance(me, dict) or _is_error(me):
         return None, f"Error identifying current user: {_error_detail(me)}"
     user_id = coerce_canvas_id(me.get("id", ""))
     if user_id is None:
         return None, "Error identifying current user: Canvas returned no user id."
-    return user_id, None
+    return me, None
+
+
+async def _my_user_id() -> tuple[str | None, str | None]:
+    """The caller's numeric Canvas user id, or an error message."""
+    me, error = await _my_user_profile()
+    if me is None:
+        return None, error
+    return coerce_canvas_id(me["id"]), None
+
+
+def _planner_date_matches(returned: Any, requested: str, canvas_zone: Any) -> bool:
+    """Confirm an instant, or a date-only request in the caller's Canvas zone."""
+    if not isinstance(returned, str):
+        return False
+    try:
+        if _DATE_ONLY.fullmatch(returned):
+            return _DATE_ONLY.fullmatch(requested) is not None and dt.date.fromisoformat(returned) == dt.date.fromisoformat(requested)
+        actual = dt.datetime.fromisoformat(returned)
+        if actual.tzinfo is None:
+            return False
+        if _DATE_ONLY.fullmatch(requested):
+            if not isinstance(canvas_zone, str):
+                return False
+            return actual.astimezone(ZoneInfo(canvas_zone)).date() == dt.date.fromisoformat(requested)
+        return actual == dt.datetime.fromisoformat(requested)
+    except (ValueError, ZoneInfoNotFoundError):
+        return False
 
 
 async def _resolve_numeric_course_id(
@@ -1007,9 +1035,11 @@ def register_student_calendar_tools(mcp: FastMCP) -> None:
                     return date_error
                 data["todo_date"] = date_wire
 
-            my_id, me_error = await _my_user_id()
+            me, me_error = await _my_user_profile()
             if me_error:
                 return me_error
+            assert me is not None
+            my_id = coerce_canvas_id(me["id"])
             assert my_id is not None
             note, note_error = await _fetch_my_note(validated, my_id)
             if note_error:
@@ -1096,6 +1126,10 @@ def register_student_calendar_tools(mcp: FastMCP) -> None:
                 "title" not in data or updated.get("title") == data["title"]
             ) and ("details" not in data or updated.get("description") == data["details"]) and (
                 "course_id" not in data or str(updated.get("course_id")) == data["course_id"]
+            ) and (
+                "todo_date" not in data or _planner_date_matches(
+                    updated.get("todo_date"), data["todo_date"], me.get("time_zone")
+                )
             )
             if not landed:
                 return unconfirmed_write_warning(

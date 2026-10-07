@@ -620,7 +620,9 @@ institution default), then the grading standards API, falling back to
 Canvas's default scheme when neither is readable. A suspected final grade
 override is pointed out. Not reproduced: grading-period weighting, override
 scores, unposted scores and assignments Canvas does not show you. When a group
-drops both lowest and highest scores the target search is approximate.
+drops both lowest and highest scores the target search is approximate. A result
+is a checked solution rather than a proven minimum; a search miss is indeterminate,
+because narrow passing intervals between grid points may have been missed.
 
 **Refuses instead of guessing (both tools):** a course that restricts
 quantitative data for students (Canvas withholds the numbers); assignment-group

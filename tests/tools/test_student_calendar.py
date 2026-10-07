@@ -689,6 +689,56 @@ def _note(**overrides: Any) -> dict[str, Any]:
 
 class TestUpdatePlannerNote:
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("returned_date,confirmed", [
+        ("2026-10-03T07:00:00Z", False),
+        (None, False),
+        ({"date": "2026-10-04"}, False),
+        (123, False),
+        (True, False),
+        ("invalid", False),
+        ("2026-10-04T00:00:00Z", True),
+        ("2026-10-03T19:00:00-05:00", True),
+    ])
+    async def test_date_only_update_verifies_returned_instant(self, returned_date, confirmed):
+        tools = write_tools()
+        fake = FakeCanvas(routes={
+            ("get", "/planner_notes/5"): _note(),
+            ("put", "/planner_notes/5"): _note(todo_date=returned_date),
+        })
+        args = {"note_id": 5, "todo_date": "2026-10-04T00:00:00Z"}
+        with canvas(fake):
+            token = _token(await tools["update_planner_note"](**args))
+            result = await tools["update_planner_note"](**args, confirmation_token=token)
+        assert len(fake.writes()) == 1
+        assert result.startswith("✅ Planner note updated.") == confirmed
+        if not confirmed:
+            assert result.startswith("⚠️  Could not confirm")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("zone,returned_date,confirmed", [
+        ("America/Los_Angeles", "2026-10-04T07:00:00Z", True),
+        ("Asia/Tokyo", "2026-10-03T15:00:00Z", True),
+        ("Asia/Tokyo", "2026-10-04T15:00:00Z", False),
+        (None, "2026-10-04T00:00:00Z", False),
+        ("Unknown/Zone", "2026-10-04T00:00:00Z", False),
+    ])
+    async def test_date_only_update_uses_canvas_user_timezone(self, zone, returned_date, confirmed):
+        tools = write_tools(TIMEZONE="UTC")
+        fake = FakeCanvas(routes={
+            ("get", "/users/self"): {"id": ME, "time_zone": zone},
+            ("get", "/planner_notes/5"): _note(),
+            ("put", "/planner_notes/5"): _note(todo_date=returned_date),
+        })
+        args = {"note_id": 5, "todo_date": "2026-10-04"}
+        with canvas(fake):
+            token = _token(await tools["update_planner_note"](**args))
+            result = await tools["update_planner_note"](**args, confirmation_token=token)
+        assert len(fake.writes()) == 1
+        assert result.startswith("✅ Planner note updated.") == confirmed
+        if not confirmed:
+            assert result.startswith("⚠️  Could not confirm")
+
+    @pytest.mark.asyncio
     async def test_preview_then_confirm(self) -> None:
         tools = write_tools()
         fake = FakeCanvas(routes={

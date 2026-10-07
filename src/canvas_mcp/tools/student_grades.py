@@ -148,7 +148,7 @@ async def _load_course(
     course = await make_canvas_request("get", f"/courses/{course_id}", params=params)
     if not isinstance(course, dict) or "error" in course:
         detail = course.get("error") if isinstance(course, dict) else course
-        return f"Error fetching course {course_identifier}: {detail}"
+        return f"Error fetching course {course_id}: {fence_untrusted_inline(str(detail)[:200], 'Canvas error')}"
     # Fail closed: with quantitative data restricted, Canvas nulls the numbers
     # the arithmetic needs (and the course chose not to show them). Only an
     # explicit false proves the course is unrestricted; an absent, null or
@@ -162,7 +162,7 @@ async def _load_course(
         params={"include[]": GROUP_INCLUDES, "per_page": 100},
     )
     if isinstance(groups, dict) and "error" in groups:
-        return f"Error fetching assignment groups: {groups['error']}"
+        return f"Error fetching assignment groups: {fence_untrusted_inline(str(groups['error'])[:200], 'Canvas error')}"
     if not isinstance(groups, list):
         return "Error fetching assignment groups: unexpected response from Canvas."
 
@@ -605,18 +605,24 @@ def _render_grade_scenarios(
                     f"{_with_letter(result.projected_at_zero, scheme)}."
                 )
             elif result.required_percent is None:
-                lines.append(
-                    "  Not reachable: 100% on every remaining assignment projects to "
-                    f"{_with_letter(result.projected_at_full, scheme)}."
-                )
+                if result.non_monotone:
+                    lines.append(
+                        "  Indeterminate: the approximate search found no uniform score that "
+                        "meets the target; narrower passing intervals may have been missed."
+                    )
+                else:
+                    lines.append(
+                        "  Not reachable: 100% on every remaining assignment projects to "
+                        f"{_with_letter(result.projected_at_full, scheme)}."
+                    )
             elif result.needs_extra_credit:
                 lines.append(
-                    f"  Reachable only with extra credit: you would need {result.required_percent:.2f}% "
+                    f"  {'Found an extra-credit solution' if result.non_monotone else 'Reachable only with extra credit'}: you would need {result.required_percent:.2f}% "
                     "on every remaining assignment."
                 )
             else:
                 lines.append(
-                    f"  You need at least {result.required_percent:.2f}% on every remaining "
+                    f"  {'One checked solution is' if result.non_monotone else 'You need at least'} {result.required_percent:.2f}% on every remaining "
                     "assignment (the same percentage on each)."
                 )
             lines.append(
