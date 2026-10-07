@@ -55,11 +55,12 @@ class Effect(StrEnum):
 
 
 TOOL_EFFECTS: dict[str, Effect] = {
-    # --- READ (70) ---
+    # --- READ (71) ---
     "analyze_peer_review_quality": Effect.READ,
     "calculate_grade_scenarios": Effect.READ,
     "check_enrollment": Effect.READ,
     "fetch_ufixit_report": Effect.READ,
+    "find_message_recipients": Effect.READ,
     "format_accessibility_summary": Effect.READ,
     "generate_peer_review_feedback_report": Effect.READ,
     "get_anonymization_status": Effect.READ,
@@ -126,7 +127,7 @@ TOOL_EFFECTS: dict[str, Effect] = {
     "read_course_file": Effect.READ,
     "scan_course_content_accessibility": Effect.READ,
     "search_canvas_tools": Effect.READ,
-    # --- CANVAS_WRITE (47) ---
+    # --- CANVAS_WRITE (49) ---
     "add_module_item": Effect.CANVAS_WRITE,
     "assign_peer_review": Effect.CANVAS_WRITE,
     "associate_rubric": Effect.CANVAS_WRITE,
@@ -159,9 +160,11 @@ TOOL_EFFECTS: dict[str, Effect] = {
     "mark_module_item_done": Effect.CANVAS_WRITE,
     "mark_planner_item_complete": Effect.CANVAS_WRITE,
     "post_discussion_entry": Effect.CANVAS_WRITE,
+    "reply_to_conversation": Effect.CANVAS_WRITE,
     "reply_to_discussion_entry": Effect.CANVAS_WRITE,
     "send_bulk_messages_from_list": Effect.CANVAS_WRITE,
     "send_conversation": Effect.CANVAS_WRITE,
+    "send_message": Effect.CANVAS_WRITE,
     "send_peer_review_followup_campaign": Effect.CANVAS_WRITE,
     "send_peer_review_inbox_messages": Effect.CANVAS_WRITE,
     "submit_assignment": Effect.CANVAS_WRITE,

@@ -252,6 +252,15 @@ ENABLE_DATA_ANONYMIZATION=false</code></pre>
 
                         <h3>Turning Work In (off by default)</h3>
                         <p>Everything above is read-only. Canvas MCP can also submit, comment and manage your own planner and personal calendar on your behalf, but those tools stay unregistered unless whoever set up the server names them in <code>STUDENT_WRITE_TOOLS</code> &mdash; and your instructor can restrict them further per course.</p>
+                        <h3>Inbox (Shared Tools)</h3>
+                        <ul class="tool-list">
+                            <li><code>list_conversations</code> - Read your Canvas Inbox</li>
+                            <li><code>get_conversation_details</code> - Read one conversation</li>
+                            <li><code>find_message_recipients</code> - Look up the people you can message in a course, with their user IDs (while anonymization is on, only course staff are named)</li>
+                        </ul>
+
+                        <h3>Turning Work In and Messaging (off by default)</h3>
+                        <p>Everything above is read-only. Canvas MCP can also submit and message on your behalf, but those tools stay unregistered unless whoever set up the server names them in <code>STUDENT_WRITE_TOOLS</code> &mdash; and your instructor can restrict them further per course.</p>
                         <ul class="tool-list">
                             <li><code>submit_assignment</code> - Submit a file, URL, or text entry (always previews first, then asks you to confirm)</li>
                             <li><code>comment_on_my_submission</code> - Add a comment to your own submission</li>
@@ -262,6 +271,8 @@ ENABLE_DATA_ANONYMIZATION=false</code></pre>
                             <li><code>mark_planner_item_complete</code> - Tick or untick a planner item</li>
                             <li><code>create_personal_calendar_event</code> - Add an event to your personal calendar</li>
                             <li><code>delete_personal_calendar_event</code> - Delete an event from your personal calendar (previews first, then asks you to confirm)</li>
+                            <li><code>send_message</code> - Send a new Inbox message to 1-5 people in a course (always previews first, then asks you to confirm)</li>
+                            <li><code>reply_to_conversation</code> - Reply to an Inbox conversation you are already in (always previews first, then asks you to confirm)</li>
                         </ul>
                     </section>
 

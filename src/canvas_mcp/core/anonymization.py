@@ -4,6 +4,15 @@ Data anonymization utilities for Canvas MCP server.
 This module provides functions to mask supported student identity fields
 before tool results reach an AI client. This control can support institutional
 privacy practices but does not by itself establish FERPA compliance.
+
+Known limitation: ``generate_anonymous_id`` derives a pseudonym from the Canvas
+user ID alone, so it is the same in every course. Anywhere this server shows a
+person's real name next to their user ID, that name is linked to their
+pseudonym everywhere else. Tiers that keep names do this on purpose: course
+staff in ``find_message_recipients`` and the ``send_message`` preview, and
+correspondents in the caller's own inbox (``/conversations``). Someone who is
+staff in one shared course and a student in another is therefore not
+anonymous in the second.
 """
 
 import hashlib

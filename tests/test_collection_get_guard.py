@@ -54,6 +54,10 @@ DISCLOSING_SINGLE_PAGE_READERS: dict[tuple[str, str], str] = {
         "tests/tools/test_truncation_disclosure.py::"
         "test_list_conversations_reports_more_available_without_fetching_more"
     ),
+    ("student_messaging.py", "find_message_recipients"): (
+        "tests/tools/test_student_messaging.py::"
+        "test_follows_pagination_and_truncates_to_limit"
+    ),
 }
 
 REPO_ROOT = TOOLS_DIR.parents[2]

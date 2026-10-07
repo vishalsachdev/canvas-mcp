@@ -218,6 +218,42 @@ Your own planner notes (the personal to-do items in the Canvas planner).
 **Parameters:**
 - `start_date` / `end_date` / `days` (optional): Date window, as above
 - `course_identifier` (optional): Only notes filed under this course
+### Inbox
+
+#### `find_message_recipients`
+Find people you can message in a course, with the Canvas user IDs that
+`send_message` needs. Returns individual people only, never course, section or
+group addresses.
+
+**Parameters:**
+- `course_identifier` (required): Course code or Canvas ID
+- `search` (optional): Part of a name to match; omit to list everyone you can message. While anonymization is on, a search matches course staff only
+- `role` (optional): `any` (default), `staff` (teachers, TAs, designers), `teacher`, `ta`, or `student`
+- `limit` (optional): Maximum matches to return, 1-50 (default 25)
+
+**Example:**
+```
+"What's my CS 101 professor's Canvas user ID?"
+"Who are the TAs in this course?"
+```
+
+**Returns:** Each match's user ID, display name (fenced as untrusted text, since
+people edit their own names), and roles in that course. While
+`ENABLE_DATA_ANONYMIZATION` is on (the default), only course staff are named;
+everyone else appears under the same `Student_<hash>` pseudonym the server uses
+for them elsewhere, so the address book cannot undo anonymization. Because
+Canvas matches `search` against real names, a search in that mode returns
+course staff only (it never says whether a classmate matched) and asks Canvas
+for staff alone, so students are never read or counted; to find a classmate,
+list without `search` and pick them out by pseudonym. It reads at most a few
+pages of the course address book per call and says when more people may match;
+narrow `search` in a large course.
+
+Known limitation: a pseudonym depends only on the user ID, so it is the same in
+every course. A person who is staff in one course you share with them (named
+here with their user ID) and a student in another is not anonymous in the
+second. Your own inbox (`list_conversations`, `get_conversation_details`) also
+shows correspondents' real names beside their user IDs.
 
 ---
 
@@ -321,6 +357,65 @@ needs `mark_module_item_done` enabled in `STUDENT_WRITE_TOOLS` and allowed by th
 course policy. `delete_personal_calendar_event` refuses course
 and group events and appointment reservations (deleting a reservation would
 cancel a booking with an instructor).
+#### `send_message`
+Send a new Canvas Inbox message from you to specific people in a course, such as
+your instructor or TA. **Two calls:** the first previews and sends nothing, the
+second (with the token from the preview) sends.
+
+**Parameters:**
+- `course_identifier` (required): Course code or Canvas ID the message is about
+- `recipient_ids` (required): 1-5 numeric Canvas user IDs, from `find_message_recipients`
+- `subject` (required): Message subject, at most 255 characters
+- `body` (required): Message text, at most 10,000 characters
+- `confirmation_token` (optional): Token from the preview call; omit to preview
+
+**Example:**
+```
+"Message my CS 101 professor asking whether the midterm regrade is open"  → preview
+"Yes, send it"                                                           → sends
+```
+
+**Returns:** On the first call, a preview naming every recipient with their role
+in the course (and a warning when someone is not course staff), the subject and
+the full body. On the second, the ID of the new conversation, which all
+recipients share (one thread, so they see each other's replies).
+
+**Limits, on purpose:** at most 5 recipients, each a person Canvas lets you
+message in that course. Course-, section- and group-wide addresses
+(`course_*`, `section_*`, `group_*`) are refused, and there are no attachments
+or bulk sends. Each send starts a new conversation. Text containing this
+server's UNTRUSTED CANVAS CONTENT markers is refused.
+
+---
+
+#### `reply_to_conversation`
+Reply to an Inbox conversation you are already part of. The reply reaches only
+the people already in it; nobody can be added. **Two calls**, like `send_message`.
+
+**Parameters:**
+- `conversation_id` (required): Canvas conversation ID, from `list_conversations`
+- `body` (required): Reply text, at most 10,000 characters
+- `confirmation_token` (optional): Token from the preview call; omit to preview
+
+**Example:**
+```
+"Reply to my TA's message: thanks, I'll come to office hours"  → preview
+"Send it"                                                       → sends
+```
+
+**Returns:** On the first call, a preview of who the reply reaches and the body.
+On the second, the new message ID. Previewing never marks the conversation read.
+
+**Limits, on purpose:** refused when the conversation includes more than 5 other
+people, so a reply cannot go to a whole class. The course policy of the
+conversation's course applies; a conversation tied to no course is refused while
+course policies are enabled. The token is void if the conversation's audience
+changes before you confirm. The request explicitly addresses the approved
+people, so participants added during confirmation do not receive this reply.
+Canvas may reject a reply that includes someone without an active enrollment;
+reply in Canvas instead. The tool never retries with an unrestricted audience.
+Canvas still controls access to the thread and its history; this recipient list
+bounds delivery of this message, not later forwarding or thread access.
 
 ---
 
@@ -368,6 +463,7 @@ Valid names: `submit_assignment`, `comment_on_my_submission`,
 `mark_module_item_done`, `create_planner_note`, `update_planner_note`,
 `delete_planner_note`, `mark_planner_item_complete`,
 `create_personal_calendar_event`, `delete_personal_calendar_event`.
+`mark_module_item_done`, `send_message`, `reply_to_conversation`.
 
 **2. Per-course instructor policy**
 

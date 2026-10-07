@@ -33,6 +33,10 @@ STUDENT_WRITE_TOOL_NAMES = frozenset({
     "mark_planner_item_complete",
     "create_personal_calendar_event",
     "delete_personal_calendar_event",
+    # Inbox (tools/student_messaging.py). Preview-then-confirm, explicit
+    # recipients only, narrower than the educator send_conversation.
+    "send_message",
+    "reply_to_conversation",
 })
 
 
