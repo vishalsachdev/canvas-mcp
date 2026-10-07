@@ -87,7 +87,8 @@ async def _discussion_prefix(
     /groups/{id}/discussion_topics only. They have no course-level parent, so
     the /courses/{id}/... endpoints never return them. The group must belong to
     the course, so a group id cannot be used to read outside the course the
-    caller named.
+    caller named. In the student profile, the caller must also belong to the
+    group; Canvas permissions alone may allow reads of sibling groups.
 
     Returns:
         (prefix, error): prefix such as "/courses/1" or "/groups/2", and an
@@ -102,6 +103,15 @@ async def _discussion_prefix(
     if canonical_group_id is None:
         return "", f"Error: group_id must be a numeric Canvas group ID, got {group_id!r}."
     group_id = canonical_group_id
+
+    if getattr(get_config(), "canvas_role", "all") == "student":
+        # Canvas may allow sibling/self-signup group reads without membership.
+        # Reuse the fresh, paginated, fail-closed gate of the student group tools.
+        from .student_groups import _require_membership
+
+        _, _, membership_error = await _require_membership(group_id)
+        if membership_error:
+            return "", membership_error
 
     group = await make_canvas_request("get", f"/groups/{group_id}")
     if not isinstance(group, dict):

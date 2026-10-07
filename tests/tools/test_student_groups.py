@@ -944,3 +944,76 @@ class TestMalformedEntriesAreNotCounted:
         routes = {"/users/self/groups": [MY_GROUP], "/groups/7/files": [*FILES, "junk"]}
         result, _ = await run_tool("list_group_files", routes, group_id=7)
         assert f"Total: {len(FILES)} file(s)" in result
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('tool_name,extra', [
+    ('list_discussion_topics', {}),
+    ('get_discussion_topic_details', {'topic_id': 55}),
+    ('list_discussion_entries', {'topic_id': 55}),
+    ('get_discussion_entry_details', {'topic_id': 55, 'entry_id': 900}),
+    ('get_discussion_with_replies', {'topic_id': 55, 'include_replies': True}),
+])
+async def test_student_shared_discussion_reads_refuse_sibling_groups(real_client, monkeypatch, tool_name, extra):
+    from fastmcp import FastMCP
+
+    from canvas_mcp.core.config import get_config
+    from canvas_mcp.tools.discussions import register_shared_discussion_tools
+    get_config().canvas_role = 'student'
+    monkeypatch.setattr('canvas_mcp.tools.discussions.get_config', get_config)
+    captured = {}
+    mcp = FastMCP('membership-test')
+    def tool(*args, **kwargs):
+        def capture(fn):
+            captured[fn.__name__] = fn
+            return fn
+        return capture
+    mcp.tool = tool
+    register_shared_discussion_tools(mcp)
+    seen = []
+    def handler(request):
+        seen.append(request.url.path)
+        if request.url.path == '/api/v1/users/self/groups':
+            return httpx.Response(200, json=[])
+        if request.url.path == '/api/v1/groups/7':
+            return httpx.Response(200, json={'id': 7, 'course_id': 101})
+        if request.url.path.endswith('/discussion_topics/55'):
+            return httpx.Response(200, json={'id': 55, 'title': 'Sibling topic'})
+        return httpx.Response(200, json=[])
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with patch.object(real_client, '_get_http_client', return_value=client):
+            result = await captured[tool_name](course_identifier=101, group_id=7, **extra)
+    assert 'not a member' in result
+    assert seen == ['/api/v1/users/self/groups']
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('role,membership,status,expected', [
+    ('student', [MY_GROUP], 200, None),
+    ('student', [], 403, 'could not confirm your membership'),
+    ('educator', [], 403, None),
+    ('all', [], 403, None),
+])
+async def test_shared_discussion_membership_gate_respects_role_and_failure(
+        real_client, monkeypatch, role, membership, status, expected):
+    from canvas_mcp.core.config import get_config
+    from canvas_mcp.tools.discussions import _discussion_prefix
+    get_config().canvas_role = role
+    monkeypatch.setattr('canvas_mcp.tools.discussions.get_config', get_config)
+    seen = []
+    def handler(request):
+        seen.append(request.url.path)
+        if request.url.path == '/api/v1/users/self/groups':
+            return httpx.Response(status, json=membership)
+        if request.url.path == '/api/v1/groups/7':
+            return httpx.Response(200, json={'id': 7, 'course_id': 101})
+        raise AssertionError(request.url)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with patch.object(real_client, '_get_http_client', return_value=client):
+            prefix, error = await _discussion_prefix('101', 7)
+    if expected:
+        assert expected in error
+        assert prefix == ''
+        assert seen == ['/api/v1/users/self/groups']
+    else:
+        assert error is None
+        assert prefix == '/groups/7'
+        assert ('/api/v1/users/self/groups' in seen) == (role == 'student')
