@@ -227,12 +227,25 @@ ENABLE_DATA_ANONYMIZATION=false</code></pre>
                         <ul class="tool-list">
                             <li><code>get_my_course_grades</code> - Current grades across all courses</li>
                             <li><code>get_my_submission</code> - What you turned in for a specific assignment, and its grade</li>
+                            <li><code>get_my_assignment_scores</code> - Every assignment's score and status in a course, grouped by assignment group with weights and drop rules</li>
+                            <li><code>calculate_grade_scenarios</code> - What-if grades computed the way Canvas does, and the score you need on remaining work to reach a target</li>
+                            <li><code>list_quizzes</code> - A course's quizzes with dates, limits and your submission state (never starts an attempt)</li>
+                            <li><code>get_quiz_details</code> - One quiz's settings plus your attempts used and remaining</li>
                         </ul>
 
                         <h3>Your Canvas Identity</h3>
                         <ul class="tool-list">
                             <li><code>get_my_profile</code> - Confirm which Canvas account your token belongs to</li>
                             <li><code>get_my_enrollments</code> - Every course you're enrolled in, and your role in each</li>
+                        </ul>
+
+                        <h3>What's New and Your Groups</h3>
+                        <ul class="tool-list">
+                            <li><code>list_my_announcements</code> - Announcements across all your courses in one list</li>
+                            <li><code>get_my_activity_stream</code> - Recent activity summarized by kind: announcements, discussions, messages, grades and comments</li>
+                            <li><code>list_my_groups</code> - The groups you belong to, with course and group IDs</li>
+                            <li><code>get_group_members</code> - Who is in one of your groups</li>
+                            <li><code>list_group_files</code> - Files shared in one of your groups</li>
                         </ul>
 
                         <h3>Peer Review Management</h3>
@@ -250,8 +263,6 @@ ENABLE_DATA_ANONYMIZATION=false</code></pre>
                             <li><code>list_discussion_topics</code> - View discussion forums</li>
                         </ul>
 
-                        <h3>Turning Work In (off by default)</h3>
-                        <p>Everything above is read-only. Canvas MCP can also submit, comment and manage your own planner and personal calendar on your behalf, but those tools stay unregistered unless whoever set up the server names them in <code>STUDENT_WRITE_TOOLS</code> &mdash; and your instructor can restrict them further per course.</p>
                         <h3>Inbox (Shared Tools)</h3>
                         <ul class="tool-list">
                             <li><code>list_conversations</code> - Read your Canvas Inbox</li>
