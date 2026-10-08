@@ -1,13 +1,13 @@
 # Canvas MCP
 
-> Canvas MCP is an open-source Model Context Protocol (MCP) server that bridges AI assistants with Canvas Learning Management System (LMS). It provides 99 tools for students, educators, and developers to interact with Canvas using natural language. It is designed for MCP-compatible clients and includes optional privacy controls for FERPA-conscious workflows.
+> Canvas MCP is an open-source Model Context Protocol (MCP) server that bridges AI assistants with Canvas Learning Management System (LMS). It provides up to 125 tools for students, educators, and developers to interact with Canvas using natural language. It is designed for MCP-compatible clients and includes optional privacy controls for FERPA-conscious workflows.
 
 Canvas MCP enables AI assistants to query courses, assignments, grades, discussions, and more through the Canvas API. Its code execution API can process bulk operations locally without loading every item into the model's context.
 
 ## Key Features
 
 - Natural language interface for Canvas LMS
-- 99 MCP tools for comprehensive Canvas integration
+- Up to 125 MCP tools for comprehensive Canvas integration
 - 8 reusable agent skills (workflow recipes) installable into 40+ agents via skills.sh
 - Optional student identity anonymization
 - Code execution API for bulk grading and operations
@@ -39,7 +39,7 @@ Canvas MCP provides tools in these categories:
 - Modules: list_modules, create_module, update_module, delete_module
 - Pages: list_pages, create_page, edit_page_content, get_page_content
 - Rubrics: list_rubrics, get_rubric, create_rubric, associate_rubric, grade_with_rubric
-- Student self-service: get_my_upcoming_assignments, get_my_course_grades, get_my_todo_items, get_my_peer_reviews_todo
+- Student self-service: get_my_upcoming_assignments, get_my_course_grades, get_my_todo_items, get_my_peer_reviews_todo, list_quizzes, get_quiz_details
 
 ## Use Cases
 

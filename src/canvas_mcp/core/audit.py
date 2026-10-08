@@ -199,9 +199,17 @@ def log_access_change(
 
 
 def reset_audit_state() -> None:
-    """Reset audit module state. For testing only."""
+    """Reset audit module state. For testing only.
+
+    Handlers are closed, not just detached. The RotatingFileHandler holds
+    audit.jsonl open; dropping it without close() leaks that descriptor, and on
+    Windows, where an open file cannot be deleted or renamed, it leaves the
+    audit log locked until the interpreter exits.
+    """
     global _access_events_enabled, _execution_events_enabled, _initialized
     _access_events_enabled = False
     _execution_events_enabled = False
     _initialized = False
-    _audit_logger.handlers.clear()
+    for handler in list(_audit_logger.handlers):
+        _audit_logger.removeHandler(handler)
+        handler.close()

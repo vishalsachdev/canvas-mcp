@@ -304,6 +304,29 @@ class TestGetSyllabus:
         assert "<p>Hello</p>" in result  # 'both' includes the raw HTML section
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("output_format", ["text", "html", "both"])
+    async def test_very_long_syllabus_is_never_cut(self, mock_api, output_format):
+        """Without max_chars every format returns the whole body, however long."""
+        sections = "".join(
+            f"<p>Section {n:05d}: policy text for this part.</p>" for n in range(7000)
+        )
+        last = "Section 06999: policy text for this part."
+        mock_api['make_canvas_request'].return_value = {
+            "course_code": "CS101",
+            "syllabus_body": sections,
+        }
+
+        get_syllabus = get_tool_function('get_syllabus')
+        result = await get_syllabus("CS101", output_format=output_format)
+
+        assert len(sections) > 300_000
+        if output_format in ("text", "both"):
+            assert last in result
+        if output_format in ("html", "both"):
+            assert sections in result
+        assert "truncated" not in result.lower()
+
+    @pytest.mark.asyncio
     async def test_max_chars_truncates_explicitly(self, mock_api):
         """max_chars truncates but flags it — no silent truncation."""
         mock_api['make_canvas_request'].return_value = {
@@ -336,6 +359,17 @@ class TestGetSyllabus:
         assert "max_chars must be a positive integer" in result
         mock_api['get_course_id'].assert_not_called()
         mock_api['make_canvas_request'].assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_syllabus_declares_the_large_result_size(self):
+        from fastmcp import FastMCP
+
+        from canvas_mcp.tools.courses import register_course_tools
+
+        mcp = FastMCP("t")
+        register_course_tools(mcp)
+        tool = {t.name: t for t in await mcp.list_tools()}["get_syllabus"]
+        assert tool.to_mcp_tool().meta["anthropic/maxResultSizeChars"] == 500_000
 
     @pytest.mark.asyncio
     async def test_empty_syllabus(self, mock_api):
@@ -957,3 +991,46 @@ class TestUpdateSyllabus:
         assert "✅" in result, result
         assert "Verified by reading" not in result
         assert "Not verified" in result
+
+
+class TestCourseContentOverviewPointsToFullText:
+    """The overview previews; when it cuts, it names the tool with the rest."""
+
+    @pytest.mark.asyncio
+    async def test_cut_syllabus_and_capped_lists_name_the_full_tools(self):
+        pages = [
+            {"title": f"Page {n}", "published": True, "updated_at": f"2026-09-{n + 1:02d}T00:00:00Z"}
+            for n in range(8)
+        ]
+        modules = [{"id": n, "name": f"Week {n}", "state": "active"} for n in range(5)]
+
+        async def fetch(endpoint, params=None):
+            if endpoint.endswith("/pages"):
+                return pages
+            if endpoint.endswith("/modules"):
+                return modules
+            return []
+
+        with patch('canvas_mcp.tools.courses.get_course_id', new=AsyncMock(return_value="60366")), \
+             patch('canvas_mcp.tools.courses.get_course_code', new=AsyncMock(return_value="CS101")), \
+             patch('canvas_mcp.tools.courses.fetch_all_paginated_results', new=AsyncMock(side_effect=fetch)), \
+             patch('canvas_mcp.tools.courses.make_canvas_request', new_callable=AsyncMock) as request:
+            request.return_value = {"name": "CS 101", "syllabus_body": "<p>" + "s" * 3000 + "</p>"}
+            result = await get_tool_function('get_course_content_overview')("CS101")
+
+        assert "get_syllabus returns the complete syllabus" in result
+        assert "list_pages lists every page" in result
+        assert "list_modules lists every module" in result
+
+    @pytest.mark.asyncio
+    async def test_short_syllabus_is_not_flagged(self):
+        with patch('canvas_mcp.tools.courses.get_course_id', new=AsyncMock(return_value="60366")), \
+             patch('canvas_mcp.tools.courses.get_course_code', new=AsyncMock(return_value="CS101")), \
+             patch('canvas_mcp.tools.courses.make_canvas_request', new_callable=AsyncMock) as request:
+            request.return_value = {"name": "CS 101", "syllabus_body": "<p>Short.</p>"}
+            result = await get_tool_function('get_course_content_overview')(
+                "CS101", include_pages=False, include_modules=False
+            )
+
+        assert "Short." in result
+        assert "get_syllabus" not in result

@@ -6,10 +6,24 @@ keeping the historical ``Z`` suffix when the resolved zone is UTC.
 """
 
 import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pytest
 
 from canvas_mcp.core import dates
+
+
+def _require_zone(name: str) -> None:
+    """Skip only when this machine truly cannot resolve the zone.
+
+    Linux and macOS resolve IANA zones from the system database; Windows needs
+    the tzdata package (a Windows-only dependency). Skipping on a missing
+    ``tzdata`` import instead would skip these tests on every Linux runner.
+    """
+    try:
+        ZoneInfo(name)
+    except ZoneInfoNotFoundError:
+        pytest.skip(f"no time zone data for {name} on this machine")
 
 
 @pytest.fixture(autouse=True)
@@ -38,20 +52,31 @@ def test_format_date_uses_z_when_timezone_explicitly_utc(monkeypatch):
     assert dates.format_date("2026-05-28T23:59:00Z") == "2026-05-28T23:59:00Z"
 
 
-def test_format_date_converts_to_configured_timezone(monkeypatch):
+def test_output_timezone_is_utc_when_unset(monkeypatch):
+    monkeypatch.delenv("TIMEZONE", raising=False)
+    assert dates.output_timezone() is datetime.UTC
+
+
+def test_output_timezone_is_the_configured_zone(monkeypatch):
     pytest.importorskip("tzdata")  # Windows requires the tzdata package
+    monkeypatch.setenv("TIMEZONE", "America/Chicago")
+    assert str(dates.output_timezone()) == "America/Chicago"
+
+
+def test_format_date_converts_to_configured_timezone(monkeypatch):
+    _require_zone("America/Chicago")
     monkeypatch.setenv("TIMEZONE", "America/Chicago")
     # 23:59 UTC on 2026-05-28 == 18:59 CDT (UTC-5)
     result = dates.format_date("2026-05-28T23:59:00Z")
-    assert result == "2026-05-28T18:59:00-0500"
+    assert result == "2026-05-28T18:59:00-05:00"
 
 
 def test_format_date_preserves_existing_offset_then_converts(monkeypatch):
-    pytest.importorskip("tzdata")
+    _require_zone("America/Chicago")
     monkeypatch.setenv("TIMEZONE", "America/Chicago")
     # Same instant expressed with an explicit offset
     result = dates.format_date("2026-05-29T00:59:00+0100")
-    assert result == "2026-05-28T18:59:00-0500"
+    assert result == "2026-05-28T18:59:00-05:00"
 
 
 def test_format_date_unknown_timezone_falls_back_to_utc(monkeypatch, capsys):

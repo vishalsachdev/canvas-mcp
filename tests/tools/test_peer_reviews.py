@@ -2,6 +2,7 @@
 Tests for peer review MCP tools.
 """
 
+import sys
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -158,10 +159,22 @@ class TestGeneratePeerReviewReportFileSafety:
         secret_dir = tmp_path / "secret"
         secret_dir.mkdir()
         link_path = reports_dir / "escape_link"
-        link_path.symlink_to(secret_dir)
+        try:
+            link_path.symlink_to(secret_dir, target_is_directory=True)
+        except OSError:
+            if sys.platform != "win32":
+                raise
+            # Windows grants symlink creation only to administrators or in
+            # Developer Mode (WinError 1314 otherwise). A directory junction
+            # needs no privilege and is the same threat: resolve() follows it
+            # out of reports_dir just like a symlink, so the guard is still
+            # exercised rather than skipped.
+            import _winapi
+
+            _winapi.CreateJunction(str(secret_dir), str(link_path))
 
         # If an attacker supplies "escape_link" as the basename, resolve() will
-        # follow the symlink and land outside reports_dir.
+        # follow the link and land outside reports_dir.
         safe_name = Path("escape_link").name
         resolved = (r_dir / safe_name).resolve()
 

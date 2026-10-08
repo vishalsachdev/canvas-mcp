@@ -30,6 +30,12 @@ from .peer_review_comments import register_peer_review_comment_tools
 from .peer_reviews import register_peer_review_tools
 from .rubrics import register_rubric_tools
 from .self_identity import register_self_identity_tools
+from .student_calendar import register_student_calendar_tools
+from .student_feed import register_student_feed_tools
+from .student_grades import register_student_grade_tools
+from .student_groups import register_student_group_tools
+from .student_messaging import register_student_messaging_tools
+from .student_quizzes import register_student_quiz_tools
 from .student_tools import register_student_tools
 from .student_write import register_student_write_tools
 
@@ -59,6 +65,12 @@ __all__ = [
     'register_shared_file_tools',
     'register_shared_messaging_tools',
     'register_shared_module_tools',
+    'register_student_feed_tools',
+    'register_student_group_tools',
+    'register_student_grade_tools',
+    'register_student_quiz_tools',
+    'register_student_calendar_tools',
+    'register_student_messaging_tools',
     'register_student_tools',
     'register_student_write_tools',
 ]

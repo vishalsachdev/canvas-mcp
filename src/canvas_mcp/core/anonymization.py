@@ -4,6 +4,15 @@ Data anonymization utilities for Canvas MCP server.
 This module provides functions to mask supported student identity fields
 before tool results reach an AI client. This control can support institutional
 privacy practices but does not by itself establish FERPA compliance.
+
+Known limitation: ``generate_anonymous_id`` derives a pseudonym from the Canvas
+user ID alone, so it is the same in every course. Anywhere this server shows a
+person's real name next to their user ID, that name is linked to their
+pseudonym everywhere else. Tiers that keep names do this on purpose: course
+staff in ``find_message_recipients`` and the ``send_message`` preview, and
+correspondents in the caller's own inbox (``/conversations``). Someone who is
+staff in one shared course and a student in another is therefore not
+anonymous in the second.
 """
 
 import hashlib
@@ -127,10 +136,15 @@ USER_SIGNAL_FIELDS = frozenset({
 #: Keys that positively identify a record as NOT a person. Course objects also
 #: carry an ``enrollments`` list, which would otherwise corroborate them as a
 #: user and get the course title rewritten as a student pseudonym.
+#: ``group_category_id`` marks a Canvas Group: group records always carry an
+#: ``avatar_url`` key (a user signal), so on ``/users/self/groups`` — gated by
+#: its ``users`` segment — the group's own name was rewritten as a student
+#: pseudonym. Canvas user and group-membership records never carry it.
 NON_USER_MARKER_FIELDS = frozenset({
     'course_code',
     'sis_course_id',
     'enrollment_term_id',
+    'group_category_id',
 })
 
 #: Dict keys whose *value* is by convention a user record. Children reached
@@ -138,6 +152,9 @@ NON_USER_MARKER_FIELDS = frozenset({
 #: user-only null fields apply without needing their own corroborating signal.
 #: ``communication_channels`` / ``pseudonyms`` are the ``/users/self/profile``
 #: sub-objects that hold the caller's addresses and login handles.
+#: ``participants`` is the discussion ``/view`` user-summary list: an entry
+#: without an avatar key carries no other user signal, so without this its
+#: ``display_name`` passed through (this includes group discussions).
 USER_CONTAINER_KEYS = frozenset({
     'user',
     'author',
@@ -146,6 +163,7 @@ USER_CONTAINER_KEYS = frozenset({
     'editor',
     'submitter',
     'participant',
+    'participants',
     'student',
     'observed_user',
     'communication_channels',

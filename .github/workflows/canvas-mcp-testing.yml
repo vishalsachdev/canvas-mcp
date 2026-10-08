@@ -87,7 +87,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.11', '3.12', '3.13']
+        python-version: ['3.11', '3.12', '3.13', '3.14']
 
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -117,24 +117,61 @@ jobs:
     - name: Run the test suite
       run: pytest tests/ -q
 
+  # The same full suite on Windows, where a local stdio server often runs and
+  # where things Linux never exercises break: an open file cannot be deleted,
+  # symlinks need a privilege, `python3` may be the Store alias, and the
+  # default text encoding is the ANSI code page rather than UTF-8.
+  test-windows:
+    runs-on: windows-latest
+    env:
+      FASTMCP_MCP_CAMELCASE_COMPAT: "false"
+      # UTF-8 mode for the interpreter and the Pythons it spawns, so stdio and
+      # files opened without an explicit encoding do not use the ANSI code page.
+      PYTHONUTF8: "1"
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        # Full history, for the same closing-keyword replay as the Linux job.
+        fetch-depth: 0
+
+    - name: Set up Python 3.14
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: '3.14'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install -e .
+        python -m pip install pytest pytest-asyncio pyyaml
+
+    - name: Run the test suite
+      run: python -m pytest tests/ -q
+
   # Aggregator. Branch protection requires a check literally named
   # "test-enhancements", and a matrix job publishes per-version names
   # ("test (3.11)"), which would leave the required check permanently pending
   # and block every PR. This gate keeps the required name while making it mean
-  # "the full suite passed on every supported Python and the code API passed".
+  # "the full suite passed on every supported Python, on Linux and Windows, and
+  # the code API passed".
   test-enhancements:
     runs-on: ubuntu-latest
-    needs: [test, test-code-api, verify-confirmation]
+    needs: [test, test-windows, test-code-api, verify-confirmation]
     if: always()
 
     steps:
-    - name: Require Python, code API, and confirmation proofs to have succeeded
+    - name: Require Python (Linux and Windows), code API, and confirmation proofs to have succeeded
       run: |
         echo "matrix result: ${{ needs.test.result }}"
-        if [ "${{ needs.test.result }}" != "success" ] || [ "${{ needs.test-code-api.result }}" != "success" ] || [ "${{ needs.verify-confirmation.result }}" != "success" ]; then
-          echo "::error::Python, code API, or confirmation verification did not succeed."
+        echo "windows result: ${{ needs.test-windows.result }}"
+        if [ "${{ needs.test.result }}" != "success" ] || [ "${{ needs.test-windows.result }}" != "success" ] || [ "${{ needs.test-code-api.result }}" != "success" ] || [ "${{ needs.verify-confirmation.result }}" != "success" ]; then
+          echo "::error::Python (Linux or Windows), code API, or confirmation verification did not succeed."
           exit 1
         fi
         echo "## Canvas MCP test results" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "Full suite passed on 3.11, 3.12 and 3.13." >> $GITHUB_STEP_SUMMARY
+        echo "Full suite passed on Ubuntu with Python 3.11, 3.12, 3.13 and 3.14, and on Windows with Python 3.14." >> $GITHUB_STEP_SUMMARY

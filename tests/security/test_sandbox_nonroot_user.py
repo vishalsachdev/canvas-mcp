@@ -83,6 +83,14 @@ async def test_host_script_is_utf8_on_a_non_utf8_host(monkeypatch):
         return real_temporary_file(*args, **kwargs)
 
     monkeypatch.setattr(tempfile, "NamedTemporaryFile", locale_temporary_file)
+    # On Windows without a global tsx install the command builder returns a
+    # `node -e` error stub that never names the .ts file, so the spawn below
+    # would see no script. Pin the command shape: this test is about the bytes
+    # written to the temporary file, not about locating tsx.
+    monkeypatch.setattr(
+        "canvas_mcp.tools.code_execution._build_local_tsx_command",
+        lambda path: ["npx", "tsx", path],
+    )
     code = 'console.log("学生 🧪");'
     observed = []
 

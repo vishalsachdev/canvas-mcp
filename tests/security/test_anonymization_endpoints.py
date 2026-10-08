@@ -118,6 +118,24 @@ class TestAnonymizationTierMapping:
         assert _endpoint_anonymization_mode(endpoint) == ANONYMIZE_FREE_TEXT
 
     @pytest.mark.parametrize("endpoint", [
+        "/search/recipients",
+        "/search/recipients?search=smith&context=course_1",
+        "/SEARCH/RECIPIENTS",
+    ])
+    def test_recipient_search_is_free_text_tier(self, endpoint):
+        """The Inbox address book: names must survive so a student can find
+        their instructor, but avatars and direct identifiers must not."""
+        assert _endpoint_anonymization_mode(endpoint) == ANONYMIZE_FREE_TEXT
+
+    @pytest.mark.parametrize("endpoint", [
+        "/search/all_courses",
+        "/search/recipients/extra",
+        "/courses/1/search/recipients",
+    ])
+    def test_recipient_rule_is_an_exact_path(self, endpoint):
+        assert _endpoint_anonymization_mode(endpoint) != ANONYMIZE_FREE_TEXT
+
+    @pytest.mark.parametrize("endpoint", [
         "/courses/123/pages",
         "/courses/123/pages/syllabus",
         "/courses/123/pages/intro?include[]=body",
@@ -171,6 +189,45 @@ class TestAnonymizationTierMapping:
             assert _should_anonymize_endpoint(endpoint) is True
         for endpoint in ("/courses", "/users/self/profile"):
             assert _should_anonymize_endpoint(endpoint) is False
+
+
+class TestGroupDiscussionTopicTier:
+    """Group discussion topics are written by group members (any student in
+    the group can start one), so the topic record carries student-authored
+    bodies and author names. The 'typically instructor-authored' reasoning for
+    course topic listings does not hold for /groups/{id}/discussion_topics."""
+
+    @pytest.mark.parametrize("endpoint", [
+        "/groups/55/discussion_topics",
+        "/groups/55/discussion_topics/9",
+        "/groups/55/discussion_topics?only_announcements=true",
+        "/groups/55/discussion_topics/9/view",
+    ])
+    def test_group_topics_are_full_tier(self, endpoint):
+        assert _endpoint_anonymization_mode(endpoint) == ANONYMIZE_FULL
+
+    @pytest.mark.parametrize("endpoint", [
+        "/courses/123/discussion_topics",
+        "/courses/123/discussion_topics/9",
+    ])
+    def test_course_topic_records_unchanged(self, endpoint):
+        assert _endpoint_anonymization_mode(endpoint) == ANONYMIZE_NONE
+
+    def test_group_pages_stay_identity_tier(self):
+        assert _endpoint_anonymization_mode("/groups/55/pages") == ANONYMIZE_IDENTITY
+
+    def test_group_topic_record_scrubbed_but_ids_kept(self):
+        from canvas_mcp.core.client import _anonymize_for_endpoint
+
+        topic = {"id": 9, "title": "Plan", "message": "call 949-555-1234",
+                 "user_name": "Jane Classmate",
+                 "author": {"id": 501, "display_name": "Jane Classmate",
+                            "avatar_image_url": "https://x/a.png"}}
+        result, _ = _anonymize_for_endpoint(topic, "/groups/55/discussion_topics/9")
+        assert result["id"] == 9
+        assert result["author"]["id"] == 501
+        assert "Jane Classmate" not in repr(result)
+        assert "949-555-1234" not in result["message"]
 
 
 class TestSelfOnlyEndpointExemption:

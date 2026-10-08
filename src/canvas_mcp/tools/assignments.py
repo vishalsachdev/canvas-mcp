@@ -13,6 +13,7 @@ from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, parse_date
 from ..core.guarded_edit import BodyGuard, run_guarded_write, validate_guard
 from ..core.raw_dates import assignment_raw_dates, render_raw_dates
+from ..core.tool_results import FULL_CONTENT_TOOL_META
 from ..core.untrusted_content import (
     FENCE_LEAK_ERROR,
     contains_fence_markers,
@@ -92,7 +93,9 @@ def register_shared_assignment_tools(mcp: FastMCP) -> None:
             )
         return result
 
-    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
+    @mcp.tool(
+        annotations=ToolAnnotations(read_only_hint=True), meta=FULL_CONTENT_TOOL_META
+    )
     @validate_params
     async def get_assignment_details(
         course_identifier: str | int, assignment_id: str | int, raw_dates: bool = False

@@ -80,13 +80,15 @@ gh workflow run create-release.yml -f tag_name=v1.0.7-test
 **Purpose**: Runs the test suite.
 
 **Triggers**:
-- Pull requests
-- Push to main branch
-- Manual workflow dispatch
+- Pull requests to `main`
+- Push to `main` and `development`
 
 **What it does**:
-- Runs pytest with coverage reporting
-- Tests all Canvas MCP tools and functionality
+- Runs Ruff and mypy (`lint`)
+- Runs the full pytest suite on Ubuntu with Python 3.11, 3.12, 3.13 and 3.14 (`test`)
+- Runs the full pytest suite on Windows with Python 3.14, with UTF-8 mode on (`test-windows`)
+- Builds and tests the TypeScript code API, and checks the formal proofs
+- `test-enhancements` is the required check: it passes only when all of the above test jobs pass
 
 ### security-testing.yml
 **Purpose**: Security scanning and vulnerability detection.
