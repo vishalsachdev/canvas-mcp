@@ -4,6 +4,7 @@ import asyncio
 from unittest.mock import AsyncMock
 
 import pytest
+from fastmcp import FastMCP
 
 from canvas_mcp.core import cache
 from canvas_mcp.core.credentials import (
@@ -13,6 +14,7 @@ from canvas_mcp.core.credentials import (
     set_http_request_active,
     set_request_credentials,
 )
+from canvas_mcp.tools import courses as course_tools
 
 
 @pytest.fixture(autouse=True)
@@ -132,3 +134,34 @@ async def test_http_label_cache_is_discarded_when_credentials_change(monkeypatch
     assert await cache.get_course_code("101") == "A ONLY"
     set_request_credentials(RequestCredentials("b", "https://canvas.example/api/v1"))
     assert await cache.get_course_code("101") == "101"
+
+
+@pytest.mark.asyncio
+async def test_http_listed_sis_with_spaces_is_matched_without_path_lookup(monkeypatch):
+    http_caller("b")
+    monkeypatch.setattr(cache, "fetch_all_paginated_results", AsyncMock(return_value=[
+        {"id": 202, "course_code": "PHYS 7C", "sis_course_id": "2026F PHYS 7C"},
+    ]))
+    request = AsyncMock(side_effect=AssertionError("SIS value must never enter a request path"))
+    monkeypatch.setattr(cache, "make_canvas_request", request)
+    assert await cache.resolve_numeric_course_id("sis_course_id:2026F PHYS 7C") == ("202", None)
+    request.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tool_name", ["list_courses", "get_course_details"])
+async def test_http_course_tools_never_publish_shared_aliases(monkeypatch, tool_name):
+    codes, labels = {}, {}
+    for module in (cache, course_tools):
+        monkeypatch.setattr(module, "course_code_to_id_cache", codes)
+        monkeypatch.setattr(module, "id_to_course_code_cache", labels)
+    course = {"id": 202, "course_code": "B ONLY", "name": "Private B Course"}
+    monkeypatch.setattr(course_tools, "fetch_all_paginated_results", AsyncMock(return_value=[course]))
+    monkeypatch.setattr(course_tools, "make_canvas_request", AsyncMock(return_value=course))
+    http_caller("b")
+    mcp = FastMCP("course-isolation")
+    course_tools.register_course_tools(mcp)
+    tools = {tool.name: tool for tool in await mcp.list_tools(run_middleware=False)}
+    result = await tools[tool_name].fn(**({"course_identifier": "202"} if tool_name == "get_course_details" else {}))
+    assert "B ONLY" in result
+    assert codes == {} and labels == {}

@@ -383,13 +383,10 @@ async def resolve_numeric_course_id(
     # No shared aliases, throttling or in-flight tasks in HTTP mode: each
     # request must resolve against the courses visible to its own credential.
     if courses is None and is_http_request_active():
-        if raw.startswith(SIS_COURSE_PREFIX):
-            courses = []  # use the caller-authorized SIS lookup below
-        else:
-            response = await fetch_all_paginated_results("/courses", {"per_page": 100})
-            if not isinstance(response, list):
-                return None, f"{not_found}: your course list could not be loaded from Canvas."
-            courses = response
+        response = await fetch_all_paginated_results("/courses", {"per_page": 100})
+        if not isinstance(response, list):
+            return None, f"{not_found}: your course list could not be loaded from Canvas."
+        courses = response
 
     if raw.startswith(SIS_COURSE_PREFIX):
         # A course already listed is found by its SIS ID with no request; the
