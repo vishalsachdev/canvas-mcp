@@ -70,6 +70,7 @@ from ..core.untrusted_content import (
     contains_fence_markers,
     fence_untrusted,
     fence_untrusted_inline,
+    format_canvas_error,
 )
 from ..core.validation import coerce_canvas_id, validate_params
 from ..core.write_confirmation import (
@@ -141,7 +142,7 @@ def _is_error(response: Any) -> bool:
 
 def _error_detail(response: Any) -> str:
     if isinstance(response, dict):
-        return str(response.get("error", response))
+        return format_canvas_error(response.get("error", response))
     return "unexpected response from Canvas"
 
 

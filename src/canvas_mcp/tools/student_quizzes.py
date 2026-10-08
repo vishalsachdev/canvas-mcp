@@ -43,7 +43,11 @@ from ..core.cache import get_course_code, resolve_numeric_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, parse_date
 from ..core.tool_results import FULL_CONTENT_TOOL_META
-from ..core.untrusted_content import fence_untrusted, fence_untrusted_inline
+from ..core.untrusted_content import (
+    fence_untrusted,
+    fence_untrusted_inline,
+    format_canvas_error,
+)
 from ..core.validation import coerce_canvas_id, validate_params
 
 _QUIZ_TYPE_LABELS = {
@@ -141,12 +145,12 @@ _NEW_QUIZZES_NOTE = (
     "Canvas for the rest."
 )
 
-_HTTP_STATUS = re.compile(r"HTTP error: (\d{3})")
+_HTTP_STATUS = re.compile(r"HTTP error: (\d{3})(?!\d)")
 
 
 def _http_status(error: object) -> int | None:
     """The HTTP status carried by a client error string, if any."""
-    match = _HTTP_STATUS.search(str(error))
+    match = _HTTP_STATUS.match(str(error))
     return int(match.group(1)) if match else None
 
 
@@ -187,7 +191,7 @@ def _explain_error(
         )
     else:
         hint = f"Could not fetch {what}."
-    return f"{hint} Details: {error}"
+    return f"{hint} Details: {format_canvas_error(error)}"
 
 
 # Both quiz-submission routes require the quiz's :submit right, which Canvas
@@ -883,7 +887,7 @@ def register_student_quiz_tools(mcp: FastMCP) -> None:
             detail = permissions.get("error") if isinstance(permissions, dict) else permissions
             lines.append(
                 "Could not confirm your role in this course, so your attempts "
-                f"were not requested. Details: {detail}"
+                f"were not requested. Details: {format_canvas_error(detail)}"
             )
             return "\n".join(lines)
         if grader:
@@ -896,7 +900,7 @@ def register_student_quiz_tools(mcp: FastMCP) -> None:
         me = await make_canvas_request("get", "/users/self")
         if not isinstance(me, dict) or _is_error(me) or me.get("id") is None:
             detail = me.get("error") if isinstance(me, dict) else me
-            lines.append(f"Could not identify you to read your attempts: {detail}")
+            lines.append(f"Could not identify you to read your attempts: {format_canvas_error(detail)}")
             return "\n".join(lines)
         my_id = str(me["id"])
 
