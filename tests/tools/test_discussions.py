@@ -728,12 +728,83 @@ if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
 
+class TestDiscussionTextIsComplete:
+    """Tools that read a discussion return every post whole.
+
+    get_discussion_with_replies used to cut entries at 200 characters and
+    replies at 150; list_discussion_entries cut replies at 200 even with
+    include_full_content=True. Those tests did not exist; these pin the
+    complete-text contract instead.
+    """
+
+    LONG_ENTRY = "<p>" + " ".join(f"entry-word-{n}" for n in range(2000)) + "</p>"
+    LONG_REPLY = "<p>" + " ".join(f"reply-word-{n}" for n in range(1500)) + "</p>"
+
+    def _entries(self):
+        return [{
+            "id": 101, "user_id": 1, "user_name": "Student A",
+            "message": self.LONG_ENTRY,
+            "recent_replies": [{"id": 201, "user_name": "Student B", "message": self.LONG_REPLY}],
+            "has_more_replies": False,
+        }]
+
+    @pytest.mark.asyncio
+    async def test_get_discussion_with_replies_returns_whole_posts(self, mock_canvas_api):
+        mock_canvas_api['fetch_all_paginated_results'].return_value = self._entries()
+        mock_canvas_api['make_canvas_request'].return_value = {"title": "Week 3"}
+
+        result = await get_tool_function('get_discussion_with_replies')(
+            "60366", 9, include_replies=True
+        )
+
+        assert "entry-word-1999" in result
+        assert "reply-word-1499" in result
+        assert "..." not in result
+
+    @pytest.mark.asyncio
+    async def test_list_entries_full_content_includes_whole_replies(self, mock_canvas_api):
+        mock_canvas_api['fetch_all_paginated_results'].return_value = self._entries()
+        mock_canvas_api['make_canvas_request'].return_value = {"title": "Week 3"}
+
+        result = await get_tool_function('list_discussion_entries')(
+            "60366", 9, include_full_content=True, include_replies=True
+        )
+
+        assert "entry-word-1999" in result
+        assert "reply-word-1499" in result
+
+    @pytest.mark.asyncio
+    async def test_list_entries_preview_mode_says_how_to_get_full_text(self, mock_canvas_api):
+        mock_canvas_api['fetch_all_paginated_results'].return_value = self._entries()
+        mock_canvas_api['make_canvas_request'].return_value = {"title": "Week 3"}
+
+        result = await get_tool_function('list_discussion_entries')("60366", 9)
+
+        assert "entry-word-1999" not in result  # a listing previews
+        assert "include_full_content=True" in result
+
+    @pytest.mark.asyncio
+    async def test_discussion_reading_tools_declare_the_large_result_size(self):
+        from fastmcp import FastMCP
+
+        from canvas_mcp.tools.discussions import register_shared_discussion_tools
+
+        mcp = FastMCP("t")
+        register_shared_discussion_tools(mcp)
+        tools = {t.name: t for t in await mcp.list_tools()}
+        for name in ("get_discussion_topic_details", "get_discussion_entry_details",
+                     "get_discussion_with_replies", "list_discussion_entries"):
+            assert tools[name].to_mcp_tool().meta["anthropic/maxResultSizeChars"] == 500_000
+
+
 class TestGroupDiscussionReads:
     """Read tools reach discussions inside a group space via group_id."""
 
     @staticmethod
     def _group_aware_request(group_course_id="60366"):
         async def request(method, path, **kwargs):
+            if path == "/courses/60366/permissions":
+                return {"manage_grades": True, "read_as_admin": False}
             if path == "/groups/298062":
                 return {"id": 298062, "course_id": group_course_id}
             if path.endswith("/discussion_topics/814175"):
@@ -854,6 +925,10 @@ class TestListGroupDiscussionTopics:
         "/groups/294537/discussion_topics": [],
     }
 
+    @pytest.fixture(autouse=True)
+    def _confirmed_staff(self, mock_canvas_api):
+        mock_canvas_api['make_canvas_request'].return_value = {"manage_grades": True, "read_as_admin": False}
+
     def _fetch(self):
         async def fetch(path, params=None):
             if path == "/courses/60366/groups":
@@ -947,6 +1022,7 @@ class TestAnonymousTopics:
 
     @pytest.mark.asyncio
     async def test_group_list_shows_anonymous_state(self, mock_canvas_api):
+        mock_canvas_api['make_canvas_request'].return_value = {"manage_grades": True, "read_as_admin": False}
         async def fetch(path, params=None):
             if path == "/courses/60366/groups":
                 return [{"id": 298062, "name": "B", "group_category_id": 1}]
@@ -1054,6 +1130,8 @@ class TestAnonymousTopics:
     @pytest.mark.asyncio
     async def test_group_topic_404_checks_the_group_list(self, mock_canvas_api):
         async def request(method, path, **kwargs):
+            if path == "/courses/60366/permissions":
+                return {"manage_grades": True, "read_as_admin": False}
             if path == "/groups/298062":
                 return {"id": 298062, "course_id": "60366"}
             if path == "/groups/298062/discussion_topics/555":

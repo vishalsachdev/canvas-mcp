@@ -53,6 +53,7 @@ from ..core.file_validation import (
     detect_mime_type,
     sanitize_filename,
 )
+from ..core.tool_results import FULL_CONTENT_TOOL_META
 from ..core.untrusted_content import (
     FENCE_LEAK_ERROR,
     contains_fence_markers,
@@ -577,7 +578,9 @@ def register_student_write_tools(mcp: FastMCP) -> None:
     """
     enabled = get_config().student_write_tools
 
-    @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
+    @mcp.tool(
+        annotations=ToolAnnotations(read_only_hint=True), meta=FULL_CONTENT_TOOL_META
+    )
     @validate_params
     async def get_my_submission(
         course_identifier: str | int,

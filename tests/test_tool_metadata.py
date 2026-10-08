@@ -90,6 +90,15 @@ DESTRUCTIVE = {
     "delete_assignment_with_confirmation",
     "delete_announcements_by_criteria",
     "bulk_delete_announcements",
+    # Student calendar/planner: replaces a note's text Canvas keeps no history
+    # of, or removes the caller's own note/event.
+    "update_planner_note",
+    "delete_planner_note",
+    "delete_personal_calendar_event",
+    # Not the mark_conversations_read benign-toggle exception: Canvas syncs a
+    # planner override to the item's "Mark as done" module requirement, so
+    # complete=False un-completes module progress and can re-lock modules.
+    "mark_planner_item_complete",
 }
 
 # Additive: each call adds something and removes nothing.
@@ -107,10 +116,16 @@ ADDITIVE = {
     "send_conversation",
     "send_peer_review_followup_campaign",
     "send_peer_review_inbox_messages",
+    # Student Inbox writes: each adds a message, nothing is replaced.
+    "send_message",
+    "reply_to_conversation",
     "mark_conversations_read",
     # Writes a new local file and refuses an existing path (O_EXCL), so it
     # never replaces anything; a repeat fails without writing.
     "download_course_file",
+    # Student calendar/planner: a new note or personal event, nothing replaced.
+    "create_planner_note",
+    "create_personal_calendar_event",
 }
 
 # Repeating the call with the same arguments produces a duplicate.
@@ -144,6 +159,10 @@ NOT_IDEMPOTENT = {
     "send_conversation",
     "send_peer_review_followup_campaign",
     "send_peer_review_inbox_messages",
+    # A repeat sends a second message (send_message always starts a new
+    # conversation; a reply appends another message).
+    "send_message",
+    "reply_to_conversation",
     # Default on_duplicate="rename" makes a NEW file on every call.
     "upload_course_file",
     # mode="append"/"prepend" adds the same block again on every repeat.
@@ -151,6 +170,9 @@ NOT_IDEMPOTENT = {
     # Default filename is timestamped to the second, so each repeat writes a
     # NEW report file.
     "generate_peer_review_report",
+    # Each call creates another note / event.
+    "create_planner_note",
+    "create_personal_calendar_event",
 }
 
 
@@ -248,7 +270,9 @@ async def test_repeatable_tools_declare_idempotency_honestly():
     for name in ("update_assignment", "update_module", "update_discussion_topic",
                  "update_rubric", "edit_page_content", "delete_page", "bulk_delete_announcements",
                  "delete_announcements_by_criteria", "delete_assignment_with_confirmation",
-                 "extract_peer_review_dataset"):
+                 "extract_peer_review_dataset", "update_planner_note",
+                 "delete_planner_note", "delete_personal_calendar_event",
+                 "mark_planner_item_complete"):
         assert tools[name].annotations.idempotent_hint is True, (
             f"{name} converges on the same end state when repeated"
         )
@@ -309,3 +333,37 @@ async def test_list_courses_boolean_parameters_have_descriptions():
 
     assert "concluded" in properties["include_concluded"]["description"].lower()
     assert "active" in properties["include_all"]["description"].lower()
+
+
+# Tools whose job is to return one complete piece of Canvas content. Each must
+# tell Claude Code it may return a large result (anthropic/maxResultSizeChars),
+# or the client caps it near 25k tokens and the model sees a cut document.
+FULL_CONTENT_TOOLS = {
+    "get_page_content",
+    "get_syllabus",
+    "get_front_page",
+    "get_assignment_details",
+    "get_discussion_topic_details",
+    "get_discussion_entry_details",
+    "get_discussion_with_replies",
+    "list_discussion_entries",
+    "get_conversation_details",
+    "get_my_submission",
+    "get_my_assignment_scores",
+    "get_quiz_details",
+    "get_calendar_event",
+    "get_rubric",
+    "get_rubric_assessment",
+}
+
+
+@pytest.mark.asyncio
+async def test_full_content_tools_declare_the_large_result_size_on_the_wire():
+    async with Client(_registry()) as client:
+        tools = {tool.name: tool for tool in await client.list_tools()}
+
+    missing = FULL_CONTENT_TOOLS - tools.keys()
+    assert not missing, f"full-content tools not registered: {sorted(missing)}"
+    for name in sorted(FULL_CONTENT_TOOLS):
+        meta = tools[name].meta or {}
+        assert meta.get("anthropic/maxResultSizeChars") == 500_000, name

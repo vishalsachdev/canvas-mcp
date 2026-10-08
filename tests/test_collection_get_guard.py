@@ -40,6 +40,9 @@ SINGLE_OBJECT_PATHS: dict[str, str] = {
     "{}/discussion_topics/{}/entry_list": "ID-filtered by ids[]: returns exactly the entries asked for",
     "/conversations/unread_count": "one count object",
     "/courses/{}/permissions": "one permissions map",
+    "/courses/{}/quizzes/{}/submission": (
+        "Get the quiz submission: one object wrapping the caller's own live record"
+    ),
 }
 
 # (file under tools/, function) -> "test file::test name" proving the reader
@@ -50,6 +53,10 @@ DISCLOSING_SINGLE_PAGE_READERS: dict[tuple[str, str], str] = {
     ("messaging.py", "list_conversations"): (
         "tests/tools/test_truncation_disclosure.py::"
         "test_list_conversations_reports_more_available_without_fetching_more"
+    ),
+    ("student_messaging.py", "find_message_recipients"): (
+        "tests/tools/test_student_messaging.py::"
+        "test_follows_pagination_and_truncates_to_limit"
     ),
 }
 
