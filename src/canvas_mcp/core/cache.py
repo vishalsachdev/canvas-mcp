@@ -7,7 +7,7 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 
 from .client import fetch_all_paginated_results, make_canvas_request
-from .credentials import is_http_request_active
+from .credentials import get_request_course_labels, is_http_request_active
 from .logging import log_error, log_info
 from .untrusted_content import fence_untrusted_inline
 from .validation import coerce_canvas_id, validate_params
@@ -202,9 +202,15 @@ async def get_course_code(course_id: str | int) -> str | None:
         return course_id
 
     if is_http_request_active():
+        labels = get_request_course_labels()
+        if labels is not None and course_id in labels:
+            return labels[course_id]
         response = await make_canvas_request("get", f"/courses/{course_id}")
         if isinstance(response, dict) and "error" not in response:
-            return response.get("course_code") or course_id
+            code = response.get("course_code") or course_id
+            if labels is not None:
+                labels[course_id] = code
+            return code
         return course_id
 
     # If it's in our cache, return the code

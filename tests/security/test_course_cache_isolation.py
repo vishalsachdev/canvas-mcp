@@ -107,3 +107,28 @@ async def test_http_refresh_does_not_publish_caller_metadata(monkeypatch):
     await cache.refresh_course_cache()
     assert cache.course_code_to_id_cache == {"SAME CODE": "101"}
     assert cache.id_to_course_code_cache == {"101": "PRIVATE CODE"}
+
+
+@pytest.mark.asyncio
+async def test_http_repeated_labels_cost_one_read_per_request(monkeypatch):
+    seed_other_caller(monkeypatch)
+    request = AsyncMock(return_value={"id": 202, "course_code": "B ONLY"})
+    monkeypatch.setattr(cache, "make_canvas_request", request)
+    http_caller("caller-b")
+    for _ in range(100):
+        assert await cache.get_course_code("202") == "B ONLY"
+    assert request.await_count == 1
+    clear_http_request_context()
+    http_caller("caller-b")
+    assert await cache.get_course_code("202") == "B ONLY"
+    assert request.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_http_label_cache_is_discarded_when_credentials_change(monkeypatch):
+    request = AsyncMock(side_effect=[{"course_code": "A ONLY"}, {"error": "HTTP error: 403"}])
+    monkeypatch.setattr(cache, "make_canvas_request", request)
+    http_caller("a")
+    assert await cache.get_course_code("101") == "A ONLY"
+    set_request_credentials(RequestCredentials("b", "https://canvas.example/api/v1"))
+    assert await cache.get_course_code("101") == "101"
