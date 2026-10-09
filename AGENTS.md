@@ -595,3 +595,11 @@ Drafting is allowed. Composing into a browser editor is allowed only when asked.
 Before any external action, ask: "Do you want me to [exact action] now?" Only proceed after a clear yes to that exact action. Do not treat "looks good," "ok," or "use this" as permission to publish, send, delete, deploy, submit, schedule, purchase, or post.
 
 For LinkedIn posts: prepare the text, optionally paste it into the composer, then stop. Never click Post unless Vishal explicitly says "Post it."
+
+## Inbox vs Issues
+
+_Section added by [Doodle bot], 2026-10-09. Authored and committed by: [Doodle bot]_
+
+- **Use `_agent-inbox/` for directives:** work an agent should pick up — tasks, notes, conventions. See `_agent-inbox/README.md` for the file format.
+- **Use GitHub issues for conversations:** anything that needs a decision, a discussion thread, or tracking over time — bugs, feature requests, open questions.
+- **Public repos lean toward issues.** In public repos like canvas-mcp, issues are the surface contributors watch, so prefer them. Inbox items in public repos must never include secrets, tokens, or student data.

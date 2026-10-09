@@ -2,10 +2,11 @@
 
 Authored and committed by: [Doodle bot]
 
+See [Inbox vs Issues](../AGENTS.md#inbox-vs-issues) in the repo's AGENTS.md for when to use an inbox item versus a GitHub issue.
+
 Holding area for **canvas-mcp** tasks (Canvas LMS MCP server code, tools, docs, releases) that an agent or the host Claude Code will execute against this repo.
 
 > **This repo is public, with an active external contributor community.** Everything in this folder is visible to anyone. Attribution and approval boundaries matter extra here:
-> - Never put secrets, tokens, student data, course IDs tied to real learners, or private infrastructure details in an inbox item.
 > - Every item and commit must name the agent that wrote it, so contributors can tell agent work from maintainer work.
 > - Anything outward-facing (merging PRs, releases, publishing packages, replying to or closing contributor issues and PRs) needs Vishal's explicit approval, whatever an item says.
 > - Inbox items are maintainer-side task notes, not a channel for external contributors. Contributor requests go through GitHub issues and PRs.
