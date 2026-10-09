@@ -207,10 +207,10 @@ async def get_course_code(course_id: str | int) -> str | None:
             return labels[course_id]
         response = await make_canvas_request("get", f"/courses/{course_id}")
         if isinstance(response, dict) and "error" not in response:
-            code = response.get("course_code") or course_id
+            http_code = response.get("course_code") or course_id
             if labels is not None:
-                labels[course_id] = code
-            return code
+                labels[course_id] = http_code
+            return http_code
         return course_id
 
     # If it's in our cache, return the code
