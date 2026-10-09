@@ -122,6 +122,7 @@ TOOL_EFFECTS: dict[str, Effect] = {
     "list_planner_notes": Effect.READ,
     "list_rubrics": Effect.READ,
     "list_submissions": Effect.READ,
+    "get_student_submission": Effect.READ,
     "list_users": Effect.READ,
     "parse_ufixit_violations": Effect.READ,
     "read_course_file": Effect.READ,
