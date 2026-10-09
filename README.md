@@ -8,7 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![skills.sh](https://img.shields.io/badge/skills.sh-canvas--mcp-blue)](https://skills.sh)
 
-MCP server for Canvas LMS with **up to 125 tools** and **8 agent skills**. Designed for Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh); setup and capabilities vary by client.
+MCP server for Canvas LMS with **up to 126 tools** and **8 agent skills**. Designed for Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh); setup and capabilities vary by client.
 
 ## Quick Start
 
@@ -36,7 +36,7 @@ See [Agent Skills](#-agent-skills) for the list. If your agent is Claude Code, t
   See CLAUDE.md "Documentation Maintenance" for full guidelines.
 -->
 
-Canvas MCP provides **up to 125 tools** for interacting with Canvas LMS; the default profile registers fewer, and optional feature-gated tools can raise the total to 125. Tools are organized by user type:
+Canvas MCP provides **up to 126 tools** for interacting with Canvas LMS; the default profile registers fewer, and optional feature-gated tools can raise the total to 126. Tools are organized by user type:
 
 <details>
 <summary><strong>Student Tools</strong> (click to expand)</summary>
@@ -70,6 +70,7 @@ Canvas MCP provides **up to 125 tools** for interacting with Canvas LMS; the def
 | `create_assignment` | Create new assignment | "Create an assignment due Jan 26 with online text submission" |
 | `update_assignment` | Update existing assignment | "Change the due date for Assignment 3 to Feb 15" |
 | `list_submissions` | Student submissions | "Who submitted Assignment 3?" |
+| `get_student_submission` | One student’s text and visible comments; requires grading permission and preserves redaction | "Read student 123’s submission for Assignment 3" |
 | `bulk_grade_submissions` | Grade multiple at once | "Grade these 10 students" |
 | `get_assignment_analytics` | Performance stats | "Show analytics for Quiz 2" |
 | `send_conversation` | Message students | "Message students who haven't submitted" |
