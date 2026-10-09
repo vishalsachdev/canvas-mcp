@@ -84,6 +84,7 @@ from ..core.untrusted_content import (
     UNTRUSTED_NOTICE,
     contains_fence_markers,
     fence_untrusted_inline,
+    format_canvas_error,
 )
 from ..core.validation import coerce_canvas_id, validate_params
 from ..core.write_confirmation import ConfirmationGuard
@@ -250,7 +251,7 @@ async def _resolve_recipient(user_id: str, course_id: str) -> dict[str, Any] | s
         {"user_id": user_id, "context": f"course_{course_id}", "per_page": 100},
     )
     if isinstance(response, dict) and "error" in response:
-        return f"Could not look up recipient {user_id}: {response['error']}"
+        return f"Could not look up recipient {user_id}: {format_canvas_error(response['error'])}"
     candidates = response if isinstance(response, list) else [response]
     for candidate in candidates:
         if not isinstance(candidate, dict) or str(candidate.get("id")) != user_id:
@@ -366,11 +367,11 @@ def _failure_result(result: dict[str, Any], outcome: WriteOutcome) -> dict[str, 
     """Shape a failed send so the caller knows whether it may have gone out."""
     if outcome in (WriteOutcome.NOT_DISPATCHED, WriteOutcome.REJECTED):
         return {
-            "error": f"Canvas refused the message: {result.get('error')}",
+            "error": f"Canvas refused the message: {format_canvas_error(result.get('error'))}",
             "nothing_sent": True,
         }
     return {
-        "error": f"Sending failed: {result.get('error')}",
+        "error": f"Sending failed: {format_canvas_error(result.get('error'))}",
         "delivery_uncertain": True,
         "advice": (
             "Canvas may have delivered it anyway. Check list_conversations "
@@ -453,7 +454,7 @@ async def _load_reply_target(
         detail = conversation.get("error") if isinstance(conversation, dict) else None
         return (
             f"Could not read conversation {conversation_id}"
-            + (f": {detail}" if detail else "")
+            + (f": {format_canvas_error(detail)}" if detail else "")
             + ". You can only reply to conversations you are part of."
         )
 
@@ -595,7 +596,7 @@ def register_student_messaging_tools(mcp: FastMCP) -> None:
                 )
                 pages_read += 1
                 if isinstance(page, dict) and "error" in page:
-                    return {"error": f"Could not search recipients: {page['error']}"}
+                    return {"error": f"Could not search recipients: {format_canvas_error(page['error'])}"}
                 if not isinstance(page, list):
                     return {"error": "Unexpected response from Canvas recipient search"}
                 for entry in page:
@@ -794,11 +795,11 @@ def register_student_messaging_tools(mcp: FastMCP) -> None:
                     )
                 return success
             except Exception as e:
-                print(f"Error sending student message: {e}", file=sys.stderr)
+                print(f"Error sending student message: {format_canvas_error(e)}", file=sys.stderr)
                 if outcome is WriteOutcome.NOT_DISPATCHED:
-                    return {"error": f"Failed to send message: {e}", "nothing_sent": True}
+                    return {"error": f"Failed to send message: {format_canvas_error(e)}", "nothing_sent": True}
                 return {
-                    "error": f"Failed to send message: {e}",
+                    "error": f"Failed to send message: {format_canvas_error(e)}",
                     "delivery_uncertain": True,
                     "advice": (
                         "Check list_conversations with scope='sent' before trying again."
@@ -930,9 +931,9 @@ def register_student_messaging_tools(mcp: FastMCP) -> None:
             except Exception as e:
                 print(f"Error replying to conversation: {e}", file=sys.stderr)
                 if outcome is WriteOutcome.NOT_DISPATCHED:
-                    return {"error": f"Failed to send reply: {e}", "nothing_sent": True}
+                    return {"error": f"Failed to send reply: {format_canvas_error(e)}", "nothing_sent": True}
                 return {
-                    "error": f"Failed to send reply: {e}",
+                    "error": f"Failed to send reply: {format_canvas_error(e)}",
                     "delivery_uncertain": True,
                     "advice": "Check the conversation in Canvas before trying again.",
                 }
