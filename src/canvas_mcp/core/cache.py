@@ -134,10 +134,11 @@ async def get_course_id(course_identifier: str | int) -> str:
 
     A course code (spaces allowed), name or bare SIS ID of one of the caller's
     courses resolves as in ``resolve_numeric_course_id``. An identifier that
-    matches none of them, or several, is passed through as before (an
+    matches none of them is passed through as before (an
     underscore code as ``sis_course_id:<code>``), so the result may not be
     numeric; code that puts it in a path or compares it should use
-    ``resolve_numeric_course_id`` instead.
+    ``resolve_numeric_course_id`` instead. Ambiguous aliases raise ValueError
+    before a tool can dispatch a request against an arbitrary course.
 
     Returns:
         The course ID as a string
@@ -156,27 +157,28 @@ async def get_course_id(course_identifier: str | int) -> str:
         return course_str
 
     if is_http_request_active():
-        found, error = await resolve_numeric_course_id(course_identifier)
-        if found is not None:
-            return found
+        courses = await fetch_all_paginated_results("/courses", {"per_page": 100})
+        if isinstance(courses, list):
+            found, error = match_course(course_str, courses)
+            if error is not None:
+                raise ValueError(error)
+            if found is not None:
+                return found
         # Preserve the legacy pass-through contract, without using another
         # caller's aliases. Canvas still authorizes the eventual request.
         return f"sis_course_id:{course_str}" if "_" in course_str else course_str
-
-    # If it's in our cache, return the ID
-    if course_str in course_code_to_id_cache:
-        return course_code_to_id_cache[course_str]
 
     # One of the caller's courses by code (spaces allowed, as in 'COMPSCI
     # 161'), name or SIS ID, ignoring case and surrounding whitespace. On a
     # miss the course list is re-read once (shared and rate-limited, see
     # _refresh_after_miss) and searched again. An ambiguous match is not
-    # retried; it falls through like a miss.
+    # retried; it is refused before any target request.
     found, ambiguous = _match_cached(course_str)
     if found is None and ambiguous is None and await _refresh_after_miss():
-        if course_str in course_code_to_id_cache:
-            return course_code_to_id_cache[course_str]
-        found, _ = _match_cached(course_str)
+        found, ambiguous = _match_cached(course_str)
+    if ambiguous is not None:
+        # Refuse ambiguity rather than reinterpret it as a SIS target.
+        raise ValueError(ambiguous)
     if found is not None:
         return found
 

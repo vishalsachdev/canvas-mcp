@@ -433,8 +433,9 @@ class TestGetCourseIdLooksUpOnMiss:
         assert canvas.requests == []
 
     @pytest.mark.asyncio
-    async def test_ambiguous_code_falls_back_without_a_second_read(self, canvas):
+    async def test_ambiguous_code_is_refused_without_a_second_read(self, canvas):
         canvas.courses = [{"id": 11, "course_code": "COMPSCI 161", "name": "Fall"},
                           {"id": 22, "course_code": "compsci 161", "name": "Winter"}]
-        assert await cache.get_course_id("Compsci 161") == "Compsci 161"
+        with pytest.raises(ValueError, match="IDs 11, 22"):
+            await cache.get_course_id("Compsci 161")
         assert canvas.list_reads == 1
