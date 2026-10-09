@@ -27,6 +27,15 @@ from dataclasses import dataclass
 from typing import Literal
 
 
+def format_canvas_error(error: object) -> str:
+    """Render an error at the output boundary without trusting its response body."""
+    text = str(error)
+    status = re.match(r"HTTP error: (\d{3})(?!\d)", text)
+    if status:
+        return f"HTTP error: {status.group(1)}"
+    return fence_untrusted_inline(text.strip()[:200] or "no detail", "Canvas error")
+
+
 @dataclass(frozen=True)
 class ReadToolContentPolicy:
     """Reviewed trust-boundary classification for one read-only MCP tool."""
