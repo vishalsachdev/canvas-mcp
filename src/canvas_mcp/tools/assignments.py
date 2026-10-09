@@ -233,8 +233,8 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
         if isinstance(submission, dict) and "error" in submission:
             return f"Error fetching submission: {format_canvas_error(submission['error'])}"
         if (not isinstance(submission, dict)
-                or coerce_canvas_id(submission.get("user_id")) != student
-                or coerce_canvas_id(submission.get("assignment_id")) != assignment):
+                or coerce_canvas_id(submission.get("user_id") or "") != student
+                or coerce_canvas_id(submission.get("assignment_id") or "") != assignment):
             return "Error: Missing, malformed, or mismatched submission record."
         lines = [f"Submission for assignment {assignment}, student ID {student}:"]
         body = submission.get("body")
