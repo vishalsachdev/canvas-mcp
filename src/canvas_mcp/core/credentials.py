@@ -33,6 +33,16 @@ _http_request_active: ContextVar[bool] = ContextVar(
     "http_request_active", default=False
 )
 
+# Initialized per HTTP request, never a shared mutable ContextVar default.
+_request_course_labels: ContextVar[dict[str, str] | None] = ContextVar(
+    "request_course_labels", default=None
+)
+
+
+def get_request_course_labels() -> dict[str, str] | None:
+    """Course labels read under the current request's Canvas credential."""
+    return _request_course_labels.get()
+
 
 def get_request_credentials() -> RequestCredentials | None:
     """Get the current request's Canvas credentials, or None for stdio mode."""
@@ -42,11 +52,13 @@ def get_request_credentials() -> RequestCredentials | None:
 def set_request_credentials(creds: RequestCredentials) -> None:
     """Set Canvas credentials for the current async context."""
     _request_credentials.set(creds)
+    _request_course_labels.set({})
 
 
 def clear_request_credentials() -> None:
     """Clear credentials after request completes."""
     _request_credentials.set(None)
+    _request_course_labels.set(None)
 
 
 def is_http_request_active() -> bool:
@@ -61,9 +73,11 @@ def is_http_request_active() -> bool:
 def set_http_request_active(active: bool = True) -> None:
     """Mark whether the current async context is handling an HTTP request."""
     _http_request_active.set(active)
+    _request_course_labels.set({} if active else None)
 
 
 def clear_http_request_context() -> None:
     """Clear all per-request HTTP context after the request completes."""
     _request_credentials.set(None)
     _http_request_active.set(False)
+    _request_course_labels.set(None)

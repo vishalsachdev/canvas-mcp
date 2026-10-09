@@ -7,6 +7,7 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 
 from .client import fetch_all_paginated_results, make_canvas_request
+from .credentials import get_request_course_labels, is_http_request_active
 from .logging import log_error, log_info
 from .untrusted_content import fence_untrusted_inline
 from .validation import coerce_canvas_id, validate_params
@@ -45,6 +46,11 @@ async def refresh_course_cache() -> bool:
     if isinstance(courses, dict) and "error" in courses:
         log_error("Error building course cache", error=courses.get("error"))
         return False
+
+    # HTTP course metadata belongs to the requesting credential. Never publish
+    # it into the process-wide stdio cache or its shared refresh state.
+    if is_http_request_active():
+        return isinstance(courses, list)
 
     # Build caches for bidirectional lookups
     course_code_to_id_cache = {}
@@ -128,10 +134,11 @@ async def get_course_id(course_identifier: str | int) -> str:
 
     A course code (spaces allowed), name or bare SIS ID of one of the caller's
     courses resolves as in ``resolve_numeric_course_id``. An identifier that
-    matches none of them, or several, is passed through as before (an
+    matches none of them is passed through as before (an
     underscore code as ``sis_course_id:<code>``), so the result may not be
     numeric; code that puts it in a path or compares it should use
-    ``resolve_numeric_course_id`` instead.
+    ``resolve_numeric_course_id`` instead. Ambiguous aliases raise ValueError
+    before a tool can dispatch a request against an arbitrary course.
 
     Returns:
         The course ID as a string
@@ -149,20 +156,29 @@ async def get_course_id(course_identifier: str | int) -> str:
     if course_str.startswith("sis_course_id:"):
         return course_str
 
-    # If it's in our cache, return the ID
-    if course_str in course_code_to_id_cache:
-        return course_code_to_id_cache[course_str]
+    if is_http_request_active():
+        courses = await fetch_all_paginated_results("/courses", {"per_page": 100})
+        if isinstance(courses, list):
+            found, error = match_course(course_str, courses)
+            if error is not None:
+                raise ValueError(error)
+            if found is not None:
+                return found
+        # Preserve the legacy pass-through contract, without using another
+        # caller's aliases. Canvas still authorizes the eventual request.
+        return f"sis_course_id:{course_str}" if "_" in course_str else course_str
 
     # One of the caller's courses by code (spaces allowed, as in 'COMPSCI
     # 161'), name or SIS ID, ignoring case and surrounding whitespace. On a
     # miss the course list is re-read once (shared and rate-limited, see
     # _refresh_after_miss) and searched again. An ambiguous match is not
-    # retried; it falls through like a miss.
+    # retried; it is refused before any target request.
     found, ambiguous = _match_cached(course_str)
     if found is None and ambiguous is None and await _refresh_after_miss():
-        if course_str in course_code_to_id_cache:
-            return course_code_to_id_cache[course_str]
-        found, _ = _match_cached(course_str)
+        found, ambiguous = _match_cached(course_str)
+    if ambiguous is not None:
+        # Refuse ambiguity rather than reinterpret it as a SIS target.
+        raise ValueError(ambiguous)
     if found is not None:
         return found
 
@@ -185,6 +201,18 @@ async def get_course_code(course_id: str | int) -> str | None:
 
     # If it's already a code-like string with underscores
     if "_" in course_id:
+        return course_id
+
+    if is_http_request_active():
+        labels = get_request_course_labels()
+        if labels is not None and course_id in labels:
+            return labels[course_id]
+        response = await make_canvas_request("get", f"/courses/{course_id}")
+        if isinstance(response, dict) and "error" not in response:
+            http_code = response.get("course_code") or course_id
+            if labels is not None:
+                labels[course_id] = http_code
+            return http_code
         return course_id
 
     # If it's in our cache, return the code
@@ -353,6 +381,14 @@ async def resolve_numeric_course_id(
     numeric = coerce_canvas_id(raw)
     if numeric is not None:
         return numeric, None
+
+    # No shared aliases, throttling or in-flight tasks in HTTP mode: each
+    # request must resolve against the courses visible to its own credential.
+    if courses is None and is_http_request_active():
+        response = await fetch_all_paginated_results("/courses", {"per_page": 100})
+        if not isinstance(response, list):
+            return None, f"{not_found}: your course list could not be loaded from Canvas."
+        courses = response
 
     if raw.startswith(SIS_COURSE_PREFIX):
         # A course already listed is found by its SIS ID with no request; the
