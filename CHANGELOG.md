@@ -7,9 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.0] — 2026-10-07
+
+### Security
+
+- Locked dependencies moved to patched releases: `pyjwt` 2.15.1 ([#432](https://github.com/vishalsachdev/canvas-mcp/pull/432)),
+  `urllib3` 2.8.0 ([#434](https://github.com/vishalsachdev/canvas-mcp/pull/434)) and `multidict` 6.9.1 ([#461](https://github.com/vishalsachdev/canvas-mcp/pull/461)). No code changes.
+
 ### Added
 
-- **Student group tools (read-only, student profile).** `list_my_groups` lists
+- **Student group tools (read-only, student profile).** ([#470](https://github.com/vishalsachdev/canvas-mcp/pull/470), [#472](https://github.com/vishalsachdev/canvas-mcp/pull/472); thanks [@KKazuhaK](https://github.com/KKazuhaK)) `list_my_groups` lists
   the groups you belong to with the course ID and group ID, `get_group_members`
   lists a group's members (names and user IDs, never emails), and
   `list_group_files` lists a group's files. Each group-scoped tool re-reads
@@ -30,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   A file's content type is printed only when it is a short ASCII MIME token with a
   registered top-level type (classmates control the value); anything else shows as
   "unknown type".
-- **Student Inbox messaging.** `find_message_recipients` (read-only, always
+- **Student Inbox messaging.** ([#467](https://github.com/vishalsachdev/canvas-mcp/pull/467), [#476](https://github.com/vishalsachdev/canvas-mcp/pull/476); thanks [@KKazuhaK](https://github.com/KKazuhaK)) `find_message_recipients` (read-only, always
   on) looks up the people a student can message in a course and their user
   IDs. `send_message` and `reply_to_conversation` are new student write tools,
   off unless named in `STUDENT_WRITE_TOOLS` and subject to the per-course
@@ -65,7 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exactly as Canvas returns them (`null` stays `null`). A checkpointed
   discussion's parent `due_at` is null by design, which the summaries used to
   report as "no due date". Metadata only: no submission, grade or user fields.
-- **Discussions inside group spaces.** The discussion read tools
+- **Discussions inside group spaces.** ([#433](https://github.com/vishalsachdev/canvas-mcp/pull/433); thanks [@papatistos](https://github.com/papatistos)) The discussion read tools
   (`list_discussion_topics`, `get_discussion_topic_details`,
   `list_discussion_entries`, `get_discussion_entry_details`,
   `get_discussion_with_replies`) take an optional `group_id`. Topics that
@@ -90,14 +97,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   body equal to the expected body after whitespace-only normalization, every
   other requested field as sent); otherwise it is reported unconfirmed. Calls without the new
   parameters send exactly the same requests as before.
-- **Student "what's new" feed (read-only, student profile).**
+- **Student "what's new" feed (read-only, student profile).** ([#468](https://github.com/vishalsachdev/canvas-mcp/pull/468), [#471](https://github.com/vishalsachdev/canvas-mcp/pull/471); thanks [@KKazuhaK](https://github.com/KKazuhaK))
   `list_my_announcements` lists announcements across all active courses in one
   call (default last 14 days, optional course filter), and
   `get_my_activity_stream` summarises the Canvas activity stream by kind
   (announcements, discussions, conversations, grades and submission comments,
   notifications). Canvas-authored text is fenced. Previews that are shortened
   name the tool that returns the full text.
-- **Student grade insight (read-only).** `get_my_assignment_scores` lists every
+- **Student grade insight (read-only).** ([#469](https://github.com/vishalsachdev/canvas-mcp/pull/469), [#473](https://github.com/vishalsachdev/canvas-mcp/pull/473); thanks [@KKazuhaK](https://github.com/KKazuhaK)) `get_my_assignment_scores` lists every
   assignment's score and status in a course, grouped by assignment group with
   weights and drop rules. `calculate_grade_scenarios` recomputes the course grade
   the way Canvas does (weighted or total points, drop lowest/highest and
@@ -111,7 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   duplicate IDs), and
   submissions that arrive as a list (an observer token); a letter target is
   refused when the course's real letter scheme is unknown.
-- **Read-only quiz awareness for students** (student slice of issue 172):
+- **Read-only quiz awareness for students** ([#466](https://github.com/vishalsachdev/canvas-mcp/pull/466), [#474](https://github.com/vishalsachdev/canvas-mcp/pull/474); thanks [@KKazuhaK](https://github.com/KKazuhaK)) (student slice of issue 172):
   `list_quizzes` lists a course's Classic quizzes and New Quizzes with dates,
   limits and your submission state; `get_quiz_details` shows one quiz's settings
   plus your own attempts used/remaining and kept score from the latest record.
@@ -121,7 +128,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   by the assignment API's `is_quiz_lti_assignment` flag (not
   `is_quiz_assignment`, which marks Classic quizzes); their settings and attempt
   history are not exposed to students by the REST API, and the tools say so.
-- **Student calendar and planner tools.** Student profile only.
+- **Student calendar and planner tools.** ([#465](https://github.com/vishalsachdev/canvas-mcp/pull/465), [#475](https://github.com/vishalsachdev/canvas-mcp/pull/475); thanks [@KKazuhaK](https://github.com/KKazuhaK)) Student profile only.
   `list_calendar_events` shows the Canvas calendar across the student's active
   courses, their personal calendar and their groups (assignment due dates
   included, batched to Canvas's 10 calendars per request), `get_calendar_event`
@@ -143,7 +150,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Full-content reads no longer cut text without saying so.**
+- `get_my_submission_status` no longer reports graded `on_paper` or
+  `none` assignments as overdue. It now follows Canvas's own `missing` flag,
+  which is false for excused, graded and no-submission work and true when a
+  teacher marks work missing ([#423](https://github.com/vishalsachdev/canvas-mcp/pull/423); thanks [@lindsay-cheng](https://github.com/lindsay-cheng)).
+- **Full-content reads no longer cut text without saying so.** ([#458](https://github.com/vishalsachdev/canvas-mcp/pull/458), [#462](https://github.com/vishalsachdev/canvas-mcp/pull/462); thanks [@KKazuhaK](https://github.com/KKazuhaK))
   `get_discussion_with_replies` returns whole entries and replies (they were cut
   at 200 and 150 characters), `list_discussion_entries` with
   `include_full_content=True` returns whole replies (they were cut at 200), and
@@ -164,7 +175,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `get_rubric` when it shortened a description, and
   `get_course_content_overview` names `get_syllabus`, `list_pages` and
   `list_modules` when it shows only a preview or the first few items.
-- **Course codes with spaces, course names and bare SIS IDs now resolve.**
+- **Course codes with spaces, course names and bare SIS IDs now resolve.** ([#457](https://github.com/vishalsachdev/canvas-mcp/pull/457); thanks [@KKazuhaK](https://github.com/KKazuhaK))
   `get_course_id` only recognised codes containing an underscore, so a course
   addressed as `COMPSCI 161`, by its name, or by its SIS ID was sent to Canvas
   as typed and failed. A lookup that finds nothing in the cache now re-reads
@@ -206,7 +217,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `get_discussion_with_replies` check the course's (or group's) topic list; a
   listed topic gets a message that it exists, REST does not serve it, and it
   can be opened in the Canvas UI. A 404 for an unlisted topic is still not found.
-- **Anonymous discussion topics can be read** (issue 421, part 2). After the
+- **Anonymous discussion topics can be read** (issue 421, part 2). ([#439](https://github.com/vishalsachdev/canvas-mcp/pull/439), [#442](https://github.com/vishalsachdev/canvas-mcp/pull/442); thanks [@papatistos](https://github.com/papatistos)) After the
   part-1 404 check finds a topic in the list, the four topic read tools
   (`get_discussion_entry_details` included) can read it through Canvas GraphQL when
   the operator sets `DISCUSSION_GRAPHQL_ENABLED=true` (off by default), and
@@ -222,7 +233,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   REST; a readable topic marked anonymous is also refused. Neither path sends
   an update or a GraphQL request. Guarded edits reuse the preflight read;
   ordinary updates add one REST read before their existing write.
-- **Windows support.** The full test suite now passes on Windows.
+- **Windows support.** The full test suite now passes on Windows. ([#456](https://github.com/vishalsachdev/canvas-mcp/pull/456), [#460](https://github.com/vishalsachdev/canvas-mcp/pull/460); thanks [@KKazuhaK](https://github.com/KKazuhaK), and [@bruchris](https://github.com/bruchris) for the UTF-8 groundwork in [#445](https://github.com/vishalsachdev/canvas-mcp/pull/445))
   - `TIMEZONE` works on Windows: `tzdata` is installed there only (a Windows
     platform marker), because Windows has no IANA time zone database and every
     date fell back to UTC with a warning. Nothing changes on Linux or macOS.

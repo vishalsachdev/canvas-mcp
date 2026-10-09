@@ -16,6 +16,7 @@ from ..core.cache import (
 )
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.config import get_config
+from ..core.credentials import is_http_request_active
 from ..core.dates import format_date
 from ..core.guarded_edit import (
     NOTHING_WRITTEN,
@@ -265,7 +266,7 @@ def register_course_tools(mcp: FastMCP) -> None:
             course_id = str(course.get("id"))
             course_code = course.get("course_code")
 
-            if course_code and course_id:
+            if course_code and course_id and not is_http_request_active():
                 course_code_to_id_cache[course_code] = course_id
                 id_to_course_code_cache[course_id] = course_code
 
@@ -304,7 +305,7 @@ def register_course_tools(mcp: FastMCP) -> None:
             return f"Error fetching course details: {response['error']}"
 
         # Update our caches with the course data
-        if "id" in response and "course_code" in response:
+        if "id" in response and "course_code" in response and not is_http_request_active():
             course_code_to_id_cache[response["course_code"]] = str(response["id"])
             id_to_course_code_cache[str(response["id"])] = response["course_code"]
 
