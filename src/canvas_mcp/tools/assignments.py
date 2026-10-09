@@ -224,7 +224,8 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             params={"permissions[]": ["manage_grades"]},
         )
         if (not isinstance(permissions, dict) or "error" in permissions
-                or permissions.get("manage_grades") is not True):
+                or not (permissions.get("manage_grades") is True
+                        or permissions.get("manage_grades") == "true")):
             return "Error: Explicit Canvas manage_grades permission is required."
         submission = await make_canvas_request(
             "get", f"/courses/{course}/assignments/{assignment}/submissions/{student}",

@@ -46,7 +46,7 @@ async def test_legitimate_read(api):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('permissions', [{}, None, [], {'manage_grades': 'true'}, {'manage_grades': False}, {'error': 'HTTP error: 403'}, {'manage_grades': True, 'error': 'failed'}])
+@pytest.mark.parametrize('permissions', [{}, None, [], {'manage_grades': 'TRUE'}, {'manage_grades': 'false'}, {'manage_grades': 1}, {'manage_grades': False}, {'error': 'HTTP error: 403'}, {'manage_grades': True, 'error': 'failed'}])
 async def test_denied_permissions_never_fetch_content(api, permissions):
     api.side_effect = [permissions]
     assert 'Error' in await read()
@@ -117,3 +117,9 @@ async def test_plain_text_comments_preserve_code_and_html_references(api):
     comment = 'Use std::vector<int>. The <script> element is missing.'
     api.side_effect = [{'manage_grades': True}, {'user_id': 3, 'assignment_id': 2, 'submission_comments': [{'comment': comment}]}]
     assert comment in await read()
+
+
+@pytest.mark.asyncio
+async def test_documented_string_permission_grant(api):
+    api.side_effect = [{'manage_grades': 'true'}, {'user_id': 3, 'assignment_id': 2, 'body': 'Authorized essay'}]
+    assert 'Authorized essay' in await read()

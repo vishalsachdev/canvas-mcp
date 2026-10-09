@@ -765,7 +765,7 @@ Read one student's current submitted text and visible text comments.
 **Parameters:** `course_identifier` (course code or ID), `assignment_id`, and
 `student_id` (numeric Canvas IDs).
 
-**Access and privacy:** Requires an explicit `manage_grades: true` response
+**Access and privacy:** Requires an explicit `manage_grades` grant (`true` or the literal string `"true"`)
 from Canvas's course permissions endpoint. Canvas authorizes the individual
 submission read too. With `ENABLE_DATA_ANONYMIZATION=true` (the default), the
 existing client redacts submission bodies and scrubs recognizable PII from
