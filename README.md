@@ -666,6 +666,12 @@ Optional anonymization for FERPA-conscious educator workflows: `ENABLE_DATA_ANON
 
 Published to [PyPI](https://pypi.org/project/canvas-mcp/), [MCP Registry](https://registry.modelcontextprotocol.io/), and [skills.sh](https://skills.sh) (agent skills). Releases are automated via GitHub Actions — tag a version (`git tag vX.Y.Z && git push origin vX.Y.Z`) and CI handles the rest.
 
+## Related project: UIUC Course MCP
+
+From Canvas MCP creator [Vishal Sachdev](https://github.com/vishalsachdev), [UIUC Course MCP](https://vishalsachdev.github.io/uiuc-course-mcp/) brings public Illinois course search, descriptions and section schedules into your local AI assistant. It is read-only and requires no account or API key. Use it for course discovery, and Canvas MCP for supported workflows inside your Canvas courses. The servers have separate setups; no automatic account linking is built in.
+
+[Get started](https://vishalsachdev.github.io/uiuc-course-mcp/#setup) · [Source and feature requests](https://github.com/vishalsachdev/uiuc-course-mcp)
+
 ## Contributing
 
 Contributions are welcome! Feel free to:
