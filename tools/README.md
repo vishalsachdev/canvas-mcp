@@ -2914,3 +2914,7 @@ Some Canvas API endpoints have bugs or design issues that prevent certain operat
 - **Main README**: [README.md](../README.md)
 - **Development Guide**: [CLAUDE.md](../CLAUDE.md)
 - **GitHub Issues**: [Report issues](https://github.com/vishalsachdev/canvas-mcp/issues)
+
+## Canvas OAuth scopes
+
+For scoped Developer Key pilots, see the [endpoint scope inventory and validation matrix](oauth/README.md). This documents current API calls; it does not add OAuth infrastructure or replace personal API-token authentication.
