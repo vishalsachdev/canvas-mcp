@@ -329,6 +329,35 @@
       ]
     },
     {
+      "name": "get_student_submission",
+      "category": "educator",
+      "description": "Read one student\u2019s current submission text and visible comments; requires manage_grades and preserves anonymization body redaction",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "assignment_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Canvas assignment ID"
+        },
+        {
+          "name": "student_id",
+          "type": "string | integer",
+          "required": true,
+          "description": "Canvas student ID"
+        }
+      ],
+      "returns": "Bounded, fenced submitted text and visible text comments; no files, URLs, media, history, or private/draft comments",
+      "examples": [
+        "Read student 123\u2019s submission for assignment 456 in course 789"
+      ]
+    },
+    {
       "name": "get_assignment_analytics",
       "category": "educator",
       "description": "Get comprehensive performance analytics for an assignment",

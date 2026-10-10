@@ -29,8 +29,8 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 ```
 # In .env:
 CANVAS_ROLE=student    # 51 tools by default (student + shared), 62 with every student write tool enabled
-CANVAS_ROLE=educator   # 93 tools by default, 95 with every gated tool enabled
-CANVAS_ROLE=all        # Default profile; 112 tools by default, 125 with all feature-gated tools enabled
+CANVAS_ROLE=educator   # 94 tools by default, 96 with every gated tool enabled
+CANVAS_ROLE=all        # Default profile; 113 tools by default, 126 with all feature-gated tools enabled
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
@@ -129,6 +129,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `list_assignments` | All assignments in a course; `raw_dates=True` appends every date as Canvas returns it (`due_at`, `unlock_at`, `lock_at`, `updated_at`, `all_dates`, checkpoint dates). Use it for due-date audits: a checkpointed discussion's `due_at` is null by design |
 | `get_assignment_details` | Full assignment info including description; `raw_dates=True` appends the same dates block |
 | `list_submissions` | Student submissions for grading |
+| `get_student_submission` | One student’s current submitted text and visible text comments; requires `manage_grades`, preserves anonymization redaction, and caps output |
 | `get_assignment_analytics` | Performance statistics |
 | `create_assignment` | Create new assignment with due date, submission types, peer reviews |
 | `update_assignment` | Update existing assignment (name, due date, points, published, etc.). Optional guards: `expect_updated_at`, `find`/`replace` on the description, `require` (see Guarded edits) |
@@ -594,3 +595,11 @@ Drafting is allowed. Composing into a browser editor is allowed only when asked.
 Before any external action, ask: "Do you want me to [exact action] now?" Only proceed after a clear yes to that exact action. Do not treat "looks good," "ok," or "use this" as permission to publish, send, delete, deploy, submit, schedule, purchase, or post.
 
 For LinkedIn posts: prepare the text, optionally paste it into the composer, then stop. Never click Post unless Vishal explicitly says "Post it."
+
+## Inbox vs Issues
+
+_Section added by [Doodle bot], 2026-10-09. Authored and committed by: [Doodle bot]_
+
+- **Use `_agent-inbox/` for directives:** work an agent should pick up — tasks, notes, conventions. See `_agent-inbox/README.md` for the file format.
+- **Use GitHub issues for conversations:** anything that needs a decision, a discussion thread, or tracking over time — bugs, feature requests, open questions.
+- **Public repos lean toward issues.** In public repos like canvas-mcp, issues are the surface contributors watch, so prefer them. Inbox items in public repos must never include secrets, tokens, or student data.
