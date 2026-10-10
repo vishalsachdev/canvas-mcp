@@ -84,6 +84,7 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
         "Returns local anonymization configuration and counts, not Canvas content."
     ),
     "get_assignment_analytics": _fenced("fence_untrusted_inline"),
+    "get_student_submission": _fenced("fence_untrusted"),
     "get_assignment_details": _fenced("fence_untrusted"),
     "get_calendar_event": _fenced("_format_event"),
     "get_conversation_details": _fenced("_fence_conversation_fields"),

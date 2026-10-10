@@ -759,6 +759,37 @@ Get detailed information about a specific assignment.
 
 ---
 
+#### `get_student_submission`
+Read one student's current submitted text and visible text comments.
+
+**Parameters:** `course_identifier` (course code or ID), `assignment_id`, and
+`student_id` (numeric Canvas IDs).
+
+**Access and privacy:** Requires an explicit `manage_grades` grant (`true` or the literal string `"true"`)
+from Canvas's course permissions endpoint. Canvas authorizes the individual
+submission read too. With `ENABLE_DATA_ANONYMIZATION=true` (the default), the
+existing client redacts submission bodies and scrubs recognizable PII from
+comments. No anonymization bypass or global setting change is performed.
+Comments remain free text and may contain indirectly identifying details.
+
+**Output:** HTML is converted to plain text and fenced as untrusted data.
+Body processing is limited to 12,000 input characters; at most ten comments
+of 800 input characters each are returned, with truncation notices. This
+bounds model output and parsing, not Canvas's HTTP response size. Do not grade
+from a truncated result without consulting the complete submission in Canvas.
+Private, hidden, and draft comments are excluded when marked in the response;
+Canvas controls which unmarked comments are visible to the token. Author
+metadata, attachments, URLs, media, history, and read-status updates are excluded.
+The existing `list_submissions` output is unchanged.
+
+**Scoped OAuth keys:** Allow GET
+`/api/v1/courses/:course_id/permissions` and
+`/api/v1/courses/:course_id/assignments/:assignment_id/submissions/:user_id`,
+plus the course-discovery scopes used by `course_identifier` resolution.
+No write scope is needed by this tool.
+
+---
+
 #### `list_submissions`
 View student submissions for an assignment.
 
