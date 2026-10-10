@@ -14,14 +14,14 @@ marker distinguishes "HTTP request with no token" (must fail closed) from
 """
 
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
 class RequestCredentials:
     """Canvas API credentials for a single HTTP request."""
 
-    api_token: str
+    api_token: str = field(repr=False)
     api_url: str
 
 
