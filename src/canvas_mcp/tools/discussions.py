@@ -12,6 +12,7 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.config import get_config
+from ..core.credentials import is_http_request_active
 from ..core.dates import format_date, parse_date, truncate_text
 from ..core.guarded_edit import (
     BodyGuard,
@@ -386,12 +387,16 @@ async def _read_discussion_via_graphql(
 # straight to GraphQL instead of paying for the REST 404 and the topic list
 # again. Canvas does not let a discussion's anonymity change once it has
 # replies; the TTL bounds staleness otherwise. If GraphQL fails on a cache hit,
-# the entry is dropped and the normal REST path runs.
+# the entry is dropped and the normal REST path runs. The hint is process-wide,
+# so it is only used outside HTTP requests (stdio has a single credential): one
+# HTTP caller's REST 404 says nothing about another caller's credential (issue 489).
 _UNSERVABLE_TOPIC_TTL_SECONDS = 600
 _unservable_topics: dict[tuple[str, str], float] = {}
 
 
 def _is_known_unservable(prefix: str, topic_id: str | int) -> bool:
+    if is_http_request_active():
+        return False
     key = (prefix, str(topic_id))
     expires = _unservable_topics.get(key)
     if expires is None:
@@ -437,9 +442,10 @@ async def _read_unservable_topic(
         return None, _unservable_topic_message(prefix, topic_id, match)
     discussion, reason = await _read_discussion_via_graphql(course_id, topic_id, group_id)
     if discussion is not None:
-        _unservable_topics[(prefix, str(topic_id))] = (
-            time.monotonic() + _UNSERVABLE_TOPIC_TTL_SECONDS
-        )
+        if not is_http_request_active():
+            _unservable_topics[(prefix, str(topic_id))] = (
+                time.monotonic() + _UNSERVABLE_TOPIC_TTL_SECONDS
+            )
         return discussion, None
     return None, f"{_unservable_topic_message(prefix, topic_id, match)}\nAlso, {reason}"
 
