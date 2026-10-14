@@ -42,6 +42,26 @@ def _load(path: Path) -> dict:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
+class TestClaudeReviewSecretBoundary:
+    def test_review_runs_only_in_secret_eligible_pr_contexts(self):
+        """Forks and Dependabot must never require the Actions review secret."""
+        job = _load(WORKFLOWS / "claude-code-review.yml")["jobs"]["claude-review"]
+        condition = " ".join(str(job.get("if", "")).split())
+        assert condition == (
+            "github.event.pull_request.head.repo.full_name == github.repository && "
+            "github.actor != 'dependabot[bot]' && "
+            "github.event.pull_request.user.login != 'dependabot[bot]'"
+        ), "review must exclude forks, Dependabot actors and Dependabot-authored PRs"
+
+    def test_review_keeps_unprivileged_pull_request_trigger(self):
+        """Do not expose secrets by checking out fork code in a privileged event."""
+        workflow = _load(WORKFLOWS / "claude-code-review.yml")
+        # PyYAML's YAML 1.1 loader reads the unquoted Actions 'on' key as True.
+        events = workflow.get("on", workflow.get(True, {}))
+        assert set(events) == {"pull_request"}
+        assert events["pull_request"]["types"] == ["opened", "synchronize"]
+
+
 @pytest.mark.skipif(not AI_WORKFLOW.exists(), reason="workflow not present")
 class TestWeeklyMaintenancePermissions:
     def test_no_write_scope_beyond_issues(self):
