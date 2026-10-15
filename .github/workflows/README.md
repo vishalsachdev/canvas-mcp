@@ -65,8 +65,18 @@ gh workflow run create-release.yml -f tag_name=v1.0.7-test
 **Purpose**: Automated code review using Claude.
 
 **Triggers**:
-- Pull requests
-- Comments on pull requests
+- Pull requests opened or updated
+
+The review job runs only for same-repository PRs whose author and triggering
+actor are not Dependabot. Fork and Dependabot runs do not receive the Actions
+review secret, so this job is skipped for them. A skipped job means no Claude
+review ran; obtain a separate maintainer review before merging. Application
+tests and security scans continue to run for those PRs. Same-repository human
+PRs still fail explicitly if the review secret is missing.
+
+Keep the `pull_request` trigger. Do not switch to a privileged
+`pull_request_target` workflow that checks out contributor code to obtain
+secrets. See [GitHub's Dependabot Actions restrictions](https://docs.github.com/en/code-security/dependabot/troubleshooting-dependabot/troubleshooting-dependabot-on-github-actions).
 
 ### auto-claude-review.yml
 **Purpose**: Lightweight automated code review.

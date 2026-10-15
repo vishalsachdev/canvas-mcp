@@ -42,6 +42,7 @@ from typing import Any, NamedTuple
 
 from .client import make_canvas_request
 from .config import get_config
+from .credentials import is_http_request_active
 from .logging import log_warning
 
 _KEY_AGENT_WRITES = "agent_writes"
@@ -70,7 +71,8 @@ class CoursePolicy(NamedTuple):
     source: str
 
 
-# course_id -> (expires_at_monotonic, policy)
+# course_id -> (expires_at_monotonic, policy). Used only when no HTTP request is
+# active (stdio, one credential); HTTP callers neither read nor write it.
 _policy_cache: dict[str, tuple[float, CoursePolicy]] = {}
 
 
@@ -250,8 +252,12 @@ async def get_course_policy(course_id: str | int) -> CoursePolicy:
     """
     config = get_config()
     key = str(course_id)
+    # The verdict is read under the caller's own token. In HTTP mode each
+    # request carries a different caller's token, so a shared entry would answer
+    # one caller with another's read (#480 drew the same line for course labels).
+    shared = not is_http_request_active()
 
-    cached = _policy_cache.get(key)
+    cached = _policy_cache.get(key) if shared else None
     if cached and cached[0] > time.monotonic():
         return cached[1]
 
@@ -292,8 +298,8 @@ async def get_course_policy(course_id: str | int) -> CoursePolicy:
     # Caching it under the course id alone would let one bad caller deny writes
     # for every legitimate student in that course for a full deny TTL. So it is
     # never cached; the retry cost is small and falls only on the caller who
-    # actually hit the error.
-    if policy.source == "read_error":
+    # actually hit the error. HTTP results are request-local for the same reason.
+    if policy.source == "read_error" or not shared:
         return policy
 
     ttl = (

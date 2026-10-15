@@ -10,6 +10,13 @@ permissions:
 
 jobs:
   claude-review:
+    # Fork and Dependabot PR runs do not receive the Actions review secret.
+    # Skip visibly instead of reporting a missing-secret failure. Application
+    # and security CI still run; these PRs need a separate maintainer review.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]' &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
