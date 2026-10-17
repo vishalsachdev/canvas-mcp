@@ -821,7 +821,8 @@ def main() -> None:
     register_all_tools(mcp, role=role)
 
     removed_tools = asyncio.run(apply_tool_policy(mcp, tool_policy))
-    notice = policy_notice(tool_policy, "http" if is_http else "stdio")
+    served = [tool.name for tool in asyncio.run(mcp.list_tools(run_middleware=False))]
+    notice = policy_notice(tool_policy, served, "http" if is_http else "stdio")
     if notice:
         mcp.instructions = notice
     if tool_policy.enforced:
