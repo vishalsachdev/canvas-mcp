@@ -262,8 +262,15 @@ def resolve_tool_policy(raw: str | None, transport: Transport) -> ToolPolicy:
     return ToolPolicy(True, frozenset(allowed), ALLOWLIST_ENV)
 
 
-def policy_notice(policy: ToolPolicy, transport: Transport) -> str | None:
+def policy_notice(
+    policy: ToolPolicy, served_tools: list[str], transport: Transport
+) -> str | None:
     """Server instructions that explain withheld tools, or None if none are.
+
+    ``served_tools`` are the tool names left after registration and policy
+    filtering. The notice is built from those, not from ``policy.allowed``: an
+    allowlisted tool that a registration gate left out is not available and
+    must not be advertised.
 
     A removed tool is simply absent, so a user asking for an edit sees what
     looks like a missing feature. Every MCP client hands the server's
@@ -273,7 +280,7 @@ def policy_notice(policy: ToolPolicy, transport: Transport) -> str | None:
     """
     if not policy.enforced:
         return None
-    allowed = sorted(name for name in policy.allowed if TOOL_EFFECTS.get(name) is not Effect.READ)
+    allowed = sorted(name for name in served_tools if TOOL_EFFECTS.get(name) is not Effect.READ)
     if allowed:
         return (
             "This Canvas MCP server offers only these tools that change anything "

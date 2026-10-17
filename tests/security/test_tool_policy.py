@@ -311,6 +311,20 @@ def test_http_allowlisted_server_names_the_allowed_writes(monkeypatch):
     assert "read-only" not in text
 
 
+def test_notice_names_only_write_tools_actually_served(monkeypatch):
+    # Allowed by the operator but never registered (STUDENT_WRITE_TOOLS unset):
+    # the server serves no write tool, so it must say read-only, not promise one.
+    mcp = _served_server(
+        monkeypatch,
+        ["--transport", "streamable-http"],
+        {"MCP_ALLOW_UNAUTHENTICATED": "true", "ALLOWED_WRITE_TOOLS": "submit_assignment"},
+    )
+    assert "submit_assignment" not in asyncio.run(_names(mcp))
+    text = mcp.instructions or ""
+    assert "submit_assignment" not in text
+    assert "read-only" in text
+
+
 def test_stdio_none_server_says_read_only_without_local_install_hint(monkeypatch):
     mcp = _served_server(
         monkeypatch, [], {"CANVAS_API_TOKEN": "x" * 24, "ALLOWED_WRITE_TOOLS": "none"}
