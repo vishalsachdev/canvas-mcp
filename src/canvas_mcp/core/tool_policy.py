@@ -262,6 +262,41 @@ def resolve_tool_policy(raw: str | None, transport: Transport) -> ToolPolicy:
     return ToolPolicy(True, frozenset(allowed), ALLOWLIST_ENV)
 
 
+def policy_notice(policy: ToolPolicy, transport: Transport) -> str | None:
+    """Server instructions that explain withheld tools, or None if none are.
+
+    A removed tool is simply absent, so a user asking for an edit sees what
+    looks like a missing feature. Every MCP client hands the server's
+    instructions to the model at connect time, which lets it say that the
+    deployment withholds the tool on purpose. Read-only text only: this never
+    changes which tools exist.
+    """
+    if not policy.enforced:
+        return None
+    allowed = sorted(name for name in policy.allowed if TOOL_EFFECTS.get(name) is not Effect.READ)
+    if allowed:
+        return (
+            "This Canvas MCP server offers only these tools that change anything "
+            f"(set by the operator in {ALLOWLIST_ENV}): {', '.join(allowed)}. "
+            "Other changes cannot be made through this server. If the user asks for "
+            "one, say so plainly and offer a draft they can apply in Canvas. Do not "
+            "look for a workaround."
+        )
+    text = (
+        "This Canvas MCP server is read-only: the operator has not enabled any "
+        f"tool that changes Canvas ({ALLOWLIST_ENV}). It can look up and analyze "
+        "course data. If the user asks to edit, grade, post or message, say that "
+        "this deployment cannot, and offer a draft they can paste into Canvas. Do "
+        "not look for a workaround."
+    )
+    if transport == "http":
+        text += (
+            " To make changes through an assistant, the user can run Canvas MCP "
+            "locally with their own Canvas token."
+        )
+    return text
+
+
 async def apply_tool_policy(mcp: FastMCP, policy: ToolPolicy) -> list[str]:
     """Remove every side-effect tool the policy does not allow.
 
