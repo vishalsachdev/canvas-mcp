@@ -7,8 +7,14 @@ Documentation checked October 8, 2026 (America/Chicago).
 This is a documentation inventory, **not implemented OAuth support or evidence of
 live scope enforcement**. Personal `CANVAS_API_TOKEN` authentication remains
 supported. Do not implement authorization, refresh, callback or credential-store
-infrastructure until a scoped institutional Developer Key pilot establishes the
-required behavior. No credentials should be posted to GitHub or sent to maintainers.
+infrastructure for custom institutional Developer Keys until a scoped Developer
+Key pilot establishes the required behavior (see issue #236).
+
+Note: For local interactive user login without requiring a manually generated
+PAT or an institutional Developer Key, see the separate opt-in mobile OAuth CLI flow
+(`canvas-mcp-auth login`). That mobile flow uses Canvas's public mobile client
+directory and local private token storage; it is distinct from and does not claim
+to resolve or enforce the institutional Developer Key scopes cataloged here.
 
 ## What is included
 
