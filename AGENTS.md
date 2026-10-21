@@ -460,7 +460,7 @@ Some Canvas API endpoints have bugs or limitations that prevent certain operatio
 - `rate_limit_delay` is seconds between batches (default `1.0`)
 - `execute_typescript` (only if the operator enabled it) suits 30+ items needing custom per-item logic; it has no preview/confirm step, so get explicit approval first
 - `bulk_grade_submissions` and `fix_accessibility_issues` take `dry_run`; bulk deletes and every `send_conversation` preview on the first call and act only on a second call with the returned `confirmation_token`
-- Write tools may be absent: the operator's `ALLOWED_WRITE_TOOLS` decides which tools that change anything exist, and a hosted (HTTP) server allows none unless configured. Treat a missing write tool as the deployment's policy, tell the user, and do not look for a workaround
+- Write tools may be absent: the operator's `ALLOWED_WRITE_TOOLS` decides which tools that change anything exist, and a hosted (HTTP) server allows none unless configured. Treat a missing write tool as the deployment's policy, tell the user, and do not look for a workaround. When tools are withheld, the server's instructions state the policy (read-only, or the allowed write tools by name)
 
 ## Error Handling
 

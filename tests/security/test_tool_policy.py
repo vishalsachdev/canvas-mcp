@@ -225,6 +225,11 @@ async def test_an_unclassified_tool_is_treated_as_a_side_effect(all_flags_on):
 
 def _served_registry(monkeypatch, argv, env) -> set[str]:
     """Run main() up to the point of serving and return the tools it would serve."""
+    return asyncio.run(_names(_served_server(monkeypatch, argv, env)))
+
+
+def _served_server(monkeypatch, argv, env) -> FastMCP:
+    """Run main() up to the point of serving and return the server it would serve."""
     # CANVAS_API_TOKEN too: a developer's .env sets it, and the HTTP startup
     # guard rightly refuses to start with a server token. Cases that need it
     # (stdio) set it through ``env``.
@@ -257,7 +262,7 @@ def _served_registry(monkeypatch, argv, env) -> set[str]:
     finally:
         config_module.reset_config()
     assert "mcp" in captured, "main() never reached the serve step"
-    return asyncio.run(_names(captured["mcp"]))
+    return captured["mcp"]
 
 
 def test_main_serves_http_read_only_by_default(monkeypatch):
@@ -277,6 +282,61 @@ def test_main_serves_http_allowlisted_writes(monkeypatch):
         {"MCP_ALLOW_UNAUTHENTICATED": "true", "ALLOWED_WRITE_TOOLS": "update_page_settings"},
     )
     assert names & SIDE_EFFECT == {"update_page_settings"}
+
+
+# A removed tool is simply absent, which a user reads as a bug ("it cannot
+# edit pages"). The server's instructions, which every client hands the model
+# at connect time, must say that the deployment withholds the tools on purpose.
+
+def test_http_read_only_server_says_so_in_its_instructions(monkeypatch):
+    mcp = _served_server(
+        monkeypatch,
+        ["--transport", "streamable-http"],
+        {"MCP_ALLOW_UNAUTHENTICATED": "true"},
+    )
+    text = mcp.instructions or ""
+    assert "read-only" in text
+    assert "ALLOWED_WRITE_TOOLS" in text
+    assert "local" in text.lower(), "HTTP users should be pointed at a local install"
+
+
+def test_http_allowlisted_server_names_the_allowed_writes(monkeypatch):
+    mcp = _served_server(
+        monkeypatch,
+        ["--transport", "streamable-http"],
+        {"MCP_ALLOW_UNAUTHENTICATED": "true", "ALLOWED_WRITE_TOOLS": "update_page_settings"},
+    )
+    text = mcp.instructions or ""
+    assert "update_page_settings" in text
+    assert "read-only" not in text
+
+
+def test_notice_names_only_write_tools_actually_served(monkeypatch):
+    # Allowed by the operator but never registered (STUDENT_WRITE_TOOLS unset):
+    # the server serves no write tool, so it must say read-only, not promise one.
+    mcp = _served_server(
+        monkeypatch,
+        ["--transport", "streamable-http"],
+        {"MCP_ALLOW_UNAUTHENTICATED": "true", "ALLOWED_WRITE_TOOLS": "submit_assignment"},
+    )
+    assert "submit_assignment" not in asyncio.run(_names(mcp))
+    text = mcp.instructions or ""
+    assert "submit_assignment" not in text
+    assert "read-only" in text
+
+
+def test_stdio_none_server_says_read_only_without_local_install_hint(monkeypatch):
+    mcp = _served_server(
+        monkeypatch, [], {"CANVAS_API_TOKEN": "x" * 24, "ALLOWED_WRITE_TOOLS": "none"}
+    )
+    text = mcp.instructions or ""
+    assert "read-only" in text
+    assert "install" not in text.lower(), "a stdio server is already local"
+
+
+def test_stdio_default_server_adds_no_policy_instructions(monkeypatch):
+    mcp = _served_server(monkeypatch, [], {"CANVAS_API_TOKEN": "x" * 24})
+    assert not mcp.instructions
 
 
 def test_main_stdio_default_keeps_writes(monkeypatch):
