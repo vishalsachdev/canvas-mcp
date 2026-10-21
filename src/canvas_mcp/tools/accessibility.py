@@ -306,10 +306,11 @@ def _register_builtin_scanner_tools(mcp: FastMCP) -> None:
                 return json.dumps({"error": f"Could not scan pages: {format_canvas_error(detail)}"})
             if isinstance(pages, list):
                 for page in pages:
-                    if not isinstance(page, dict) or not isinstance(page.get("body"), str):
+                    # A title-only page serializes as "body": null; a missing key means the body was not returned.
+                    if not isinstance(page, dict) or "body" not in page or not isinstance(page["body"], str | None):
                         return json.dumps({"error": "Could not scan pages: Canvas did not return readable page content"})
                     issues = _check_content_accessibility(
-                        page["body"],
+                        page["body"] or "",
                         content_type="page",
                         content_id=page.get("page_id"),
                         content_title=page.get("title")
@@ -1065,7 +1066,7 @@ def _check_content_accessibility(
         style = tag.attributes.get("style")
         if tag.name not in {"span", "p", "strong", "em", "div"} or style is None:
             continue
-        if _style_properties(style.value).get("text-decoration") != "underline":
+        if "underline" not in _style_properties(style.value).get("text-decoration", "").split():
             continue
         issues.append({
             "type": "underline_not_link",

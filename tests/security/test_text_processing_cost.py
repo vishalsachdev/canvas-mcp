@@ -72,3 +72,9 @@ def test_quoted_delimiters_do_not_hide_or_invent_visible_text(markup, want):
 @pytest.mark.parametrize("quote", ['"', "'"])
 def test_plain_removal_keeps_all_inline_text_with_quoted_angles(quote):
     assert remove_html_tags(f"<span title={quote}x<y>z{quote}>AB</span>CD") == "ABCD"
+
+
+def test_unclosed_quote_in_text_does_not_hide_later_tags():
+    text = strip_html_tags("<p>if a<b, that's true.</p><p>next</p>")
+    assert "</p>" not in text and "<p>" not in text
+    assert text.startswith("if a<b, that's true.") and text.endswith("next")

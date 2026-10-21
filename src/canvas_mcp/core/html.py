@@ -112,7 +112,9 @@ def iter_html_tags(text: str) -> Iterator[HTMLTag]:
             if char in '\"\'':
                 end_quote = text.find(char, cursor + 1)
                 if end_quote < 0:
-                    return
+                    # An unmatched quote means this "<" was text, not a tag; rescan after it.
+                    cursor = start + 1
+                    break
                 cursor = end_quote + 1
             elif char == "<":
                 break

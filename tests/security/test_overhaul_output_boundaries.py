@@ -60,7 +60,7 @@ async def test_scanner_requests_page_bodies_and_checks_actual_text(monkeypatch, 
     assert data["issues"][0]["type"] == "missing_alt_text"
 
 
-@pytest.mark.parametrize("page", [{"page_id": 7}, {"body": None}, {"body": 5}, "invalid"])
+@pytest.mark.parametrize("page", [{"page_id": 7}, {"body": 5}, "invalid"])
 async def test_scanner_missing_page_text_is_unconfirmed_not_clean(monkeypatch, server, page):
     monkeypatch.setattr(accessibility, "fetch_all_paginated_results", AsyncMock(return_value=[page]))
     async with Client(server) as client:
@@ -70,6 +70,21 @@ async def test_scanner_missing_page_text_is_unconfirmed_not_clean(monkeypatch, s
     data = json.loads(result.content[0].text)
     assert "error" in data
     assert "summary" not in data
+
+
+async def test_scanner_treats_null_page_body_as_empty_page(monkeypatch, server):
+    # Canvas serializes a title-only page as "body": null; one such page must not abort the scan.
+    monkeypatch.setattr(accessibility, "fetch_all_paginated_results", AsyncMock(return_value=[
+        {"page_id": 7, "title": "Empty", "body": None},
+        {"page_id": 8, "title": "Synthetic", "body": '<img src="chart.png">'},
+    ]))
+    async with Client(server) as client:
+        result = await client.call_tool("scan_course_content_accessibility", {
+            "course_identifier": "42", "content_types": "pages",
+        })
+    data = json.loads(result.content[0].text)
+    assert "error" not in data
+    assert data["summary"]["total_violations"] == 1
 
 
 async def test_course_labels_are_data_inside_summary_prompt(monkeypatch, server):
