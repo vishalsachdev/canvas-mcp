@@ -64,7 +64,7 @@ PYPI_DAY=$(echo "$PYPI_RECENT" | "$PYTHON" -c "import sys,json; print(json.load(
 PYPI_WEEK=$(echo "$PYPI_RECENT" | "$PYTHON" -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('last_week', 0))")
 PYPI_MONTH=$(echo "$PYPI_RECENT" | "$PYTHON" -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('last_month', 0))")
 
-log "PyPI: $PYPI_DAY/day, $PYPI_WEEK/week, $PYPI_MONTH/month"
+log "PyPI response collected"
 
 # --- npm Stats ---
 log "Fetching npm stats..."
@@ -77,72 +77,24 @@ log "Building impact.json..."
 COLLECTED_AT=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 TODAY=$(date '+%Y-%m-%d')
 
-"$PYTHON" << PYEOF
-import json, os
-
-data_file = "$DATA_FILE"
-existing = {"history": []}
-if os.path.exists(data_file):
-    with open(data_file) as f:
-        existing = json.load(f)
-
-# Build new snapshot
-snapshot = {
-    "collected_at": "$COLLECTED_AT",
-    "github": {
-        "stars": $GH_STARS,
-        "forks": $GH_FORKS,
-        "contributors": $GH_CONTRIBUTORS,
-        "open_issues": $GH_OPEN_ISSUES,
-        "views_14d": $GH_VIEWS_TOTAL,
-        "views_14d_unique": $GH_VIEWS_UNIQUE,
-        "clones_14d": $GH_CLONES_TOTAL,
-        "clones_14d_unique": $GH_CLONES_UNIQUE,
-        "referrers": json.loads('''$GH_REFERRERS''')
-    },
-    "pypi": {
-        "last_day": $PYPI_DAY,
-        "last_week": $PYPI_WEEK,
-        "last_month": $PYPI_MONTH
-    },
-    "npm": {
-        "last_month": $NPM_MONTH
-    }
-}
-
-# Guard: a download API that returns 0 is almost always a transient fetch
-# failure, not reality (a published, starred package does not truly drop to 0).
-# Never let a 0 overwrite a non-zero last-good value — keep the previous number.
-prev_pypi = existing.get("pypi", {})
-if snapshot["pypi"]["last_month"] == 0 and prev_pypi.get("last_month", 0) > 0:
-    print("WARNING: PyPI returned 0; keeping last-good", prev_pypi)
-    snapshot["pypi"] = prev_pypi
-prev_npm = existing.get("npm", {})
-if snapshot["npm"]["last_month"] == 0 and prev_npm.get("last_month", 0) > 0:
-    print("WARNING: npm returned 0; keeping last-good", prev_npm)
-    snapshot["npm"] = prev_npm
-
-# Append to history (deduplicate by date), using the guarded values so a
-# transient 0 never lands in the trend series either.
-history = existing.get("history", [])
-history = [h for h in history if h.get("date") != "$TODAY"]
-history.append({
-    "date": "$TODAY",
-    "stars": $GH_STARS,
-    "forks": $GH_FORKS,
-    "pypi_month": snapshot["pypi"]["last_month"],
-    "npm_month": snapshot["npm"]["last_month"],
-    "views_unique": $GH_VIEWS_UNIQUE,
-    "clones_unique": $GH_CLONES_UNIQUE
-})
-history.sort(key=lambda x: x["date"])
-snapshot["history"] = history
-
-with open(data_file, "w") as f:
-    json.dump(snapshot, f, indent=2)
-
-print(f"Written to {data_file} ({len(history)} history entries)")
-PYEOF
+env \
+    DATA_FILE="$DATA_FILE" \
+    COLLECTED_AT="$COLLECTED_AT" \
+    TODAY="$TODAY" \
+    GH_STARS="$GH_STARS" \
+    GH_FORKS="$GH_FORKS" \
+    GH_CONTRIBUTORS="$GH_CONTRIBUTORS" \
+    GH_OPEN_ISSUES="$GH_OPEN_ISSUES" \
+    GH_VIEWS_TOTAL="$GH_VIEWS_TOTAL" \
+    GH_VIEWS_UNIQUE="$GH_VIEWS_UNIQUE" \
+    GH_CLONES_TOTAL="$GH_CLONES_TOTAL" \
+    GH_CLONES_UNIQUE="$GH_CLONES_UNIQUE" \
+    GH_REFERRERS="$GH_REFERRERS" \
+    PYPI_DAY="$PYPI_DAY" \
+    PYPI_WEEK="$PYPI_WEEK" \
+    PYPI_MONTH="$PYPI_MONTH" \
+    NPM_MONTH="$NPM_MONTH" \
+    "$PYTHON" "$SCRIPT_DIR/build_impact_snapshot.py"
 
 log "Done collecting stats"
 
