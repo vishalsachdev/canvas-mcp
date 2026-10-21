@@ -2303,7 +2303,9 @@ class TestRound9Surfaces:
             "canvas_mcp.tools.accessibility.get_course_id", new_callable=AsyncMock
         ) as mock_cid:
             mock_cid.return_value = "1"
-            mock_fetch.return_value = [{"url": "p1", "title": "HOSTILE TITLE"}]
+            mock_fetch.return_value = [{
+                "url": "p1", "title": "HOSTILE TITLE", "body": "<table><th>x</th></table>",
+            }]
             mock_req.return_value = {
                 "title": "HOSTILE TITLE",
                 "body": "<table><th>x</th></table>",
@@ -2311,6 +2313,7 @@ class TestRound9Surfaces:
             tool = _get_tool(register_accessibility_tools, "scan_course_content_accessibility")
             result = await tool("CS101", content_types="pages")
         parsed = _json.loads(result)
+        assert parsed["issues"]
         for issue in parsed["issues"]:
             if issue.get("content_title"):
                 assert FENCE_TEXT_START in issue["content_title"]

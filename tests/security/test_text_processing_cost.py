@@ -10,6 +10,7 @@ import sys
 import pytest
 
 from canvas_mcp.core.anonymization import scrub_free_text
+from canvas_mcp.core.html import remove_html_tags
 from canvas_mcp.tools.courses import strip_html_tags
 
 
@@ -53,3 +54,21 @@ def test_script_and_style_contents_do_not_reappear_in_output():
         "<p>Before</p><style>.hidden{color:red}<style></style>"
         "<script>const x = '<tag>'; '<script>';</script><p>After</p>"
     ) == "Before\nAfter"
+
+
+@pytest.mark.parametrize("markup,want", [
+    ('<p title="x<y">Complete text</p>', "Complete text"),
+    ("<p title='x>y'>Complete text</p>", "Complete text"),
+    ('<p title="x <script>">Retained syllabus text</p><p>After</p>',
+     "Retained syllabus text\nAfter"),
+    ('<script data-rule="x<y">alert(1)</script><p>Safe</p>', "Safe"),
+    ('<script>const x = \'<p title="\';</script><p>Safe</p>', "Safe"),
+    ('<p>A<!-- <img title="x>y"> hidden -->B</p>', "AB"),
+])
+def test_quoted_delimiters_do_not_hide_or_invent_visible_text(markup, want):
+    assert strip_html_tags(markup) == want
+
+
+@pytest.mark.parametrize("quote", ['"', "'"])
+def test_plain_removal_keeps_all_inline_text_with_quoted_angles(quote):
+    assert remove_html_tags(f"<span title={quote}x<y>z{quote}>AB</span>CD") == "ABCD"
