@@ -3,6 +3,7 @@
 import hashlib
 import io
 import json
+import os
 import runpy
 import tarfile
 from pathlib import Path
@@ -52,7 +53,8 @@ def test_publisher_checks_digest_before_replacing_executable(monkeypatch, tmp_pa
     else:
         module["install_publisher"]("v1.8.1", digest, destination)
         assert destination.read_bytes() == b"#!/bin/sh\nexit 0\n"
-        assert destination.stat().st_mode & 0o111
+        if os.name != "nt":  # Windows has no executable bit; the publisher installs on Linux runners.
+            assert destination.stat().st_mode & 0o111
     assert seen == ["https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_linux_amd64.tar.gz"]
 
 

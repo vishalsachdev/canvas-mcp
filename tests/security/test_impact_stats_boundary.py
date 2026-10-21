@@ -8,6 +8,10 @@ from pathlib import Path
 
 import pytest
 
+# The script runs only on Linux CI. On Windows "bash" is the WSL launcher, which fails before the
+# block runs, so the refusal tests would pass without exercising anything.
+pytestmark = pytest.mark.skipif(os.name == "nt", reason="collect-impact-stats.sh is a Linux CI script")
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
