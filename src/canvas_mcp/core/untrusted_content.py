@@ -177,6 +177,12 @@ RESOURCE_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     ),
 }
 
+# Prompts arrive as user-role messages, so their interpolated Canvas labels
+# need provenance even where ordinary tool outputs allow course identity.
+PROMPT_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
+    "summarize-course": _fenced("fence_untrusted_inline"),
+}
+
 # The markers deliberately carry their own instruction so every fence is
 # self-describing — a model reading a single fenced block mid-context does not
 # need to have seen a separate notice to know how to treat it.

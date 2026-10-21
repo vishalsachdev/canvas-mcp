@@ -1895,6 +1895,11 @@ Auto-fix accessibility issues flagged as `auto_fixable` by the scanner. Run `sca
 - `content_types` (optional): Comma-separated types to fix: `pages`, `assignments` (default: "pages")
 - `dry_run` (optional): Preview changes without applying (default: **true**). Set false to apply.
 
+Unreadable source content is reported as an error. A fix is reported as applied
+only when reading the item back confirms the expected content. Failed or
+unconfirmed updates carry an error and `applied: false`; review those results
+before retrying.
+
 **Example:**
 ```
 "Fix the auto-fixable accessibility issues found in the scan"
@@ -1979,6 +1984,8 @@ List all groups and their members for a course.
 See also the `ENABLE_DATA_ANONYMIZATION` setting in the [usage guidelines](#for-educators).
 
 #### `get_anonymization_status`
+HTTP statistics describe only the current request; they never include another
+caller's activity. Local stdio statistics cover the local server session.
 Get the server's current data anonymization configuration and statistics.
 
 **Parameters:** none

@@ -17,10 +17,12 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.config import get_config
+from ..core.guarded_edit import normalize_html
 from ..core.html import remove_html_tags
 from ..core.untrusted_content import (
     fence_untrusted,
     fence_untrusted_fields,
+    format_canvas_error,
     strip_fence_markers,
 )
 from ..core.validation import validate_params
@@ -306,6 +308,9 @@ def _register_builtin_scanner_tools(mcp: FastMCP) -> None:
                 f"/courses/{course_id}/pages",
                 {"per_page": 100}
             )
+            if not isinstance(pages, list):
+                detail = pages.get("error", "Invalid page list") if isinstance(pages, dict) else "Invalid page list"
+                return json.dumps({"error": f"Could not scan pages: {format_canvas_error(detail)}"})
             if isinstance(pages, list):
                 for page in pages:
                     issues = _check_content_accessibility(
@@ -322,6 +327,9 @@ def _register_builtin_scanner_tools(mcp: FastMCP) -> None:
                 f"/courses/{course_id}/assignments",
                 {"per_page": 100}
             )
+            if not isinstance(assignments, list):
+                detail = assignments.get("error", "Invalid assignment list") if isinstance(assignments, dict) else "Invalid assignment list"
+                return json.dumps({"error": f"Could not scan assignments: {format_canvas_error(detail)}"})
             if isinstance(assignments, list):
                 for assignment in assignments:
                     issues = _check_content_accessibility(
@@ -342,7 +350,10 @@ def _register_builtin_scanner_tools(mcp: FastMCP) -> None:
         # so no fence can reach a write-back path.
         fence_untrusted_fields(
             all_issues,
-            {"content_title": "content title", "location": "content excerpt"},
+            {
+                "content_title": "content title", "location": "content excerpt",
+                "description": "accessibility description",
+            },
         )
 
         return json.dumps({
@@ -388,6 +399,9 @@ def _register_builtin_scanner_tools(mcp: FastMCP) -> None:
             pages = await fetch_all_paginated_results(
                 f"/courses/{course_id}/pages", {"per_page": 100}
             )
+            if not isinstance(pages, list):
+                detail = pages.get("error", "Invalid page list") if isinstance(pages, dict) else "Invalid page list"
+                return json.dumps({"error": f"Could not read pages for fixes: {format_canvas_error(detail)}"})
             if isinstance(pages, list):
                 for page in pages:
                     slug = page.get("url")
@@ -396,6 +410,9 @@ def _register_builtin_scanner_tools(mcp: FastMCP) -> None:
                     full = await make_canvas_request(
                         "get", f"/courses/{course_id}/pages/{slug}"
                     )
+                    if not isinstance(full, dict) or "error" in full:
+                        detail = full.get("error", "Invalid page response") if isinstance(full, dict) else "Invalid page response"
+                        return json.dumps({"error": f"Could not read a page for fixes: {format_canvas_error(detail)}"})
                     body = full.get("body", "") if isinstance(full, dict) else ""
                     if body:
                         items.append({
@@ -411,6 +428,9 @@ def _register_builtin_scanner_tools(mcp: FastMCP) -> None:
             assignments = await fetch_all_paginated_results(
                 f"/courses/{course_id}/assignments", {"per_page": 100}
             )
+            if not isinstance(assignments, list):
+                detail = assignments.get("error", "Invalid assignment list") if isinstance(assignments, dict) else "Invalid assignment list"
+                return json.dumps({"error": f"Could not read assignments for fixes: {format_canvas_error(detail)}"})
             if isinstance(assignments, list):
                 for asgn in assignments:
                     desc = asgn.get("description", "")
@@ -450,18 +470,40 @@ def _register_builtin_scanner_tools(mcp: FastMCP) -> None:
                     changes.append(f"redundant_alt_prefix: {count} alt text(s) fixed")
 
             if changes and html != original:
+                applied = False
+                error = None
                 if not dry_run:
-                    await make_canvas_request(
+                    response = await make_canvas_request(
                         "put",
                         item["endpoint"],
                         data={item["body_field"]: html},
                         use_form_data=True
                     )
+                    body_field = "body" if item["type"] == "page" else "description"
+                    verification = response
+                    if isinstance(response, dict) and "error" not in response:
+                        if item["type"] == "page":
+                            verification = await make_canvas_request(
+                                "get", f"/courses/{course_id}/pages/{item['id']}"
+                            )
+                        else:
+                            verification = await make_canvas_request(
+                                "get", f"/courses/{course_id}/assignments/{item['id']}"
+                            )
+                    applied = (
+                        isinstance(verification, dict) and "error" not in verification
+                        and isinstance(verification.get(body_field), str)
+                        and normalize_html(verification[body_field]) == normalize_html(html)
+                    )
+                    if not applied:
+                        detail = verification.get("error", "Canvas did not return the expected updated content") if isinstance(verification, dict) else "Invalid update response"
+                        error = format_canvas_error(detail)
                 results.append({
                     "title": item["title"],
                     "type": item["type"],
                     "changes": changes,
-                    "applied": not dry_run
+                    "applied": applied,
+                    **({"error": error} if error is not None else {}),
                 })
 
         summary = {
@@ -472,7 +514,11 @@ def _register_builtin_scanner_tools(mcp: FastMCP) -> None:
             "fix_types_applied": types,
         }
 
-        return json.dumps({"summary": summary, "results": results})
+        fence_untrusted_fields(results, {"title": "content title"})
+        result = {"summary": summary, "results": results}
+        if any("error" in item for item in results):
+            result["error"] = "Some accessibility changes could not be confirmed. Review the results before retrying."
+        return json.dumps(result)
 
 
 def _fix_th_scope(html: str) -> tuple[str, int]:
