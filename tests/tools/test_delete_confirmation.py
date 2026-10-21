@@ -123,7 +123,7 @@ def test_untokened_delete_announcement_is_retired(discussions):
 SINGLE_TARGET = [
     # (fixture name, tool name, positional args, GET payload, title shown, rename payload)
     ("discussions", "delete_announcement_with_confirmation", ("60366", 555),
-     {"id": 555, "title": "Old Exam Info"}, "Old Exam Info", {"id": 555, "title": "Renamed"}),
+     {"id": 555, "title": "Old Exam Info", "is_announcement": True}, "Old Exam Info", {"id": 555, "title": "Renamed", "is_announcement": True}),
     ("modules", "delete_module", ("60366", 12345),
      {"id": 12345, "name": "Week 9", "items_count": 3}, "Week 9", {"id": 12345, "name": "Week 10", "items_count": 3}),
     ("modules", "delete_module_item", ("60366", 12345, 55001),
@@ -208,7 +208,7 @@ async def test_fetch_error_reports_and_issues_no_token(request, fixture_name, to
 
 @pytest.mark.asyncio
 async def test_announcement_title_mismatch_issues_no_token(discussions):
-    discussions["req"].side_effect = _by_method({"id": 555, "title": "Old Exam Info"})
+    discussions["req"].side_effect = _by_method({"id": 555, "title": "Old Exam Info", "is_announcement": True})
     result = await discussions["tools"]["delete_announcement_with_confirmation"](
         "60366", 555, require_title_match="Something else"
     )
@@ -264,7 +264,7 @@ def _announcements(ids_to_titles):
     def get(endpoint):
         aid = int(endpoint.rsplit("/", 1)[1])
         if aid in ids_to_titles:
-            return {"id": aid, "title": ids_to_titles[aid]}
+            return {"id": aid, "title": ids_to_titles[aid], "is_announcement": True}
         return {"error": "Not found"}
     return get
 
@@ -316,9 +316,9 @@ async def test_bulk_limit_refuses_before_issuing_token(discussions):
 # ---------------------------------------------------------------------------
 
 LISTING = [
-    {"id": 10, "title": "Week 1 Recap", "posted_at": "2026-01-05T12:00:00Z"},
-    {"id": 11, "title": "Week 2 Recap", "posted_at": "2026-01-12T12:00:00Z"},
-    {"id": 12, "title": "Exam Info", "posted_at": "2026-03-01T12:00:00Z"},
+    {"id": 10, "title": "Week 1 Recap", "posted_at": "2026-01-05T12:00:00Z", "is_announcement": True},
+    {"id": 11, "title": "Week 2 Recap", "posted_at": "2026-01-12T12:00:00Z", "is_announcement": True},
+    {"id": 12, "title": "Exam Info", "posted_at": "2026-03-01T12:00:00Z", "is_announcement": True},
 ]
 
 
@@ -351,7 +351,7 @@ async def test_criteria_match_set_changed_refuses(discussions):
     tool = discussions["tools"]["delete_announcements_by_criteria"]
     token = token_from(await tool("60366", {"title_contains": "recap"}))
     discussions["fetch"].return_value = LISTING + [
-        {"id": 13, "title": "Week 3 Recap", "posted_at": "2026-01-19T12:00:00Z"}
+        {"id": 13, "title": "Week 3 Recap", "posted_at": "2026-01-19T12:00:00Z", "is_announcement": True}
     ]
     result = await tool("60366", {"title_contains": "recap"}, confirmation_token=token)
     assert "does not match" in result

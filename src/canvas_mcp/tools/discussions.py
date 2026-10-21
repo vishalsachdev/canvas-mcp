@@ -1972,8 +1972,14 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
         announcement = await make_canvas_request(
             "get", f"/courses/{course_id}/discussion_topics/{announcement_id}"
         )
-        if "error" in announcement:
+        if isinstance(announcement, dict) and "error" in announcement:
             return f"Error fetching announcement details: {announcement['error']}"
+        if not isinstance(announcement, dict) or announcement.get("is_announcement") is not True:
+            if confirmation_token:
+                # An authentic preview cannot become valid again if the
+                # target changes type and is later changed back.
+                _DELETE_ANNOUNCEMENT_GUARD.check(confirmation_token, "")
+            return "Refusing deletion: Canvas did not confirm that this topic is an announcement. Nothing was deleted."
 
         # actual_title stays raw for the comparison and the fingerprint;
         # fenced only at the display boundary (issue 239).
@@ -2050,12 +2056,19 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
         # token will authorize, titles included.
         found: list[dict[str, str]] = []
         unreachable: list[dict[str, str]] = []
+        refused: list[dict[str, str]] = []
         for announcement_id in announcement_ids:
             announcement = await make_canvas_request(
                 "get", f"/courses/{course_id}/discussion_topics/{announcement_id}"
             )
-            if "error" in announcement:
+            if isinstance(announcement, dict) and "error" in announcement:
                 unreachable.append({"id": str(announcement_id), "error": announcement["error"]})
+                continue
+            if not isinstance(announcement, dict) or announcement.get("is_announcement") is not True:
+                refused.append({
+                    "id": str(announcement_id),
+                    "error": "Refused: Canvas did not confirm that this topic is an announcement",
+                })
                 continue
             found.append({
                 "id": str(announcement_id),
@@ -2092,6 +2105,10 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                 preview += "Unreachable (fetch failed, will be skipped):\n"
                 for item in unreachable:
                     preview += f"  - ID: {item['id']}, Error: {item['error']}\n"
+            if refused:
+                preview += "Refused (not confirmed as announcements, will be skipped):\n"
+                for item in refused:
+                    preview += f"  - ID: {item['id']}, Error: {item['error']}\n"
             if not found:
                 return preview + "\nNothing to delete."
             return preview_with_token(
@@ -2103,7 +2120,7 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
             return error
 
         successful: list[dict[str, str]] = []
-        failed: list[dict[str, str]] = list(unreachable)
+        failed: list[dict[str, str]] = unreachable + refused
         for item in found:
             shown = fence_untrusted(item["title"], "announcement title")
             try:
@@ -2174,11 +2191,19 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
         announcements = await fetch_all_paginated_results(f"/courses/{course_id}/discussion_topics", params)
         if isinstance(announcements, dict) and "error" in announcements:
             return f"Error fetching announcements: {announcements['error']}"
+        if not isinstance(announcements, list):
+            return "Error fetching announcements: expected a list. Nothing was deleted."
         if not announcements:
+            if confirmation_token:
+                _CRITERIA_DELETE_GUARD.check(confirmation_token, "")
             return f"No announcements found for course {course_identifier}."
 
         matched = []
+        refused_count = 0
         for announcement in announcements:
+            if not isinstance(announcement, dict) or announcement.get("is_announcement") is not True:
+                refused_count += 1
+                continue
             match = True
             announcement_title = announcement.get("title", "")
             posted_at_str = announcement.get("posted_at")
@@ -2230,8 +2255,12 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
         if limit_reached:
             header += f" (limited to {limit})"
         header += "\n\n"
+        if refused_count:
+            header += f"Refused {refused_count} topics not confirmed as announcements; they will not be deleted.\n\n"
 
         if not matched:
+            if confirmation_token:
+                _CRITERIA_DELETE_GUARD.check(confirmation_token, "")
             return header + "No announcements matched the specified criteria."
 
         listing = "Matched announcements:\n"
