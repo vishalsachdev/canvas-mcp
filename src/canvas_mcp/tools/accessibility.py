@@ -633,10 +633,12 @@ def _fix_legacy_designplus(html: str) -> tuple[str, int]:
 
     html = re.sub(r'(class=")([^"]*)"', _replace_classes, html)
 
-    def _add_dp_class(match: re.Match[str]) -> str:
-        nonlocal count
-        full = match.group(0)
-        id_val = match.group(1)
+    edits = []
+    for tag in iter_html_tags(html):
+        id_attr = tag.attributes.get("id")
+        if not tag.name or tag.closing or id_attr is None or not id_attr.value.startswith("kl_"):
+            continue
+        id_val = id_attr.value
         dp_class = _KL_ID_TO_CLASS.get(id_val)
         if not dp_class:
             for pattern, cls in _KL_ID_PATTERNS:
@@ -644,24 +646,18 @@ def _fix_legacy_designplus(html: str) -> tuple[str, int]:
                     dp_class = cls
                     break
         if not dp_class:
-            return full
-        class_match = re.search(r'class="([^"]*)"', full)
-        if class_match:
-            existing = class_match.group(1)
-            if dp_class in existing:
-                return full
-            new_cls = f"{existing} {dp_class}".strip()
-            count += 1
-            return full.replace(f'class="{existing}"', f'class="{new_cls}"')
+            continue
+        class_attr = tag.attributes.get("class")
+        if class_attr is not None:
+            if dp_class in class_attr.value:
+                continue
+            edits.append((class_attr.start, class_attr.end, f"{class_attr.value} {dp_class}".strip()))
+        else:
+            # Insert after the id value's closing quote, or straight after an unquoted value.
+            after_id = id_attr.end + 1 if html[id_attr.end:id_attr.end + 1] in ('"', "'") else id_attr.end
+            edits.append((after_id, after_id, f' class="{dp_class}"'))
         count += 1
-        return full.replace(f'id="{id_val}"', f'id="{id_val}" class="{dp_class}"')
-
-    html = re.sub(
-        r'<[a-z]+\s[^<>]*?id="(kl_[^"]+)"[^<>]*?>',
-        _add_dp_class,
-        html,
-        flags=re.IGNORECASE,
-    )
+    html = _apply_html_edits(html, edits)
     return html, count
 
 
@@ -1107,8 +1103,9 @@ def _check_content_accessibility(
             })
 
     # Check for manual bullet characters instead of proper lists
-    manual_bullet_pattern = r'(?:<p[^<>]*>|<br\s*/?>)\s*[•●○◦►▸▹–—\-\*]\s+\w'
-    if re.search(manual_bullet_pattern, html_content):
+    manual_bullet = re.compile(r'\s*[•●○◦►▸▹–—\-\*]\s+\w')
+    if any(tag.name in {"p", "br"} and not tag.closing and manual_bullet.match(html_content, tag.end)
+           for tag in opening_tags):
         issues.append({
             "type": "manual_bullets",
             "wcag_criterion": "1.3.1",

@@ -8,6 +8,7 @@ import pytest
 
 from canvas_mcp.tools.accessibility import (
     _check_content_accessibility,
+    _fix_legacy_designplus,
     _fix_orange_contrast,
     _fix_redundant_alt_prefix,
     _fix_th_scope,
@@ -53,6 +54,7 @@ def test_malformed_accessibility_input_finishes(expression):
     ("<p>if a<b, that's true.</p><img src=\"chart.png\">", "missing_alt_text"),
     ('<p style="font-size:8px">Text</p>', "small_font_size"),
     ("<p>• Manual bullet</p>", "manual_bullets"),
+    ('<p title="Use x<y here">• Manual bullet</p>', "manual_bullets"),
     ('<span style="color:red">Important</span>', "color_only_meaning"),
 ])
 def test_scan_still_identifies_documented_defect(markup, issue):
@@ -152,3 +154,18 @@ def test_redundant_alt_fixer_handles_the_quotes_advertised_by_scanner(quote):
     }
     fixed, count = _fix_redundant_alt_prefix(markup)
     assert (fixed, count) == (markup.replace("image of ", "", 1), 1)
+
+
+@pytest.mark.parametrize(("markup", "expected", "count"), [
+    ('<div id="kl_banner">x</div>', '<div id="kl_banner" class="dp-header">x</div>', 1),
+    ('<div class="a" id="kl_banner">x</div>', '<div class="a dp-header" id="kl_banner">x</div>', 1),
+    ('<div id="kl_custom_block_3" class="b">x</div>',
+     '<div id="kl_custom_block_3" class="b dp-content-block">x</div>', 1),
+    ('<div id="kl_banner" class="dp-header">x</div>', '<div id="kl_banner" class="dp-header">x</div>', 0),
+    ('<div id="other">x</div>', '<div id="other">x</div>', 0),
+    ('<div title="x<y" id="kl_banner">x</div>', '<div title="x<y" id="kl_banner" class="dp-header">x</div>', 1),
+    ('<div class="kl_wrapper" id="kl_readings2">x</div>',
+     '<div class="dp-wrapper dp-content-block" id="kl_readings2">x</div>', 2),
+])
+def test_designplus_fix_adds_class_for_legacy_ids(markup, expected, count):
+    assert _fix_legacy_designplus(markup) == (expected, count)
