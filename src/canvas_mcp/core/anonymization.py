@@ -188,7 +188,9 @@ FREE_TEXT_FIELDS = frozenset({
 #: an explicit value *inside* it suppresses duck-typing entirely.
 KNOWN_DATA_TYPES = frozenset({'users', 'discussions', 'submissions', 'assignments'})
 
-_EMAIL_RE = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b')
+# Start only at the edge of an address-like run. A word boundary alone retries
+# at every dot in attacker-authored text, making a missing '@' quadratic.
+_EMAIL_RE = re.compile(r'(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]++@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b')
 _PHONE_RE = re.compile(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b')
 _SSN_RE = re.compile(r'\b\d{3}-\d{2}-\d{4}\b')
 
