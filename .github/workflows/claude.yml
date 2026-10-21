@@ -16,14 +16,24 @@ permissions:
 
 jobs:
   claude:
+    # Reject outsider-authored payloads and bot actors before exposing the reply
+    # token or OAuth secret. The pinned action then checks the actor's actual
+    # write/admin access; association alone does not prove write permission.
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      github.event.sender.type == 'User' &&
+      !endsWith(github.actor, '[bot]') &&
+      (
+      (github.event_name == 'issue_comment' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association) && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # Required by the action to create/update its progress and final replies.
+      # These scopes also permit other issue/PR mutations: trusted triggers reduce
+      # exposure but do not make retrieved text safe. No contents/OIDC write.
       pull-requests: write # Reply on the explicitly requested PR thread.
       issues: write # Reply on the explicitly requested issue thread.
       actions: read # Required for Claude to read CI results on PRs

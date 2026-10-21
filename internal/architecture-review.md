@@ -4,7 +4,7 @@
 > the current implementation. Live enumeration now gives 113 default / 126
 > fully enabled tools (student 51/62, educator 94/96). Code execution is off by
 > default. The current architecture, verified findings and deliberately
-> unimplemented compatibility proposals are in [the overhaul plan](../docs/overhaul/PLAN.md).
+> unimplemented compatibility proposals are in [the overhaul plan](overhaul/PLAN.md).
 > Follow `CLAUDE.md` for development rules; the recommendations below are not
 > authorization to change public tools or hosted infrastructure.
 
