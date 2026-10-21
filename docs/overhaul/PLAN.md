@@ -188,6 +188,13 @@ synthetic concurrent callers cannot observe each other's cache or stdio state;
 clearing one context leaves another intact. Mutations: remove description or
 prompt fencing, or use the global cache for HTTP, and those tests must fail.
 
+Audit follow-up during Task 4: the scanner silently reported zero issues when
+Canvas returned an error, and the fixer marked failed PUTs as applied
+(`accessibility.py` at baseline: `248-274,330-365,393-399`). Propagate source
+errors before writing, fence fixer result labels only after write-back, and
+confirm changes with a separate read. Regression mutations: ignore a failed
+source/PUT or read-back mismatch; each must fail without sending a live write.
+
 - [ ] Write/run failing trust/isolation regressions, implement, verify the full
   suite/lint/types and commit.
 

@@ -6,7 +6,7 @@ from fastmcp import FastMCP
 
 from ..core.cache import get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
-from ..core.untrusted_content import fence_untrusted
+from ..core.untrusted_content import fence_untrusted, fence_untrusted_inline
 from ..core.validation import validate_params
 
 
@@ -103,8 +103,8 @@ def register_resources_and_prompts(mcp: FastMCP) -> None:
             modules_info = f"{modules_count} modules"
 
         # Create prompt
-        course_name = course_response.get("name", "Unknown course")
-        course_code = course_response.get("course_code", "No code")
+        course_name = fence_untrusted_inline(course_response.get("name", "Unknown course"), "course name")
+        course_code = fence_untrusted_inline(course_response.get("course_code", "No code"), "course code")
 
         return f"""You are a helpful assistant that summarizes Canvas course information.
 
