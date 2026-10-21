@@ -7,6 +7,8 @@ for common accessibility issues.
 
 import json
 import re
+from bisect import bisect_left
+from collections.abc import Iterator
 from typing import Any
 
 from fastmcp import FastMCP
@@ -15,12 +17,69 @@ from mcp.types import ToolAnnotations
 from ..core.cache import get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.config import get_config
+from ..core.html import remove_html_tags
 from ..core.untrusted_content import (
     fence_untrusted,
     fence_untrusted_fields,
     strip_fence_markers,
 )
 from ..core.validation import validate_params
+
+
+def _quoted_attribute(name: str) -> re.Pattern[str]:
+    return re.compile(
+        rf'''(?<![\w:-]){name}\s*=\s*(?:"([^"<>]*+)"|'([^'<>]*+)')''',
+        re.IGNORECASE,
+    )
+
+
+_STYLE_ATTRIBUTE = _quoted_attribute("style")
+_ALT_ATTRIBUTE = _quoted_attribute("alt")
+_HREF_ATTRIBUTE = _quoted_attribute("href")
+
+
+def _attribute_value(match: re.Match[str]) -> str:
+    return match.group(1) if match.group(1) is not None else match.group(2)
+
+
+def _style_properties(style: str) -> dict[str, str]:
+    properties = {}
+    for declaration in style.split(";"):
+        name, separator, value = declaration.partition(":")
+        if separator:
+            properties[name.strip().lower()] = value.strip().lower().removesuffix("!important").strip()
+    return properties
+
+
+def _orange_white(properties: dict[str, str]) -> bool:
+    return properties.get("background-color") == "#ff5f05" and properties.get("color") in {
+        "white", "#fff", "#ffffff",
+    }
+
+
+def _element_ranges(
+    html: str, tag: str, *, outermost: bool = False,
+) -> Iterator[tuple[str, int, int]]:
+    """Pair complete tags once; yield attributes and body offsets, not copies.
+
+    Missing closing tags produce no element. Offsets avoid copying every
+    nested table/span body; callers use precomputed marker positions instead.
+    Links may be restricted to disjoint outer ranges because nested anchors
+    are invalid HTML and their text extraction must not rescan nested bodies.
+    """
+    opened: list[tuple[str, int]] = []
+    for token in re.finditer(rf"</?{tag}\b[^<>]*+>", html, re.IGNORECASE):
+        if token.group().startswith("</"):
+            if opened:
+                attributes, start = opened.pop()
+                if not outermost or not opened:
+                    yield attributes, start, token.start()
+        else:
+            opened.append((token.group()[len(tag) + 1:-1], token.end()))
+
+
+def _has_marker(positions: list[int], start: int, end: int) -> bool:
+    return bisect_left(positions, end) > bisect_left(positions, start)
 
 
 def register_accessibility_tools(mcp: FastMCP) -> None:
@@ -426,7 +485,7 @@ def _fix_th_scope(html: str) -> tuple[str, int]:
         return match.group(0).replace("<th", '<th scope="col"', 1)
 
     # Use \b to avoid matching <thead, <thtml, etc.
-    modified = re.sub(r"<th\b(?![^>]*\bscope\b)", _replacer, html, flags=re.IGNORECASE)
+    modified = re.sub(r"<th\b(?![^<>]*\bscope\b)", _replacer, html, flags=re.IGNORECASE)
     return modified, count
 
 
@@ -436,30 +495,23 @@ def _fix_orange_contrast(html: str) -> tuple[str, int]:
 
     def _replacer(match: re.Match[str]) -> str:
         nonlocal count
-        original = match.group(0)
+        original = _attribute_value(match)
+        if not _orange_white(_style_properties(original)):
+            return match.group()
         fixed = re.sub(
-            r"color:\s*(?:white|#fff(?:fff)?)\b",
+            r"(?<![\w-])color:\s*(?:white|#fff(?:fff)?)\b",
             "color: #000000",
             original,
             flags=re.IGNORECASE,
         )
         if fixed != original:
             count += 1
-        return fixed
+        group = 1 if match.group(1) is not None else 2
+        start = match.start(group) - match.start()
+        end = match.end(group) - match.start()
+        return match.group()[:start] + fixed + match.group()[end:]
 
-    modified = re.sub(
-        r'style="[^"]*background-color:\s*#ff5f05[^"]*color:\s*(?:white|#fff(?:fff)?)[^"]*"',
-        _replacer,
-        html,
-        flags=re.IGNORECASE,
-    )
-    modified = re.sub(
-        r'style="[^"]*color:\s*(?:white|#fff(?:fff)?)[^"]*background-color:\s*#ff5f05[^"]*"',
-        _replacer,
-        modified,
-        flags=re.IGNORECASE,
-    )
-    return modified, count
+    return _STYLE_ATTRIBUTE.sub(_replacer, html), count
 
 
 # CidiLabs DesignPLUS kl_ → dp- class mapping
@@ -560,7 +612,7 @@ def _fix_legacy_designplus(html: str) -> tuple[str, int]:
         return full.replace(f'id="{id_val}"', f'id="{id_val}" class="{dp_class}"')
 
     html = re.sub(
-        r'<[a-z]+\s[^>]*?id="(kl_[^"]+)"[^>]*?>',
+        r'<[a-z]+\s[^<>]*?id="(kl_[^"]+)"[^<>]*?>',
         _add_dp_class,
         html,
         flags=re.IGNORECASE,
@@ -579,7 +631,7 @@ def _fix_redundant_alt_prefix(html: str) -> tuple[str, int]:
         return re.sub(prefix_pattern, 'alt="', match.group(0), flags=re.IGNORECASE)
 
     modified = re.sub(
-        r'<img[^>]*alt="(?:image|graphic|picture|photo|icon)\s+(?:of|showing)\s+[^"]*"[^>]*>',
+        r'<img[^<>]*alt="(?:image|graphic|picture|photo|icon)\s+(?:of|showing)\s+[^"]*"[^<>]*>',
         _replacer,
         html,
         flags=re.IGNORECASE,
@@ -599,7 +651,6 @@ def _extract_violations_from_html(html_content: str) -> list[dict[str, Any]]:
 
     # Pattern 1: Look for WCAG criterion mentions
     wcag_pattern = r'WCAG\s+(\d+\.\d+\.\d+)'
-    re.finditer(wcag_pattern, html_content, re.IGNORECASE)
 
     # Pattern 2: Look for severity indicators
     severity_pattern = r'(critical|serious|moderate|minor|error|warning)'
@@ -646,7 +697,7 @@ def _extract_violations_from_html(html_content: str) -> list[dict[str, Any]]:
         # Extract location information
         if 'page' in line.lower() or 'assignment' in line.lower():
             if current_violation and "location" not in current_violation:
-                current_violation["location"] = re.sub(r'<[^>]+>', '', line).strip()[:100]
+                current_violation["location"] = remove_html_tags(line).strip()[:100]
 
     if current_violation:
         violations.append(current_violation)
@@ -666,8 +717,18 @@ def _check_content_accessibility(
     if not html_content:
         return issues
 
+    styles = [
+        _style_properties(_attribute_value(match))
+        for match in _STYLE_ATTRIBUTE.finditer(html_content)
+    ]
+    image_alts = [
+        _attribute_value(alt_match)
+        for image in re.finditer(r"<img\b[^<>]*+>", html_content, re.IGNORECASE)
+        if (alt_match := _ALT_ATTRIBUTE.search(image.group())) is not None
+    ]
+
     # Check for images without alt text
-    img_pattern = r'<img(?![^>]*alt=)[^>]*>'
+    img_pattern = r'<img(?![^<>]*alt=)[^<>]*>'
     for _match in re.finditer(img_pattern, html_content, re.IGNORECASE):
         issues.append({
             "type": "missing_alt_text",
@@ -683,7 +744,7 @@ def _check_content_accessibility(
         })
 
     # Check for empty headings
-    empty_heading_pattern = r'<h[1-6][^>]*>\s*</h[1-6]>'
+    empty_heading_pattern = r'<h[1-6][^<>]*>\s*</h[1-6]>'
     for _match in re.finditer(empty_heading_pattern, html_content, re.IGNORECASE):
         issues.append({
             "type": "empty_heading",
@@ -699,8 +760,10 @@ def _check_content_accessibility(
         })
 
     # Check for tables without headers
-    table_without_th = r'<table(?:(?!<th).)*?</table>'
-    for _match in re.finditer(table_without_th, html_content, re.IGNORECASE | re.DOTALL):
+    header_positions = [m.start() for m in re.finditer(r"<th\b", html_content, re.IGNORECASE)]
+    for _, start, end in _element_ranges(html_content, "table"):
+        if _has_marker(header_positions, start, end):
+            continue
         issues.append({
             "type": "table_without_headers",
             "wcag_criterion": "1.3.1",
@@ -716,12 +779,12 @@ def _check_content_accessibility(
 
     # Check for non-descriptive link text
     bad_link_patterns = [
-        r'<a[^>]*>click here</a>',
-        r'<a[^>]*>here</a>',
-        r'<a[^>]*>read more</a>',
-        r'<a[^>]*>more</a>',
-        r'<a[^>]*>link</a>',
-        r'<a[^>]*>this</a>',
+        r'<a[^<>]*>click here</a>',
+        r'<a[^<>]*>here</a>',
+        r'<a[^<>]*>read more</a>',
+        r'<a[^<>]*>more</a>',
+        r'<a[^<>]*>link</a>',
+        r'<a[^<>]*>this</a>',
     ]
     for pattern in bad_link_patterns:
         for _match in re.finditer(pattern, html_content, re.IGNORECASE):
@@ -739,7 +802,7 @@ def _check_content_accessibility(
             })
 
     # Check for empty links
-    empty_link_pattern = r'<a[^>]*>\s*</a>'
+    empty_link_pattern = r'<a[^<>]*>\s*</a>'
     for _match in re.finditer(empty_link_pattern, html_content, re.IGNORECASE):
         issues.append({
             "type": "empty_link",
@@ -755,7 +818,7 @@ def _check_content_accessibility(
         })
 
     # Check for URL-as-link-text
-    url_link_pattern = r'<a[^>]*>\s*https?://[^\s<]+\s*</a>'
+    url_link_pattern = r'<a[^<>]*>\s*https?://[^\s<]+\s*</a>'
     for _match in re.finditer(url_link_pattern, html_content, re.IGNORECASE):
         issues.append({
             "type": "url_as_link_text",
@@ -771,7 +834,7 @@ def _check_content_accessibility(
         })
 
     # Check for <th> without scope attribute (\b prevents matching <thead>)
-    th_without_scope = r'<th\b(?![^>]*\bscope\b)[^>]*>'
+    th_without_scope = r'<th\b(?![^<>]*\bscope\b)[^<>]*>'
     for _match in re.finditer(th_without_scope, html_content, re.IGNORECASE):
         issues.append({
             "type": "th_missing_scope",
@@ -789,7 +852,7 @@ def _check_content_accessibility(
     # Check heading hierarchy (skipped levels)
     heading_levels = [
         int(m.group(1))
-        for m in re.finditer(r'<h([1-6])[^>]*>', html_content, re.IGNORECASE)
+        for m in re.finditer(r'<h([1-6])[^<>]*>', html_content, re.IGNORECASE)
     ]
     for i in range(1, len(heading_levels)):
         if heading_levels[i] > heading_levels[i - 1] + 1:
@@ -808,8 +871,9 @@ def _check_content_accessibility(
 
     # Check for low-contrast text on colored backgrounds
     # Specifically: white/light text on #ff5f05 (Illinois orange) — 3.1:1, fails AA
-    orange_white_pattern = r'style="[^"]*background-color:\s*#ff5f05[^"]*color:\s*(?:white|#fff(?:fff)?)\b[^"]*"'
-    for _match in re.finditer(orange_white_pattern, html_content, re.IGNORECASE):
+    for properties in styles:
+        if not _orange_white(properties):
+            continue
         issues.append({
             "type": "low_contrast",
             "wcag_criterion": "1.4.3",
@@ -840,8 +904,9 @@ def _check_content_accessibility(
         })
 
     # Check for images with alt text that looks like a filename
-    filename_alt_pattern = r'<img[^>]*alt="[^"]*\.(jpg|jpeg|png|gif|svg|webp|bmp)[^"]*"[^>]*>'
-    for _match in re.finditer(filename_alt_pattern, html_content, re.IGNORECASE):
+    for alt in image_alts:
+        if not re.search(r'\.(jpg|jpeg|png|gif|svg|webp|bmp)', alt, re.IGNORECASE):
+            continue
         issues.append({
             "type": "filename_alt_text",
             "wcag_criterion": "1.1.1",
@@ -856,8 +921,9 @@ def _check_content_accessibility(
         })
 
     # Check for images with alt text starting with "image of" or "graphic of"
-    redundant_alt_pattern = r'<img[^>]*alt="(?:image|graphic|picture|photo|icon)\s+(?:of|showing)\s'
-    for _match in re.finditer(redundant_alt_pattern, html_content, re.IGNORECASE):
+    for alt in image_alts:
+        if not re.match(r'(?:image|graphic|picture|photo|icon)\s+(?:of|showing)\s', alt, re.IGNORECASE):
+            continue
         issues.append({
             "type": "redundant_alt_prefix",
             "wcag_criterion": "1.1.1",
@@ -872,8 +938,10 @@ def _check_content_accessibility(
         })
 
     # Check for very short alt text (likely insufficient)
-    for m in re.finditer(r'<img[^>]*alt="([^"]{1,4})"[^>]*>', html_content, re.IGNORECASE):
-        alt = m.group(1).strip()
+    for raw_alt in image_alts:
+        if not 1 <= len(raw_alt) <= 4:
+            continue
+        alt = raw_alt.strip()
         # Skip empty alt (decorative) and common short valid alts
         if alt and alt != "&nbsp;" and alt not in ("—", "-", "•", "*", "x", "X"):
             issues.append({
@@ -890,7 +958,9 @@ def _check_content_accessibility(
             })
 
     # Check for very long alt text (should use long description instead)
-    for m in re.finditer(r'<img[^>]*alt="([^"]{100,})"[^>]*>', html_content, re.IGNORECASE):
+    for alt in image_alts:
+        if len(alt) < 100:
+            continue
         issues.append({
             "type": "long_alt_text",
             "wcag_criterion": "1.1.1",
@@ -899,16 +969,21 @@ def _check_content_accessibility(
             "content_type": content_type,
             "content_id": content_id,
             "content_title": content_title,
-            "description": f"Alt text is very long ({len(m.group(1))} chars) — consider a long description link",
+            "description": f"Alt text is very long ({len(alt)} chars) — consider a long description link",
             "remediation": "Shorten alt text and provide a linked long description for complex images",
             "auto_fixable": False
         })
 
     # Check for links to documents without file type indicator
-    doc_link_pattern = r'<a[^>]*href="[^"]*\.(pdf|docx?|xlsx?|pptx?|csv)"[^>]*>(.*?)</a>'
-    for m in re.finditer(doc_link_pattern, html_content, re.IGNORECASE | re.DOTALL):
-        ext = m.group(1).lower()
-        link_text = re.sub(r'<[^>]+>', '', m.group(2)).strip()
+    for attributes, start, end in _element_ranges(html_content, "a", outermost=True):
+        href = _HREF_ATTRIBUTE.search(attributes)
+        if href is None:
+            continue
+        extension = re.search(r'\.(pdf|docx?|xlsx?|pptx?|csv)$', _attribute_value(href), re.IGNORECASE)
+        if extension is None:
+            continue
+        ext = extension.group(1).lower()
+        link_text = remove_html_tags(html_content[start:end]).strip()
         ext_names = {"pdf": "PDF", "doc": "Word", "docx": "Word",
                      "xls": "Excel", "xlsx": "Excel",
                      "ppt": "PowerPoint", "pptx": "PowerPoint", "csv": "CSV"}
@@ -928,7 +1003,7 @@ def _check_content_accessibility(
             })
 
     # Check for videos/iframes without caption indicators
-    iframe_pattern = r'<iframe[^>]*src="([^"]*)"[^>]*>'
+    iframe_pattern = r'<iframe[^<>]*src="([^"]*)"[^<>]*>'
     for m in re.finditer(iframe_pattern, html_content, re.IGNORECASE):
         src = m.group(1)
         # Detect video platforms
@@ -948,7 +1023,7 @@ def _check_content_accessibility(
             })
 
     # Check for underlined non-link text (confuses users)
-    underline_pattern = r'<(?:span|p|strong|em|div)[^>]*style="[^"]*text-decoration:\s*underline[^"]*"[^>]*>'
+    underline_pattern = r'<(?:span|p|strong|em|div)[^<>]*style="[^"]*text-decoration:\s*underline[^"]*"[^<>]*>'
     for _match in re.finditer(underline_pattern, html_content, re.IGNORECASE):
         issues.append({
             "type": "underline_not_link",
@@ -964,9 +1039,16 @@ def _check_content_accessibility(
         })
 
     # Check for small inline font sizes
-    small_font_pattern = r'style="[^"]*font-size:\s*(\d+)\s*px[^"]*"'
-    for m in re.finditer(small_font_pattern, html_content, re.IGNORECASE):
-        size = int(m.group(1))
+    for properties in styles:
+        size_match = re.fullmatch(r'(\d+)\s*px', properties.get("font-size", ""))
+        if size_match is None:
+            continue
+        digits = size_match.group(1).lstrip("0") or "0"
+        # Arbitrarily long caller-supplied integers need no int conversion:
+        # any value with two significant digits is already above the cutoff.
+        if len(digits) >= 2:
+            continue
+        size = int(digits)
         if size < 10:
             issues.append({
                 "type": "small_font_size",
@@ -982,7 +1064,7 @@ def _check_content_accessibility(
             })
 
     # Check for manual bullet characters instead of proper lists
-    manual_bullet_pattern = r'(?:<p[^>]*>|<br\s*/?>)\s*[•●○◦►▸▹–—\-\*]\s+\w'
+    manual_bullet_pattern = r'(?:<p[^<>]*>|<br\s*/?>)\s*[•●○◦►▸▹–—\-\*]\s+\w'
     if re.search(manual_bullet_pattern, html_content):
         issues.append({
             "type": "manual_bullets",
@@ -998,11 +1080,20 @@ def _check_content_accessibility(
         })
 
     # Check for color used as sole indicator (inline color styles without bold/italic)
-    color_only_pattern = r'<span[^>]*style="[^"]*(?<![a-z-])color:\s*(?!inherit|initial|unset|currentcolor)[^;"]+[^"]*"[^>]*>(?:(?!<strong|<em|<b>|<i>).){5,}</span>'
-    for _match in re.finditer(color_only_pattern, html_content, re.IGNORECASE):
-        tag = _match.group(0)
-        # Skip if it also has bold/italic styling
-        if 'font-weight' not in tag and 'font-style' not in tag:
+    emphasis = [m.start() for m in re.finditer(
+        r'<(?:strong|em|b|i)\b|font-(?:weight|style)', html_content, re.IGNORECASE,
+    )]
+    newlines = [m.start() for m in re.finditer("\n", html_content)]
+    for attributes, start, end in _element_ranges(html_content, "span"):
+        style = _STYLE_ATTRIBUTE.search(attributes)
+        if style is None or end - start < 5 or _has_marker(newlines, start, end):
+            continue
+        properties = _style_properties(_attribute_value(style))
+        color = properties.get("color", "")
+        if color and color not in {"inherit", "initial", "unset", "currentcolor"} and not (
+            "font-weight" in properties or "font-style" in properties
+            or _has_marker(emphasis, start, end)
+        ):
             issues.append({
                 "type": "color_only_meaning",
                 "wcag_criterion": "1.4.1",
