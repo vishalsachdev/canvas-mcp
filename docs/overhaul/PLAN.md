@@ -111,7 +111,7 @@ the previewed announcements; a valid announcement still previews, confirms
 once and refuses replay. Mutation named before tests: removing the strict type
 check would allow an ordinary discussion to be deleted.
 
-- [ ] Write/run failing boundary regressions, implement the guards, then run the
+- [x] Write/run failing boundary regressions, implement the guards, then run the
   focused tests, full suite, lint/type checks and commit.
 
 ### Task 2: predictable text stripping and identity redaction
@@ -139,7 +139,7 @@ Run adversarial cases in a subprocess with a generous timeout, not a fragile
 sub-millisecond benchmark. Mutation: restoring either vulnerable regex must
 fail the bounded-completion regression without hanging the suite.
 
-- [ ] Capture failing adversarial cases, preserve normal output, implement,
+- [x] Capture failing adversarial cases, preserve normal output, implement,
   verify full suite/lint/types and commit.
 
 ### Task 3: accessibility scanning must terminate on malformed markup
@@ -169,7 +169,7 @@ priority; make single-quoted alt fixes match scanner claims. Regression cases
 must fail the first implementation before this correction and retain the
 malformed-input completion checks.
 
-- [ ] Add failing bounded-work regressions, implement the minimum replacement,
+- [x] Add failing bounded-work regressions, implement the minimum replacement,
   verify the full suite/lint/types and commit.
 
 ### Task 4: close output provenance and request-state gaps
@@ -210,7 +210,7 @@ report missing or unreadable page bodies as unconfirmed instead of empty.
 Verify through the actual MCP tool with a fixture that respects the include
 parameter, and strengthen the older vacuous title-fencing fixture.
 
-- [ ] Write/run failing trust/isolation regressions, implement, verify the full
+- [x] Write/run failing trust/isolation regressions, implement, verify the full
   suite/lint/types and commit.
 
 ### Task 5: pin release tooling and constrain automation credentials
@@ -247,7 +247,7 @@ Linux amd64 archive was downloaded and its SHA-256 independently matched to
 the release API digest before selecting the pin. Artifact validation constrains
 publication inputs; it does not make model-authored reports injection-proof.
 
-- [ ] Verify upstream contracts, add regressions, implement local workflow
+- [x] Verify upstream contracts, add regressions, implement local workflow
   hardening, run full suite/lint/types and commit. Do not deploy or publish.
 
 ### Task 6: local helper scripts treat remote values as data
@@ -271,7 +271,7 @@ the last-good snapshot. Run scripts in an isolated fixture directory with
 fake commands and no deploy argument. Mutation: reintroducing title text or
 source interpolation must fail those behavioral tests.
 
-- [ ] Add failing process/boundary tests, implement, verify full suite/lint/types
+- [x] Add failing process/boundary tests, implement, verify full suite/lint/types
   and shell syntax, then commit.
 
 ### Task 7: remove proven duplication and correct maintained documentation
@@ -303,7 +303,7 @@ for operator briefs, credentials and local scratch paths. This requires only a
 small `.gitignore` overlap with #441; no package dependency or OAuth change.
 Verify synthetic forbidden artifacts fail and rebuilt real artifacts pass.
 
-- [ ] Refactor/correct docs, run all stated checks and commit.
+- [x] Refactor/correct docs, run all stated checks and commit.
 
 ## Security finding disposition at the baseline
 
