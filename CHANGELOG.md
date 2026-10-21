@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Canvas mobile OAuth login and automatic token refresh.** A new CLI command `canvas-mcp-auth login` enables interactive sign-in via Playwright browser or manual callback entry using the Canvas mobile SSO flow. Credentials and refresh tokens are securely stored in `~/.canvas-mcp/tokens.json` with file locking and atomic writes. The shared HTTP client injects tokens and handles single-flight automatic refresh on HTTP 401. Stdio servers without a PAT use the stored token matching `CANVAS_API_URL`. Personal access tokens (`CANVAS_API_TOKEN`) and hosted HTTP mode retain strict precedence and isolation.
+- When `ALLOWED_WRITE_TOOLS` withholds tools, the server's MCP instructions now say so: a read-only server states it is read-only (and, on HTTP, that the user can run Canvas MCP locally to make changes), and an allowlisted server names the write tools it offers. A missing write tool no longer looks like a bug to the user. No tool is added or changed.
 
 ## [1.14.0] — 2026-10-07
 
