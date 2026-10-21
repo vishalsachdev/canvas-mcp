@@ -33,7 +33,12 @@ from .core.credentials import (
     set_request_credentials,
 )
 from .core.logging import log_error, log_info, log_warning
-from .core.tool_policy import ToolPolicyError, apply_tool_policy, resolve_tool_policy
+from .core.tool_policy import (
+    ToolPolicyError,
+    apply_tool_policy,
+    policy_notice,
+    resolve_tool_policy,
+)
 from .core.tool_results import install_tool_result_contract
 from .resources import register_resources_and_prompts
 from .tools import (
@@ -816,6 +821,10 @@ def main() -> None:
     register_all_tools(mcp, role=role)
 
     removed_tools = asyncio.run(apply_tool_policy(mcp, tool_policy))
+    served = [tool.name for tool in asyncio.run(mcp.list_tools(run_middleware=False))]
+    notice = policy_notice(tool_policy, served, "http" if is_http else "stdio")
+    if notice:
+        mcp.instructions = notice
     if tool_policy.enforced:
         log_info(
             f"Tool policy ({tool_policy.source}): removed {len(removed_tools)} "
