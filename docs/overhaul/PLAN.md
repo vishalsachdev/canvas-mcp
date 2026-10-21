@@ -224,6 +224,14 @@ publication receives only the fixed report artifact and a scoped token.
 Mutation: restoring latest/unchecked download, App-token fallback, or agent
 `gh issue create` privileges must fail the relevant checks.
 
+Primary-source verification: the [pinned action's token selector](https://github.com/anthropics/claude-code-action/blob/1d6de8cb0c237e7c15e9e1bdf973826ebae490cc/src/github/token.ts#L159)
+uses an explicitly supplied token before its OIDC/App exchange; its
+[action outputs](https://github.com/anthropics/claude-code-action/blob/1d6de8cb0c237e7c15e9e1bdf973826ebae490cc/action.yml)
+include structured JSON. The [publisher v1.8.1 release](https://github.com/modelcontextprotocol/registry/releases/tag/v1.8.1)
+Linux amd64 archive was downloaded and its SHA-256 independently matched to
+the release API digest before selecting the pin. Artifact validation constrains
+publication inputs; it does not make model-authored reports injection-proof.
+
 - [ ] Verify upstream contracts, add regressions, implement local workflow
   hardening, run full suite/lint/types and commit. Do not deploy or publish.
 

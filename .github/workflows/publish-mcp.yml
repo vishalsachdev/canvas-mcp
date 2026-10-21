@@ -12,7 +12,6 @@ on:
         type: string
 
 permissions:
-  id-token: write
   contents: read
 
 concurrency:
@@ -23,6 +22,9 @@ jobs:
   publish-pypi:
     name: Build & publish to PyPI
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # PyPI trusted publishing.
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -73,6 +75,9 @@ jobs:
     name: Publish to MCP Registry
     needs: publish-pypi
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # MCP Registry's github-oidc login.
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -100,32 +105,17 @@ jobs:
 
       - name: Install MCP Publisher
         env:
-          # Unauthenticated api.github.com calls are rate-limited per runner IP,
-          # which are shared. On v1.11.0 the limit was hit, jq returned the string
-          # "null", and the download URL 404'd into `tar: not in gzip format` —
-          # a confusing failure three steps away from the real cause.
-          GH_TOKEN: ${{ github.token }}
+          # Official v1.8.1 Linux amd64 asset, independently downloaded and
+          # checked against the GitHub release's published digest, 2026-10-20.
+          MCP_PUBLISHER_VERSION: v1.8.1
+          MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
         run: |
           set -euo pipefail
-          # Get latest mcp-publisher release version dynamically
-          VERSION=$(curl -sSL \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/modelcontextprotocol/registry/releases/latest \
-            | jq -r '.tag_name')
-          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
-            echo "ERROR: could not resolve the latest mcp-publisher release tag."
-            echo "Got: '$VERSION'. Likely an api.github.com rate limit or outage."
-            exit 1
-          fi
-          echo "Installing mcp-publisher version: $VERSION"
-          OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-          ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
-          # Naming format: mcp-publisher_OS_ARCH.tar.gz (no version in filename)
-          # --fail so an HTML error page never reaches tar as if it were an archive.
-          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/${VERSION}/mcp-publisher_${OS}_${ARCH}.tar.gz" | tar xz
-          sudo mv mcp-publisher /usr/local/bin/
-          mcp-publisher --version
+          python3 scripts/install_mcp_publisher.py \
+            --version "$MCP_PUBLISHER_VERSION" --sha256 "$MCP_PUBLISHER_SHA256" \
+            --destination "$RUNNER_TEMP/mcp-publisher"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/mcp-publisher" --version
 
       - name: Login to MCP Registry
         run: mcp-publisher login github-oidc

@@ -80,7 +80,7 @@ class TestWeeklyMaintenancePermissions:
 
     def test_issues_write_is_still_granted(self):
         """The job must remain able to do its one job."""
-        job = _load(AI_WORKFLOW)["jobs"]["maintenance"]
+        job = _load(AI_WORKFLOW)["jobs"]["publish-report"]
         assert job.get("permissions", {}).get("issues") == "write"
 
     def test_gh_is_not_unrestricted(self):
@@ -93,7 +93,7 @@ class TestWeeklyMaintenancePermissions:
             "Bash(gh:*) permits any GitHub mutation the token allows, including "
             "`gh api` against arbitrary endpoints"
         )
-        assert "gh issue create" in args, "the job still needs to file its report"
+        assert "gh issue create" not in args, "the model must not publish arbitrary local files"
 
     def test_untrusted_input_is_framed_as_data(self):
         """The prompt should tell the model that fetched content is not instructions."""
