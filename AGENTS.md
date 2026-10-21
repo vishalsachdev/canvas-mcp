@@ -347,6 +347,8 @@ The token expires in 5 minutes and stops matching if the target changed in betwe
 Applies to: delete_announcement_with_confirmation, bulk_delete_announcements,
 delete_announcements_by_criteria, delete_page, delete_module, delete_module_item,
 delete_assignment_with_confirmation. There is no un-tokened delete tool.
+Announcement deletion tools refuse ordinary discussions and records Canvas does
+not explicitly identify as announcements, including when confirming a preview.
 ```
 
 ### Educator: Guarded Edits (pages, assignments, discussions, syllabus)
