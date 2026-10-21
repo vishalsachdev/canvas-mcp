@@ -390,3 +390,22 @@ SKIPPED [1] tests/security/test_ferpa_compliance.py:140: Audit logging not yet i
 SKIPPED [1] tests/security/test_ferpa_compliance.py:146: Audit logging not yet implemented
 SKIPPED [1] tests/security/test_ferpa_compliance.py:175: Data retention policy not yet implemented
 ```
+
+## Post-review follow-up (Claude, 2026-10-21)
+
+An independent Claude review of every overhaul commit found no blocking issues. It found three
+scanner regressions against the old regex scanner, fixed in the last commit on this branch: an
+unmatched quote no longer stops tag parsing, a title-only page (`"body": null`) no longer aborts a
+page scan, and compound `text-decoration` values containing `underline` are flagged again.
+
+Known limits, accepted at merge:
+- `publish-mcp.yml` run by `workflow_dispatch` against a tag made before this merge fails at the
+  package-contents step, because that tag lacks `scripts/check_package_contents.py` and
+  `scripts/install_mcp_publisher.py`. Tags made after the merge are unaffected.
+- `claude.yml` now uses the workflow token with read-only contents, so `@claude` can reply on
+  issues and PRs but cannot push commits or branches, and replies post as github-actions[bot].
+  The workflow ran zero times in its last 200 triggers (all skipped, 2026-10-07 to 10-21).
+- `apply` in the accessibility fix tool compares the readback with whitespace-only normalization;
+  if Canvas re-serializes HTML on save it can report a landed write as not applied. Check once
+  against a real page before relying on that field.
+- The publisher pin (v1.8.1) needs a manual bump for future registry releases.
