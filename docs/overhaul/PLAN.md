@@ -281,6 +281,13 @@ model/tool tests, full suite/lint/types, tool contract comparison, TypeScript
 tests/build, wheel/sdist inventory and isolated package import/CLI help.
 No redundant new test merely asserting the helper was moved.
 
+Packaging verification found that Hatch included the untracked `BRIEF.md` and
+the self-ignored `.superpowers/` workspace in the source archive. Add explicit
+root ignore rules and a release gate inspecting the actual wheel/sdist members
+for operator briefs, credentials and local scratch paths. This requires only a
+small `.gitignore` overlap with #441; no package dependency or OAuth change.
+Verify synthetic forbidden artifacts fail and rebuilt real artifacts pass.
+
 - [ ] Refactor/correct docs, run all stated checks and commit.
 
 ## Security finding disposition at the baseline

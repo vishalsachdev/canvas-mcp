@@ -1,5 +1,9 @@
 # Claude Code Development Best Practices for Canvas MCP
 
+> Historical guidance from 2025. For current commands, branch/worktree rules,
+> verification requirements and release boundaries, follow [CLAUDE.md](../CLAUDE.md).
+> Do not treat the examples below as current dependency, deployment or course-data policy.
+
 *Based on 2025 Claude Code best practices and 6-month development history analysis*
 
 ## Your Current "Vibe Coding" Patterns (Analyzed)

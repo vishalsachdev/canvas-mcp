@@ -14,3 +14,6 @@ triage/
 
 # Prompt/code audit reports (internal working documents, not site content)
 audits/
+
+# Public-safe repository audit records are not website assets.
+overhaul/

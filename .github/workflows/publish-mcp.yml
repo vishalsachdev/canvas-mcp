@@ -58,13 +58,16 @@ jobs:
         # suite could not stop a release. pytest exit code 5 is the genuine
         # "no tests collected" case and is the only one tolerated here.
         run: |
-          uv pip install --system pytest pytest-asyncio
+          uv pip install --system pytest pytest-asyncio pyyaml
           pytest tests/ -q || { code=$?; [ "$code" -eq 5 ] && echo "No tests collected" || exit "$code"; }
 
       - name: Build package
         run: |
           uv pip install --system build
           python -m build
+
+      - name: Check packages for local-only files
+        run: python scripts/check_package_contents.py dist/
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
