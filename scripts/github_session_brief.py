@@ -16,12 +16,10 @@ Constraints, each measured on the web (remote) environment:
 - Fail soft. A network error, rate limit or missing tool becomes a one-line
   note, never a failed hook: a session must always open.
 - Stdlib only. The hook runs before any virtualenv is guaranteed to exist.
-- Every fetched title, login and label is third-party text from a public repo,
-  injected into the model's context unasked on every session start. That is
-  the threat shape issue 239 fenced for Canvas content, so the same shape is
-  applied here: each section sits between explicit provenance markers, and
-  bracket runs inside the text are collapsed so no title can open or close a
-  marker. The instruction line at the end is ours and stays outside the fence.
+- Automatic context includes validated identifiers, constructed URLs, ages,
+  counts and status. Author-controlled titles, logins, labels, categories and
+  check names are omitted; fetch details only when asked. Provenance markers
+  remain a context cue, not a security boundary.
 - One wall-clock budget (``BUDGET``) bounds the whole run, well inside the
   hook's 45s timeout: a harness kill happens before the JSON fallback can be
   printed, so per-call timeouts alone would not keep the fail-soft promise on
@@ -73,7 +71,6 @@ PAGE = 50            # issues page size; a full page means the total is a floor
 
 FENCE_START = "<<<UNTRUSTED GITHUB CONTENT"
 FENCE_END = "<<<END UNTRUSTED GITHUB CONTENT>>>"
-_BRACKET_RUN = re.compile(r"<{3,}|>{3,}")
 
 
 class Deadline:
@@ -84,18 +81,6 @@ class Deadline:
 
     def remaining(self) -> float:
         return self._end - time.monotonic()
-
-
-def neutralize(text: object) -> str:
-    """Third-party text, one line, unable to forge a fence marker.
-
-    Any run of three or more angle brackets collapses to two, so an issue
-    titled with our closing marker cannot end the fence early. Whitespace is
-    collapsed because a title with an embedded newline could otherwise start
-    a line of its own inside the brief.
-    """
-    flat = " ".join(str(text).split())
-    return _BRACKET_RUN.sub(lambda m: m.group(0)[0] * 2, flat)
 
 
 def fence(lines: list[str], source: str) -> list[str]:

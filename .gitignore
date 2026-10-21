@@ -136,3 +136,7 @@ docs/compliance/
 # Local agent skills (not part of the public package)
 .agents/
 internal/hosted-spec-draft/
+
+# Operator briefs and local execution workspaces must not enter source packages.
+/BRIEF.md
+/.superpowers/

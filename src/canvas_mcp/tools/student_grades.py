@@ -126,14 +126,7 @@ def _student_enrollment(course: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
-def _number(value: Any) -> float | None:
-    if isinstance(value, bool) or value is None:
-        return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    return number if math.isfinite(number) else None
+_number = gc._number
 
 
 async def _load_course(
