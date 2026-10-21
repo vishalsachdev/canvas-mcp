@@ -34,8 +34,9 @@ class OAuthSession:
         self._store = store
         self._generation = 0
         self._latched_error: ReauthenticationRequired | None = None
-        self._last_failure_gen: int = -1
+        self._last_failure_time: float = 0.0
         self._last_failure_exc: OAuthError | None = None
+        self._min_retry_interval: float = 1.0
 
         self._lock: asyncio.Lock | None = None
         self._refresh_task: asyncio.Task[str] | None = None
@@ -83,20 +84,36 @@ class OAuthSession:
             if self._generation > observed_generation:
                 return self._entry.access_token.get_secret_value()
 
-            if (
-                self._last_failure_gen == observed_generation
-                and self._last_failure_exc is not None
+            # Check if another process refreshed the store on disk/keyring
+            stored = await asyncio.to_thread(self._store.load, self._entry.canvas_domain)
+            if stored is not None and (
+                stored.last_refreshed_at > self._entry.last_refreshed_at
+                or stored.access_token.get_secret_value()
+                != self._entry.access_token.get_secret_value()
             ):
-                raise self._last_failure_exc
+                self._entry = stored
+                self._generation += 1
+                self._last_failure_exc = None
+                return self._entry.access_token.get_secret_value()
 
             if self._refresh_task is not None and not self._refresh_task.done():
                 return await asyncio.shield(self._refresh_task)
+
+            # Deduplicate rapid concurrent burst immediately after failure
+            loop = asyncio.get_running_loop()
+            now = loop.time()
+            if (
+                self._last_failure_exc is not None
+                and (now - self._last_failure_time) < self._min_retry_interval
+            ):
+                raise self._last_failure_exc
 
             self._refresh_task = asyncio.create_task(self._do_refresh())
 
         return await asyncio.shield(self._refresh_task)
 
     async def _do_refresh(self) -> str:
+        loop = asyncio.get_running_loop()
         norm_domain = normalize_domain(self._entry.canvas_domain)
         token_url = f"https://{norm_domain}/login/oauth2/token"
         form_data = {
@@ -113,54 +130,54 @@ class OAuthSession:
             ) as client:
                 resp = await client.post(token_url, data=form_data)
         except httpx.RequestError as exc:
-            err = OAuthRefreshError(
+            network_err = OAuthRefreshError(
                 f"Network error refreshing OAuth token: {type(exc).__name__}"
             )
-            self._last_failure_gen = self._generation
-            self._last_failure_exc = err
-            raise err from exc
+            self._last_failure_exc = network_err
+            self._last_failure_time = loop.time()
+            raise network_err from exc
 
         if resp.status_code in (400, 401):
             latched = ReauthenticationRequired(
                 "Canvas OAuth session rejected; run canvas-mcp-auth login and restart the MCP server."
             )
             self._latched_error = latched
-            self._last_failure_gen = self._generation
             self._last_failure_exc = latched
+            self._last_failure_time = loop.time()
             raise latched
 
         if resp.status_code != 200:
-            err = OAuthRefreshError(
+            status_err = OAuthRefreshError(
                 f"OAuth token refresh rejected with HTTP {resp.status_code}"
             )
-            self._last_failure_gen = self._generation
-            self._last_failure_exc = err
-            raise err
+            self._last_failure_exc = status_err
+            self._last_failure_time = loop.time()
+            raise status_err
 
         try:
             data = resp.json()
         except Exception as exc:
-            err = OAuthRefreshError("Malformed JSON response from token refresh")
-            self._last_failure_gen = self._generation
-            self._last_failure_exc = err
-            raise err from exc
+            json_err = OAuthRefreshError("Malformed JSON response from token refresh")
+            self._last_failure_exc = json_err
+            self._last_failure_time = loop.time()
+            raise json_err from exc
 
         if not isinstance(data, dict):
-            err = OAuthRefreshError("Token refresh returned non-object response")
-            self._last_failure_gen = self._generation
-            self._last_failure_exc = err
-            raise err
+            non_obj_err = OAuthRefreshError("Token refresh returned non-object response")
+            self._last_failure_exc = non_obj_err
+            self._last_failure_time = loop.time()
+            raise non_obj_err
 
-        access_token = data.get("access_token")
+        access_token_val = data.get("access_token")
         if (
-            not access_token
-            or not isinstance(access_token, str)
-            or not access_token.strip()
+            not access_token_val
+            or not isinstance(access_token_val, str)
+            or not access_token_val.strip()
         ):
-            err = OAuthRefreshError("Token refresh response missing access_token")
-            self._last_failure_gen = self._generation
-            self._last_failure_exc = err
-            raise err
+            missing_tok_err = OAuthRefreshError("Token refresh response missing access_token")
+            self._last_failure_exc = missing_tok_err
+            self._last_failure_time = loop.time()
+            raise missing_tok_err
 
         # Optional replacement refresh token
         new_refresh = data.get("refresh_token")
@@ -182,18 +199,18 @@ class OAuthSession:
                 and new_name.strip()
             ):
                 if user_obj is not None and user_obj.id != new_uid:
-                    err = OAuthRefreshError(
+                    uid_err = OAuthRefreshError(
                         "User ID changed during OAuth token refresh"
                     )
-                    self._last_failure_gen = self._generation
-                    self._last_failure_exc = err
-                    raise err
+                    self._last_failure_exc = uid_err
+                    self._last_failure_time = loop.time()
+                    raise uid_err
                 user_obj = OAuthUser(id=new_uid, name=new_name)
 
         now = datetime.now(UTC)
         updated_entry = StoredTokens(
             canvas_domain=self._entry.canvas_domain,
-            access_token=SecretStr(access_token.strip()),
+            access_token=SecretStr(access_token_val.strip()),
             refresh_token=refresh_secret,
             client_id=self._entry.client_id,
             client_secret=self._entry.client_secret,
@@ -207,24 +224,35 @@ class OAuthSession:
                 self._store.save, updated_entry, expected=self._entry
             )
         except TokenStoreConflict as exc:
-            err = TokenStoreConflict(
+            # Check if another process refreshed the store concurrently
+            reloaded = await asyncio.to_thread(self._store.load, self._entry.canvas_domain)
+            if reloaded is not None and (
+                reloaded.last_refreshed_at > self._entry.last_refreshed_at
+                or reloaded.access_token.get_secret_value()
+                != self._entry.access_token.get_secret_value()
+            ):
+                self._entry = reloaded
+                self._generation += 1
+                self._last_failure_exc = None
+                return reloaded.access_token.get_secret_value()
+
+            conflict_err = TokenStoreConflict(
                 "Token store conflict: credentials modified by another process; restart server."
             )
-            self._last_failure_gen = self._generation
-            self._last_failure_exc = err
-            raise err from exc
+            self._last_failure_exc = conflict_err
+            self._last_failure_time = loop.time()
+            raise conflict_err from exc
         except Exception as exc:
-            err = OAuthRefreshError(f"Failed to persist refreshed OAuth tokens: {exc}")
-            self._last_failure_gen = self._generation
-            self._last_failure_exc = err
-            raise err from exc
+            persist_err = OAuthRefreshError(f"Failed to persist refreshed OAuth tokens: {exc}")
+            self._last_failure_exc = persist_err
+            self._last_failure_time = loop.time()
+            raise persist_err from exc
 
         # Publish new state
         self._entry = updated_entry
         self._generation += 1
-        self._last_failure_gen = -1
         self._last_failure_exc = None
-        return access_token.strip()
+        return str(access_token_val).strip()
 
 
 _session_cache: dict[tuple[int, str, str], OAuthSession] = {}
@@ -236,35 +264,46 @@ def get_stdio_oauth(config: "Config | None" = None) -> OAuthSession | None:
     Returns None if:
     - An HTTP request is active
     - Config has a non-empty Personal Access Token (PAT)
-    - CANVAS_API_URL is missing or cannot be resolved to a stored domain
+    - CANVAS_API_URL is missing or invalid
+    - No stored token exists for CANVAS_API_URL's domain
     """
-    from canvas_mcp.core.credentials import is_http_request_active
+    from canvas_mcp.core.credentials import (
+        get_request_credentials,
+        is_http_request_active,
+    )
 
-    if is_http_request_active():
+    # In HTTP mode, each request supplies its own token; stdio OAuth is inactive
+    if is_http_request_active() or get_request_credentials() is not None:
         return None
 
-    if config is None:
-        from canvas_mcp.core.config import get_config
+    from canvas_mcp.core.config import get_config
 
-        config = get_config()
+    cfg = config if config is not None else get_config()
 
-    token = getattr(config, "canvas_api_token", None)
-    if token and isinstance(token, str) and token.strip():
+    # PAT takes strict precedence over stored OAuth tokens
+    pat = getattr(cfg, "canvas_api_token", None) or getattr(cfg, "api_token", None)
+    if pat and str(pat).strip():
         return None
 
-    api_url = getattr(config, "canvas_api_url", None)
-    if not api_url or not isinstance(api_url, str) or not api_url.strip():
+    api_url = getattr(cfg, "canvas_api_url", None) or getattr(cfg, "api_url", None)
+    if not api_url or not str(api_url).strip():
         return None
 
     try:
-        norm_domain = normalize_domain(api_url)
-    except ValueError:
+        norm_domain = normalize_domain(str(api_url))
+    except Exception:
         return None
 
-    cache_key = (id(config), api_url, token or "")
-    cached = _session_cache.get(cache_key)
-    if cached is not None:
-        return cached
+    try:
+        loop = asyncio.get_running_loop()
+        loop_id = id(loop)
+    except RuntimeError:
+        loop_id = 0
+    cache_key = (loop_id, norm_domain, str(api_url))
+
+    session = _session_cache.get(cache_key)
+    if session is not None:
+        return session
 
     store = TokenStore()
     entry = store.load(norm_domain)
@@ -277,5 +316,5 @@ def get_stdio_oauth(config: "Config | None" = None) -> OAuthSession | None:
 
 
 def clear_stdio_oauth_cache() -> None:
-    """Clear cached stdio OAuth sessions (for test isolation)."""
+    """Clear the cached stdio OAuth sessions (primarily for tests)."""
     _session_cache.clear()

@@ -142,6 +142,17 @@ def test_extract_authorization_code_denied() -> None:
         extract_authorization_code(url, "expected_state")
 
 
+def test_extract_authorization_code_denied_state_mismatch() -> None:
+    url = "https://sso.canvaslms.com/canvas/login?error=access_denied&state=wrong_state"
+    with pytest.raises(OAuthError, match="state mismatch"):
+        extract_authorization_code(url, "expected_state")
+
+
+def test_extract_authorization_code_denied_missing_state() -> None:
+    url = "https://sso.canvaslms.com/canvas/login?error=access_denied"
+    with pytest.raises(OAuthError, match="Missing state parameter"):
+        extract_authorization_code(url, "expected_state")
+
 def test_extract_authorization_code_invalid_host() -> None:
     # Attacker attempting domain deception
     url = (

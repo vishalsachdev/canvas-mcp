@@ -215,8 +215,10 @@ def extract_authorization_code(redirect_url: str, expected_state: str) -> str:
 
     if "error" in query_params:
         state_list = query_params.get("state")
-        if state_list and secrets.compare_digest(state_list[0], expected_state):
-            raise OAuthError("Canvas OAuth authorization was denied.")
+        if not state_list or not state_list[0].strip():
+            raise OAuthError("Missing state parameter in error callback URL")
+        if not secrets.compare_digest(state_list[0], expected_state):
+            raise OAuthError("Canvas OAuth callback state mismatch.")
         raise OAuthError("Canvas OAuth authorization was denied.")
 
     if "code" not in query_params or not query_params["code"][0].strip():

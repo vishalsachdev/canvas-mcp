@@ -266,3 +266,192 @@ def test_posix_wrong_owner_rejected(tmp_path: Path) -> None:
     with patch("os.getuid", return_value=99999):
         with pytest.raises(TokenStoreError, match="owned by UID"):
             store.load("canvas.example.edu")
+def test_validation_errors_redact_credentials(tmp_path: Path) -> None:
+    """Regressions asserting access token, refresh token, and client secret never leak in validation errors."""
+    secret_acc = "SECRET_ACCESS_TOKEN_ABC123"
+    secret_ref = "SECRET_REFRESH_TOKEN_XYZ456"
+    secret_cli = "SECRET_CLIENT_SECRET_789"
+
+    # 1. Missing required field (obtained_at missing)
+    bad_dict = {
+        "canvas_domain": "canvas.example.edu",
+        "access_token": secret_acc,
+        "refresh_token": secret_ref,
+        "client_id": "client_1",
+        "client_secret": secret_cli,
+    }
+    store_file = tmp_path / "tokens.json"
+    store_file.write_text(json.dumps({"canvas.example.edu": bad_dict}), encoding="utf-8")
+    store = TokenStore(store_file)
+
+    with pytest.raises(TokenStoreError) as exc_info:
+        store.load("canvas.example.edu")
+
+    err_str = str(exc_info.value)
+    err_repr = repr(exc_info.value)
+    for s in (secret_acc, secret_ref, secret_cli):
+        assert s not in err_str, f"Secret leaked in error str: {s}"
+        assert s not in err_repr, f"Secret leaked in error repr: {s}"
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__suppress_context__ is True
+    if exc_info.value.__context__ is not None:
+        ctx_str = str(exc_info.value.__context__)
+        for s in (secret_acc, secret_ref, secret_cli):
+            assert s not in ctx_str
+
+    # 2. Invalid field type
+    bad_dict2 = {
+        "canvas_domain": "canvas.example.edu",
+        "access_token": secret_acc,
+        "refresh_token": secret_ref,
+        "client_id": "client_1",
+        "client_secret": secret_cli,
+        "obtained_at": "not-a-valid-date",
+        "last_refreshed_at": 12345,
+    }
+    store_file.write_text(json.dumps({"canvas.example.edu": bad_dict2}), encoding="utf-8")
+    with pytest.raises(TokenStoreError) as exc_info2:
+        store.load("canvas.example.edu")
+
+    err_str2 = str(exc_info2.value)
+    for s in (secret_acc, secret_ref, secret_cli):
+        assert s not in err_str2, f"Secret leaked in invalid-type error: {s}"
+    assert exc_info2.value.__cause__ is None
+    assert exc_info2.value.__suppress_context__ is True
+
+
+def test_cli_error_does_not_leak_credentials(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    """Assert that CLI stderr does not output secrets when store validation fails."""
+    secret_acc = "SECRET_ACCESS_VAL"
+    secret_ref = "SECRET_REFRESH_VAL"
+    secret_cli = "SECRET_CLIENT_VAL"
+
+    bad_dict = {
+        "canvas_domain": "canvas.example.edu",
+        "access_token": secret_acc,
+        "refresh_token": secret_ref,
+        "client_id": "client_1",
+        "client_secret": secret_cli,
+    }
+    store_file = tmp_path / "tokens.json"
+    store_file.write_text(json.dumps({"canvas.example.edu": bad_dict}), encoding="utf-8")
+    store = TokenStore(store_file)
+
+    from canvas_mcp.auth import cli
+
+    # Simulate running login which encounters corrupt/malformed store
+    with patch.object(cli, "TokenStore", return_value=store):
+        with patch("sys.stdin.isatty", return_value=False):
+            with pytest.raises(SystemExit) as exc:
+                cli.main(["login", "--domain", "canvas.example.edu", "--manual"])
+            assert exc.value.code == 1
+
+    captured = capsys.readouterr()
+    for s in (secret_acc, secret_ref, secret_cli):
+        assert s not in captured.err
+        assert s not in captured.out
+
+
+def test_windows_permissions_tightened(tmp_path: Path) -> None:
+    """Assert that on Windows, icacls is invoked to remove inheritance and grant user full control."""
+    from canvas_mcp.auth.store import _verify_and_tighten_windows_permissions
+
+    target_file = tmp_path / "test_file.json"
+    target_file.write_text("{}", encoding="utf-8")
+
+    with patch("os.name", "nt"), patch("os.environ.get", return_value="TestUser"), patch("subprocess.run") as mock_run:
+        from unittest.mock import MagicMock
+        mock_run.return_value = MagicMock(returncode=0)
+        _verify_and_tighten_windows_permissions(target_file, is_dir=False)
+
+        mock_run.assert_called_once()
+        cmd = mock_run.call_args[0][0]
+        assert cmd == ["icacls", str(target_file), "/inheritance:r", "/grant:r", "TestUser:F"]
+
+
+def test_windows_permissions_failure_raises(tmp_path: Path) -> None:
+    from canvas_mcp.auth.store import _verify_and_tighten_windows_permissions
+
+    target_file = tmp_path / "test_file.json"
+    target_file.write_text("{}", encoding="utf-8")
+
+    with patch("os.name", "nt"), patch("os.environ.get", return_value="TestUser"), patch("subprocess.run") as mock_run:
+        from unittest.mock import MagicMock
+        mock_run.return_value = MagicMock(returncode=1, stderr="Access is denied")
+        with pytest.raises(TokenStoreError, match="Failed to tighten Windows ACLs"):
+            _verify_and_tighten_windows_permissions(target_file, is_dir=False)
+
+
+def test_keyring_backend_lifecycle() -> None:
+    """Test saving, loading, CAS conflict, and deleting via Keyring backend."""
+    storage: dict[tuple[str, str], str] = {}
+
+    class MockKeyring:
+        priority = 5
+
+        def get_password(self, service: str, username: str) -> str | None:
+            return storage.get((service, username))
+
+        def set_password(self, service: str, username: str, password: str) -> None:
+            storage[(service, username)] = password
+
+        def delete_password(self, service: str, username: str) -> None:
+            storage.pop((service, username), None)
+
+    with patch("keyring.get_keyring", return_value=MockKeyring()):
+        store = TokenStore()
+        assert store._use_keyring() is True
+
+        entry = _make_sample_entry("canvas.example.edu", access_token="keyring-acc-1")
+        store.save(entry)
+
+        loaded = store.load("canvas.example.edu")
+        assert loaded is not None
+        assert loaded.access_token.get_secret_value() == "keyring-acc-1"
+
+        # CAS Conflict
+        other_entry = _make_sample_entry("canvas.example.edu", access_token="keyring-acc-other")
+        stale_expected = _make_sample_entry("canvas.example.edu", access_token="stale-acc")
+        with pytest.raises(TokenStoreConflict):
+            store.save(other_entry, expected=stale_expected)
+
+        # Delete
+        assert store.delete("canvas.example.edu") is True
+        assert store.load("canvas.example.edu") is None
+
+
+def test_keyring_unavailable_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When OS credential store is unavailable, TokenStore fails closed unless file store is permitted."""
+    monkeypatch.delenv("CANVAS_ALLOW_FILE_TOKEN_STORE", raising=False)
+
+    class InactiveKeyring:
+        priority = 0
+
+    with patch("keyring.get_keyring", return_value=InactiveKeyring()):
+        store = TokenStore()
+        assert store._use_keyring() is False
+
+        entry = _make_sample_entry("canvas.example.edu")
+        with pytest.raises(TokenStoreError, match="No secure OS credential store available"):
+            store.save(entry)
+
+
+def test_keyring_unavailable_with_file_store_allowed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """When OS credential store is unavailable and CANVAS_ALLOW_FILE_TOKEN_STORE=1, falls back to file store."""
+    monkeypatch.setenv("CANVAS_ALLOW_FILE_TOKEN_STORE", "1")
+
+    class InactiveKeyring:
+        priority = 0
+
+    store_file = tmp_path / "tokens.json"
+    with patch("keyring.get_keyring", return_value=InactiveKeyring()), patch("canvas_mcp.auth.store.DEFAULT_STORE_PATH", store_file):
+        store = TokenStore()
+        assert store._use_keyring() is False
+        assert store._is_file_store_allowed() is True
+
+        entry = _make_sample_entry("canvas.example.edu", access_token="fallback-token")
+        store.save(entry)
+
+        loaded = store.load("canvas.example.edu")
+        assert loaded is not None
+        assert loaded.access_token.get_secret_value() == "fallback-token"

@@ -2,7 +2,9 @@
 
 import asyncio
 import logging
-from urllib.parse import urlsplit
+import secrets
+from typing import Any
+from urllib.parse import parse_qs, urlsplit
 
 from canvas_mcp.auth.mobile import extract_authorization_code
 from canvas_mcp.auth.models import OAuthError
@@ -26,8 +28,8 @@ async def capture_authorization_code(
     Observes context-wide requests across main page and any popup windows.
     """
     try:
+        from playwright.async_api import Browser, async_playwright
         from playwright.async_api import Error as PlaywrightError
-        from playwright.async_api import async_playwright
     except ImportError as e:
         raise OAuthError(
             "Playwright is not installed. Install with `uv sync --extra oauth`."
@@ -40,12 +42,13 @@ async def capture_authorization_code(
     async with async_playwright() as p:
         browser = None
         context = None
-        nav_task: asyncio.Task[object] | None = None
+        nav_task: asyncio.Task[Any] | None = None
         try:
-            browser = await p.chromium.launch(headless=False)
-        except Exception as e:
-            raise OAuthError(f"Failed to launch Chromium browser: {e}") from e
-        try:
+            browser = await p.chromium.launch(
+                headless=False,
+                args=["--disable-blink-features=AutomationControlled"],
+            )
+
             context = await browser.new_context(
                 viewport={"width": 412, "height": 915},
                 device_scale_factor=2.625,
@@ -64,6 +67,14 @@ async def capture_authorization_code(
                         and parsed.hostname.lower() == "sso.canvaslms.com"
                         and parsed.path.rstrip("/") == "/canvas/login"
                     ):
+                        query_params = parse_qs(parsed.query, keep_blank_values=True)
+                        state_val = query_params.get("state", [""])[0]
+                        if not secrets.compare_digest(state_val, state):
+                            logger.debug(
+                                "Ignoring callback URL with mismatched or missing state: %s",
+                                url,
+                            )
+                            return
                         code = extract_authorization_code(url, state)
                         if not code_future.done():
                             code_future.set_result(code)
@@ -78,13 +89,13 @@ async def capture_authorization_code(
                 if url:
                     handle_url_candidate(url)
 
-            def on_disconnected() -> None:
+            def on_browser_disconnected(_b: Browser) -> None:
                 if not code_future.done():
                     code_future.set_exception(
                         OAuthError("Browser was closed before authorization completed.")
                     )
 
-            browser.on("disconnected", lambda: on_disconnected())
+            browser.on("disconnected", on_browser_disconnected)
             context.on("request", on_request)
 
             page = await context.new_page()
@@ -106,8 +117,9 @@ async def capture_authorization_code(
             )
 
             # Wait for either code capture, navigation error, or timeout
+            wait_targets: set[asyncio.Future[Any]] = {code_future, nav_task}
             done, _ = await asyncio.wait(
-                [code_future, nav_task],
+                wait_targets,
                 timeout=remaining,
                 return_when=asyncio.FIRST_COMPLETED,
             )
@@ -131,22 +143,18 @@ async def capture_authorization_code(
                     logger.debug("Initial navigation exception: %s", nav_exc)
 
             # Continue waiting for code_future until deadline
-            remaining = max(0.1, deadline - loop.time())
+            wait_timeout = max(0.1, deadline - loop.time())
             try:
-                return await asyncio.wait_for(code_future, timeout=remaining)
+                return await asyncio.wait_for(code_future, timeout=wait_timeout)
             except TimeoutError as exc:
                 raise OAuthError(
-                    f"OAuth authorization timed out after {timeout_seconds} seconds."
+                    f"Authentication timed out after {int(timeout_seconds)}s. "
+                    "Run again or use --manual."
                 ) from exc
 
         finally:
-            if nav_task is not None:
-                if not nav_task.done():
-                    nav_task.cancel()
-                try:
-                    await nav_task
-                except (asyncio.CancelledError, Exception) as nav_err:
-                    logger.debug("Navigation task finished on close: %s", nav_err)
+            if nav_task is not None and not nav_task.done():
+                nav_task.cancel()
             if context is not None:
                 try:
                     await context.close()

@@ -13,9 +13,13 @@ Key pilot establishes the required behavior (see issue #236).
 Note: For local interactive user login without requiring a manually generated
 PAT or an institutional Developer Key, see the separate opt-in mobile OAuth CLI flow
 (`canvas-mcp-auth login`). That mobile flow uses Canvas's public mobile client
-directory and local private token storage; it is distinct from and does not claim
-to resolve or enforce the institutional Developer Key scopes cataloged here.
-
+directory and persists credentials via the system OS credential store (macOS Keychain,
+Windows Credential Manager, or Freedesktop Secret Service via `keyring`). When an OS
+credential store is unavailable (e.g. headless Linux containers), it fails closed unless
+`CANVAS_ALLOW_FILE_TOKEN_STORE=1` is explicitly set to permit secure file storage with
+POSIX 0600 permissions or Windows NTFS ACLs. It is distinct from and does not claim
+to resolve or enforce the institutional Developer Key scopes cataloged here (issue #236
+remains open for developer-key infrastructure).
 ## What is included
 
 [endpoint-inventory.csv](endpoint-inventory.csv) maps Python tool, resource and

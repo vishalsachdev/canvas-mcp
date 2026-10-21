@@ -35,6 +35,7 @@ dependencies = [
     "python-dateutil>=2.9.0,<3",
     "uvicorn>=0.50.0,<1",
     "filelock>=3.16,<4",
+    "keyring>=24,<26",
     # Windows ships no IANA time zone database, so zoneinfo cannot resolve
     # TIMEZONE (e.g. America/Los_Angeles) without it and dates fall back to UTC.
     "tzdata>=2025.2; sys_platform == 'win32'",
@@ -125,6 +126,10 @@ disallow_untyped_defs = false
 # Azure SDK packages are optional hosted-deployment deps, not installed in the
 # default dev environment, and ship without type stubs.
 module = "azure.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "playwright.*"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

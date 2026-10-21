@@ -52,7 +52,7 @@ class OAuthUser(BaseModel):
 class MobileCredentials(BaseModel):
     """Discovered mobile client credentials from Canvas SSO mobile verify."""
 
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore", hide_input_in_errors=True)
 
     client_id: str
     client_secret: SecretStr
@@ -83,7 +83,7 @@ class MobileCredentials(BaseModel):
 class StoredTokens(BaseModel):
     """Token set and metadata stored for a specific Canvas domain."""
 
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore", hide_input_in_errors=True)
 
     canvas_domain: str
     access_token: SecretStr

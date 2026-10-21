@@ -8,8 +8,8 @@ resolution-markers = [
     "python_full_version == '3.14.*' and sys_platform != 'win32'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'win32'",
-    "python_full_version < '3.12' and sys_platform == 'win32'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version < '3.12' and sys_platform == 'win32'",
     "python_full_version < '3.12' and sys_platform != 'win32'",
 ]
 
@@ -224,6 +224,7 @@ dependencies = [
     { name = "fastmcp" },
     { name = "filelock" },
     { name = "httpx" },
+    { name = "keyring" },
     { name = "mcp" },
     { name = "pydantic" },
     { name = "python-dateutil" },
@@ -260,6 +261,7 @@ requires-dist = [
     { name = "fastmcp", specifier = ">=4,<5" },
     { name = "filelock", specifier = ">=3.16,<4" },
     { name = "httpx", specifier = ">=0.28.1,<1" },
+    { name = "keyring", specifier = ">=24,<26" },
     { name = "mcp", specifier = ">=2.2,<3" },
     { name = "playwright", marker = "extra == 'oauth'", specifier = ">=1.51,<2" },
     { name = "pydantic", specifier = ">=2.13.1,<3" },

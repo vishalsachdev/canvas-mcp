@@ -464,3 +464,127 @@ def test_session_loop_transition(tmp_path: Path) -> None:
 
     res2 = asyncio.run(run_in_loop2())
     assert res2 == "loop-tok-2"
+@pytest.mark.asyncio
+async def test_recovery_after_503_transient_failure(tmp_path: Path) -> None:
+    """A transient 503 error must not permanently latch failure; later requests must retry and succeed."""
+    store = TokenStore(tmp_path / "tokens.json")
+    tokens = _make_stored_tokens()
+    store.save(tokens)
+    session = OAuthSession(tokens, store)
+
+    call_count = 0
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return httpx.Response(503, json={"error": "service unavailable"})
+        return httpx.Response(200, json={"access_token": "recovered-token-after-503"})
+
+    transport = httpx.MockTransport(mock_handler)
+    real_client = httpx.AsyncClient
+    with patch("httpx.AsyncClient", side_effect=lambda *a, **kw: real_client(transport=transport)):
+        # Call 1 fails with 503
+        with pytest.raises(OAuthRefreshError, match="503"):
+            await session.refresh(0)
+        assert call_count == 1
+
+        # Advance failure timestamp beyond backoff interval
+        session._last_failure_time = 0.0
+
+        # Call 2 retries and succeeds!
+        recovered = await session.refresh(0)
+        assert recovered == "recovered-token-after-503"
+        assert call_count == 2
+        assert session.snapshot()[0] == "recovered-token-after-503"
+
+
+@pytest.mark.asyncio
+async def test_recovery_after_network_error(tmp_path: Path) -> None:
+    """A network transport error must not permanently latch failure; later requests must retry."""
+    store = TokenStore(tmp_path / "tokens.json")
+    tokens = _make_stored_tokens()
+    store.save(tokens)
+    session = OAuthSession(tokens, store)
+
+    call_count = 0
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise httpx.ConnectError("Connection refused")
+        return httpx.Response(200, json={"access_token": "recovered-token-after-net-err"})
+
+    transport = httpx.MockTransport(mock_handler)
+    real_client = httpx.AsyncClient
+    with patch("httpx.AsyncClient", side_effect=lambda *a, **kw: real_client(transport=transport)):
+        with pytest.raises(OAuthRefreshError, match="ConnectError"):
+            await session.refresh(0)
+        assert call_count == 1
+
+        session._last_failure_time = 0.0
+
+        recovered = await session.refresh(0)
+        assert recovered == "recovered-token-after-net-err"
+        assert call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_multi_process_refresh_adoption(tmp_path: Path) -> None:
+    """If another process refreshed tokens in the store, an independent session adopts them without HTTP call."""
+    store = TokenStore(tmp_path / "tokens.json")
+    tokens = _make_stored_tokens()
+    store.save(tokens)
+
+    session_a = OAuthSession(tokens, store)
+    session_b = OAuthSession(tokens, store)
+
+    # Process A refreshes via HTTP
+    def mock_handler_a(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"access_token": "new-token-from-proc-a"})
+
+    transport_a = httpx.MockTransport(mock_handler_a)
+    with patch("httpx.AsyncClient", return_value=httpx.AsyncClient(transport=transport_a)):
+        tok_a = await session_a.refresh(0)
+        assert tok_a == "new-token-from-proc-a"
+
+    # Process B now gets a 401 and calls refresh(0).
+    # Its HTTP client must NEVER be called because it adopts the store's new token!
+    http_b_called = False
+
+    def mock_handler_b(request: httpx.Request) -> httpx.Response:
+        nonlocal http_b_called
+        http_b_called = True
+        return httpx.Response(200, json={"access_token": "unneeded-token"})
+
+    transport_b = httpx.MockTransport(mock_handler_b)
+    with patch("httpx.AsyncClient", return_value=httpx.AsyncClient(transport=transport_b)):
+        tok_b = await session_b.refresh(0)
+        assert tok_b == "new-token-from-proc-a"
+        assert not http_b_called
+        assert session_b.snapshot()[0] == "new-token-from-proc-a"
+
+
+@pytest.mark.asyncio
+async def test_multi_process_conflict_reloads_refreshed_store(tmp_path: Path) -> None:
+    """When a CAS conflict occurs during save because another process saved, reload and adopt the new token."""
+    store = TokenStore(tmp_path / "tokens.json")
+    tokens = _make_stored_tokens()
+    store.save(tokens)
+
+    session = OAuthSession(tokens, store)
+
+    # While session._do_refresh is in flight, another process saves a new token into store
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        # Simulate another process updating the store concurrently
+        tokens_other = _make_stored_tokens(access_token="concurrent-proc-token")
+        store.save(tokens_other)
+        return httpx.Response(200, json={"access_token": "our-refresh-tok"})
+
+    transport = httpx.MockTransport(mock_handler)
+    with patch("httpx.AsyncClient", return_value=httpx.AsyncClient(transport=transport)):
+        tok = await session.refresh(0)
+        # Should have adopted concurrent-proc-token from store upon conflict
+        assert tok == "concurrent-proc-token"
+        assert session.snapshot()[0] == "concurrent-proc-token"
