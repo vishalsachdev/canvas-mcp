@@ -49,6 +49,8 @@ def test_malformed_accessibility_input_finishes(expression):
     ('<a href="handout.pdf">Handout</a>', "doc_link_no_type"),
     ('<iframe src="https://youtube.com/embed/synthetic"></iframe>', "video_caption_check"),
     ('<p style="text-decoration:underline">Text</p>', "underline_not_link"),
+    ('<p style="text-decoration: underline dotted">Text</p>', "underline_not_link"),
+    ("<p>if a<b, that's true.</p><img src=\"chart.png\">", "missing_alt_text"),
     ('<p style="font-size:8px">Text</p>', "small_font_size"),
     ("<p>• Manual bullet</p>", "manual_bullets"),
     ('<span style="color:red">Important</span>', "color_only_meaning"),
