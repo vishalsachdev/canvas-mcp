@@ -18,7 +18,7 @@ from ..core.cache import get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.config import get_config
 from ..core.guarded_edit import normalize_html
-from ..core.html import remove_html_tags
+from ..core.html import HTMLTag, iter_html_tags, remove_html_tags
 from ..core.untrusted_content import (
     fence_untrusted,
     fence_untrusted_fields,
@@ -28,28 +28,19 @@ from ..core.untrusted_content import (
 from ..core.validation import validate_params
 
 
-def _quoted_attribute(name: str) -> re.Pattern[str]:
-    return re.compile(
-        rf'''(?<![\w:-]){name}\s*=\s*(?:"([^"<>]*+)"|'([^'<>]*+)')''',
-        re.IGNORECASE,
-    )
-
-
-_STYLE_ATTRIBUTE = _quoted_attribute("style")
-_ALT_ATTRIBUTE = _quoted_attribute("alt")
-_HREF_ATTRIBUTE = _quoted_attribute("href")
-
-
-def _attribute_value(match: re.Match[str]) -> str:
-    return match.group(1) if match.group(1) is not None else match.group(2)
-
-
 def _style_properties(style: str) -> dict[str, str]:
-    properties = {}
+    properties: dict[str, str] = {}
+    important: set[str] = set()
     for declaration in style.split(";"):
         name, separator, value = declaration.partition(":")
         if separator:
-            properties[name.strip().lower()] = value.strip().lower().removesuffix("!important").strip()
+            name, value = name.strip().lower(), value.strip().lower()
+            priority = re.search(r"!\s*important\s*$", value)
+            if name in important and priority is None:
+                continue
+            properties[name] = value[:priority.start()].strip() if priority else value
+            if priority:
+                important.add(name)
     return properties
 
 
@@ -60,24 +51,26 @@ def _orange_white(properties: dict[str, str]) -> bool:
 
 
 def _element_ranges(
-    html: str, tag: str, *, outermost: bool = False,
-) -> Iterator[tuple[str, int, int]]:
-    """Pair complete tags once; yield attributes and body offsets, not copies.
+    tags: list[HTMLTag], tag: str, *, outermost: bool = False,
+) -> Iterator[tuple[HTMLTag, int, int]]:
+    """Pair complete tags once; yield opening tags and body offsets, not copies.
 
     Missing closing tags produce no element. Offsets avoid copying every
     nested table/span body; callers use precomputed marker positions instead.
     Links may be restricted to disjoint outer ranges because nested anchors
     are invalid HTML and their text extraction must not rescan nested bodies.
     """
-    opened: list[tuple[str, int]] = []
-    for token in re.finditer(rf"</?{tag}\b[^<>]*+>", html, re.IGNORECASE):
-        if token.group().startswith("</"):
+    opened: list[HTMLTag] = []
+    for token in tags:
+        if token.name != tag:
+            continue
+        if token.closing:
             if opened:
-                attributes, start = opened.pop()
+                opening = opened.pop()
                 if not outermost or not opened:
-                    yield attributes, start, token.start()
+                    yield opening, opening.end, token.start
         else:
-            opened.append((token.group()[len(tag) + 1:-1], token.end()))
+            opened.append(token)
 
 
 def _has_marker(positions: list[int], start: int, end: int) -> bool:
@@ -306,15 +299,17 @@ def _register_builtin_scanner_tools(mcp: FastMCP) -> None:
         if "pages" in types:
             pages = await fetch_all_paginated_results(
                 f"/courses/{course_id}/pages",
-                {"per_page": 100}
+                {"per_page": 100, "include[]": ["body"]}
             )
             if not isinstance(pages, list):
                 detail = pages.get("error", "Invalid page list") if isinstance(pages, dict) else "Invalid page list"
                 return json.dumps({"error": f"Could not scan pages: {format_canvas_error(detail)}"})
             if isinstance(pages, list):
                 for page in pages:
+                    if not isinstance(page, dict) or not isinstance(page.get("body"), str):
+                        return json.dumps({"error": "Could not scan pages: Canvas did not return readable page content"})
                     issues = _check_content_accessibility(
-                        page.get("body", ""),
+                        page["body"],
                         content_type="page",
                         content_id=page.get("page_id"),
                         content_title=page.get("title")
@@ -523,41 +518,44 @@ def _register_builtin_scanner_tools(mcp: FastMCP) -> None:
 
 def _fix_th_scope(html: str) -> tuple[str, int]:
     """Add scope='col' to <th> elements missing it."""
-    count = 0
+    edits = [
+        (tag.name_end, tag.name_end, ' scope="col"')
+        for tag in iter_html_tags(html)
+        if tag.name == "th" and not tag.closing and "scope" not in tag.attributes
+    ]
+    return _apply_html_edits(html, edits), len(edits)
 
-    def _replacer(match: re.Match[str]) -> str:
-        nonlocal count
-        count += 1
-        return match.group(0).replace("<th", '<th scope="col"', 1)
 
-    # Use \b to avoid matching <thead, <thtml, etc.
-    modified = re.sub(r"<th\b(?![^<>]*\bscope\b)", _replacer, html, flags=re.IGNORECASE)
-    return modified, count
+def _apply_html_edits(html: str, edits: list[tuple[int, int, str]]) -> str:
+    """Apply ordered disjoint edits without copying the whole document per tag."""
+    parts: list[str] = []
+    cursor = 0
+    for start, end, replacement in edits:
+        parts.extend((html[cursor:start], replacement))
+        cursor = end
+    parts.append(html[cursor:])
+    return "".join(parts)
 
 
 def _fix_orange_contrast(html: str) -> tuple[str, int]:
     """Fix white text on #ff5f05 orange backgrounds (3.1:1 → 6.77:1)."""
-    count = 0
-
-    def _replacer(match: re.Match[str]) -> str:
-        nonlocal count
-        original = _attribute_value(match)
+    edits = []
+    for tag in iter_html_tags(html):
+        attribute = tag.attributes.get("style")
+        if attribute is None:
+            continue
+        original = attribute.value
         if not _orange_white(_style_properties(original)):
-            return match.group()
+            continue
         fixed = re.sub(
-            r"(?<![\w-])color:\s*(?:white|#fff(?:fff)?)\b",
+            r"(?<![\w-])color\s*:\s*(?:white|#fff(?:fff)?)\b",
             "color: #000000",
             original,
             flags=re.IGNORECASE,
         )
         if fixed != original:
-            count += 1
-        group = 1 if match.group(1) is not None else 2
-        start = match.start(group) - match.start()
-        end = match.end(group) - match.start()
-        return match.group()[:start] + fixed + match.group()[end:]
-
-    return _STYLE_ATTRIBUTE.sub(_replacer, html), count
+            edits.append((attribute.start, attribute.end, fixed))
+    return _apply_html_edits(html, edits), len(edits)
 
 
 # CidiLabs DesignPLUS kl_ → dp- class mapping
@@ -668,21 +666,15 @@ def _fix_legacy_designplus(html: str) -> tuple[str, int]:
 
 def _fix_redundant_alt_prefix(html: str) -> tuple[str, int]:
     """Remove 'image of', 'graphic of', etc. prefixes from alt text."""
-    count = 0
-
-    def _replacer(match: re.Match[str]) -> str:
-        nonlocal count
-        count += 1
-        prefix_pattern = r'alt="(?:image|graphic|picture|photo|icon)\s+(?:of|showing)\s+'
-        return re.sub(prefix_pattern, 'alt="', match.group(0), flags=re.IGNORECASE)
-
-    modified = re.sub(
-        r'<img[^<>]*alt="(?:image|graphic|picture|photo|icon)\s+(?:of|showing)\s+[^"]*"[^<>]*>',
-        _replacer,
-        html,
-        flags=re.IGNORECASE,
-    )
-    return modified, count
+    edits = []
+    for tag in iter_html_tags(html):
+        alt = tag.attributes.get("alt")
+        if tag.name != "img" or tag.closing or alt is None:
+            continue
+        prefix = re.match(r"(?:image|graphic|picture|photo|icon)\s+(?:of|showing)\s+", alt.value, re.IGNORECASE)
+        if prefix:
+            edits.append((alt.start, alt.start + prefix.end(), ""))
+    return _apply_html_edits(html, edits), len(edits)
 
 
 def _extract_violations_from_html(html_content: str) -> list[dict[str, Any]]:
@@ -763,19 +755,19 @@ def _check_content_accessibility(
     if not html_content:
         return issues
 
-    styles = [
-        _style_properties(_attribute_value(match))
-        for match in _STYLE_ATTRIBUTE.finditer(html_content)
-    ]
+    tags = list(iter_html_tags(html_content))
+    opening_tags = [tag for tag in tags if not tag.closing]
+    styles = [_style_properties(tag.attributes["style"].value) for tag in opening_tags if "style" in tag.attributes]
+    images = [tag for tag in opening_tags if tag.name == "img"]
     image_alts = [
-        _attribute_value(alt_match)
-        for image in re.finditer(r"<img\b[^<>]*+>", html_content, re.IGNORECASE)
-        if (alt_match := _ALT_ATTRIBUTE.search(image.group())) is not None
+        image.attributes["alt"].value for image in images if "alt" in image.attributes
     ]
+    links = list(_element_ranges(tags, "a", outermost=True))
 
     # Check for images without alt text
-    img_pattern = r'<img(?![^<>]*alt=)[^<>]*>'
-    for _match in re.finditer(img_pattern, html_content, re.IGNORECASE):
+    for image in images:
+        if "alt" in image.attributes:
+            continue
         issues.append({
             "type": "missing_alt_text",
             "wcag_criterion": "1.1.1",
@@ -790,8 +782,12 @@ def _check_content_accessibility(
         })
 
     # Check for empty headings
-    empty_heading_pattern = r'<h[1-6][^<>]*>\s*</h[1-6]>'
-    for _match in re.finditer(empty_heading_pattern, html_content, re.IGNORECASE):
+    headings = {f"h{level}" for level in range(1, 7)}
+    for _, start, end in (
+        element for name in sorted(headings) for element in _element_ranges(tags, name, outermost=True)
+    ):
+        if html_content[start:end].strip():
+            continue
         issues.append({
             "type": "empty_heading",
             "wcag_criterion": "2.4.6",
@@ -806,8 +802,8 @@ def _check_content_accessibility(
         })
 
     # Check for tables without headers
-    header_positions = [m.start() for m in re.finditer(r"<th\b", html_content, re.IGNORECASE)]
-    for _, start, end in _element_ranges(html_content, "table"):
+    header_positions = [tag.start for tag in opening_tags if tag.name == "th"]
+    for _, start, end in _element_ranges(tags, "table"):
         if _has_marker(header_positions, start, end):
             continue
         issues.append({
@@ -824,16 +820,9 @@ def _check_content_accessibility(
         })
 
     # Check for non-descriptive link text
-    bad_link_patterns = [
-        r'<a[^<>]*>click here</a>',
-        r'<a[^<>]*>here</a>',
-        r'<a[^<>]*>read more</a>',
-        r'<a[^<>]*>more</a>',
-        r'<a[^<>]*>link</a>',
-        r'<a[^<>]*>this</a>',
-    ]
-    for pattern in bad_link_patterns:
-        for _match in re.finditer(pattern, html_content, re.IGNORECASE):
+    bad_link_texts = {"click here", "here", "read more", "more", "link", "this"}
+    for _, start, end in links:
+        if html_content[start:end].lower() in bad_link_texts:
             issues.append({
                 "type": "non_descriptive_link",
                 "wcag_criterion": "2.4.4",
@@ -848,8 +837,9 @@ def _check_content_accessibility(
             })
 
     # Check for empty links
-    empty_link_pattern = r'<a[^<>]*>\s*</a>'
-    for _match in re.finditer(empty_link_pattern, html_content, re.IGNORECASE):
+    for _, start, end in links:
+        if html_content[start:end].strip():
+            continue
         issues.append({
             "type": "empty_link",
             "wcag_criterion": "2.4.4",
@@ -864,8 +854,9 @@ def _check_content_accessibility(
         })
 
     # Check for URL-as-link-text
-    url_link_pattern = r'<a[^<>]*>\s*https?://[^\s<]+\s*</a>'
-    for _match in re.finditer(url_link_pattern, html_content, re.IGNORECASE):
+    for _, start, end in links:
+        if re.fullmatch(r'\s*https?://[^\s<]+\s*', html_content[start:end], re.IGNORECASE) is None:
+            continue
         issues.append({
             "type": "url_as_link_text",
             "wcag_criterion": "2.4.4",
@@ -880,8 +871,9 @@ def _check_content_accessibility(
         })
 
     # Check for <th> without scope attribute (\b prevents matching <thead>)
-    th_without_scope = r'<th\b(?![^<>]*\bscope\b)[^<>]*>'
-    for _match in re.finditer(th_without_scope, html_content, re.IGNORECASE):
+    for tag in opening_tags:
+        if tag.name != "th" or "scope" in tag.attributes:
+            continue
         issues.append({
             "type": "th_missing_scope",
             "wcag_criterion": "1.3.1",
@@ -897,8 +889,7 @@ def _check_content_accessibility(
 
     # Check heading hierarchy (skipped levels)
     heading_levels = [
-        int(m.group(1))
-        for m in re.finditer(r'<h([1-6])[^<>]*>', html_content, re.IGNORECASE)
+        int(tag.name[1]) for tag in opening_tags if tag.name in headings
     ]
     for i in range(1, len(heading_levels)):
         if heading_levels[i] > heading_levels[i - 1] + 1:
@@ -1021,11 +1012,11 @@ def _check_content_accessibility(
         })
 
     # Check for links to documents without file type indicator
-    for attributes, start, end in _element_ranges(html_content, "a", outermost=True):
-        href = _HREF_ATTRIBUTE.search(attributes)
+    for tag, start, end in links:
+        href = tag.attributes.get("href")
         if href is None:
             continue
-        extension = re.search(r'\.(pdf|docx?|xlsx?|pptx?|csv)$', _attribute_value(href), re.IGNORECASE)
+        extension = re.search(r'\.(pdf|docx?|xlsx?|pptx?|csv)$', href.value, re.IGNORECASE)
         if extension is None:
             continue
         ext = extension.group(1).lower()
@@ -1049,9 +1040,10 @@ def _check_content_accessibility(
             })
 
     # Check for videos/iframes without caption indicators
-    iframe_pattern = r'<iframe[^<>]*src="([^"]*)"[^<>]*>'
-    for m in re.finditer(iframe_pattern, html_content, re.IGNORECASE):
-        src = m.group(1)
+    for tag in opening_tags:
+        if tag.name != "iframe" or "src" not in tag.attributes:
+            continue
+        src = tag.attributes["src"].value
         # Detect video platforms
         if any(p in src for p in ("youtube.com", "youtu.be", "kaltura.com",
                                    "vimeo.com", "mediaspace")):
@@ -1069,8 +1061,12 @@ def _check_content_accessibility(
             })
 
     # Check for underlined non-link text (confuses users)
-    underline_pattern = r'<(?:span|p|strong|em|div)[^<>]*style="[^"]*text-decoration:\s*underline[^"]*"[^<>]*>'
-    for _match in re.finditer(underline_pattern, html_content, re.IGNORECASE):
+    for tag in opening_tags:
+        style = tag.attributes.get("style")
+        if tag.name not in {"span", "p", "strong", "em", "div"} or style is None:
+            continue
+        if _style_properties(style.value).get("text-decoration") != "underline":
+            continue
         issues.append({
             "type": "underline_not_link",
             "wcag_criterion": "1.3.1",
@@ -1126,15 +1122,19 @@ def _check_content_accessibility(
         })
 
     # Check for color used as sole indicator (inline color styles without bold/italic)
-    emphasis = [m.start() for m in re.finditer(
-        r'<(?:strong|em|b|i)\b|font-(?:weight|style)', html_content, re.IGNORECASE,
-    )]
+    emphasis = [
+        tag.start for tag in opening_tags
+        if tag.name in {"strong", "em", "b", "i"} or (
+            "style" in tag.attributes and {"font-weight", "font-style"}
+            & _style_properties(tag.attributes["style"].value).keys()
+        )
+    ]
     newlines = [m.start() for m in re.finditer("\n", html_content)]
-    for attributes, start, end in _element_ranges(html_content, "span"):
-        style = _STYLE_ATTRIBUTE.search(attributes)
+    for tag, start, end in _element_ranges(tags, "span"):
+        style = tag.attributes.get("style")
         if style is None or end - start < 5 or _has_marker(newlines, start, end):
             continue
-        properties = _style_properties(_attribute_value(style))
+        properties = _style_properties(style.value)
         color = properties.get("color", "")
         if color and color not in {"inherit", "initial", "unset", "currentcolor"} and not (
             "font-weight" in properties or "font-style" in properties

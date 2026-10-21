@@ -161,6 +161,14 @@ style/link cases, UFIXIT with long `<` runs, and exact expected issue types.
 Mutation: restoring the vulnerable color-only expression or UFIXIT stripping
 must fail a bounded-completion regression.
 
+Final independent review found that the first bounded tag pattern mishandled
+valid quoted `<`/`>` characters. Replace it with one forward quote-aware token
+pass shared by text extraction, scan rules and attribute fixers. Preserve row
+scope, quoted attribute values, script/style suppression and CSS `!important`
+priority; make single-quoted alt fixes match scanner claims. Regression cases
+must fail the first implementation before this correction and retain the
+malformed-input completion checks.
+
 - [ ] Add failing bounded-work regressions, implement the minimum replacement,
   verify the full suite/lint/types and commit.
 
@@ -194,6 +202,13 @@ Canvas returned an error, and the fixer marked failed PUTs as applied
 errors before writing, fence fixer result labels only after write-back, and
 confirm changes with a separate read. Regression mutations: ignore a failed
 source/PUT or read-back mismatch; each must fail without sending a live write.
+
+Review also confirmed a pre-existing false-clean page-list shape: [Canvas's
+Pages API](https://documentation.instructure.com/doc/api/pages.html#method.wiki_pages_api.index)
+only returns bodies when `include[]=body` is requested. Request that field and
+report missing or unreadable page bodies as unconfirmed instead of empty.
+Verify through the actual MCP tool with a fixture that respects the include
+parameter, and strengthen the older vacuous title-fencing fixture.
 
 - [ ] Write/run failing trust/isolation regressions, implement, verify the full
   suite/lint/types and commit.

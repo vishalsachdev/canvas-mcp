@@ -1,5 +1,6 @@
 """Restoring unbounded attribute/body regexes must fail bounded completion."""
 
+import re
 import subprocess
 import sys
 
@@ -8,6 +9,8 @@ import pytest
 from canvas_mcp.tools.accessibility import (
     _check_content_accessibility,
     _fix_orange_contrast,
+    _fix_redundant_alt_prefix,
+    _fix_th_scope,
 )
 
 
@@ -82,3 +85,68 @@ def test_color_rule_does_not_flag_redundant_or_non_foreground_styles(markup):
     assert "color_only_meaning" not in {
         item["type"] for item in _check_content_accessibility(markup, "page", 7, "Synthetic")
     }
+
+
+@pytest.mark.parametrize("quote", ['"', "'"])
+@pytest.mark.parametrize("markup,issue", [
+    ('<img src="chart.png">', "missing_alt_text"),
+    ('<h2> </h2>', "empty_heading"),
+    ('<table><td>Value</td></table>', "table_without_headers"),
+    ('<a href="/detail">click here</a>', "non_descriptive_link"),
+    ('<a href="/detail"> </a>', "empty_link"),
+    ('<a href="/detail">https://example.org</a>', "url_as_link_text"),
+    ('<th>Header</th>', "th_missing_scope"),
+    ('<h2>First</h2><h4>Skipped</h4>', "heading_skip"),
+    ('<img alt="chart.png">', "filename_alt_text"),
+    ('<img alt="image of a chart">', "redundant_alt_prefix"),
+    ('<a href="handout.pdf">Handout</a>', "doc_link_no_type"),
+    ('<iframe src="https://youtube.com/embed/synthetic"></iframe>', "video_caption_check"),
+    ('<p style="text-decoration:underline">Text</p>', "underline_not_link"),
+    ('<span style="color:red">Important</span>', "color_only_meaning"),
+])
+def test_scanner_accepts_quoted_angle_brackets(markup, issue, quote):
+    markup = re.sub(r"^(<[a-z][a-z0-9]*)", lambda match: f"{match[0]} title={quote}x<y>z{quote}", markup)
+    found = {item["type"] for item in _check_content_accessibility(markup, "page", 7, "Synthetic")}
+    assert issue in found
+
+
+@pytest.mark.parametrize("quote", ['"', "'"])
+def test_scope_fixer_preserves_row_scope_and_changes_only_missing_attribute(quote):
+    row = f'<TH title={quote}x<y>z{quote} scope="row">Row</TH>'
+    assert _fix_th_scope(row) == (row, 0)
+    missing = f'<TH title={quote}x<y>z{quote}>Column</TH>'
+    fixed, count = _fix_th_scope(missing)
+    assert count == 1
+    assert fixed == missing.replace("<TH", '<TH scope="col"', 1)
+
+
+def test_attributes_inside_title_do_not_satisfy_alt_scope_or_style():
+    markup = '<img title=\'alt="Chart"\'><th title=\'scope="row"\'>Header</th>'
+    markup += '<p title=\'style="color:white;background-color:#ff5f05"\'>Text</p>'
+    found = {item["type"] for item in _check_content_accessibility(markup, "page", 7, "Synthetic")}
+    assert {"missing_alt_text", "th_missing_scope"} <= found
+    assert "low_contrast" not in found
+    fixed, count = _fix_orange_contrast(markup)
+    assert (fixed, count) == (markup, 0)
+
+
+def test_contrast_scanner_and_fixer_honor_important_priority():
+    markup = '<p style="background-color:#ff5f05;color:white !important;color:black">Text</p>'
+    assert "low_contrast" in {
+        item["type"] for item in _check_content_accessibility(markup, "page", 7, "Synthetic")
+    }
+    fixed, count = _fix_orange_contrast(markup)
+    assert count == 1
+    assert "color: #000000 !important" in fixed
+    assert "color:black" in fixed
+    assert "background-color:#ff5f05" in fixed
+
+
+@pytest.mark.parametrize("quote", ['"', "'"])
+def test_redundant_alt_fixer_handles_the_quotes_advertised_by_scanner(quote):
+    markup = f'<img title="x<y>z" alt={quote}image of a chart{quote}>'
+    assert "redundant_alt_prefix" in {
+        item["type"] for item in _check_content_accessibility(markup, "page", 7, "Synthetic")
+    }
+    fixed, count = _fix_redundant_alt_prefix(markup)
+    assert (fixed, count) == (markup.replace("image of ", "", 1), 1)
