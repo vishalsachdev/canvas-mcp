@@ -20,6 +20,7 @@ from ..core.guarded_edit import (
     run_guarded_write,
     validate_guard,
 )
+from ..core.html import remove_html_tags
 from ..core.logging import log_warning
 from ..core.raw_dates import render_raw_dates, topic_raw_dates
 from ..core.tool_results import FULL_CONTENT_TOOL_META
@@ -59,7 +60,7 @@ def _discussion_text(message: Any) -> str:
     """A discussion post's complete text with its markup removed, never cut."""
     if not isinstance(message, str) or not message:
         return "[No content]"
-    text = re.sub(r"<[^>]+>", "", message).strip()
+    text = remove_html_tags(message).strip()
     return text or "[Content contains only HTML/formatting]"
 
 # Substrings that show up in make_canvas_request's {"error": ...} payload
