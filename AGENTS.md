@@ -29,8 +29,8 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 ```
 # In .env:
 CANVAS_ROLE=student    # 51 tools by default (student + shared), 62 with every student write tool enabled
-CANVAS_ROLE=educator   # 94 tools by default, 96 with every gated tool enabled
-CANVAS_ROLE=all        # Default profile; 113 tools by default, 126 with all feature-gated tools enabled
+CANVAS_ROLE=educator   # 96 tools by default, 98 with every gated tool enabled
+CANVAS_ROLE=all        # Default profile; 115 tools by default, 128 with all feature-gated tools enabled
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
@@ -135,6 +135,8 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `update_assignment` | Update existing assignment (name, due date, points, published, etc.). Optional guards: `expect_updated_at`, `find`/`replace` on the description, `require` (see Guarded edits) |
 | `delete_assignment_with_confirmation` | Delete an assignment (two-step: preview, then confirm with the token) |
 | `create_content_migration` | Preview target occupancy, then request a full course-copy migration after explicit confirmation |
+| `create_course_groups` | Preview a NEW course group set, groups and memberships from CSV (`group_name,description,canvas_user_id`); explicit confirmation token required; rejects duplicate/conflicting rows and existing set names; requires `manage_groups_add`, `manage_groups_manage`, `read_roster` |
+| `resume_course_group_creation` | Preview then confirm remaining work using the prior run's server-issued `run_id`; fresh token and full membership revalidation; reports every detected conflict and refuses all writes. Only recorded created IDs are targets; never moves students or adopts existing groups |
 | `get_content_migration_status` | Poll one migration once and review terminal migration issues |
 | `get_student_analytics` | Individual student performance |
 | `check_enrollment` | Is a given campus login ID (NetID / uniqname / email-style login — not a display name) enrolled in a course? Returns yes/no only, never the roster. `role` defaults to `student`; pass `role="any"` to ask "in this course at all?". Needs roster-admin rights; without them the answer is INDETERMINATE, never "no". For your OWN enrollment use `get_my_enrollments` |
@@ -410,6 +412,31 @@ usual cause).
 4. When terminal, review every returned migration issue. A completed migration
    with issues is reported as completed_with_issues, not as a clean completion.
 ```
+
+### Educator: Create Course Project Groups
+
+Call `create_course_groups(course_identifier, group_set_name, csv_data)` with
+CSV columns `group_name,description,canvas_user_id`, one active student per row.
+Repeat the group name and identical description for its members. Names and emails
+are never matched to people; obtain explicit numeric Canvas IDs first. Duplicate
+student rows, conflicting assignments/descriptions and existing group-set names
+are refused. At most 200 students, 50 groups and 250,000 CSV characters per run.
+
+The first call writes nothing. Show the entire preview, then call again with
+identical arguments and the single-use confirmation token after explicit approval.
+Partial results report created IDs, member outcomes and a `run_id`. Call
+`resume_course_group_creation(run_id)` for a fresh preview, then confirm that
+preview's fresh token. Resume may create pending groups inside the recorded set;
+it never targets caller-supplied or name-matched existing IDs. Every detected
+membership conflict stops the remaining batch and is shown before any new write.
+Verified memberships are skipped; changed previously confirmed memberships are
+refused. Unknown group/set creation outcomes require manual inspection.
+
+Run records are caller-bound, server-local, expire after 24 hours and are lost on
+restart; HTTP replicas need affinity. Canvas has no atomic membership compare
+and set: do not concurrently edit this group set during the operation. There is
+no deletion, reassignment or rollback. Both tools are educator writes, withheld
+on HTTP unless enabled by `ALLOWED_WRITE_TOOLS`.
 
 ## Capability Boundaries
 
