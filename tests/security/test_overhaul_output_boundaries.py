@@ -8,6 +8,7 @@ import pytest
 from fastmcp import Client, FastMCP
 
 from canvas_mcp.core import anonymization, credentials, untrusted_content
+from canvas_mcp.core.config import reset_config
 from canvas_mcp.resources import resources
 from canvas_mcp.tools import accessibility, admin_tools
 
@@ -185,7 +186,12 @@ async def test_concurrent_http_cache_and_clear_cannot_affect_other_callers(isola
     assert anonymization.get_anonymization_stats()["total_anonymized_ids"] == 1
 
 
-async def test_http_status_without_credentials_does_not_read_stdio_history(isolated_anonymization, server):
+async def test_http_status_without_credentials_does_not_read_stdio_history(
+    isolated_anonymization, server, monkeypatch,
+):
+    # The status text depends on this setting; pin it so a local .env cannot change the result.
+    monkeypatch.setenv("ENABLE_DATA_ANONYMIZATION", "true")
+    reset_config()
     other = anonymization.generate_anonymous_id(9001)
     credentials.set_http_request_active()
     try:
@@ -196,6 +202,7 @@ async def test_http_status_without_credentials_does_not_read_stdio_history(isola
         assert other not in text
     finally:
         credentials.clear_http_request_context()
+        reset_config()
 
 
 def test_cleared_http_credentials_do_not_reveal_global_history(isolated_anonymization):
