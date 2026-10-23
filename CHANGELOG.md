@@ -7,9 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.15.0] — 2026-10-23
+
+A hardening release. Hosted (HTTP) callers are kept apart from each other, untrusted HTML is parsed in one bounded pass, and the release pipeline verifies what it publishes. One new tool reads a single student submission. No tool names, arguments or output contracts changed.
+
+### Security
+
+- Locked dependencies moved to patched releases: `mcp` 2.2.0 for [GHSA-84m7-p3x7-pcfv](https://github.com/advisories/GHSA-84m7-p3x7-pcfv), with the floor raised to `mcp>=2.2` ([#511](https://github.com/vishalsachdev/canvas-mcp/pull/511)); `certifi` 2026.10.19 for [GHSA-6q48-6c7w-9gw2](https://github.com/advisories/GHSA-6q48-6c7w-9gw2); `opentelemetry-api` 1.45.1 for [GHSA-xcq7-p3pf-p88h](https://github.com/advisories/GHSA-xcq7-p3pf-p88h) and the dev-only `black` 26.10.1 for [GHSA-cg8m-r9f2-5wm2](https://github.com/advisories/GHSA-cg8m-r9f2-5wm2) ([#522](https://github.com/vishalsachdev/canvas-mcp/pull/522)).
+- HTTP mode keeps each caller's state to that caller: course aliases and labels ([#480](https://github.com/vishalsachdev/canvas-mcp/pull/480)), course metadata caches, course-policy verdicts ([#491](https://github.com/vishalsachdev/canvas-mcp/pull/491)), the discussion REST-unservable hint ([#494](https://github.com/vishalsachdev/canvas-mcp/pull/494)) and anonymization statistics ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)). `RequestCredentials` no longer shows its API token in its `repr` ([#490](https://github.com/vishalsachdev/canvas-mcp/pull/490)). Thanks [@KKazuhaK](https://github.com/KKazuhaK) for #490, #491 and #494.
+- An ambiguous course alias is refused before any read or write is sent ([#482](https://github.com/vishalsachdev/canvas-mcp/pull/482)).
+- Canvas error bodies stay out of student tool output, and student tool errors are fenced as untrusted data ([#481](https://github.com/vishalsachdev/canvas-mcp/pull/481)). Startup context and remote statistics are fenced as data too ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)).
+- Release pipeline: the MCP publisher binary is pinned and hash-verified, `id-token` is limited to the two publish jobs, packages are checked for local-only files, and the maintenance workflow separates agent analysis from posting ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)). Interactive Claude review triggers are restricted ([#516](https://github.com/vishalsachdev/canvas-mcp/pull/516)).
+
 ### Added
 
-- When `ALLOWED_WRITE_TOOLS` withholds tools, the server's MCP instructions now say so: a read-only server states it is read-only (and, on HTTP, that the user can run Canvas MCP locally to make changes), and an allowlisted server names the write tools it offers. A missing write tool no longer looks like a bug to the user. No tool is added or changed.
+- **`get_student_submission`** reads one student's current submission and its visible text comments ([#487](https://github.com/vishalsachdev/canvas-mcp/pull/487)). It requires the Canvas `manage_grades` permission, validates the requested and returned IDs, keeps anonymization and body redaction, and fences untrusted text. Input is bounded: 12,000 body characters and ten comments of 800 characters, with a notice when it truncates. It returns no attachments, URLs, media or submission history. `list_submissions` is unchanged.
+- When `ALLOWED_WRITE_TOOLS` withholds tools, the server's MCP instructions now say so: a read-only server states it is read-only (and, on HTTP, that the user can run Canvas MCP locally to make changes), and an allowlisted server names the write tools it offers. A missing write tool no longer looks like a bug to the user. No tool is added or changed ([#503](https://github.com/vishalsachdev/canvas-mcp/pull/503)).
+
+### Fixed
+
+- HTML and email text go through one bounded tokenizer that never rescans the rest of the input after malformed markup ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)). It keeps scanning after a stray quote, accepts a null page body, handles compound underlines, and matches DesignPLUS IDs and manual bullets.
+- Accessibility scans parse tags and attributes, request page bodies, and report an error instead of a clean result when Canvas returns no content ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)).
+- Announcement deletion refuses a target that Canvas reports as an ordinary discussion ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)).
+- The package metadata gave a wrong maintainer email. It and `SECURITY.md` now name vishal@illinois.edu ([#521](https://github.com/vishalsachdev/canvas-mcp/pull/521)).
+
+### Documentation
+
+- Canvas OAuth scope inventory and institutional pilot matrix ([#486](https://github.com/vishalsachdev/canvas-mcp/pull/486)); corrected student planner write-confirmation claims ([#479](https://github.com/vishalsachdev/canvas-mcp/pull/479)); a link to the companion UIUC course discovery MCP server.
 
 ## [1.14.0] — 2026-10-07
 
