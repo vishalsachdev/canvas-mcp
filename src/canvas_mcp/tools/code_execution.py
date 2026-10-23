@@ -10,27 +10,41 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any
 from urllib.parse import urlparse
 
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from ..core.config import get_config
+from ..core.config import Config, get_config
 from ..core.credentials import get_request_credentials, is_http_request_active
 from ..core.logging import log_warning
 from ..core.validation import validate_params
 
 # Environment variable allowlist for subprocess execution.
 # Only these keys are passed through from the host environment.
-_SAFE_ENV_KEYS = frozenset({
-    "PATH", "HOME", "USER", "SHELL", "TERM", "LANG", "LC_ALL",
-    "NODE_PATH", "NODE_OPTIONS", "NODE_ENV",
-    "TMPDIR", "TMP", "TEMP",
-    # Container runtime vars needed for Docker/Podman sandbox mode
-    "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH",
-    "CONTAINER_HOST",
-})
+_SAFE_ENV_KEYS = frozenset(
+    {
+        "PATH",
+        "HOME",
+        "USER",
+        "SHELL",
+        "TERM",
+        "LANG",
+        "LC_ALL",
+        "NODE_PATH",
+        "NODE_OPTIONS",
+        "NODE_ENV",
+        "TMPDIR",
+        "TMP",
+        "TEMP",
+        # Container runtime vars needed for Docker/Podman sandbox mode
+        "DOCKER_HOST",
+        "DOCKER_CONTEXT",
+        "DOCKER_TLS_VERIFY",
+        "DOCKER_CERT_PATH",
+        "CONTAINER_HOST",
+    }
+)
 
 
 def _container_run_script(container_code_api_dir: str) -> str:
@@ -47,13 +61,13 @@ def _container_run_script(container_code_api_dir: str) -> str:
     return (
         'mkdir -p "$HOME/run" && '
         f'ln -s {container_code_api_dir}/* "$HOME/run/" && '
-        'if [ -d /workspace/node_modules ]; then '
+        "if [ -d /workspace/node_modules ]; then "
         'ln -s /workspace/node_modules "$HOME/run/node_modules"; fi && '
         'cat > "$HOME/run/code.ts" && npx tsx "$HOME/run/code.ts"'
     )
 
 
-def _resolve_canvas_credentials(config: Any) -> tuple[str, str]:
+def _resolve_canvas_credentials(config: Config) -> tuple[str, str]:
     """Resolve (canvas_api_url, canvas_api_token) for the current context.
 
     Fail-closed: in HTTP mode the caller's per-request token is required and
@@ -64,10 +78,23 @@ def _resolve_canvas_credentials(config: Any) -> tuple[str, str]:
         return req_creds.api_url, req_creds.api_token
     if is_http_request_active():
         raise PermissionError("Canvas token required for HTTP code execution")
-    return config.canvas_api_url, config.canvas_api_token
+
+    token = getattr(config, "canvas_api_token", "")
+    api_url = getattr(config, "canvas_api_url", "")
+    if token and isinstance(token, str) and token.strip():
+        return api_url, token
+
+    from canvas_mcp.auth import get_stdio_oauth
+
+    session = get_stdio_oauth(config)
+    if session is not None:
+        token_val, _gen = session.snapshot()
+        return api_url, token_val
+
+    return api_url, token
 
 
-def _build_safe_env(config: Any) -> dict[str, str]:
+def _build_safe_env(config: Config) -> dict[str, str]:
     """Build a filtered environment dict for subprocess execution.
 
     Only passes through keys in _SAFE_ENV_KEYS, plus explicitly adds
@@ -114,7 +141,7 @@ def _validate_container_image(image: str) -> bool:
         return False
     # Allow alphanumeric, dots, hyphens, underscores, slashes, and colons
     # Must have at least one colon for tag
-    pattern = r'^[a-zA-Z0-9._/-]+:[a-zA-Z0-9._-]+$'
+    pattern = r"^[a-zA-Z0-9._/-]+:[a-zA-Z0-9._-]+$"
     return bool(re.match(pattern, image))
 
 
@@ -249,11 +276,7 @@ if (typeof globalThis.fetch === 'function') {{
 }}
 """
     guard_file = tempfile.NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
-        suffix=".cjs",
-        dir=directory,
-        delete=False
+        mode="w", encoding="utf-8", suffix=".cjs", dir=directory, delete=False
     )
     guard_file.write(guard_contents)
     guard_file.flush()
@@ -280,17 +303,19 @@ def _find_tsx_cli_windows() -> str | None:
     # 1. Resolve via tsx.cmd on PATH — handles project-local (.bin), nvm, and
     #    standard global installs. Preferred because it respects the user's
     #    active environment over a potentially stale global install.
-    tsx_cmd = shutil.which('tsx')
+    tsx_cmd = shutil.which("tsx")
     if tsx_cmd:
         tsx_cmd_dir = os.path.dirname(os.path.realpath(tsx_cmd))
-        candidate = os.path.join(tsx_cmd_dir, 'node_modules', 'tsx', 'dist', 'cli.mjs')
+        candidate = os.path.join(tsx_cmd_dir, "node_modules", "tsx", "dist", "cli.mjs")
         if os.path.exists(candidate):
             return candidate
 
     # 2. Fallback: standard global npm install (%APPDATA%\npm\node_modules\tsx)
-    appdata = os.environ.get('APPDATA', '')
+    appdata = os.environ.get("APPDATA", "")
     if appdata:
-        candidate = os.path.join(appdata, 'npm', 'node_modules', 'tsx', 'dist', 'cli.mjs')
+        candidate = os.path.join(
+            appdata, "npm", "node_modules", "tsx", "dist", "cli.mjs"
+        )
         if os.path.exists(candidate):
             return candidate
 
@@ -304,20 +329,23 @@ def _build_local_tsx_command(temp_file_path: str) -> list[str]:
     (like npx.cmd) without shell=True. To avoid this, on Windows we locate the tsx
     CLI module directly and run it via node. On all other platforms we use npx.
     """
-    if sys.platform != 'win32':
-        return ['npx', 'tsx', temp_file_path]
+    if sys.platform != "win32":
+        return ["npx", "tsx", temp_file_path]
 
     # mypy evaluates sys.platform for the host OS and flags this Windows-only
     # branch as unreachable; it is live when running on Windows.
-    node_path = shutil.which('node') or 'node'  # type: ignore[unreachable]
+    node_path = shutil.which("node") or "node"  # type: ignore[unreachable]
     tsx_cli = _find_tsx_cli_windows()
     if tsx_cli:
         return [node_path, tsx_cli, temp_file_path]
 
     # tsx not found — return an error command instead of falling back to npx
     # which would just re-trigger the same .cmd resolution failure (issue #83)
-    return [node_path, '-e',
-            'console.error("Error: tsx not found. Install globally: npm install -g tsx"); process.exit(1)']
+    return [
+        node_path,
+        "-e",
+        'console.error("Error: tsx not found. Install globally: npm install -g tsx"); process.exit(1)',
+    ]
 
 
 def _detect_container_runtime() -> str | None:
@@ -333,7 +361,7 @@ async def _runtime_available(runtime: str) -> bool:
             runtime,
             "version",
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
         )
     except FileNotFoundError:
         return False
@@ -357,10 +385,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
     # and assume repeating it does more (issue #204).
     @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=False))
     @validate_params
-    async def execute_typescript(
-        code: str,
-        timeout: int = 120
-    ) -> str:
+    async def execute_typescript(code: str, timeout: int = 120) -> str:
         """Run TypeScript (Node.js, ESM, top-level await) with Canvas API access.
 
         For bulk work whose per-item data should not pass through the
@@ -461,7 +486,9 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     sandbox_mode = "local"
                 else:
                     container_runtime = _detect_container_runtime()
-                    if container_runtime and await _runtime_available(container_runtime):
+                    if container_runtime and await _runtime_available(
+                        container_runtime
+                    ):
                         sandbox_mode = "container"
                     elif sandbox_mode_setting == "container":
                         return _sandbox_unavailable_error(
@@ -517,8 +544,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
             if guard_path:
                 extra_node_options.append(f"--require={guard_path}")
             node_options_local = _append_node_options(
-                os.environ.get("NODE_OPTIONS"),
-                extra_node_options
+                os.environ.get("NODE_OPTIONS"), extra_node_options
             )
 
             if guard_container_path:
@@ -529,8 +555,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     )
                 container_extra_options.append(f"--require={guard_container_path}")
                 node_options_container = _append_node_options(
-                    os.environ.get("NODE_OPTIONS"),
-                    container_extra_options
+                    os.environ.get("NODE_OPTIONS"), container_extra_options
                 )
             else:
                 node_options_container = node_options_local
@@ -549,11 +574,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
         else:
             # Create a temporary file for the code
             with tempfile.NamedTemporaryFile(
-                mode='w',
-                encoding="utf-8",
-                suffix='.ts',
-                dir=code_api_dir,
-                delete=False
+                mode="w", encoding="utf-8", suffix=".ts", dir=code_api_dir, delete=False
             ) as temp_file:
                 # Write the user's code
                 temp_file.write(code)
@@ -564,6 +585,22 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
             code_hash = hashlib.sha256(code.encode()).hexdigest()[:16]
             exec_start = time.monotonic()
 
+            req_creds_exec = get_request_credentials()
+            if (
+                not req_creds_exec
+                and not is_http_request_active()
+                and (not config.canvas_api_token or not config.canvas_api_token.strip())
+            ):
+                from canvas_mcp.auth import OAuthError, get_stdio_oauth
+
+                session = get_stdio_oauth(config)
+                if session is not None:
+                    try:
+                        _tok, gen = session.snapshot()
+                        await session.refresh(gen)
+                    except OAuthError as exc:
+                        return f"❌ Code execution refused: OAuth token refresh failed ({type(exc).__name__})"
+
             # Prepare filtered environment variables (allowlist only)
             env = _build_safe_env(config)
             if node_options_local:
@@ -573,9 +610,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
             if sandbox_enabled and config.ts_sandbox_timeout_sec > 0:
                 effective_timeout = min(timeout, config.ts_sandbox_timeout_sec)
                 if effective_timeout != timeout:
-                    message = (
-                        f"Timeout reduced to {effective_timeout} seconds by TS_SANDBOX_TIMEOUT_SEC."
-                    )
+                    message = f"Timeout reduced to {effective_timeout} seconds by TS_SANDBOX_TIMEOUT_SEC."
                     warnings.append(message)
                     log_warning(message)
 
@@ -617,30 +652,32 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                 if config.ts_sandbox_cpu_limit > 0:
                     cmd.extend(["--ulimit", f"cpu={config.ts_sandbox_cpu_limit}"])
 
-                cmd.extend([
-                    # Mount the workspace read-only so executed code cannot modify
-                    # host repo files; give it a writable tmpfs for scratch instead.
-                    "-v",
-                    f"{repo_root}:/workspace:ro",
-                    "--tmpfs",
-                    "/tmp:rw,noexec,nosuid,size=64m",
-                    # $HOME needs to be writable and exec-allowed for npx's
-                    # tsx install step; unlike /tmp above, this one is not
-                    # noexec so a native postinstall binary (esbuild) can run.
-                    "--tmpfs",
-                    "/home/sandbox:rw,exec,nosuid,size=64m",
-                    "-w",
-                    "/workspace",
-                    "-e",
-                    "HOME=/home/sandbox",
-                    "-e",
-                    f"CANVAS_API_URL={canvas_api_url}",
-                    # Pass the Canvas token by name only so its value is taken from
-                    # this process's (filtered) environment and never appears in the
-                    # container runtime's argv (visible via ps/proc to other users).
-                    "-e",
-                    "CANVAS_API_TOKEN",
-                ])
+                cmd.extend(
+                    [
+                        # Mount the workspace read-only so executed code cannot modify
+                        # host repo files; give it a writable tmpfs for scratch instead.
+                        "-v",
+                        f"{repo_root}:/workspace:ro",
+                        "--tmpfs",
+                        "/tmp:rw,noexec,nosuid,size=64m",
+                        # $HOME needs to be writable and exec-allowed for npx's
+                        # tsx install step; unlike /tmp above, this one is not
+                        # noexec so a native postinstall binary (esbuild) can run.
+                        "--tmpfs",
+                        "/home/sandbox:rw,exec,nosuid,size=64m",
+                        "-w",
+                        "/workspace",
+                        "-e",
+                        "HOME=/home/sandbox",
+                        "-e",
+                        f"CANVAS_API_URL={canvas_api_url}",
+                        # Pass the Canvas token by name only so its value is taken from
+                        # this process's (filtered) environment and never appears in the
+                        # container runtime's argv (visible via ps/proc to other users).
+                        "-e",
+                        "CANVAS_API_TOKEN",
+                    ]
+                )
                 if node_options_container:
                     cmd.extend(["-e", f"NODE_OPTIONS={node_options_container}"])
 
@@ -649,15 +686,16 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                 # the container, and run from there (see _container_run_script
                 # for why `canvas/` is linked beside it).
                 container_code_api_dir = (
-                    "/workspace/"
-                    + code_api_dir.relative_to(repo_root).as_posix()
+                    "/workspace/" + code_api_dir.relative_to(repo_root).as_posix()
                 )
-                cmd.extend([
-                    config.ts_sandbox_container_image,
-                    "sh",
-                    "-c",
-                    _container_run_script(container_code_api_dir),
-                ])
+                cmd.extend(
+                    [
+                        config.ts_sandbox_container_image,
+                        "sh",
+                        "-c",
+                        _container_run_script(container_code_api_dir),
+                    ]
+                )
             else:
                 # Reached only when sandbox_mode != "container" (or the
                 # container runtime check above failed, which can't happen:
@@ -669,21 +707,23 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
 
             # Run the TypeScript code
             preexec_fn = None
-            if sandbox_enabled and config.ts_sandbox_cpu_limit > 0 and sandbox_mode == "local":
+            if (
+                sandbox_enabled
+                and config.ts_sandbox_cpu_limit > 0
+                and sandbox_mode == "local"
+            ):
                 try:
                     import resource
 
                     def _limit_resources() -> None:
                         resource.setrlimit(
                             resource.RLIMIT_CPU,
-                            (config.ts_sandbox_cpu_limit, config.ts_sandbox_cpu_limit)
+                            (config.ts_sandbox_cpu_limit, config.ts_sandbox_cpu_limit),
                         )
 
                     preexec_fn = _limit_resources
                 except Exception:
-                    message = (
-                        "CPU limits could not be applied on this platform."
-                    )
+                    message = "CPU limits could not be applied on this platform."
                     warnings.append(message)
                     log_warning(message)
             process = await asyncio.create_subprocess_exec(
@@ -693,31 +733,36 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                 stderr=asyncio.subprocess.PIPE,
                 env=env,
                 cwd=str(repo_root),
-                preexec_fn=preexec_fn
+                preexec_fn=preexec_fn,
             )
 
             try:
                 stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                    process.communicate(input=stdin_payload),
-                    timeout=effective_timeout
+                    process.communicate(input=stdin_payload), timeout=effective_timeout
                 )
 
-                stdout = stdout_bytes.decode('utf-8', errors='replace')
-                stderr = stderr_bytes.decode('utf-8', errors='replace')
+                stdout = stdout_bytes.decode("utf-8", errors="replace")
+                stderr = stderr_bytes.decode("utf-8", errors="replace")
 
                 # Format output
                 result_lines = []
 
                 if process.returncode == 0:
-                    result_lines.append("✅ TypeScript execution completed successfully\n")
+                    result_lines.append(
+                        "✅ TypeScript execution completed successfully\n"
+                    )
                 else:
-                    result_lines.append(f"❌ TypeScript execution failed with exit code {process.returncode}\n")
+                    result_lines.append(
+                        f"❌ TypeScript execution failed with exit code {process.returncode}\n"
+                    )
 
                 if sandbox_enabled:
                     result_lines.append("=== Sandbox ===")
                     result_lines.append(f"Mode: {sandbox_mode}")
                     if block_outbound:
-                        allowlist_label = ", ".join(allowlist_hosts) if allowlist_hosts else "none"
+                        allowlist_label = (
+                            ", ".join(allowlist_hosts) if allowlist_hosts else "none"
+                        )
                         result_lines.append(f"Network allowlist: {allowlist_label}")
                     if config.ts_sandbox_memory_limit_mb > 0:
                         result_lines.append(
@@ -741,11 +786,17 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
 
                 # Audit: log successful/failed execution
                 from ..core.audit import log_code_execution
+
                 duration = time.monotonic() - exec_start
                 exec_status = "success" if process.returncode == 0 else "error"
                 log_code_execution(
-                    code_hash, sandbox_mode, exec_status, duration,
-                    error=f"exit code {process.returncode}" if process.returncode != 0 else None,
+                    code_hash,
+                    sandbox_mode,
+                    exec_status,
+                    duration,
+                    error=f"exit code {process.returncode}"
+                    if process.returncode != 0
+                    else None,
                 )
 
                 return "\n".join(result_lines) if result_lines else "No output"
@@ -756,9 +807,13 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
 
                 # Audit: log timeout
                 from ..core.audit import log_code_execution
+
                 duration = time.monotonic() - exec_start
                 log_code_execution(
-                    code_hash, sandbox_mode, "timeout", duration,
+                    code_hash,
+                    sandbox_mode,
+                    "timeout",
+                    duration,
                 )
 
                 return f"❌ Execution timed out after {effective_timeout} seconds"
@@ -816,14 +871,14 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
 
         for ts_file in code_api_dir.rglob("*.ts"):
             # Skip certain files
-            if ts_file.name in ['index.ts', 'client.ts']:
+            if ts_file.name in ["index.ts", "client.ts"]:
                 continue
 
             # Get relative path from code_api
             rel_path = ts_file.relative_to(code_api_dir)
 
             # Get category (parent directory name)
-            category = rel_path.parent.name if rel_path.parent.name != '.' else 'root'
+            category = rel_path.parent.name if rel_path.parent.name != "." else "root"
 
             # Get import path (convert .ts to .js for ESM imports)
             import_path = f"./{rel_path.parent}/{rel_path.stem}.js"
@@ -856,8 +911,12 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
 
         result_lines.append("Example Usage:")
         result_lines.append("```typescript")
-        result_lines.append("import { bulkGrade } from './canvas/grading/bulkGrade.js';")
-        result_lines.append("import { listSubmissions } from './canvas/assignments/listSubmissions.js';")
+        result_lines.append(
+            "import { bulkGrade } from './canvas/grading/bulkGrade.js';"
+        )
+        result_lines.append(
+            "import { listSubmissions } from './canvas/assignments/listSubmissions.js';"
+        )
         result_lines.append("")
         result_lines.append("// Your code here...")
         result_lines.append("```")
