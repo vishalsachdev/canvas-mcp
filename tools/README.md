@@ -787,7 +787,8 @@ from a truncated result without consulting the complete submission in Canvas.
 Private, hidden, and draft comments are excluded when marked in the response;
 Canvas controls which unmarked comments are visible to the token. Author
 metadata, attachments, URLs, media, history, and read-status updates are excluded.
-The existing `list_submissions` output is unchanged.
+Use `list_submissions(include_body=True)` for bounded bulk text retrieval under
+the same permission and anonymization rules.
 
 **Scoped OAuth keys:** Allow GET
 `/api/v1/courses/:course_id/permissions` and
@@ -803,6 +804,23 @@ View student submissions for an assignment.
 **Parameters:**
 - `course_identifier`: Course code or ID
 - `assignment_id`: Assignment ID
+- `include_body`: Optional boolean, default `False`. Include submitted text
+  only after Canvas explicitly grants `manage_grades` in this course.
+
+The default returns compact submission metadata. With `include_body=True`,
+HTML is converted to plain text and each body is fenced as untrusted data.
+Each body is limited to 12,000 input characters; the complete output, including
+metadata and fences, is limited to 60,000 characters. Truncated bodies and the
+number of omitted submission records are clearly marked. Read omitted records
+with `get_student_submission`; consult Canvas for complete text beyond its body
+limit. These limits bound parsing and model output, not the HTTP response size.
+Comments, attachments, URLs, media, and submission history are excluded.
+
+The option preserves the existing client anonymization: when
+`ENABLE_DATA_ANONYMIZATION=true`, bodies remain redacted. It does not bypass or
+change that setting. Scoped OAuth keys also need GET
+`/api/v1/courses/:course_id/permissions`, in addition to the submissions-list and
+course-discovery scopes. No write scope is needed.
 
 **Example:**
 ```

@@ -155,9 +155,7 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "list_quizzes": _fenced("fence_untrusted_inline"),
     "list_planner_notes": _fenced("_format_note"),
     "list_rubrics": _fenced("fence_untrusted_inline"),
-    "list_submissions": _deferred(
-        "Returns IDs, timestamps, scores/grade labels, and course code; no unrestricted author free text."
-    ),
+    "list_submissions": _fenced("fence_untrusted"),
     "list_users": _fenced("fence_untrusted_inline"),
     "parse_ufixit_violations": _fenced("fence_untrusted_fields"),
     "read_course_file": _fenced("fence_untrusted_inline"),

@@ -307,7 +307,7 @@
     {
       "name": "list_submissions",
       "category": "educator",
-      "description": "View student submissions for an assignment",
+      "description": "View compact submission metadata; opt in to bounded, fenced submission text with manage_grades permission and existing anonymization",
       "parameters": [
         {
           "name": "course_identifier",
@@ -320,9 +320,16 @@
           "type": "string | integer",
           "required": true,
           "description": "Assignment ID"
+        },
+        {
+          "name": "include_body",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Include untrusted plain text; requires explicit manage_grades. Existing anonymization still redacts bodies. Limit 12,000 input characters per body and 60,000 total output characters; truncation and omitted records are marked."
         }
       ],
-      "returns": "List of submissions with student info, scores, and status",
+      "returns": "Submission metadata and optional bounded, fenced text; no comments, attachments, URLs, media, or history",
       "examples": [
         "Who has submitted Assignment 2?",
         "Show me submissions for the latest assignment"
