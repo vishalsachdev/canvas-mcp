@@ -4,6 +4,7 @@
 **File:** src/canvas_mcp/tools/code_execution.py, src/canvas_mcp/code_api/ (design only; no change proposed yet)
 **Priority:** normal
 **Requested by:** Xplorer for Vishal, 2026-10-20
+**Updated:** 2026-10-22 (added Pi codemode reference)
 **Authored and committed by:** [Xplorer]
 
 ## What to change
@@ -23,6 +24,17 @@ The option to evaluate for #157:
 4. Generate the code-API catalog from the registered tools, so the two lists cannot drift.
 
 Measure the cost first. Bulk jobs make many calls, and a bridge adds a round trip per call. Batching operations may be needed to keep the token savings that justify `execute_typescript`.
+
+## Pi codemode reference (earendil-works/pi)
+
+Pi's `codemode` tool is a second piece of prior art. Source: [packages/coding-agent/docs/codemode.md](https://github.com/earendil-works/pi/blob/16f5f0af4d85ca583d045ceb5ed6d646fcaf7761/packages/coding-agent/docs/codemode.md) at commit 16f5f0a. Points that apply to canvas-mcp:
+
+1. **Same boundary.** Scripts run in a QuickJS sandbox that "has no Node APIs, file system, network, or timers; scripts reach the outside world only through tools and `models`." Every outside call is `tools.<name>(args)`. This matches the boundary proposed above. Cite it as prior art in #157.
+2. **No rollback.** "Tool calls are real: calls made before a failure are not undone." Calls still running when the script ends are cancelled. A half-failed script can leave partial writes. So keep Canvas write tools (grades, submissions, announcements, messages) out of the code-mode path by default. If they are added later, each one needs an explicit confirm step.
+3. **Deferred tool exposure.** Pi does not list MCP tools in the `codemode` description. Scripts find them with `searchTools()` (BM25 ranking, default limit 8), `describeTool()`, `describeNamespace()` or `ALL_TOOLS`. Listed declarations share a budget of about 3000 tokens (`codemode.inlineBudget`). canvas-mcp has a large tool list, so the code-API catalog could work the same way: a short inline list plus search and describe helpers.
+4. **Output filtering.** Only the script's output reaches the model. It is capped by `max_output_tokens` (default 10000). Longer output keeps its start and end, and the full text goes to a temp file. This suits large roster and submission listings. Filtering must happen inside the script, before output, so learner PII is not echoed to the model. The overflow temp file also holds full output, so it needs the same care.
+5. **Small persistent store.** `store(key, value)` and `load(key)` keep small JSON values across calls. Writes are kept only when the script succeeds. Pi means it for IDs, cursors and summaries. It is optional prior art for course IDs or pagination cursors. Do not store learner data there.
+6. **Optional `mode: only`.** With `codemode.mode: only`, Pi hides the normal tools so the model must call them through scripts. This could be a later option for canvas-mcp. It should not be the default.
 
 ## Why
 
