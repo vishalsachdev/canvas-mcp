@@ -82,7 +82,7 @@ execution defaults. Current code and measured behavior take precedence.
   failure by node name. Run focused checks while iterating. Run the TypeScript
   suite/build whenever TypeScript changes, and at the final integration gate.
 - Keep commits independently revertible. Record results, commit SHAs, remaining
-  work and maintainer questions in committed `docs/overhaul/STATUS.md` at the end.
+  work and maintainer questions in committed `internal/overhaul/STATUS.md` at the end.
 - Compare live tool schemas/annotations across all six role/feature combinations
   with the baseline. Inspect package contents and keep audit artifacts out of
   the website upload. No private scan report or historical credential enters git.
