@@ -697,6 +697,19 @@ async def test_group_creation_response_cannot_adopt_a_preexisting_foreign_group_
     assert len(api.canvas.writes) == before + 1
 
 
+@pytest.mark.parametrize("name", [None, 17, "missing"])
+async def test_unrecorded_group_with_unusable_name_blocks_resume(api, name) -> None:
+    result = await partial(api)
+    api.canvas.groups[99] = {**api.canvas.groups[10], "id": 99, "name": name}
+    if name == "missing":
+        api.canvas.groups[99].pop("name")
+    api.canvas.members[99] = {}
+    before = len(api.canvas.writes)
+    response = await api.call(RESUME, run_id=result["run_id"])
+    assert "error" in response and "confirmation_token" not in response
+    assert len(api.canvas.writes) == before
+
+
 async def test_hosted_policy_removes_both_tools_and_student_profile_never_registers_them(
     api,
 ) -> None:

@@ -610,7 +610,7 @@ def main() -> None:
         "--role",
         choices=["student", "educator", "all"],
         default=None,
-        help="Tool profile: student (~51 tools), educator (~93 tools), all (default: all)"
+        help="Tool profile: student (~51 tools), educator (~96 tools), all (default: all)"
     )
     parser.add_argument(
         "--list-grants",

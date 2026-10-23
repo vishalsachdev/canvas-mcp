@@ -17,12 +17,15 @@ url:POST|/api/v1/courses/:course_id/discussion_topics
 url:POST|/api/v1/courses/:course_id/discussion_topics/:topic_id/entries
 url:POST|/api/v1/courses/:course_id/discussion_topics/:topic_id/entries/:entry_id/replies
 url:POST|/api/v1/courses/:course_id/files
+url:POST|/api/v1/courses/:course_id/group_categories
 url:POST|/api/v1/courses/:course_id/modules
 url:POST|/api/v1/courses/:course_id/modules/:module_id/items
 url:POST|/api/v1/courses/:course_id/pages
 url:POST|/api/v1/courses/:course_id/rubric_associations
 url:POST|/api/v1/courses/:course_id/rubrics
 url:POST|/api/v1/courses/:course_id/rubrics/upload
+url:POST|/api/v1/group_categories/:group_category_id/groups
+url:POST|/api/v1/groups/:group_id/memberships
 url:POST|/api/v1/planner/overrides
 url:POST|/api/v1/planner_notes
 url:PUT|/api/v1/conversations

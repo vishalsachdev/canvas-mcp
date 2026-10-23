@@ -228,7 +228,12 @@ async def _inspect(run: GroupRun) -> dict[str, Any]:
             "Recorded group set changed or its course ownership cannot be verified."
         )
     groups = await _list(f"/group_categories/{run.category}/groups")
-    if any(not _identity(g, run.course, category=run.category) for g in groups):
+    if any(
+        not _identity(g, run.course, category=run.category)
+        or not isinstance(g.get("name"), str)
+        or not g["name"].strip()
+        for g in groups
+    ):
         raise ValueError(
             "Group ownership or complete category contents cannot be verified."
         )

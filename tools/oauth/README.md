@@ -1,8 +1,8 @@
 # Canvas OAuth scope inventory and institutional pilot
 
 Related: [issue #236](https://github.com/vishalsachdev/canvas-mcp/issues/236).
-Source snapshot: `3170ca69ee51c603f1f35f1671efcfebdbbca296` (main).
-Documentation checked October 8, 2026 (America/Chicago).
+Source snapshot: `ae7b140383faae96057514021a48caf3635e0afe` (group creation branch), plus the fail-closed group-name review fix in this change. Existing call-site references retain their original snapshot line numbers; new group-creation routes are indexed against the reviewed module.
+Documentation checked October 23, 2026 (America/Chicago).
 
 This is a documentation inventory, **not implemented OAuth support or evidence of
 live scope enforcement**. Personal `CANVAS_API_TOKEN` authentication remains
@@ -24,7 +24,7 @@ helper names are not additional MCP tools. Line numbers are snapshot references.
 one-per-line published scopes for reference/pasting. They are **supersets, not a
 recommended key configuration**: select the smallest pilot capability below and
 its dependencies. All listed scopes remain unverified against a real scoped key.
-The inventory contains 104 distinct published scopes: 65 GET and 39 write scopes.
+The inventory contains 112 distinct published scopes: 70 GET and 42 write scopes.
 Canvas also documents an authorization-request size limit; scope count alone does
 not guarantee a full superset fits. Prefer small capability subsets.
 
@@ -78,6 +78,7 @@ of truth for scope spelling.
 | Student module completion | Student, opt-in write | Module-item GET and PUT done, course policy GET, course resolution. |
 | Planner / personal calendar | Student, opt-in write | Selected planner-note/calendar-event POST/PUT/DELETE plus ownership reads; planner overrides GET/POST/PUT and reads of the linked course object. Course planner completion also needs module-completion permission at the tool-policy layer. |
 | Inbox | Shared reads; student/educator writes | Conversations list/detail/unread_count, recipients search; POST conversation or add_message and course checks. Marking read uses PUT conversations. Student send/reply also requires identity, recipient/enrollment and course-policy checks. |
+| Course group creation / resume | Educator, confirmed write | Course permissions/enrollments, course group categories, category detail/groups, group detail/memberships and membership by user; POST category/group/individual membership. Both tools require explicit group-management/roster permission and the write allowlist. No group reassignment or adoption. |
 | Course copy | Educator, opt-in write | Source/target courses; target assignments/pages/modules/discussions/files for occupancy; migration POST and migration/progress/issues GET. |
 
 Shared dependencies to inspect: `core/cache.py` (course resolution/display),
@@ -135,7 +136,7 @@ server with `mcp-remote` does not establish Canvas refresh behavior.
 
 Set a student/educator role as appropriate, disable code execution and GraphQL,
 leave student writes disabled, and set `ALLOWED_WRITE_TOOLS=none` for initial reads.
-Do not grant all 104 scopes just to make a failed test pass. Run an allowed request
+Do not grant all 112 scopes just to make a failed test pass. Run an allowed request
 and an omitted-scope request with the same user and valid token to isolate scopes
 from role permissions. Repeat after clearing caches/restarting.
 
