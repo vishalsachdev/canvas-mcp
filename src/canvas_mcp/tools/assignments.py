@@ -503,9 +503,10 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
             assignment_id_str = assignment
         course_id = await get_course_id(course_identifier)
         if include_body:
-            course_id = coerce_canvas_id(course_id)
-            if course_id is None:
+            numeric_course_id = coerce_canvas_id(course_id)
+            if numeric_course_id is None:
                 return "Error: Could not resolve course to a numeric Canvas ID."
+            course_id = numeric_course_id
             permissions = await make_canvas_request(
                 "get", f"/courses/{course_id}/permissions",
                 params={"permissions[]": ["manage_grades"]},
@@ -529,8 +530,8 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
 
         if include_body and (not isinstance(submissions, list) or any(
             not isinstance(record, dict)
-            or coerce_canvas_id(record.get("user_id")) is None
-            or coerce_canvas_id(record.get("assignment_id")) != assignment_id_str
+            or coerce_canvas_id(record.get("user_id", "")) is None
+            or coerce_canvas_id(record.get("assignment_id", "")) != assignment_id_str
             for record in submissions
         )):
             return "Error: Missing, malformed, or mismatched submission records."
