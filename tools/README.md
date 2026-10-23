@@ -724,6 +724,87 @@ on some instances. Results from both are merged and deduplicated.
 
 ## Educator Tools
 
+
+### Course Project Group Creation
+
+#### `create_course_groups`
+
+Preview and then explicitly confirm creation of a **new** course group set,
+groups, and active-student memberships. Requires explicit `manage_groups_add`,
+`manage_groups_manage`, and `read_roster` permissions in the selected course.
+The educator profile is a registration filter; Canvas permissions are checked
+again on every operation. Both group tools are Canvas writes, absent from HTTP
+servers unless the operator enables them through `ALLOWED_WRITE_TOOLS`.
+
+Parameters: `course_identifier` (course code or ID), `group_set_name` (up to 100
+characters), `csv_data`, and optional `confirmation_token`.
+
+CSV columns are exactly `group_name,description,canvas_user_id`, in any order.
+Use one student per row, repeating the exact group name and description:
+
+```csv
+group_name,description,canvas_user_id
+Alpha,First synthetic project,101
+Alpha,First synthetic project,102
+Beta,Second synthetic project,103
+```
+
+Names/emails are not matched to people. IDs must identify visible active
+students. Duplicate students (even in the same group), conflicting descriptions,
+case-ambiguous group names, malformed rows, and existing group-set names are
+refused before any write. Limits: 200 students, 50 groups, 250,000 CSV characters;
+group names are at most 100 characters and descriptions at most 1,000.
+Descriptions are plain text. Names/descriptions carrying untrusted-content fence
+markers are refused. Every author-controlled name/description in output is fenced;
+roster names, emails, and raw Canvas error bodies are not returned. Client-layer
+anonymization remains active, including the new membership reads.
+
+The first call returns the full plan and a token and writes nothing. Show it to
+the instructor, obtain explicit approval, then repeat identical arguments with
+that single-use token within five minutes. The token binds the caller, course,
+plan and freshly re-read state. The tool creates the set, then all groups, then
+memberships, reading each result back. A partial report lists created IDs,
+confirmed/failed/uncertain/pending members and the last operation's outcome.
+There is no rollback or deletion. Check partial output before proceeding.
+
+#### `resume_course_group_creation`
+
+Parameters: the earlier result's `run_id` and optional `confirmation_token`.
+No course, group-set, group IDs or changed CSV may be supplied. Only server-held,
+caller-owned records of objects created by that run are accepted. A fresh preview
+and fresh single-use token are required, with the same permissions and current
+ownership and membership revalidated. Still-pending groups may be created inside
+the recorded set; existing groups are never adopted by name. Confirmed accepted
+memberships are skipped rather than posted again. Changed previously confirmed
+memberships are refused rather than silently restored.
+
+Every detected conflict (including accepted memberships, invitations and requests
+in another group of the same set) is shown, and **the entire remaining batch is
+refused before writing**. Existing assignments are left intact. Resolve the
+conflict in Canvas, then request a fresh preview. This tool does not move students
+between groups or accept existing pending invitations. New conflicts discovered
+during execution stop further writes and are reported together.
+
+If a category/group creation timed out without a trustworthy created ID, automatic
+resume stops for manual inspection; retrying could create duplicates. A known
+created ID with an unconfirmed read-back is revalidated before resume. An uncertain
+membership is reconciled against current membership state before any retry.
+
+Run records are in server memory, caller-bound, limited to 128 records and expire
+24 hours after creation. They do not survive restart and require HTTP replica
+affinity. Missing/expired records cannot be reconstructed from caller-supplied IDs.
+Canvas has no atomic membership compare-and-set: avoid concurrent edits to this
+group set during the operation. The server serializes its own group workflows,
+rechecks before each dispatch and never intentionally requests reassignment.
+
+Scoped OAuth keys need GET course/permissions/enrollments/group_categories,
+GET group_categories/:id and /:id/groups, GET groups/:id and /:id/memberships and
+/:id/users/:user_id, plus POST courses/:id/group_categories,
+POST group_categories/:id/groups and POST groups/:id/memberships. Course-name
+resolution uses the normal course-discovery scopes. No PUT/DELETE scope is used.
+
+---
+
 These tools provide instructors and TAs with course management, grading, analytics, and communication capabilities.
 
 ### Assignment Management

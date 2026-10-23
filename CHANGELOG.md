@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `list_submissions(include_body=True)` optionally returns submitted text after an explicit `manage_grades` permission check. Bodies retain anonymization redaction, are converted to plain text and fenced as untrusted data, and are bounded to 12,000 input characters per student and 60,000 output characters overall with clear truncation notices. The default compact output is unchanged; comments and attachments are excluded ([#513](https://github.com/vishalsachdev/canvas-mcp/issues/513)).
+- `create_course_groups` previews and then confirms a new course group set, groups and memberships from CSV. `resume_course_group_creation` resumes pending work using caller-owned recorded IDs, a fresh preview/token and current membership checks. Duplicate/conflicting input and all detected conflicting memberships are refused; existing groups are never adopted and students are never intentionally reassigned. Partial reports distinguish confirmed, failed, uncertain and pending work. Both educator tools follow the hosted write allowlist ([#520](https://github.com/vishalsachdev/canvas-mcp/issues/520)).
 
 ## [1.15.0] — 2026-10-23
 

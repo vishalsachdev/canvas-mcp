@@ -128,7 +128,9 @@ TOOL_EFFECTS: dict[str, Effect] = {
     "read_course_file": Effect.READ,
     "scan_course_content_accessibility": Effect.READ,
     "search_canvas_tools": Effect.READ,
-    # --- CANVAS_WRITE (49) ---
+    # --- CANVAS_WRITE (51) ---
+    "create_course_groups": Effect.CANVAS_WRITE,
+    "resume_course_group_creation": Effect.CANVAS_WRITE,
     "add_module_item": Effect.CANVAS_WRITE,
     "assign_peer_review": Effect.CANVAS_WRITE,
     "associate_rubric": Effect.CANVAS_WRITE,

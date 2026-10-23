@@ -32,6 +32,60 @@
   ],
   "tools": [
     {
+      "name": "create_course_groups",
+      "category": "educator",
+      "description": "Preview then confirm a NEW course group set, groups and memberships from CSV; rejects duplicates/conflicts and requires explicit group-management/roster permissions",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "group_set_name",
+          "type": "string",
+          "required": true,
+          "description": "New group-set name (existing names refused)"
+        },
+        {
+          "name": "csv_data",
+          "type": "string",
+          "required": true,
+          "description": "Exact columns group_name,description,canvas_user_id; one active student per row. Up to 200 students, 50 groups, 250000 characters. Duplicate students/conflicting rows refused."
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Single-use token from the current preview; show the preview and obtain explicit instructor approval first"
+        }
+      ],
+      "returns": "Preview/token or complete/partial/needs-inspection report with recorded IDs, member outcomes and caller-owned run_id. Unknown creation outcomes require manual inspection. No automatic rollback.",
+      "notes": "Requires manage_groups_add, manage_groups_manage and read_roster. Run records expire after 24h/server restart. Do not edit the target group set concurrently. Educator Canvas write; HTTP requires ALLOWED_WRITE_TOOLS."
+    },
+    {
+      "name": "resume_course_group_creation",
+      "category": "educator",
+      "description": "Fresh preview then confirm pending work in a prior caller-owned run, using only its recorded created targets and revalidating every membership; all detected conflicts refused",
+      "parameters": [
+        {
+          "name": "run_id",
+          "type": "string",
+          "required": true,
+          "description": "Server-issued run ID from the earlier run; no arbitrary Canvas IDs or changed CSV accepted"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Single-use token from the current preview; show the preview and obtain explicit instructor approval first"
+        }
+      ],
+      "returns": "Fresh preview/token, complete/partial report or all detected membership conflicts with no writes. Pending groups can be created within the recorded set; verified members skipped.",
+      "notes": "Same explicit permissions and write allowlist as create_course_groups. No adoption by name, student moves or restoration of changed confirmed memberships. Server-local 24h records; unknown creation IDs cannot be resumed automatically."
+    },
+    {
       "name": "get_my_profile",
       "category": "shared",
       "description": "Get your own Canvas identity (user ID, name, login ID)",

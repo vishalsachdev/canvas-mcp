@@ -306,7 +306,7 @@ def _endpoint_anonymization_mode(endpoint: str) -> str:
         return ANONYMIZE_FULL
 
     # Endpoints whose responses contain student records
-    if _has_route_segment(segments, {'users', 'submissions', 'enrollments', 'analytics'}):
+    if _has_route_segment(segments, {'users', 'submissions', 'enrollments', 'analytics', 'memberships'}):
         return ANONYMIZE_FULL
 
     # /search/recipients is the Inbox address book: the people the caller may
