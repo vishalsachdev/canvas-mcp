@@ -8,7 +8,7 @@ We take the security of Canvas MCP seriously. If you discover a security vulnera
 
 **DO NOT** open a public GitHub issue for security vulnerabilities. Instead:
 
-1. **Email**: Send details to the maintainer at the email listed in the repository
+1. **Email**: Send details to the maintainer at [vishal@illinois.edu](mailto:vishal@illinois.edu)
 2. **GitHub Security Advisory**: Use [GitHub's Security Advisory feature](https://github.com/vishalsachdev/canvas-mcp/security/advisories/new) (preferred)
 
 ### What to Include
@@ -232,7 +232,7 @@ Users must comply with:
 
 For security concerns:
 - **GitHub Security Advisory**: [Create Advisory](https://github.com/vishalsachdev/canvas-mcp/security/advisories/new) (preferred)
-- **Email**: See repository contact information
+- **Email**: [vishal@illinois.edu](mailto:vishal@illinois.edu)
 
 **Please do not open public issues for security vulnerabilities.**
 
