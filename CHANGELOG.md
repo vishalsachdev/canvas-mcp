@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `list_submissions(include_body=True)` optionally returns submitted text after an explicit `manage_grades` permission check. Bodies retain anonymization redaction, are converted to plain text and fenced as untrusted data, and are bounded to 12,000 input characters per student and 60,000 output characters overall with clear truncation notices. The default compact output is unchanged; comments and attachments are excluded ([#513](https://github.com/vishalsachdev/canvas-mcp/issues/513)).
+
 ## [1.15.0] — 2026-10-23
 
 A hardening release. Hosted (HTTP) callers are kept apart from each other, untrusted HTML is parsed in one bounded pass, and the release pipeline verifies what it publishes. One new tool reads a single student submission; no existing tool's name, arguments or output contract changed.

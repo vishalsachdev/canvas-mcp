@@ -473,22 +473,48 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
 
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params
-    async def list_submissions(course_identifier: str | int, assignment_id: str | int) -> str:
+    async def list_submissions(
+        course_identifier: str | int, assignment_id: str | int,
+        include_body: bool = False,
+    ) -> str:
         """List every submission record for one assignment.
 
         Returns one record per student (user ID, submitted-at time, score,
-        grade), including students who have not submitted. Does not return
-        submission content, attachments, or comments; use
-        get_rubric_assessment for a student's rubric scores.
+        grade), including students who have not submitted. Text is opt-in and
+        requires explicit manage_grades permission, just like
+        get_student_submission. Existing client-layer anonymization still
+        redacts bodies when ENABLE_DATA_ANONYMIZATION is on. Never returns
+        attachments or comments; use get_rubric_assessment for rubric scores.
 
         Args:
             course_identifier: Course code or Canvas ID
             assignment_id: Canvas assignment ID
+            include_body: Include plain text fenced as untrusted data (default
+                False). Each body is limited to 12,000 input characters; the
+                entire result is capped at 60,000 characters. Truncation and
+                omitted records are marked. Use get_student_submission for
+                individual records omitted by the total cap.
         """
-        course_id = await get_course_id(course_identifier)
-
-        # Ensure assignment_id is a string
         assignment_id_str = str(assignment_id)
+        if include_body:
+            assignment = coerce_canvas_id(assignment_id)
+            if assignment is None:
+                return "Error: assignment_id must be a numeric Canvas ID."
+            assignment_id_str = assignment
+        course_id = await get_course_id(course_identifier)
+        if include_body:
+            numeric_course_id = coerce_canvas_id(course_id)
+            if numeric_course_id is None:
+                return "Error: Could not resolve course to a numeric Canvas ID."
+            course_id = numeric_course_id
+            permissions = await make_canvas_request(
+                "get", f"/courses/{course_id}/permissions",
+                params={"permissions[]": ["manage_grades"]},
+            )
+            if (not isinstance(permissions, dict) or "error" in permissions
+                    or not (permissions.get("manage_grades") is True
+                            or permissions.get("manage_grades") == "true")):
+                return "Error: Explicit Canvas manage_grades permission is required."
 
         params = {
             "per_page": 100
@@ -499,7 +525,16 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
         )
 
         if isinstance(submissions, dict) and "error" in submissions:
-            return f"Error fetching submissions: {submissions['error']}"
+            detail = format_canvas_error(submissions['error']) if include_body else submissions['error']
+            return f"Error fetching submissions: {detail}"
+
+        if include_body and (not isinstance(submissions, list) or any(
+            not isinstance(record, dict)
+            or coerce_canvas_id(record.get("user_id", "")) is None
+            or coerce_canvas_id(record.get("assignment_id", "")) != assignment_id_str
+            for record in submissions
+        )):
+            return "Error: Missing, malformed, or mismatched submission records."
 
         if not submissions:
             return f"No submissions found for assignment {assignment_id}."
@@ -507,20 +542,43 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
         # Anonymization happens at the client layer (core/client.py) per
         # ENABLE_DATA_ANONYMIZATION (#179)
 
+        course_display = await get_course_code(course_id) or course_identifier
+        if include_body:
+            # Course display is part of the total cap too. Never slice a fence.
+            course_display = _submission_text(str(course_display), 200, html=False)
+        header = f"Submissions for Assignment {assignment_id_str} in course {course_display}:\n\n"
+        output_length = len(header)
         submissions_info = []
-        for submission in submissions:
+        for index, submission in enumerate(submissions):
             user_id = submission.get("user_id")
             submitted_at = submission.get("submitted_at", "Not submitted")
             score = submission.get("score", "Not graded")
             grade = submission.get("grade", "Not graded")
 
-            submissions_info.append(
+            record = (
                 f"User ID: {user_id}\nSubmitted: {submitted_at}\nScore: {score}\nGrade: {grade}\n"
             )
+            if include_body:
+                body = submission.get("body")
+                if isinstance(body, str) and body:
+                    record += fence_untrusted(_submission_text(body, 12000), "student submission")
+                else:
+                    record += "No submitted text available (unsubmitted or non-text submission)."
+                # Reserve room for an exact omission notice, including metadata
+                # and intact closing fences in the same overall output budget.
+                omitted = len(submissions) - index
+                notice = (
+                    "\n[truncated: total output limit of 60,000 characters reached; "
+                    f"{omitted} submission records omitted. "
+                    "Read individual records with get_student_submission.]"
+                )
+                if output_length + len(record) + 1 + len(notice) > 60000:
+                    submissions_info.append(notice)
+                    break
+            submissions_info.append(record)
+            output_length += len(record) + 1
 
-        # Try to get the course code for display
-        course_display = await get_course_code(course_id) or course_identifier
-        return f"Submissions for Assignment {assignment_id} in course {course_display}:\n\n" + "\n".join(submissions_info)
+        return header + "\n".join(submissions_info)
 
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     @validate_params

@@ -128,7 +128,7 @@ Course management, grading, and analytics. Requires instructor/TA role.
 |------|---------|
 | `list_assignments` | All assignments in a course; `raw_dates=True` appends every date as Canvas returns it (`due_at`, `unlock_at`, `lock_at`, `updated_at`, `all_dates`, checkpoint dates). Use it for due-date audits: a checkpointed discussion's `due_at` is null by design |
 | `get_assignment_details` | Full assignment info including description; `raw_dates=True` appends the same dates block |
-| `list_submissions` | Student submissions for grading |
+| `list_submissions` | Compact student submission metadata by default; `include_body=True` adds fenced plain text with an explicit `manage_grades` check, existing anonymization redaction, 12,000 input characters per body and 60,000 total output characters; truncation and omitted records are marked. No comments or attachments |
 | `get_student_submission` | One student’s current submitted text and visible text comments; requires `manage_grades`, preserves anonymization redaction, and caps output |
 | `get_assignment_analytics` | Performance statistics |
 | `create_assignment` | Create new assignment with due date, submission types, peer reviews |
