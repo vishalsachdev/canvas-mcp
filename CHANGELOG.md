@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.15.0] — 2026-10-23
 
-A hardening release. Hosted (HTTP) callers are kept apart from each other, untrusted HTML is parsed in one bounded pass, and the release pipeline verifies what it publishes. One new tool reads a single student submission. No tool names, arguments or output contracts changed.
+A hardening release. Hosted (HTTP) callers are kept apart from each other, untrusted HTML is parsed in one bounded pass, and the release pipeline verifies what it publishes. One new tool reads a single student submission; no existing tool's name, arguments or output contract changed.
 
 ### Security
 

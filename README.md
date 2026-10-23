@@ -153,7 +153,7 @@ The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning 
 
 **Released:** October 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
 
-A hardening release. Hosted callers are kept apart from each other, untrusted HTML is parsed in one bounded pass, and the release pipeline verifies what it publishes. No tool names, arguments or output contracts changed.
+A hardening release. Hosted callers are kept apart from each other, untrusted HTML is parsed in one bounded pass, and the release pipeline verifies what it publishes. One tool is new; no existing tool's name, arguments or output contract changed.
 
 - **New tool, `get_student_submission`**: one student's current submission and visible text comments, for callers with Canvas `manage_grades`. IDs are validated, anonymization and redaction apply, untrusted text is fenced, and input is bounded ([#487](https://github.com/vishalsachdev/canvas-mcp/pull/487))
 - **Caller isolation in HTTP mode**: course aliases, labels, metadata caches, course-policy verdicts and anonymization statistics stay with the caller that produced them ([#480](https://github.com/vishalsachdev/canvas-mcp/pull/480), [#491](https://github.com/vishalsachdev/canvas-mcp/pull/491), [#494](https://github.com/vishalsachdev/canvas-mcp/pull/494), [#515](https://github.com/vishalsachdev/canvas-mcp/pull/515); thanks [@KKazuhaK](https://github.com/KKazuhaK)). Ambiguous course aliases are refused before anything is sent ([#482](https://github.com/vishalsachdev/canvas-mcp/pull/482))
