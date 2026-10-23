@@ -10,7 +10,7 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"
 authors = [
-    { name = "Vishal Sachdev", email = "vsachde2@illinois.edu" },
+    { name = "Vishal Sachdev", email = "vishal@illinois.edu" },
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
