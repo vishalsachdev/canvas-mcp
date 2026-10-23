@@ -409,3 +409,107 @@ Known limits, accepted at merge:
   if Canvas re-serializes HTML on save it can report a landed write as not applied. Check once
   against a real page before relying on that field.
 - The publisher pin (v1.8.1) needs a manual bump for future registry releases.
+
+
+## Release-readiness verification (2026-10-21, after merge)
+
+PR #515 was already merged at `604256e` when this follow-up began. Its final
+head `8cedf65` had successful Python 3.11–3.14, Windows, enhancement, lint,
+TypeScript, security, dependency, secret scan and CodeQL checks. Two Cursor
+checks were neutral because their integration could not start; they are not
+security-review evidence. Formal reviews were COMMENTED, with no recorded
+APPROVED submission; the later Codex review reported no major findings.
+
+### Resolved questions
+
+- **Publisher:** the official v1.8.1 Linux amd64 asset digest matches the pin.
+  The verified binary reports 1.8.1, advertises `login github-oidc`, and its
+  `validate server.json` call against the live production Registry succeeded.
+  This validation does not publish or authenticate. The `v1.11.0` text in the
+  older release checklist identifies canvas-mcp's release during an incident,
+  not an mcp-publisher version. There is no demonstrated publisher downgrade.
+  Actual Actions OIDC authentication remains a release-environment check.
+- **Interactive Claude:** the pinned action checks human actors for write/admin
+  access but automatically accepts actors ending in `[bot]`. The workflow's
+  former mention-only condition did not independently restrict authors. This
+  follow-up blocks bot actors and non-human senders, and requires an OWNER,
+  MEMBER or COLLABORATOR author association on the triggering payload. The
+  action still verifies actual write/admin access; no non-write-user or bot
+  bypass is configured. Issue/PR write scopes are retained for the action's
+  progress and final replies. They can also authorize other metadata mutations;
+  author gates and prompt instructions do not eliminate prompt injection.
+  Contents stays read-only, checkout credentials are not persisted, and the
+  job cannot mint OIDC tokens. The permission policy is pinned by regression
+  assertions. A separate analysis/posting architecture is not introduced here.
+- **Documentation:** PLAN and STATUS now live in `internal/overhaul/`, matching
+  CLAUDE.md's rule that engineering notes do not belong in the website root.
+  Only those two files are explicitly allowed by .gitignore. They remain
+  public GitHub source; moving them is not a confidentiality control. Existing
+  Pages exclusions remain as a backstop.
+- **Accessibility:** the module retains JSON-stringified `error` objects for
+  unreadable page lists, missing page bodies, and failed updates/readbacks.
+  A present null body represents an empty, title-only page. Tests distinguish
+  those cases and require nonempty findings for author-text fence coverage.
+  The two quoted-angle regressions raised on the PR were fixed in `8cedf65`.
+- **Prompt policy:** `PROMPT_CONTENT_POLICIES` is consumed by the output-boundary
+  regression tests as an inventory; it is not a runtime enforcement mechanism.
+
+### Review warning disposition
+
+The four CodeQL implicit-concatenation comments in the subprocess cost tests
+refer to intentional import-plus-program strings, one complete program per
+list element. The bounded subprocess checks pass; no missing comma or extra
+test case is intended. The warnings do not identify a production defect.
+
+### Accepted limits and owner-only work
+
+Old-tag manual publishing remains unsupported by the revised scripts. Real
+Canvas sanitizer/readback behavior is unverified: exact whitespace-normalized
+comparison may report a landed write as unconfirmed, which fails conservatively.
+No live Canvas write was used for verification. Protected tags, environment
+reviewers and OIDC audience settings still need the owner's release review.
+Historical credential revocation, private launcher repair, contact-information
+policy, code-execution isolation and deferred architecture proposals remain
+separately scoped. No production tag, deployment, release or history rewrite
+was performed by this follow-up.
+
+
+### Follow-up verification environment
+
+The first baseline run had three transport failures because this execution
+environment supplies a SOCKS proxy but the optional socksio package was absent.
+Installing socksio 1.0.0 only in the local test environment repaired all six
+event-loop/transport checks; project dependencies and the lockfile are unchanged.
+An intermediate run was invalidated when its virtual-environment symlink was
+removed during execution, producing these twelve failing nodes (including the
+three transport checks):
+
+```text
+tests/security/test_impact_stats_boundary.py::test_valid_statistics_are_numeric_and_keep_last_good_values
+tests/security/test_text_processing_cost.py::test_unterminated_author_text_finishes_without_suffix_rescanning[from canvas_mcp.tools.courses import strip_html_tags; text = '<' * 300_000; assert strip_html_tags(text) == text]
+tests/security/test_text_processing_cost.py::test_unterminated_author_text_finishes_without_suffix_rescanning[from canvas_mcp.tools.courses import strip_html_tags; assert strip_html_tags('<style>' * 30_000) == '']
+tests/security/test_text_processing_cost.py::test_unterminated_author_text_finishes_without_suffix_rescanning[from canvas_mcp.core.anonymization import scrub_free_text; text = 'a.' * 150_000; assert scrub_free_text(text) == text]
+tests/security/test_text_processing_cost.py::test_unterminated_author_text_finishes_without_suffix_rescanning[from canvas_mcp.tools.discussions import _discussion_text; text = '<' * 300_000; assert _discussion_text(text) == text]
+tests/security/test_untrusted_content_registry.py::test_every_resource_declares_and_keeps_its_untrusted_content_policy
+tests/test_fastmcp_compat.py::test_stateful_http_app_rejects_stale_session_id
+tests/test_fastmcp_compat.py::test_stateless_http_app_serves_request_with_stale_session_id
+tests/test_github_session_brief.py::test_script_runs_as_a_process_in_print_mode
+tests/test_http_transport.py::TestEventLoopChangeDetection::test_http_client_stores_weakref_to_loop
+tests/test_http_transport.py::TestEventLoopChangeDetection::test_http_client_recreated_when_stored_loop_gone
+tests/test_http_transport.py::TestEventLoopChangeDetection::test_http_client_recreated_across_asyncio_run_calls
+```
+
+Those failures describe the local test harness, not a source-code regression.
+The final run uses a dedicated, stable environment. No test assertion or
+production client behavior was changed to accommodate the proxy.
+
+
+Final follow-up verification: `uv run --locked python -m pytest tests/ -v -rf`
+completed with **3500 passed, 20 skipped** on Python 3.12.14. Ruff src/tests and
+mypy src passed (61 source files). The wheel and source archive built, and
+`scripts/check_package_contents.py` passed for both. No public tool source,
+signature, result schema, annotation, dependency or lockfile changed. An
+independent read-only reviewer found no critical or important issue; its minor
+request to pin condition grouping was incorporated into the exact policy test.
+GitHub's active main ruleset requires one approving review plus successful
+`test-enhancements` and `lint`. This follow-up does not bypass that requirement.

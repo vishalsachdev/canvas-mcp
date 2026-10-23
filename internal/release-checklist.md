@@ -33,3 +33,26 @@ When bumping the version in `pyproject.toml`, also update:
   `curl -s -o /dev/null -w '%{http_code}' https://pypi.org/pypi/canvas-mcp/<ver>/json` already
   returns 200, it is not the propagation race.
 - **Publish race:** the MCP Registry job validates the version on PyPI and 404s before PyPI's CDN propagates. Wait until `curl -s -o /dev/null -w '%{http_code}' https://pypi.org/pypi/canvas-mcp/<ver>/json` returns 200, THEN `gh run rerun <id> --failed`.
+
+
+## Maintaining the MCP publisher pin
+
+The repository maintainer owns the version and Linux amd64 SHA-256 pin in
+`.github/workflows/publish-mcp.yml`. The `v1.11.0` incident above refers to a
+canvas-mcp release, not the publisher binary. On 2026-10-21 the pinned publisher
+v1.8.1 passed `validate server.json` against the live Registry and advertised
+`login github-oidc`. This is compatibility evidence, not a completed release.
+
+Before tagging, install the pinned binary with `scripts/install_mcp_publisher.py`,
+run `mcp-publisher --version`, `mcp-publisher login --help`, and
+`mcp-publisher validate server.json`. Validation does not publish. Recheck after
+a schema change or Registry migration. If an update is needed, select an explicit
+official Registry release, verify its published Linux amd64 asset digest, update
+version and checksum together, rerun installer regressions and live validation,
+and review the change through a PR. Never restore an unpinned `latest` download.
+
+Actual OIDC login needs the Actions publishing job. Review protected tags,
+publishing environments and OIDC audiences before authorizing a release.
+Old tags predating #515 lack the new helper scripts: do not use the revised
+manual workflow to republish them. Canvas HTML readback still needs a separately
+authorized real-page check before relying on the accessibility `applied` field.
