@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Importing package metadata, configuration or write-policy data no longer
+  loads the server framework and its authentication dependencies. The public
+  `canvas_mcp.main` entry point still resolves to `canvas_mcp.server.main`.
+
 ## [1.16.0] — 2026-10-24
 
 A security release. It fixes three privately reported issues and closes the last gap left by the 1.13.0 prompt-injection advisory. It also adds course group creation and an option to read submission text. Breaking for local code execution: the local sandbox now needs Node.js 22.18 or later.
