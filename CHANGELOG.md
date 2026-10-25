@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The Claude Desktop extension explicitly selects Python 3.13 through `uv`, which downloads that interpreter when needed, instead of inheriting an untested system Python such as 3.15 and falling into a Windows `cffi` source build requiring a compiler ([#391](https://github.com/vishalsachdev/canvas-mcp/issues/391)).
+
 ## [1.16.0] — 2026-10-24
 
 A security release. It fixes three privately reported issues and closes the last gap left by the 1.13.0 prompt-injection advisory. It also adds course group creation and an option to read submission text. Breaking for local code execution: the local sandbox now needs Node.js 22.18 or later.
