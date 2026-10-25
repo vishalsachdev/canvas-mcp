@@ -245,7 +245,8 @@ def test_network_grant_only_where_node_gates_the_network(tmp_path: Path) -> None
     cmd = _build_sandboxed_node_command(_SandboxNode("node", True), tmp_path, "s.ts", 0, None)
     grants = [arg for arg in cmd if arg.startswith("--allow-")]
     assert grants == [f"--allow-fs-read={tmp_path}", "--allow-net"]
-    assert "--disable-warning=ExperimentalWarning" in cmd
+    # Never a category-wide suppression: it would hide the caller's warnings too.
+    assert not any(arg.startswith("--disable-warning") for arg in cmd)
     plain = _build_sandboxed_node_command(_SandboxNode("node", False), tmp_path, "s.ts", 0, None)
     assert "--allow-net" not in plain
 
@@ -430,7 +431,7 @@ console.log('GOT ' + JSON.stringify(await canvasGet('/courses')));
     path, authorization = fake_canvas[0]
     assert path.startswith("/api/v1/courses"), fake_canvas
     assert authorization == "Bearer test-token", fake_canvas
-    assert "ExperimentalWarning" not in result, result
+    assert "under experimental phase" not in result, result
 
 
 @pytest.mark.asyncio
@@ -469,3 +470,53 @@ async def test_missing_relative_module_still_reports_not_found(on_each_node) -> 
     result = await on_each_node(code="import { x } from './no/such/module';\nconsole.log(x);")
     assert "execution failed" in result, result
     assert "ERR_MODULE_NOT_FOUND" in result, result
+
+
+def test_strip_allow_net_warning_removes_only_that_message() -> None:
+    from canvas_mcp.tools.code_execution import _strip_allow_net_warning
+
+    stderr = (
+        "(node:123) ExperimentalWarning: The flag --allow-net is under experimental phase.\n"
+        "(Use `node --trace-warnings ...` to show where the warning was created)\n"
+        "(node:123) ExperimentalWarning: user-level\n"
+        "Error: boom\n"
+    )
+    assert _strip_allow_net_warning(stderr) == (
+        "(node:123) ExperimentalWarning: user-level\nError: boom\n"
+    )
+    untouched = "(node:9) ExperimentalWarning: something else\n"
+    assert _strip_allow_net_warning(untouched) == untouched
+
+
+@pytest.mark.asyncio
+async def test_caller_experimental_warnings_stay_visible(on_each_node) -> None:
+    result = await on_each_node(code="""
+process.emitWarning('caller-level', 'ExperimentalWarning');
+console.log('done');
+""")
+    assert "completed successfully" in result, result
+    assert "ExperimentalWarning: caller-level" in result, result
+    assert "under experimental phase" not in result, result
+
+
+@pytest.mark.parametrize("node_path", SANDBOX_NODES, ids=lambda path: f"node={path}")
+def test_probe_does_not_run_inherited_preloads(
+    node_path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if node_path is None:
+        if os.environ.get("CI"):
+            pytest.fail("CI must run the sandbox boundary tests: no Node.js 22.18+ on PATH")
+        pytest.skip("No Node.js 22.18+ on PATH")
+    marker = tmp_path / "preload-ran"
+    preload = tmp_path / "preload.cjs"
+    preload.write_text(
+        f"require('fs').writeFileSync({json.dumps(str(marker))}, 'ran');\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("NODE_OPTIONS", f"--require={preload}")
+    _node_runtime.cache_clear()
+    try:
+        runtime = _node_runtime(node_path)
+    finally:
+        _node_runtime.cache_clear()
+    assert runtime is not None and runtime[0] >= code_execution._MIN_SANDBOX_NODE
+    assert not marker.exists(), "the version probe ran an inherited NODE_OPTIONS preload"

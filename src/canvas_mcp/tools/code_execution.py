@@ -355,6 +355,14 @@ def _node_runtime(node_path: str) -> tuple[tuple[int, int, int], bool] | None:
         "console.log(process.version, "
         "process.allowedNodeEnvironmentFlags.has('--allow-net'))"
     )
+    # `node -e` would run any preload named in an inherited NODE_OPTIONS, with
+    # no permission model and the server's full environment. The probe needs
+    # neither, so it gets the filtered keys without NODE_OPTIONS.
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key in _SAFE_ENV_KEYS and key != "NODE_OPTIONS"
+    }
     try:
         completed = subprocess.run(
             [node_path, "-e", probe],
@@ -362,6 +370,7 @@ def _node_runtime(node_path: str) -> tuple[tuple[int, int, int], bool] | None:
             text=True,
             timeout=10,
             check=False,
+            env=env,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -386,6 +395,23 @@ def _find_sandbox_node() -> tuple[_SandboxNode | None, str | None]:
         found = ".".join(str(part) for part in version)
         return None, f"Node.js {found} is too old; {required} or later is required."
     return _SandboxNode(node_path, has_allow_net), None
+
+
+# The startup warning that Node 25+ prints for --allow-net, with the hint
+# line Node adds after a process's first warning. It has no warning code, so
+# --disable-warning could only silence the whole ExperimentalWarning category.
+_ALLOW_NET_WARNING = re.compile(
+    r"^\(node:\d+\) ExperimentalWarning: The flag --allow-net is under "
+    r"experimental phase\.\r?\n"
+    r"(?:\(Use `node --trace-warnings \.\.\.` to show where the warning was "
+    r"created\)\r?\n)?",
+    re.MULTILINE,
+)
+
+
+def _strip_allow_net_warning(stderr: str) -> str:
+    """Remove the sandbox's own --allow-net startup warning, and nothing else."""
+    return _ALLOW_NET_WARNING.sub("", stderr, count=1)
 
 
 def _local_sandbox_unavailable_error(reason: str) -> str:
@@ -422,8 +448,9 @@ def _build_sandboxed_node_command(
     Node 25 and later also deny the network under --permission. There the
     command grants it with --allow-net, because the code must reach Canvas;
     the network is then limited only by the in-process guard, as on Node 22,
-    which has no network permission at all. The flag's experimental-phase
-    warning is silenced so that it does not appear in every run's output.
+    which has no network permission at all. The flag's own experimental-phase
+    warning is removed from the output afterwards (_strip_allow_net_warning),
+    not suppressed: --disable-warning would also hide the caller's warnings.
 
     Every flag is on the command line, and the caller removes NODE_OPTIONS
     from the environment, so an inherited --allow-child-process (or any other
@@ -435,7 +462,7 @@ def _build_sandboxed_node_command(
         f"--allow-fs-read={code_api_dir}",
     ]
     if node.grants_net:
-        cmd.extend(["--allow-net", "--disable-warning=ExperimentalWarning"])
+        cmd.append("--allow-net")
     cmd.extend([
         # A file URL, not a path: on Windows a drive letter reads as a URL scheme.
         "--import",
@@ -878,6 +905,8 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
 
                 stdout = stdout_bytes.decode('utf-8', errors='replace')
                 stderr = stderr_bytes.decode('utf-8', errors='replace')
+                if sandbox_mode == "local" and sandbox_node and sandbox_node.grants_net:
+                    stderr = _strip_allow_net_warning(stderr)
 
                 # Format output
                 result_lines = []
