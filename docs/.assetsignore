@@ -1,7 +1,7 @@
-# Wrangler Pages upload-exclude (gitignore syntax).
-# wrangler does NOT respect .gitignore — without this file, local-only
-# sensitive docs inside docs/ get published to the public site.
-# Keep in sync with the docs/ entries in the repo .gitignore.
+# Paths that scripts/deploy_site.sh leaves out of the site (rsync exclude patterns).
+# `wrangler pages deploy` reads neither this file nor .gitignore: deploy with
+# scripts/deploy_site.sh, never with a bare `wrangler pages deploy docs/`.
+# Keep in step with the docs/ entries in the repo .gitignore.
 
 # Hosted-deployment ops notes (endpoint URL, Entra IDs, key-holders)
 *.local.md

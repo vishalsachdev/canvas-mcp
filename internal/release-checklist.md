@@ -8,7 +8,7 @@ When bumping the version in `pyproject.toml`, also update:
 - [ ] `server.json` - Update both `version` fields (top-level and packages[0]) for MCP Registry
 - [ ] `tools/TOOL_MANIFEST.json` - Update `version` field to match new version
 - [ ] `README.md` - Update "Latest Release" section with new version, date, and changelog
-- [ ] Run `python scripts/sync_site_facts.py --dates`: it writes the version, tool and skill counts and GitHub stats into `docs/index.html`, `docs/llms.txt` and `README.md`, and the sitemap dates (CI fails on a stale fact). Then deploy the site by hand with `npx wrangler pages deploy docs/ --project-name=canvas-mcp --branch=main`
+- [ ] Deploy the site with `./scripts/deploy_site.sh`: it runs `scripts/sync_site_facts.py --dates` (version, tool and skill counts, GitHub stats, sitemap dates; CI fails on a stale fact) and uploads `docs/` without the `.assetsignore` paths. Never run a bare `wrangler pages deploy docs/`.
 - [ ] `uv.lock` - Run `uv lock` after bumping `pyproject.toml`; the lock records the project version and drifts otherwise
 - [ ] Create git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
 - [ ] Confirm the production deploy ran: the tag push also triggers `deploy-prod.yml`. Merges to `main` do not deploy production; between releases, ship `main` with a manual `deploy-prod.yml` run from `main`.

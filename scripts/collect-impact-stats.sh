@@ -104,9 +104,7 @@ log "Done collecting stats"
 # --- Optional deploy ---
 if [[ "${1:-}" == "--deploy" ]]; then
     log "Deploying to Cloudflare Pages..."
-    cd "$PROJECT_DIR"
-    "$PYTHON" "$SCRIPT_DIR/sync_site_facts.py" --dates 2>&1 | tee -a "$LOG_FILE"
-    npx wrangler pages deploy docs/ --project-name=canvas-mcp --branch=main --commit-dirty=true 2>&1 | tee -a "$LOG_FILE"
+    PYTHON="$PYTHON" "$SCRIPT_DIR/deploy_site.sh" 2>&1 | tee -a "$LOG_FILE"
     log "Deploy complete"
 fi
 
