@@ -21,7 +21,7 @@ from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_code, get_course_id, resolve_numeric_course_id
 from ..core.client import (
-    canvas_authenticated_client,
+    canvas_file_download_client,
     fetch_all_paginated_results,
     make_canvas_request,
     upload_file_to_storage,
@@ -140,7 +140,7 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
         try:
             total_bytes = 0
             with os.fdopen(fd, 'wb') as f:
-                async with canvas_authenticated_client() as client:
+                async with canvas_file_download_client() as client:
                     async with client.stream(
                         "GET", download_url, follow_redirects=True
                     ) as response:
@@ -235,7 +235,7 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
         # Download the file content into memory
         try:
             buffer = bytearray()
-            async with canvas_authenticated_client() as client:
+            async with canvas_file_download_client() as client:
                 async with client.stream("GET", download_url, follow_redirects=True) as response:
                     response.raise_for_status()
 

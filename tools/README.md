@@ -1957,6 +1957,11 @@ Upload a local file to Canvas course storage.
 
 **Returns:** Uploaded file details including the Canvas file ID, usable with `add_module_item` (`item_type='File'`) or `send_conversation` (attachment IDs).
 
+Upload confirmation must stay on the configured Canvas origin (scheme, host and
+port). A confirmation outside that origin, or one requiring another redirect,
+is refused. The file may already have reached storage; inspect Canvas before
+retrying an unconfirmed upload.
+
 ---
 
 ### Accessibility
@@ -2517,6 +2522,13 @@ List files in a course with optional search.
 
 #### `download_course_file`
 Download a course file to the local filesystem of the machine running the MCP server.
+
+Both file download tools send Canvas credentials only to the configured Canvas
+origin (scheme, host and port). Separate file hosts are fetched without Canvas
+credentials, using the download URL's signed parameters. After a redirect leaves
+Canvas, the rest of that download stays unauthenticated, including a redirect
+back to Canvas. A separate file host that requires the Canvas token will fail
+rather than receive it.
 
 > **Local (stdio) servers only.** The write lands on the *server's* filesystem,
 > which a remote caller cannot read anyway, so the tool refuses over HTTP and

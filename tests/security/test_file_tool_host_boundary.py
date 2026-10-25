@@ -50,7 +50,7 @@ def get_tool_function(tool_name: str):
 
 
 def _mock_stream(mock_client, content=b"file content here", raise_on_status=None):
-    """Build a mock streaming response for canvas_authenticated_client()."""
+    """Build a mock streaming response for canvas_file_download_client()."""
     mock_response = AsyncMock()
     if raise_on_status is None:
         mock_response.raise_for_status = MagicMock()
@@ -123,7 +123,7 @@ class TestDownloadRefusedOverHttp:
             "canvas_mcp.tools.files.get_course_code",
             new=AsyncMock(return_value="badm_350"),
         ), patch(
-            "canvas_mcp.tools.files.canvas_authenticated_client"
+            "canvas_mcp.tools.files.canvas_file_download_client"
         ) as client:
             _mock_stream(client)
             download = get_tool_function("download_course_file")
@@ -150,7 +150,7 @@ class TestDownloadDoesNotClobber:
             "canvas_mcp.tools.files.resolve_numeric_course_id",
             new=AsyncMock(return_value=("60366", None)),
         ), patch(
-            "canvas_mcp.tools.files.canvas_authenticated_client"
+            "canvas_mcp.tools.files.canvas_file_download_client"
         ) as client:
             _mock_stream(client)
             download = get_tool_function("download_course_file")
@@ -188,7 +188,7 @@ class TestDownloadDoesNotClobber:
             "canvas_mcp.tools.files.resolve_numeric_course_id",
             new=AsyncMock(return_value=("60366", None)),
         ), patch(
-            "canvas_mcp.tools.files.canvas_authenticated_client"
+            "canvas_mcp.tools.files.canvas_file_download_client"
         ) as client:
             _mock_stream(client)
             download = get_tool_function("download_course_file")
@@ -215,7 +215,7 @@ class TestDownloadDoesNotClobber:
             "canvas_mcp.tools.files.resolve_numeric_course_id",
             new=AsyncMock(return_value=("60366", None)),
         ), patch(
-            "canvas_mcp.tools.files.canvas_authenticated_client"
+            "canvas_mcp.tools.files.canvas_file_download_client"
         ) as client:
             _mock_stream(client, raise_on_status=error)
             download = get_tool_function("download_course_file")
@@ -292,7 +292,7 @@ class TestDownloadPermissions:
             "canvas_mcp.tools.files.resolve_numeric_course_id",
             new=AsyncMock(return_value=("60366", None)),
         ), patch(
-            "canvas_mcp.tools.files.canvas_authenticated_client"
+            "canvas_mcp.tools.files.canvas_file_download_client"
         ) as client:
             _mock_stream(client)
             download = get_tool_function("download_course_file")
@@ -342,7 +342,7 @@ class TestDownloadIsPortable:
             "canvas_mcp.tools.files.get_course_code",
             new=AsyncMock(return_value="badm_350"),
         ), patch(
-            "canvas_mcp.tools.files.canvas_authenticated_client"
+            "canvas_mcp.tools.files.canvas_file_download_client"
         ) as client:
             _mock_stream(client)
             download = get_tool_function("download_course_file")
@@ -367,7 +367,7 @@ class TestDownloadIsPortable:
             "canvas_mcp.tools.files.resolve_numeric_course_id",
             new=AsyncMock(return_value=("60366", None)),
         ), patch(
-            "canvas_mcp.tools.files.canvas_authenticated_client"
+            "canvas_mcp.tools.files.canvas_file_download_client"
         ) as client:
             _mock_stream(client)
             download = get_tool_function("download_course_file")
