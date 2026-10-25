@@ -14,6 +14,8 @@
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@vishalsachdev">
+    <meta name="twitter:creator" content="@vishalsachdev">
     <meta name="twitter:title" content="Canvas MCP - AI-Powered Canvas LMS Integration">
     <meta name="twitter:description" content="Bridge AI assistants with Canvas LMS using MCP. Up to 128 tools for students and educators. Works with Claude, ChatGPT, Cursor, and more.">
 
@@ -65,7 +67,7 @@
             --color-bg-card-hover: rgba(241, 245, 249, 0.9);
             --color-text-primary: #0f172a;
             --color-text-secondary: #475569;
-            --color-text-muted: #94a3b8;
+            --color-text-muted: #5b6b80; /* 4.9:1 on --color-bg-deep, WCAG AA for small text */
             --color-accent-primary: #0891b2;
             --color-accent-secondary: #0e7490;
             --color-accent-glow: rgba(8, 145, 178, 0.2);
@@ -111,20 +113,6 @@
             -webkit-font-smoothing: antialiased;
         }
 
-        /* Noise texture overlay */
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            opacity: 0.015;
-            z-index: 1000;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-        }
-
         .container {
             max-width: 1280px;
             margin: 0 auto;
@@ -144,7 +132,6 @@
 
         nav.scrolled {
             background: rgba(248, 250, 252, 0.9);
-            backdrop-filter: blur(20px) saturate(180%);
             border-bottom: 1px solid var(--color-border);
         }
 
@@ -190,7 +177,6 @@
             background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
             opacity: 0.3;
             z-index: -1;
-            filter: blur(8px);
         }
 
         .nav-links {
@@ -265,7 +251,6 @@
         }
 
         .btn-primary:hover {
-            transform: translateY(-2px);
             box-shadow: 0 8px 30px rgba(8, 145, 178, 0.25);
         }
 
@@ -282,13 +267,11 @@
             background: #ffffff;
             color: var(--color-text-primary);
             border: 1px solid #cbd5e1;
-            backdrop-filter: blur(10px);
         }
 
         .btn-secondary:hover {
             background: #f8fafc;
             border-color: var(--color-accent-primary);
-            transform: translateY(-2px);
         }
 
         /* Hero Section */
@@ -314,61 +297,6 @@
             pointer-events: none;
         }
 
-        .hero-orb {
-            position: absolute;
-            border-radius: 50%;
-            filter: blur(60px);
-            animation: float 20s ease-in-out infinite;
-        }
-
-        .hero-orb-1 {
-            width: 600px;
-            height: 600px;
-            background: radial-gradient(circle, rgba(8, 145, 178, 0.1) 0%, transparent 70%);
-            top: -200px;
-            right: -100px;
-            animation-delay: 0s;
-        }
-
-        .hero-orb-2 {
-            width: 400px;
-            height: 400px;
-            background: radial-gradient(circle, rgba(8, 145, 178, 0.08) 0%, transparent 70%);
-            bottom: -100px;
-            left: -50px;
-            animation-delay: -7s;
-        }
-
-        .hero-orb-3 {
-            width: 300px;
-            height: 300px;
-            background: radial-gradient(circle, rgba(2, 132, 199, 0.08) 0%, transparent 70%);
-            top: 40%;
-            left: 60%;
-            animation-delay: -14s;
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            25% { transform: translate(30px, -30px) scale(1.05); }
-            50% { transform: translate(-20px, 20px) scale(0.95); }
-            75% { transform: translate(-30px, -20px) scale(1.02); }
-        }
-
-        .hero-grid {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-image:
-                linear-gradient(rgba(8, 145, 178, 0.04) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(8, 145, 178, 0.04) 1px, transparent 1px);
-            background-size: 80px 80px;
-            mask-image: radial-gradient(ellipse at center, black 20%, transparent 70%);
-            pointer-events: none;
-        }
-
         .hero-content {
             position: relative;
             z-index: 1;
@@ -389,8 +317,6 @@
             font-weight: 500;
             color: var(--color-accent-primary);
             margin-bottom: 32px;
-            animation: fadeInUp 0.8s ease forwards;
-            opacity: 0;
         }
 
         .badge-dot {
@@ -398,24 +324,7 @@
             height: 8px;
             background: var(--color-accent-primary);
             border-radius: 50%;
-            animation: pulse 2s infinite;
             box-shadow: 0 0 10px var(--color-accent-glow);
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.6; transform: scale(0.9); }
-        }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
         }
 
         .hero h1 {
@@ -425,8 +334,6 @@
             line-height: 1.05;
             margin-bottom: 28px;
             letter-spacing: -0.03em;
-            animation: fadeInUp 0.8s ease 0.1s forwards;
-            opacity: 0;
         }
 
         .hero h1 .gradient-text {
@@ -441,8 +348,6 @@
             color: var(--color-text-secondary);
             max-width: 640px;
             margin: 0 auto 40px;
-            animation: fadeInUp 0.8s ease 0.2s forwards;
-            opacity: 0;
             line-height: 1.8;
         }
 
@@ -451,8 +356,6 @@
             gap: 18px;
             justify-content: center;
             flex-wrap: wrap;
-            animation: fadeInUp 0.8s ease 0.3s forwards;
-            opacity: 0;
         }
 
         .hero-stats {
@@ -462,8 +365,6 @@
             margin-top: 80px;
             padding-top: 60px;
             border-top: 1px solid var(--color-border);
-            animation: fadeInUp 0.8s ease 0.4s forwards;
-            opacity: 0;
         }
 
         .stat {
@@ -541,7 +442,6 @@
 
         .feature-card {
             background: var(--color-bg-card);
-            backdrop-filter: blur(20px);
             border: 1px solid var(--color-border);
             border-radius: var(--radius-lg);
             padding: 36px;
@@ -563,7 +463,6 @@
         }
 
         .feature-card:hover {
-            transform: translateY(-8px);
             border-color: var(--color-border-light);
             box-shadow: var(--shadow-card-hover), 0 0 40px rgba(8, 145, 178, 0.08);
         }
@@ -631,7 +530,6 @@
 
         .user-card {
             background: var(--color-bg-card);
-            backdrop-filter: blur(20px);
             border: 1px solid var(--color-border);
             border-radius: var(--radius-xl);
             padding: 44px;
@@ -651,7 +549,6 @@
         }
 
         .user-card:hover {
-            transform: translateY(-6px);
             box-shadow: var(--shadow-card-hover);
         }
 
@@ -767,7 +664,6 @@
 
         .savings-card {
             background: var(--color-bg-card);
-            backdrop-filter: blur(20px);
             border: 1px solid var(--color-border);
             border-radius: var(--radius-lg);
             padding: 28px;
@@ -891,6 +787,8 @@
 
         .install-steps {
             display: grid;
+            /* An implicit auto column grows to the longest unbreakable code token and widens the page on phones. */
+            grid-template-columns: minmax(0, 1fr);
             gap: 24px;
             max-width: 880px;
             margin: 0 auto;
@@ -900,7 +798,6 @@
             display: flex;
             gap: 28px;
             background: var(--color-bg-card);
-            backdrop-filter: blur(20px);
             border: 1px solid var(--color-border);
             border-radius: var(--radius-lg);
             padding: 32px;
@@ -909,7 +806,6 @@
 
         .install-step:hover {
             border-color: var(--color-border-light);
-            transform: translateX(8px);
         }
 
         .step-number {
@@ -926,6 +822,11 @@
             color: var(--color-bg-deep);
             flex-shrink: 0;
             box-shadow: 0 4px 20px rgba(8, 145, 178, 0.2);
+        }
+
+        /* A flex item defaults to min-width: auto, which lets a long .step-code line widen the page on phones. */
+        .step-content {
+            min-width: 0;
         }
 
         .step-content h3 {
@@ -965,7 +866,6 @@
 
         .privacy-card {
             background: var(--color-bg-card);
-            backdrop-filter: blur(20px);
             border: 1px solid var(--color-border);
             border-radius: var(--radius-lg);
             padding: 36px 28px;
@@ -974,7 +874,6 @@
         }
 
         .privacy-card:hover {
-            transform: translateY(-6px);
             border-color: rgba(8, 145, 178, 0.2);
             box-shadow: 0 0 40px rgba(8, 145, 178, 0.08);
         }
@@ -1141,7 +1040,6 @@
 
         .skills-install {
             background: var(--color-bg-card);
-            backdrop-filter: blur(20px);
             border: 1px solid var(--color-border);
             border-radius: var(--radius-lg);
             padding: 36px 44px;
@@ -1205,7 +1103,6 @@
 
         .skill-card {
             background: var(--color-bg-card);
-            backdrop-filter: blur(20px);
             border: 1px solid var(--color-border);
             border-radius: var(--radius-lg);
             padding: 40px;
@@ -1224,7 +1121,6 @@
         }
 
         .skill-card:hover {
-            transform: translateY(-4px);
             box-shadow: var(--shadow-card-hover);
         }
 
@@ -1271,7 +1167,6 @@
             text-align: center;
             padding: 44px;
             background: var(--color-bg-card);
-            backdrop-filter: blur(20px);
             border: 1px solid var(--color-border);
             border-radius: var(--radius-lg);
         }
@@ -1309,7 +1204,6 @@
             align-items: center;
             gap: 14px;
             background: var(--color-bg-card);
-            backdrop-filter: blur(20px);
             border: 1px solid var(--color-border);
             border-radius: var(--radius-lg);
             padding: 18px 28px;
@@ -1319,7 +1213,6 @@
 
         .client-badge:hover {
             border-color: var(--color-accent-primary);
-            transform: translateY(-4px);
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
         }
 
@@ -1341,14 +1234,13 @@
 
         .impact-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 24px;
             margin-bottom: 48px;
         }
 
         .impact-card {
             background: var(--color-bg-card);
-            backdrop-filter: blur(20px);
             border: 1px solid var(--color-border);
             border-radius: var(--radius-lg);
             padding: 32px;
@@ -1357,7 +1249,6 @@
         }
 
         .impact-card:hover {
-            transform: translateY(-4px);
             border-color: var(--color-accent-primary);
             box-shadow: var(--shadow-card-hover);
         }
@@ -1380,28 +1271,8 @@
             color: var(--color-text-secondary);
         }
 
-        .impact-referrers {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 12px;
-        }
 
-        .referrer-tag {
-            font-family: var(--font-mono);
-            font-size: 0.8rem;
-            background: var(--color-bg-card);
-            border: 1px solid var(--color-border);
-            border-radius: 999px;
-            padding: 8px 16px;
-            color: var(--color-text-secondary);
-        }
 
-        .referrer-tag .count {
-            color: var(--color-accent-primary);
-            font-weight: 700;
-            margin-left: 6px;
-        }
 
         .impact-updated {
             text-align: center;
@@ -1411,11 +1282,10 @@
             color: var(--color-text-muted);
         }
 
-        @media (max-width: 768px) {
-            .impact-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
+        .impact-updated a {
+            color: inherit;
         }
+
 
         @media (max-width: 480px) {
             .impact-grid {
@@ -1645,18 +1515,6 @@
                 padding: 100px 0;
             }
         }
-
-        /* Scroll animations */
-        .animate-on-scroll {
-            opacity: 0;
-            transform: translateY(40px);
-            transition: opacity 0.6s ease, transform 0.6s ease;
-        }
-
-        .animate-on-scroll.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
     </style>
 </head>
 <body>
@@ -1688,10 +1546,6 @@
     <!-- Hero Section -->
     <section class="hero">
         <div class="hero-bg"></div>
-        <div class="hero-orb hero-orb-1"></div>
-        <div class="hero-orb hero-orb-2"></div>
-        <div class="hero-orb hero-orb-3"></div>
-        <div class="hero-grid"></div>
         <div class="container">
             <div class="hero-content">
                 <div class="badge">
@@ -1737,32 +1591,32 @@
                 <p class="section-desc">Comprehensive tools designed for real educational workflows, from simple queries to complex bulk operations.</p>
             </div>
             <div class="features-grid">
-                <div class="feature-card animate-on-scroll">
+                <div class="feature-card">
                     <div class="feature-icon cyan">🎯</div>
                     <h3>Natural Language Interface</h3>
                     <p>Ask questions like "What's due this week?" or "Which students haven't submitted?" and get answers from your Canvas data.</p>
                 </div>
-                <div class="feature-card animate-on-scroll">
+                <div class="feature-card">
                     <div class="feature-icon blue">⚡</div>
                     <h3>Code Execution API</h3>
                     <p>Process bulk operations locally without loading every item into the model’s context.</p>
                 </div>
-                <div class="feature-card animate-on-scroll">
+                <div class="feature-card">
                     <div class="feature-icon green">🔒</div>
                     <h3>Privacy-First Design</h3>
                     <p>Optional data anonymization can reduce identity data before tool results reach your AI client. Compliance depends on your deployment and institutional policy.</p>
                 </div>
-                <div class="feature-card animate-on-scroll">
+                <div class="feature-card">
                     <div class="feature-icon orange">📊</div>
                     <h3>Analytics & Insights</h3>
                     <p>Track student performance, assignment completion rates, peer review analytics, and more with AI-powered analysis.</p>
                 </div>
-                <div class="feature-card animate-on-scroll">
+                <div class="feature-card">
                     <div class="feature-icon cyan">💬</div>
                     <h3>Discussion Management</h3>
                     <p>Manage discussions, post announcements, facilitate peer reviews, and grade discussion participation efficiently.</p>
                 </div>
-                <div class="feature-card animate-on-scroll">
+                <div class="feature-card">
                     <div class="feature-icon blue">🎛️</div>
                     <h3>Role-Based Filtering</h3>
                     <p>Set CANVAS_ROLE to student, educator, or all to control which tool groups are registered and reduce tool-definition overhead.</p>
@@ -1780,25 +1634,20 @@
                 <p class="section-desc">Built in the open, adopted by educators worldwide.</p>
             </div>
             <div class="impact-grid" id="impact-stats">
-                <div class="impact-card animate-on-scroll">
-                    <div class="impact-number" id="impact-stars">—</div>
+                <div class="impact-card">
+                    <div class="impact-number" id="impact-stars"><!-- fact:stars -->308<!-- /fact --></div>
                     <div class="impact-label">GitHub Stars</div>
                 </div>
-                <div class="impact-card animate-on-scroll">
-                    <div class="impact-number" id="impact-forks">—</div>
+                <div class="impact-card">
+                    <div class="impact-number" id="impact-forks"><!-- fact:forks -->99<!-- /fact --></div>
                     <div class="impact-label">Forks</div>
                 </div>
-                <div class="impact-card animate-on-scroll">
-                    <div class="impact-number" id="impact-contributors">—</div>
+                <div class="impact-card">
+                    <div class="impact-number" id="impact-contributors"><!-- fact:contributors -->27<!-- /fact --></div>
                     <div class="impact-label">Contributors</div>
                 </div>
-                <div class="impact-card animate-on-scroll">
-                    <div class="impact-number" id="impact-installs">—</div>
-                    <div class="impact-label">Monthly Installs</div>
-                </div>
             </div>
-            <div class="impact-referrers" id="impact-referrers"></div>
-            <div class="impact-updated" id="impact-updated"></div>
+            <p class="impact-updated">Counts from <a href="https://github.com/vishalsachdev/canvas-mcp">GitHub</a> as of <!-- fact:stats_as_of -->October 24, 2026<!-- /fact -->.</p>
         </div>
     </section>
 
@@ -1811,7 +1660,7 @@
                 <p class="section-desc">Canvas MCP includes role-specific workflows for students, educators, and learning designers.</p>
             </div>
             <div class="user-grid">
-                <div class="user-card student animate-on-scroll">
+                <div class="user-card student">
                     <div class="user-card-icon">👨‍🎓</div>
                     <h3>For Students</h3>
                     <p>Get AI-powered assistance with your coursework and stay organized throughout the semester.</p>
@@ -1825,7 +1674,7 @@
                     </ul>
                     <a href="student-guide.html" class="btn btn-secondary">Student Guide →</a>
                 </div>
-                <div class="user-card educator animate-on-scroll">
+                <div class="user-card educator">
                     <div class="user-card-icon">👨‍🏫</div>
                     <h3>For Educators</h3>
                     <p>Enhance your teaching with powerful tools for course management and student engagement.</p>
@@ -1838,7 +1687,7 @@
                     </ul>
                     <a href="educator-guide.html" class="btn btn-secondary">Educator Guide →</a>
                 </div>
-                <div class="user-card designer animate-on-scroll">
+                <div class="user-card designer">
                     <div class="user-card-icon">🎨</div>
                     <h3>For Learning Designers</h3>
                     <p>AI-powered course design, quality assurance, and WCAG-oriented accessibility review at scale.</p>
@@ -1851,7 +1700,7 @@
                     </ul>
                     <a href="learning-designer-guide.html" class="btn btn-secondary">Designer Guide →</a>
                 </div>
-                <div class="user-card developer animate-on-scroll">
+                <div class="user-card developer">
                     <div class="user-card-icon">💻</div>
                     <h3>For Developers</h3>
                     <p>Use the code execution API for custom bulk operations.</p>
@@ -1872,7 +1721,7 @@
     <section class="code-section" id="code">
         <div class="container">
             <div class="code-grid">
-                <div class="code-content animate-on-scroll">
+                <div class="code-content">
                     <div class="section-label">// Code Execution API</div>
                     <h2>Bulk Operations,<br>Less Context</h2>
                     <p>Tool-by-tool workflows can return every submission to the model's context. The code execution API can process items locally and return selected output.</p>
@@ -1897,7 +1746,7 @@
 
                     <a href="bulk-grading.html" class="btn btn-primary"><span>Learn More →</span></a>
                 </div>
-                <div class="code-preview animate-on-scroll">
+                <div class="code-preview">
                     <div class="code-header">
                         <span class="code-dot red"></span>
                         <span class="code-dot yellow"></span>
@@ -1940,14 +1789,14 @@
 
             <!-- Local Installation -->
             <div class="install-steps">
-                <div class="install-step animate-on-scroll">
+                <div class="install-step">
                     <div class="step-number">0</div>
                     <div class="step-content">
                         <h3>Claude Desktop? Skip the terminal</h3>
                         <p>Download <code>canvas-mcp.mcpb</code> from the <a href="https://github.com/vishalsachdev/canvas-mcp/releases/latest">latest release</a> and double-click it. It prompts for your Canvas URL and token and runs the server locally. Every other client follows steps 1 to 4 below. Either way, install the server before adding the <a href="#skills">agent skills</a>: the skills call these tools and do nothing on their own.</p>
                     </div>
                 </div>
-                <div class="install-step animate-on-scroll">
+                <div class="install-step">
                     <div class="step-number">1</div>
                     <div class="step-content">
                         <h3>Clone & Install Dependencies</h3>
@@ -1960,7 +1809,7 @@ pip install -e .
                         </div>
                     </div>
                 </div>
-                <div class="install-step animate-on-scroll">
+                <div class="install-step">
                     <div class="step-number">2</div>
                     <div class="step-content">
                         <h3>Configure Environment</h3>
@@ -1971,7 +1820,7 @@ cp env.template .env<br>
                         </div>
                     </div>
                 </div>
-                <div class="install-step animate-on-scroll">
+                <div class="install-step">
                     <div class="step-number">3</div>
                     <div class="step-content">
                         <h3>Connect Your MCP Client</h3>
@@ -1987,7 +1836,7 @@ cp env.template .env<br>
                         </div>
                     </div>
                 </div>
-                <div class="install-step animate-on-scroll">
+                <div class="install-step">
                     <div class="step-number">4</div>
                     <div class="step-content">
                         <h3>Verify & Start Using</h3>
@@ -2011,31 +1860,31 @@ canvas-mcp-server --test<br>
                 <p class="section-desc">Local deployment and optional anonymization provide privacy controls for FERPA-conscious workflows; your institution remains responsible for its configuration and compliance.</p>
             </div>
             <div class="privacy-grid">
-                <div class="privacy-card animate-on-scroll">
+                <div class="privacy-card">
                     <div class="privacy-icon">🏠</div>
                     <h3>Local Credentials</h3>
                     <p>Local mode reads your token from local configuration. Authenticated institutional deployments pass user credentials per request and do not persist them in Canvas MCP.</p>
                 </div>
-                <div class="privacy-card animate-on-scroll">
+                <div class="privacy-card">
                     <div class="privacy-icon">🔐</div>
                     <h3>Optional Anonymization</h3>
                     <p>Educators can enable identity masking before supported tool results reach the AI client. Review the documented scope before relying on it.</p>
                 </div>
-                <div class="privacy-card animate-on-scroll">
+                <div class="privacy-card">
                     <div class="privacy-icon">👤</div>
                     <h3>Canvas-Scoped Access</h3>
                     <p>Student-specific tools use Canvas's "self" endpoints. Shared course content follows the permissions Canvas grants each account.</p>
                 </div>
-                <div class="privacy-card animate-on-scroll">
+                <div class="privacy-card">
                     <div class="privacy-icon">🚫</div>
                     <h3>No Built-in Telemetry</h3>
                     <p>Canvas MCP does not add product analytics. Canvas, your MCP client, and your AI provider may still retain their own logs.</p>
                 </div>
             </div>
-            <div class="institution-callout animate-on-scroll">
+            <div class="institution-callout">
                 <div>
                     <h3>🏛️ Deploying for your whole institution?</h3>
-                    <p>A production-tested Azure deployment guide — campus SSO via Entra ID, per-user Canvas tokens, a FERPA three-tier data model, and copyable CI/CD and config templates — lives in the repository.</p>
+                    <p>The repository has a production-tested Azure deployment guide: campus SSO via Entra ID, per-user Canvas tokens, a FERPA three-tier data model, and copyable CI/CD and config templates.</p>
                 </div>
                 <a class="callout-link" href="https://github.com/vishalsachdev/canvas-mcp/tree/main/deploy/azure" target="_blank" rel="noopener">Institutional Deployment Guide →</a>
             </div>
@@ -2048,7 +1897,7 @@ canvas-mcp-server --test<br>
             <div class="section-header">
                 <div class="section-label">// Testimonial</div>
             </div>
-            <div class="testimonial-card animate-on-scroll">
+            <div class="testimonial-card">
                 <div class="testimonial-quote">
                     <svg class="quote-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="40" height="40">
                         <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"/>
@@ -2079,7 +1928,7 @@ canvas-mcp-server --test<br>
                 <h2 class="section-title">Workflow Recipes for 40+ Agents</h2>
                 <p class="section-desc">Pre-built skills that teach AI agents how to use Canvas MCP effectively. They call the MCP tools, so <a href="#install">install the server</a> first. Then install via skills.sh or use as Claude Code slash commands.</p>
             </div>
-            <div class="skills-install animate-on-scroll">
+            <div class="skills-install">
                 <div class="skills-install-text">
                     <h3>Install with skills.sh</h3>
                     <p>One command to add Canvas workflows to any supported agent.</p>
@@ -2096,15 +1945,15 @@ canvas-mcp-server --test<br>
                 <div class="skills-install-code">npx skills add vishalsachdev/canvas-mcp</div>
             </div>
             <div class="skills-grid">
-                <div class="skill-card student animate-on-scroll">
+                <div class="skill-card student">
                     <div class="feature-icon" style="background: linear-gradient(135deg, rgba(167, 139, 250, 0.2), rgba(196, 181, 253, 0.1)); margin-bottom: 24px;">📋</div>
                     <h3>canvas-week-plan</h3>
-                    <p>Student weekly planner. Due dates, submission status, grades, and peer reviews across all courses &mdash; prioritized by urgency.</p>
+                    <p>Student weekly planner. Due dates, submission status, grades, and peer reviews across all courses, prioritized by urgency.</p>
                     <div class="skill-try">
                         <strong>Try:</strong> "what's due this week"
                     </div>
                 </div>
-                <div class="skill-card educator animate-on-scroll">
+                <div class="skill-card educator">
                     <div class="feature-icon" style="background: linear-gradient(135deg, rgba(244, 114, 182, 0.2), rgba(249, 168, 212, 0.1)); margin-bottom: 24px;">🌅</div>
                     <h3>canvas-morning-check</h3>
                     <p>Educator morning dashboard. Submission rates, struggling students, grade distribution, and upcoming deadlines in one view.</p>
@@ -2112,7 +1961,7 @@ canvas-mcp-server --test<br>
                         <strong>Try:</strong> "morning check for CS 101"
                     </div>
                 </div>
-                <div class="skill-card educator animate-on-scroll">
+                <div class="skill-card educator">
                     <div class="feature-icon" style="background: linear-gradient(135deg, rgba(244, 114, 182, 0.2), rgba(249, 168, 212, 0.1)); margin-bottom: 24px;">📊</div>
                     <h3>canvas-bulk-grading</h3>
                     <p>Smart grading decision tree. Routes to single, bulk, or code execution based on submission count, with safety-first dry runs.</p>
@@ -2120,7 +1969,7 @@ canvas-mcp-server --test<br>
                         <strong>Try:</strong> "grade Assignment 5 using the rubric"
                     </div>
                 </div>
-                <div class="skill-card educator animate-on-scroll">
+                <div class="skill-card educator">
                     <div class="feature-icon" style="background: linear-gradient(135deg, rgba(244, 114, 182, 0.2), rgba(249, 168, 212, 0.1)); margin-bottom: 24px;">🔍</div>
                     <h3>canvas-peer-review-manager</h3>
                     <p>Full peer review pipeline. Completion analytics, quality analysis, problematic review flagging, targeted reminders, and reports.</p>
@@ -2128,23 +1977,23 @@ canvas-mcp-server --test<br>
                         <strong>Try:</strong> "how are peer reviews going"
                     </div>
                 </div>
-                <div class="skill-card both animate-on-scroll">
+                <div class="skill-card both">
                     <div class="feature-icon" style="background: linear-gradient(135deg, rgba(8, 145, 178, 0.12), rgba(2, 132, 199, 0.08)); margin-bottom: 24px;">💬</div>
                     <h3>canvas-discussion-facilitator</h3>
-                    <p>Discussion forum facilitation. Browse, read, reply, monitor participation, and post &mdash; for both students and educators.</p>
+                    <p>Discussion forum facilitation. Browse, read, reply, monitor participation, and post, for both students and educators.</p>
                     <div class="skill-try">
                         <strong>Try:</strong> "show discussion posts for Topic 3"
                     </div>
                 </div>
-                <div class="skill-card designer animate-on-scroll">
+                <div class="skill-card designer">
                     <div class="feature-icon" style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(103, 232, 249, 0.1)); margin-bottom: 24px;">✅</div>
                     <h3>canvas-course-qc</h3>
-                    <p>Pre-semester quality audit. Checks structure, content, publishing state, and completeness &mdash; generates a prioritized issue report.</p>
+                    <p>Pre-semester quality audit. Checks structure, content, publishing state, and completeness, then generates a prioritized issue report.</p>
                     <div class="skill-try">
                         <strong>Try:</strong> "run QC check on CS 101"
                     </div>
                 </div>
-                <div class="skill-card designer animate-on-scroll">
+                <div class="skill-card designer">
                     <div class="feature-icon" style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(103, 232, 249, 0.1)); margin-bottom: 24px;">♿</div>
                     <h3>canvas-accessibility-auditor</h3>
                     <p>WCAG-oriented review workflow. Scans content, generates prioritized reports, guides remediation, and verifies fixes.</p>
@@ -2152,7 +2001,7 @@ canvas-mcp-server --test<br>
                         <strong>Try:</strong> "audit accessibility for BADM 350"
                     </div>
                 </div>
-                <div class="skill-card designer animate-on-scroll">
+                <div class="skill-card designer">
                     <div class="feature-icon" style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(103, 232, 249, 0.1)); margin-bottom: 24px;">🏗️</div>
                     <h3>canvas-course-builder</h3>
                     <p>Scaffold complete course structures from specs, templates, or by cloning. Creates modules, pages, assignments, and discussions in bulk.</p>
@@ -2161,7 +2010,7 @@ canvas-mcp-server --test<br>
                     </div>
                 </div>
             </div>
-            <div class="skill-cta animate-on-scroll">
+            <div class="skill-cta">
                 <h3>Want a Custom Skill?</h3>
                 <p>Have a repetitive Canvas workflow you'd like automated? Submit an issue describing your use case!</p>
                 <a href="https://github.com/vishalsachdev/canvas-mcp/issues/new?labels=skill-request&title=[Skill%20Request]%20&body=**Describe%20the%20workflow%20you%20want%20automated:**%0A%0A**Steps%20you%20currently%20take%20manually:**%0A1.%20%0A2.%20%0A3.%20%0A%0A**How%20often%20do%20you%20do%20this?**%0A%0A**Any%20other%20context:**" class="btn btn-primary">
@@ -2180,39 +2029,39 @@ canvas-mcp-server --test<br>
                 <p class="section-desc">Canvas MCP is designed for MCP-compatible clients; setup details and supported capabilities vary by client.</p>
             </div>
             <div class="clients-grid">
-                <div class="client-badge animate-on-scroll">
+                <div class="client-badge">
                     <div class="client-icon">🤖</div>
                     <span>Claude Desktop</span>
                 </div>
-                <div class="client-badge animate-on-scroll">
+                <div class="client-badge">
                     <div class="client-icon">⌨️</div>
                     <span>Claude Code</span>
                 </div>
-                <div class="client-badge animate-on-scroll">
+                <div class="client-badge">
                     <div class="client-icon">💬</div>
                     <span>ChatGPT</span>
                 </div>
-                <div class="client-badge animate-on-scroll">
+                <div class="client-badge">
                     <div class="client-icon">🧩</div>
                     <span>VS Code</span>
                 </div>
-                <div class="client-badge animate-on-scroll">
+                <div class="client-badge">
                     <div class="client-icon">⚡</div>
                     <span>Zed</span>
                 </div>
-                <div class="client-badge animate-on-scroll">
+                <div class="client-badge">
                     <div class="client-icon">🖱️</div>
                     <span>Cursor</span>
                 </div>
-                <div class="client-badge animate-on-scroll">
+                <div class="client-badge">
                     <div class="client-icon">🌊</div>
                     <span>Windsurf</span>
                 </div>
-                <div class="client-badge animate-on-scroll">
+                <div class="client-badge">
                     <div class="client-icon">➡️</div>
                     <span>Continue</span>
                 </div>
-                <div class="client-badge animate-on-scroll">
+                <div class="client-badge">
                     <div class="client-icon">💻</div>
                     <span>Replit</span>
                 </div>
@@ -2274,73 +2123,6 @@ canvas-mcp-server --test<br>
             }
         });
 
-        // Smooth scroll for anchor links
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
-                if (target) {
-                    target.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
-                    });
-                }
-            });
-        });
-
-        // Intersection Observer for scroll animations
-        const observerOptions = {
-            threshold: 0.1,
-            rootMargin: '0px 0px -50px 0px'
-        };
-
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach((entry, index) => {
-                if (entry.isIntersecting) {
-                    // Add stagger delay based on sibling index
-                    const siblings = entry.target.parentElement.querySelectorAll('.animate-on-scroll');
-                    const siblingIndex = Array.from(siblings).indexOf(entry.target);
-                    entry.target.style.transitionDelay = `${siblingIndex * 0.1}s`;
-                    entry.target.classList.add('visible');
-                }
-            });
-        }, observerOptions);
-
-        document.querySelectorAll('.animate-on-scroll').forEach(el => {
-            observer.observe(el);
-        });
-
-        // Impact stats loader
-        fetch('data/impact.json')
-            .then(r => r.json())
-            .then(data => {
-                const g = data.github;
-                const monthlyInstalls = (data.pypi?.last_month || 0) + (data.npm?.last_month || 0);
-
-                document.getElementById('impact-stars').textContent = g.stars;
-                document.getElementById('impact-forks').textContent = g.forks;
-                document.getElementById('impact-contributors').textContent = g.contributors;
-                document.getElementById('impact-installs').textContent = monthlyInstalls.toLocaleString();
-
-                // Referrer tags (top 5)
-                const container = document.getElementById('impact-referrers');
-                if (g.referrers && g.referrers.length) {
-                    g.referrers.slice(0, 5).forEach(r => {
-                        const tag = document.createElement('span');
-                        tag.className = 'referrer-tag';
-                        tag.innerHTML = r.referrer + '<span class="count">' + r.uniques + '</span>';
-                        container.appendChild(tag);
-                    });
-                }
-
-                // Updated timestamp
-                const updated = document.getElementById('impact-updated');
-                const date = new Date(data.collected_at);
-                updated.textContent = 'Last updated: ' + date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-            })
-            .catch(() => {
-                // Silently fail — stats are a nice-to-have
-            });
     </script>
 
     <!-- Cloudflare Web Analytics -->

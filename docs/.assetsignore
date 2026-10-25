@@ -17,3 +17,6 @@ audits/
 
 # Public-safe repository audit records are not website assets.
 overhaul/
+
+# Agent plans and specs (working documents in the repository, not site content)
+superpowers/

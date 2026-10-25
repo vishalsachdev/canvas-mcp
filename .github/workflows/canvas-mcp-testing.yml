@@ -27,6 +27,11 @@ jobs:
     - name: Run Ruff
       run: ruff check src/ tests/
 
+    - name: Check site facts
+      # The website and README repeat the version, tool and skill counts and the GitHub counts. Fail when one is
+      # stale; python scripts/sync_site_facts.py rewrites them from their sources.
+      run: python scripts/sync_site_facts.py --check
+
     - name: Install mypy
       # Read the constraint from pyproject instead of repeating it. A literal
       # here silently drifts: it said "<2" while pyproject said "<3", so CI
