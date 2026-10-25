@@ -2530,6 +2530,13 @@ Canvas, the rest of that download stays unauthenticated, including a redirect
 back to Canvas. A separate file host that requires the Canvas token will fail
 rather than receive it.
 
+> **Windows permissions:** Owner-only access is not enforced. Files inherit the
+> destination folder's Windows permissions, including when using the default
+> temporary folder, so other local users may be able to read them. Use a folder
+> with verified private Windows permissions, or `read_course_file` to avoid
+> saving a local copy. Every successful Windows download includes this warning.
+> On POSIX systems, new files are created with owner-only permissions (`0o600`).
+
 > **Local (stdio) servers only.** The write lands on the *server's* filesystem,
 > which a remote caller cannot read anyway, so the tool refuses over HTTP and
 > points at `read_course_file` instead. It also never overwrites: the
