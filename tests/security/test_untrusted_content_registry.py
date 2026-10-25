@@ -82,7 +82,7 @@ async def test_read_course_file_fences_primary_payload(
             yield client
 
     monkeypatch.setattr(files, "make_canvas_request", metadata_response)
-    monkeypatch.setattr(files, "canvas_authenticated_client", controlled_client)
+    monkeypatch.setattr(files, "canvas_file_download_client", controlled_client)
     monkeypatch.setattr(files, "get_course_code", AsyncMock(return_value="TEST101"))
 
     mcp = FastMCP("primary-payload-registry")

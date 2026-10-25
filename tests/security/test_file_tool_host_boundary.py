@@ -303,7 +303,7 @@ class TestDownloadPermissions:
             "canvas_mcp.tools.files.get_course_code",
             new=AsyncMock(return_value="badm_350"),
         ), patch(
-            "canvas_mcp.tools.files.canvas_authenticated_client"
+            "canvas_mcp.tools.files.canvas_file_download_client"
         ) as client:
             _mock_stream(client)
             download = get_tool_function("download_course_file")
@@ -342,7 +342,7 @@ class TestDownloadPermissions:
             "canvas_mcp.tools.files.resolve_numeric_course_id",
             new=AsyncMock(return_value=("60366", None)),
         ), patch(
-            "canvas_mcp.tools.files.canvas_authenticated_client"
+            "canvas_mcp.tools.files.canvas_file_download_client"
         ) as client:
             _mock_stream(
                 client, raise_on_status=OSError("transfer failed") if failure == "stream" else None
