@@ -10,7 +10,10 @@ unchecked.
 
 import json
 import os
+import shutil
 import subprocess
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -22,7 +25,8 @@ from canvas_mcp.tools import code_execution
 from canvas_mcp.tools.code_execution import (
     _build_sandboxed_node_command,
     _find_sandbox_node,
-    _node_version,
+    _node_runtime,
+    _SandboxNode,
     register_code_execution_tools,
 )
 
@@ -189,7 +193,7 @@ def test_sandboxed_command_grants_only_code_api_reads(tmp_path: Path) -> None:
     api = tmp_path / "code_api"
     script = str(api / "script.ts")
     guard = api / "guard.cjs"
-    cmd = _build_sandboxed_node_command("/opt/node", api, script, 512, guard)
+    cmd = _build_sandboxed_node_command(_SandboxNode("/opt/node", False), api, script, 512, guard)
 
     assert cmd[:2] == ["/opt/node", "--permission"]
     grants = [arg for arg in cmd if arg.startswith("--allow-")]
@@ -202,7 +206,7 @@ def test_sandboxed_command_grants_only_code_api_reads(tmp_path: Path) -> None:
 
 
 def test_sandboxed_command_omits_unset_limits(tmp_path: Path) -> None:
-    cmd = _build_sandboxed_node_command("node", tmp_path, "s.ts", 0, None)
+    cmd = _build_sandboxed_node_command(_SandboxNode("node", False), tmp_path, "s.ts", 0, None)
     assert not any(arg.startswith(("--max-old-space-size", "--require")) for arg in cmd)
 
 
@@ -213,47 +217,57 @@ def test_loader_ships_beside_the_code_api() -> None:
 @pytest.mark.parametrize(
     ("stdout", "returncode", "expected"),
     [
-        ("v22.18.0\n", 0, (22, 18, 0)),
-        ("v24.1.2", 0, (24, 1, 2)),
+        ("v22.18.0 false\n", 0, ((22, 18, 0), False)),
+        ("v26.12.1 true", 0, ((26, 12, 1), True)),
+        ("v22.18.0\n", 0, None),
         ("not a version", 0, None),
-        ("v22.18.0\n", 1, None),
+        ("v22.18.0 false\n", 1, None),
     ],
 )
-def test_node_version_parsing(stdout: str, returncode: int, expected) -> None:
-    _node_version.cache_clear()
+def test_node_runtime_parsing(stdout: str, returncode: int, expected) -> None:
+    _node_runtime.cache_clear()
     completed = subprocess.CompletedProcess(["node"], returncode, stdout=stdout, stderr="")
     with patch("canvas_mcp.tools.code_execution.subprocess.run", return_value=completed):
-        assert _node_version("/fake/node") == expected
-    _node_version.cache_clear()
+        assert _node_runtime("/fake/node") == expected
+    _node_runtime.cache_clear()
 
 
-def test_node_version_unreadable_binary() -> None:
-    _node_version.cache_clear()
+def test_node_runtime_unreadable_binary() -> None:
+    _node_runtime.cache_clear()
     with patch(
         "canvas_mcp.tools.code_execution.subprocess.run", side_effect=OSError("no exec")
     ):
-        assert _node_version("/fake/node") is None
-    _node_version.cache_clear()
+        assert _node_runtime("/fake/node") is None
+    _node_runtime.cache_clear()
+
+
+def test_network_grant_only_where_node_gates_the_network(tmp_path: Path) -> None:
+    cmd = _build_sandboxed_node_command(_SandboxNode("node", True), tmp_path, "s.ts", 0, None)
+    grants = [arg for arg in cmd if arg.startswith("--allow-")]
+    assert grants == [f"--allow-fs-read={tmp_path}", "--allow-net"]
+    assert "--disable-warning=ExperimentalWarning" in cmd
+    plain = _build_sandboxed_node_command(_SandboxNode("node", False), tmp_path, "s.ts", 0, None)
+    assert "--allow-net" not in plain
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("node_path", "version", "reason"),
+    ("node_path", "runtime", "reason"),
     [
         (None, None, "was not found"),
-        ("/usr/bin/node", (20, 11, 1), "20.11.1 is too old"),
-        ("/usr/bin/node", (22, 17, 9), "22.17.9 is too old"),
+        ("/usr/bin/node", ((20, 11, 1), False), "20.11.1 is too old"),
+        ("/usr/bin/node", ((22, 17, 9), False), "22.17.9 is too old"),
         ("/usr/bin/node", None, "could not be read"),
     ],
 )
 async def test_local_sandbox_without_a_capable_node_refuses(
-    registered, node_path, version, reason
+    registered, node_path, runtime, reason
 ) -> None:
     def which(name: str) -> str | None:
         return node_path if name == "node" else None
 
     with patch("canvas_mcp.tools.code_execution.shutil.which", side_effect=which), patch(
-        "canvas_mcp.tools.code_execution._node_version", return_value=version
+        "canvas_mcp.tools.code_execution._node_runtime", return_value=runtime
     ), patch(
         "canvas_mcp.tools.code_execution.asyncio.create_subprocess_exec",
         new_callable=AsyncMock,
@@ -273,7 +287,7 @@ async def test_sandboxed_run_uses_node_permissions_and_drops_node_options(
     monkeypatch.setenv("NODE_OPTIONS", "--allow-child-process")
     with patch(
         "canvas_mcp.tools.code_execution._find_sandbox_node",
-        return_value=("/usr/bin/node", None),
+        return_value=(_SandboxNode("/usr/bin/node", False), None),
     ), patch(
         "canvas_mcp.tools.code_execution.asyncio.create_subprocess_exec",
         new_callable=AsyncMock,
@@ -338,3 +352,120 @@ console.log('RAN ' + typeof listSubmissions + ' ' + s);
     assert "completed successfully" in result, result
     assert "RAN function null" in result, result
     assert "Hint:" not in result, result
+
+
+def _installed_sandbox_nodes() -> list[str]:
+    """Every distinct Node on PATH that the local sandbox accepts."""
+    found: dict[str, str] = {}
+    for directory in os.environ.get("PATH", "").split(os.pathsep):
+        candidate = shutil.which("node", path=directory) if directory else None
+        if not candidate:
+            continue
+        runtime = _node_runtime(candidate)
+        if runtime and runtime[0] >= code_execution._MIN_SANDBOX_NODE:
+            found.setdefault(os.path.realpath(candidate), candidate)
+    return sorted(found.values())
+
+
+SANDBOX_NODES = _installed_sandbox_nodes() or [None]
+
+
+@pytest.fixture(params=SANDBOX_NODES, ids=lambda path: f"node={path}")
+def on_each_node(request, registered):
+    """Run the sandbox on each installed capable Node in turn."""
+    node_path = request.param
+    if node_path is None:
+        if os.environ.get("CI"):
+            pytest.fail("CI must run the sandbox boundary tests: no Node.js 22.18+ on PATH")
+        pytest.skip("No Node.js 22.18+ on PATH")
+
+    def which(name: str, *args, **kwargs) -> str | None:
+        return node_path if name == "node" else None
+
+    with patch("canvas_mcp.tools.code_execution.shutil.which", side_effect=which):
+        yield registered
+
+
+class _FakeCanvas(BaseHTTPRequestHandler):
+    seen: list[tuple[str, str | None]] = []
+
+    def do_GET(self) -> None:  # noqa: N802 (http.server naming)
+        type(self).seen.append((self.path, self.headers.get("Authorization")))
+        body = json.dumps([{"id": 17, "name": "Fixture course"}]).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args) -> None:
+        pass
+
+
+@pytest.fixture
+def fake_canvas(monkeypatch: pytest.MonkeyPatch):
+    _FakeCanvas.seen = []
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _FakeCanvas)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    monkeypatch.setenv("CANVAS_API_URL", f"http://127.0.0.1:{server.server_port}/api/v1")
+    reset_config()
+    yield _FakeCanvas.seen
+    server.shutdown()
+    server.server_close()
+    reset_config()
+
+
+@pytest.mark.asyncio
+async def test_real_canvas_request_works_on_each_node(on_each_node, fake_canvas) -> None:
+    # No fetch stub: the request leaves the sandbox for the configured Canvas
+    # host. Node 25+ gates the network under --permission, so a missing
+    # --allow-net there fails this test while a stubbed fetch would pass.
+    result = await on_each_node(code="""
+import { canvasGet } from './client.js';
+console.log('GOT ' + JSON.stringify(await canvasGet('/courses')));
+""")
+    assert 'GOT [{"id":17,"name":"Fixture course"}]' in result, result
+    assert fake_canvas, result
+    path, authorization = fake_canvas[0]
+    assert path.startswith("/api/v1/courses"), fake_canvas
+    assert authorization == "Bearer test-token", fake_canvas
+    assert "ExperimentalWarning" not in result, result
+
+
+@pytest.mark.asyncio
+async def test_boundary_holds_on_each_node(on_each_node, tmp_path: Path) -> None:
+    target = tmp_path / "written.txt"
+    result = await on_each_node(code=f"""
+import {{ execFileSync }} from 'node:child_process';
+import {{ writeFileSync }} from 'node:fs';
+const seen: string[] = [];
+try {{ execFileSync(process.execPath, ['-e', '0']); seen.push('child:ALLOWED'); }}
+catch (error) {{ seen.push('child:' + (error as {{ code?: string }}).code); }}
+try {{ writeFileSync({json.dumps(str(target))}, 'x'); seen.push('write:ALLOWED'); }}
+catch (error) {{ seen.push('write:' + (error as {{ code?: string }}).code); }}
+console.log(seen.join(' '));
+""")
+    assert "child:ERR_ACCESS_DENIED write:ERR_ACCESS_DENIED" in result, result
+    assert not target.exists(), result
+
+
+@pytest.mark.asyncio
+async def test_documented_import_forms_resolve(on_each_node) -> None:
+    # tsx accepted all of these; the code API README and examples use them.
+    result = await on_each_node(code="""
+import { canvasGet } from './client';
+import { bulkGrade } from './canvas/grading';
+import { listCourses } from './canvas/courses/listCourses';
+import * as grading from './canvas/grading/index.js';
+console.log(['RESOLVED', typeof canvasGet, typeof bulkGrade, typeof listCourses,
+  typeof grading.bulkGrade].join(' '));
+""")
+    assert "RESOLVED function function function function" in result, result
+
+
+@pytest.mark.asyncio
+async def test_missing_relative_module_still_reports_not_found(on_each_node) -> None:
+    result = await on_each_node(code="import { x } from './no/such/module';\nconsole.log(x);")
+    assert "execution failed" in result, result
+    assert "ERR_MODULE_NOT_FOUND" in result, result

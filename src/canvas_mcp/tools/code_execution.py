@@ -12,7 +12,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 from urllib.parse import urlparse
 
 from fastmcp import FastMCP
@@ -342,12 +342,22 @@ _TYPE_STRIPPING_HINT = (
 )
 
 
+class _SandboxNode(NamedTuple):
+    path: str
+    # Node 25+ also gates the network under --permission; Canvas calls need it.
+    grants_net: bool
+
+
 @functools.lru_cache(maxsize=8)
-def _node_version(node_path: str) -> tuple[int, int, int] | None:
-    """Return the version of the Node binary at node_path, or None if unreadable."""
+def _node_runtime(node_path: str) -> tuple[tuple[int, int, int], bool] | None:
+    """Return (version, has --allow-net) for the Node at node_path, or None if unreadable."""
+    probe = (
+        "console.log(process.version, "
+        "process.allowedNodeEnvironmentFlags.has('--allow-net'))"
+    )
     try:
         completed = subprocess.run(
-            [node_path, "--version"],
+            [node_path, "-e", probe],
             capture_output=True,
             text=True,
             timeout=10,
@@ -355,26 +365,27 @@ def _node_version(node_path: str) -> tuple[int, int, int] | None:
         )
     except (OSError, subprocess.SubprocessError):
         return None
-    match = re.fullmatch(r"v(\d+)\.(\d+)\.(\d+)\s*", completed.stdout)
+    match = re.fullmatch(r"v(\d+)\.(\d+)\.(\d+) (true|false)\s*", completed.stdout)
     if completed.returncode != 0 or match is None:
         return None
-    major, minor, patch = (int(part) for part in match.groups())
-    return major, minor, patch
+    major, minor, patch = (int(part) for part in match.groups()[:3])
+    return (major, minor, patch), match.group(4) == "true"
 
 
-def _find_sandbox_node() -> tuple[str | None, str | None]:
-    """Return (node_path, None), or (None, reason) when the local sandbox cannot run."""
+def _find_sandbox_node() -> tuple[_SandboxNode | None, str | None]:
+    """Return (node, None), or (None, reason) when the local sandbox cannot run."""
     node_path = shutil.which("node")
     if node_path is None:
         return None, "Node.js was not found on PATH."
-    version = _node_version(node_path)
+    runtime = _node_runtime(node_path)
     required = ".".join(str(part) for part in _MIN_SANDBOX_NODE)
-    if version is None:
+    if runtime is None:
         return None, f"The Node.js version could not be read; {required} or later is required."
+    version, has_allow_net = runtime
     if version < _MIN_SANDBOX_NODE:
         found = ".".join(str(part) for part in version)
         return None, f"Node.js {found} is too old; {required} or later is required."
-    return node_path, None
+    return _SandboxNode(node_path, has_allow_net), None
 
 
 def _local_sandbox_unavailable_error(reason: str) -> str:
@@ -392,7 +403,7 @@ def _local_sandbox_unavailable_error(reason: str) -> str:
 
 
 def _build_sandboxed_node_command(
-    node_path: str,
+    node: _SandboxNode,
     code_api_dir: Path,
     script_path: str,
     memory_limit_mb: int,
@@ -408,18 +419,28 @@ def _build_sandboxed_node_command(
     defense in depth, not an OS boundary: outbound network access is still
     limited only by that guard, and the code keeps the Canvas token.
 
+    Node 25 and later also deny the network under --permission. There the
+    command grants it with --allow-net, because the code must reach Canvas;
+    the network is then limited only by the in-process guard, as on Node 22,
+    which has no network permission at all. The flag's experimental-phase
+    warning is silenced so that it does not appear in every run's output.
+
     Every flag is on the command line, and the caller removes NODE_OPTIONS
     from the environment, so an inherited --allow-child-process (or any other
     grant) cannot widen the sandbox.
     """
     cmd = [
-        node_path,
+        node.path,
         "--permission",
         f"--allow-fs-read={code_api_dir}",
+    ]
+    if node.grants_net:
+        cmd.extend(["--allow-net", "--disable-warning=ExperimentalWarning"])
+    cmd.extend([
         # A file URL, not a path: on Windows a drive letter reads as a URL scheme.
         "--import",
         (code_api_dir / _SANDBOX_LOADER).as_uri(),
-    ]
+    ])
     if memory_limit_mb > 0:
         cmd.append(f"--max-old-space-size={memory_limit_mb}")
     if guard_path:
@@ -534,7 +555,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
         node_options_container: str | None = None
         sandbox_mode = "disabled"
         container_runtime: str | None = None
-        sandbox_node: str | None = None
+        sandbox_node: _SandboxNode | None = None
 
         # Anything other than container mode runs the caller's TypeScript directly
         # on the host, with the service account's environment and the Canvas token
