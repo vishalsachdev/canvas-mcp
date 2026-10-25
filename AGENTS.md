@@ -555,6 +555,13 @@ no course instead of sending it to Canvas.
 
 ## Privacy and Anonymization
 
+On Windows, `download_course_file` does not enforce owner-only access: downloaded
+files inherit the destination folder's Windows permissions, even in the default
+temporary folder, and other local users may be able to read them. Explain this
+before downloading; use a folder with verified private Windows permissions, or
+`read_course_file` to avoid saving a local copy. A successful Windows download
+also returns this warning. POSIX downloads are created with mode `0o600`.
+
 ### For Educators
 Enable identity anonymization for FERPA-conscious workflows:
 ```

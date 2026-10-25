@@ -697,7 +697,7 @@ class TestDownloadCourseFile:
         with patch('canvas_mcp.tools.files.resolve_numeric_course_id') as mock_get_id, \
              patch('canvas_mcp.tools.files.get_course_code') as mock_get_code, \
              patch('canvas_mcp.tools.files.make_canvas_request') as mock_request, \
-             patch('canvas_mcp.tools.files.canvas_authenticated_client') as mock_client:
+             patch('canvas_mcp.tools.files.canvas_file_download_client') as mock_client:
 
             mock_get_id.return_value = ("60366", None)
             mock_get_code.return_value = "badm_350_120251"
@@ -728,7 +728,7 @@ class TestDownloadCourseFile:
 
         mock_http = AsyncMock()
         mock_http.stream = MagicMock(return_value=mock_stream_cm)
-        # canvas_authenticated_client() is an async context manager yielding the client
+        # canvas_file_download_client() is an async context manager yielding the client
         client_cm = AsyncMock()
         client_cm.__aenter__ = AsyncMock(return_value=mock_http)
         client_cm.__aexit__ = AsyncMock(return_value=False)
@@ -897,7 +897,7 @@ class TestReadCourseFile:
         with patch('canvas_mcp.tools.files.resolve_numeric_course_id') as mock_get_id, \
              patch('canvas_mcp.tools.files.get_course_code') as mock_get_code, \
              patch('canvas_mcp.tools.files.make_canvas_request') as mock_request, \
-             patch('canvas_mcp.tools.files.canvas_authenticated_client') as mock_client:
+             patch('canvas_mcp.tools.files.canvas_file_download_client') as mock_client:
 
             mock_get_id.return_value = ("60366", None)
             mock_get_code.return_value = "badm_350_120251"
@@ -927,7 +927,7 @@ class TestReadCourseFile:
 
         mock_http = AsyncMock()
         mock_http.stream = MagicMock(return_value=mock_stream_cm)
-        # canvas_authenticated_client() is an async context manager yielding the client
+        # canvas_file_download_client() is an async context manager yielding the client
         client_cm = AsyncMock()
         client_cm.__aenter__ = AsyncMock(return_value=mock_http)
         client_cm.__aexit__ = AsyncMock(return_value=False)

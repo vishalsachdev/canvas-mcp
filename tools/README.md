@@ -1957,6 +1957,11 @@ Upload a local file to Canvas course storage.
 
 **Returns:** Uploaded file details including the Canvas file ID, usable with `add_module_item` (`item_type='File'`) or `send_conversation` (attachment IDs).
 
+Upload confirmation must stay on the configured Canvas origin (scheme, host and
+port). A confirmation outside that origin, or one requiring another redirect,
+is refused. The file may already have reached storage; inspect Canvas before
+retrying an unconfirmed upload.
+
 ---
 
 ### Accessibility
@@ -2518,6 +2523,20 @@ List files in a course with optional search.
 #### `download_course_file`
 Download a course file to the local filesystem of the machine running the MCP server.
 
+Both file download tools send Canvas credentials only to the configured Canvas
+origin (scheme, host and port). Separate file hosts are fetched without Canvas
+credentials, using the download URL's signed parameters. After a redirect leaves
+Canvas, the rest of that download stays unauthenticated, including a redirect
+back to Canvas. A separate file host that requires the Canvas token will fail
+rather than receive it.
+
+> **Windows permissions:** Owner-only access is not enforced. Files inherit the
+> destination folder's Windows permissions, including when using the default
+> temporary folder, so other local users may be able to read them. Use a folder
+> with verified private Windows permissions, or `read_course_file` to avoid
+> saving a local copy. Every successful Windows download includes this warning.
+> On POSIX systems, new files are created with owner-only permissions (`0o600`).
+
 > **Local (stdio) servers only.** The write lands on the *server's* filesystem,
 > which a remote caller cannot read anyway, so the tool refuses over HTTP and
 > points at `read_course_file` instead. It also never overwrites: the
@@ -2944,14 +2963,15 @@ await bulkGrade({
 **Returns:** Combined stdout and stderr from execution, or error message if failed.
 
 **Platform Support:**
-- **macOS/Linux**: Uses `npx tsx` directly
-- **Windows**: Automatically locates the tsx CLI entry point via `shutil.which` or `%APPDATA%\npm\node_modules\tsx\dist\cli.mjs`, then invokes it via `node` to avoid `.cmd` batch wrapper limitations
+- **Local sandbox (default without a container runtime)**: Runs `node` directly under its permission model. Needs Node.js 22.18 or later; on an older Node the tool refuses to run and says why. TypeScript goes through Node's type stripping, so import types with `import type` and avoid enums and namespaces.
+- **Container sandbox and `ENABLE_TS_SANDBOX=false`**: Use `tsx`. On macOS/Linux that is `npx tsx`; on Windows the tsx CLI entry point is located via `shutil.which` or `%APPDATA%\npm\node_modules\tsx\dist\cli.mjs` and invoked via `node` to avoid `.cmd` batch wrapper limitations
 
 **Security:**
 - Code runs in a temporary file that is deleted after execution
 - Inherits Canvas API credentials from server environment
 - Timeout enforced to prevent runaway processes
-- Local sandbox controls are best-effort, not a complete security boundary; code can access resources allowed to the server process, and strict egress control requires external isolation (see [issue #157](https://github.com/vishalsachdev/canvas-mcp/issues/157))
+- In local sandbox mode, Node's permission model lets the code read only the code API, and refuses file writes, child processes, worker threads and native addons. Inherited `NODE_OPTIONS` is dropped, so it cannot widen those limits
+- Local sandbox controls are defense in depth, not an OS boundary; the code keeps the Canvas token, outbound network blocking is best-effort, and strict egress control requires external isolation (see [issue #157](https://github.com/vishalsachdev/canvas-mcp/issues/157))
 
 **Token Efficiency:**
 - **Traditional approach**: Tool-by-tool processing may return each submission to the model
