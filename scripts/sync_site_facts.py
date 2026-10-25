@@ -16,13 +16,14 @@ import re
 import subprocess
 import sys
 import tomllib
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent.parent
 MARKER = re.compile(r"<!-- fact:([a-z_]+) -->(.*?)<!-- /fact -->")
-MARKED_FILES = ("docs/index.html",)
+# Each marked file and the markers it must keep: a deleted marker would leave its value to go stale unchecked.
+MARKED_FILES = {"docs/index.html": ("stars", "forks", "contributors", "stats_as_of")}
 
 # (file, pattern whose group 1 is the value, fact, minimum matches)
 PLACES = (
@@ -39,6 +40,7 @@ PLACES = (
 )
 
 SITEMAP = "docs/sitemap.xml"
+CENTRAL = ZoneInfo("America/Chicago")
 SITE_URL = "https://canvas-mcp.illinihunt.org/"
 
 
@@ -49,7 +51,7 @@ def load_facts(root: Path) -> dict[str, str]:
     impact = json.loads((root / "docs/data/impact.json").read_text(encoding="utf-8"))
     github = impact["github"]
     collected = datetime.fromisoformat(impact["collected_at"].replace("Z", "+00:00"))
-    as_of = collected.astimezone(ZoneInfo("America/Chicago"))
+    as_of = collected.astimezone(CENTRAL)
     return {
         "version": version,
         "tools": str(len(manifest["tools"])),
@@ -90,7 +92,7 @@ def sync(root: Path, facts: dict[str, str]) -> tuple[dict[Path, str], list[str],
             texts[path] = path.read_text(encoding="utf-8")
         return texts[path]
 
-    for name in MARKED_FILES:
+    for name, required in MARKED_FILES.items():
         def marker_value(match: re.Match[str], name: str = name) -> str:
             if match.group(1) not in facts:
                 errors.append(f"{name}: unknown fact marker {match.group(1)!r}")
@@ -98,6 +100,8 @@ def sync(root: Path, facts: dict[str, str]) -> tuple[dict[Path, str], list[str],
             return facts[match.group(1)]
 
         texts[root / name], _ = _replace(text_of(name), MARKER, marker_value, f"{name} fact marker", stale)
+        present = {match.group(1) for match in MARKER.finditer(texts[root / name])}
+        errors.extend(f"{name}: fact marker {fact!r} is missing" for fact in required if fact not in present)
 
     for name, pattern, fact, minimum in PLACES:
         compiled = re.compile(pattern)
@@ -118,10 +122,11 @@ def stamp_sitemap(root: Path) -> str:
         path = f"docs/{page}"
         dirty = subprocess.run(["git", "-C", str(root), "status", "--porcelain", "--", path],
                                capture_output=True, text=True, check=True).stdout.strip()
-        changed = date.today().isoformat() if dirty else subprocess.run(
+        changed = datetime.now(CENTRAL).date().isoformat() if dirty else subprocess.run(
             ["git", "-C", str(root), "log", "-1", "--format=%cs", "--", path],
             capture_output=True, text=True, check=True).stdout.strip()
-        return match.group(0).replace(match.group(2), changed or match.group(2))
+        start, end = match.span(2)
+        return match.group(0)[: start - match.start()] + (changed or match.group(2)) + match.group(0)[end - match.start():]
 
     return re.sub(r"<loc>([^<]+)</loc>(?:\s*)<lastmod>([^<]+)</lastmod>", lastmod, text)
 

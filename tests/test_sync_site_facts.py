@@ -1,6 +1,7 @@
 """scripts/sync_site_facts.py keeps the website and README in step with their sources."""
 
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -79,3 +80,15 @@ def test_unknown_marker_is_an_error(root: Path, capsys):
     page.write_text(page.read_text(encoding="utf-8").replace("<!-- fact:forks -->", "<!-- fact:frks -->"), encoding="utf-8")
     assert run(root, "--check") == 2
     assert "'frks'" in capsys.readouterr().err
+
+
+def test_deleted_marker_is_an_error(root: Path, capsys):
+    # A page edit that drops a marker leaves its number frozen; the check must say so.
+    page = root / "docs/index.html"
+    text = page.read_text(encoding="utf-8")
+    page.write_text(re.sub(r"<!-- fact:stars -->(.*?)<!-- /fact -->", r"\1", text), encoding="utf-8")
+    edited = page.read_text(encoding="utf-8")
+    stars = sync_site_facts.load_facts(root)["stars"]
+    assert "<!-- fact:stars -->" not in edited and f'id="impact-stars">{stars}</div>' in edited
+    assert run(root, "--check") == 2
+    assert "'stars' is missing" in capsys.readouterr().err
