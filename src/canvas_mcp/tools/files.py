@@ -35,7 +35,7 @@ from ..core.file_validation import (
     sanitize_filename,
     validate_file_for_upload,
 )
-from ..core.untrusted_content import fence_untrusted_inline
+from ..core.untrusted_content import fence_untrusted, fence_untrusted_inline
 from ..core.validation import validate_params
 
 
@@ -271,7 +271,9 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
             result += f"  Type: {content_type}\n"
             result += f"  Course: {course_display}\n"
             result += "  Encoding: base64\n"
-            result += f"  Content:\n{base64_content}\n"
+            result += "  Content:\n" + fence_untrusted(
+                base64_content, "file content (base64)"
+            ) + "\n"
             return result
 
         except Exception as e:

@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - In local sandbox mode (the default whenever no container runtime is available), `execute_typescript` runs the caller's code with Node.js under its permission model instead of `tsx`. The code can read only the bundled code API, and Node refuses child processes, worker threads, native addons, `process.binding` and file writes. An inherited `NODE_OPTIONS` can no longer widen those limits. Outbound network blocking in local mode stays best-effort ([#157](https://github.com/vishalsachdev/canvas-mcp/issues/157)).
 - File transfers limit Canvas credentials to the configured Canvas origin. Downloads from separate file hosts use their signed URLs without Canvas credentials, and upload confirmation is refused outside Canvas.
 - Windows file downloads now prominently warn that owner-only access is not enforced and that access follows the destination folder's Windows permissions. The tool description explains the limitation before use; choose a folder with verified private permissions or use `read_course_file` to avoid saving a local copy.
+- `read_course_file` marks returned file contents as untrusted Canvas data while preserving the base64 payload. Registry tests check the file payload itself in addition to the filename.
 
 ### Changed
 
