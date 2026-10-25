@@ -55,3 +55,35 @@ def test_refuses_to_deploy_when_an_ignored_path_is_staged(project: Path, tmp_pat
     assert result.returncode != 0
     assert "Refusing to deploy" in result.stderr
     assert "superpowers" in result.stderr and "ops.local.md" in result.stderr
+
+
+def test_unsupported_ignore_syntax_is_refused(project: Path):
+    ignore = project / "docs/.assetsignore"
+    ignore.write_text(ignore.read_text(encoding="utf-8") + "docs/**/drafts\n", encoding="utf-8")
+    result = dry_run(project)
+    assert result.returncode != 0
+    assert "does not model" in result.stderr and "docs/**/drafts" in result.stderr
+
+
+def test_dry_run_changes_no_tracked_file(project: Path):
+    assert dry_run(project).returncode == 0
+    status = subprocess.run(["git", "status", "--porcelain"], cwd=project, capture_output=True, text=True, check=True)
+    assert status.stdout == ""
+
+
+def test_deploys_when_home_env_has_no_cloudflare_token(project: Path, tmp_path_factory):
+    # A ~/.env without CF_API_TOKEN must leave wrangler to its own login, not stop the script under set -e.
+    home = tmp_path_factory.mktemp("home")
+    (home / ".env").write_text("OTHER_KEY=1\n", encoding="utf-8")
+    bin_dir = tmp_path_factory.mktemp("bin")
+    calls = bin_dir / "npx-calls"
+    npx = bin_dir / "npx"
+    npx.write_text(f'#!/bin/bash\necho "token=${{CLOUDFLARE_API_TOKEN:-unset}} $*" > "{calls}"\n', encoding="utf-8")
+    npx.chmod(0o755)
+    env = {**os.environ, "HOME": str(home), "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
+    env.pop("CLOUDFLARE_API_TOKEN", None)
+    result = subprocess.run(["bash", str(project / "scripts/deploy_site.sh")], cwd=project, capture_output=True,
+                            text=True, env=env)
+    assert result.returncode == 0, result.stderr
+    call = calls.read_text(encoding="utf-8")
+    assert call.startswith("token=unset ") and "wrangler pages deploy" in call and "--project-name=canvas-mcp" in call

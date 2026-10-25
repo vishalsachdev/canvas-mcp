@@ -6,7 +6,7 @@
 # directory without those paths, refuses to deploy if one got through, and deploys the copy.
 #
 # Usage: ./scripts/deploy_site.sh [--dry-run]
-#   --dry-run: stage, check and list the files; do not deploy
+#   --dry-run: stage, check and list the files; do not sync the facts (no tracked file changes) or deploy
 
 set -euo pipefail
 
@@ -17,12 +17,15 @@ STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 
 # Write the repeated facts and the sitemap dates into the pages first.
-"$PYTHON" "$SCRIPT_DIR/sync_site_facts.py" --dates
+if [[ "${1:-}" != "--dry-run" ]]; then
+    "$PYTHON" "$SCRIPT_DIR/sync_site_facts.py" --dates
+fi
 
 rsync -a --exclude-from="$PROJECT_DIR/docs/.assetsignore" --exclude=.assetsignore "$PROJECT_DIR/docs/" "$STAGE/"
 
 # The same patterns, read independently of rsync: a gitignore-style "dir/" names a directory at any depth, and any
-# other pattern matches a file name.
+# other pattern matches a file name. Syntax this check does not model (a "/" inside or at the start, "**", "!") is
+# refused, so rsync and the check cannot read one pattern two ways.
 "$PYTHON" - "$PROJECT_DIR/docs/.assetsignore" "$STAGE" <<'PY'
 import fnmatch
 import sys
@@ -31,6 +34,9 @@ from pathlib import Path
 ignore, stage = Path(sys.argv[1]), Path(sys.argv[2])
 patterns = [line.strip() for line in ignore.read_text(encoding="utf-8").splitlines()]
 patterns = [p for p in patterns if p and not p.startswith("#")]
+unsupported = [p for p in patterns if "/" in p.rstrip("/") or "**" in p or p.startswith("!")]
+if unsupported:
+    sys.exit("Refusing to deploy; .assetsignore uses syntax the check does not model: " + ", ".join(unsupported))
 leaked = []
 for path in stage.rglob("*"):
     rel = path.relative_to(stage)
@@ -50,9 +56,12 @@ if [[ "${1:-}" == "--dry-run" ]]; then
     exit 0
 fi
 
+# Use CF_API_TOKEN from ~/.env when it is there; otherwise leave wrangler to its own login.
 if [[ -z "${CLOUDFLARE_API_TOKEN:-}" && -f "$HOME/.env" ]]; then
-    CLOUDFLARE_API_TOKEN="$(grep '^CF_API_TOKEN=' "$HOME/.env" | cut -d= -f2- | tr -d '"')"
-    export CLOUDFLARE_API_TOKEN
+    token="$( (grep '^CF_API_TOKEN=' "$HOME/.env" || true) | head -1 | cut -d= -f2- | tr -d '"')"
+    if [[ -n "$token" ]]; then
+        export CLOUDFLARE_API_TOKEN="$token"
+    fi
 fi
 cd "$PROJECT_DIR"
-npx --yes wrangler pages deploy "$STAGE" --project-name=canvas-mcp --branch=main --commit-dirty=true
+npx --yes wrangler pages deploy "$STAGE" --project-name=canvas-mcp --branch=main
