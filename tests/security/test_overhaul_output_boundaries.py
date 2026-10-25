@@ -252,3 +252,92 @@ async def test_fixer_confirms_outcome_and_never_writes_fences(monkeypatch, serve
     if not applied:
         assert "error" in data
         assert "SyntheticDirective" not in data["error"]
+
+
+@pytest.mark.parametrize("record", [
+    {"id": 7, "name": "Unreadable assignment"},
+    {"id": 7, "description": 42},
+    {"id": 7, "description": {}},
+    None,
+    [],
+])
+@pytest.mark.parametrize("tool", ["scan_course_content_accessibility", "fix_accessibility_issues"])
+async def test_unreadable_assignment_is_an_error_before_any_write(monkeypatch, server, record, tool):
+    monkeypatch.setattr(accessibility, "fetch_all_paginated_results", AsyncMock(return_value=[record]))
+    request = AsyncMock()
+    monkeypatch.setattr(accessibility, "make_canvas_request", request)
+    async with Client(server) as client:
+        result = await client.call_tool(tool, {
+            "course_identifier": "42", "content_types": "assignments",
+        }, raise_on_error=False)
+    data = json.loads(result.content[0].text)
+    assert "error" in data and "summary" not in data
+    request.assert_not_awaited()
+
+
+@pytest.mark.parametrize("record", [{"title": "Missing body"}, {"body": 42}, {"body": {}}])
+async def test_fixer_unreadable_page_body_cannot_report_no_fixes(monkeypatch, server, record):
+    monkeypatch.setattr(accessibility, "fetch_all_paginated_results", AsyncMock(return_value=[{
+        "url": "synthetic-page", "title": "Synthetic page",
+    }]))
+    request = AsyncMock(return_value=record)
+    monkeypatch.setattr(accessibility, "make_canvas_request", request)
+    async with Client(server) as client:
+        result = await client.call_tool("fix_accessibility_issues", {
+            "course_identifier": "42", "content_types": "pages", "dry_run": False,
+        }, raise_on_error=False)
+    data = json.loads(result.content[0].text)
+    assert "error" in data and "summary" not in data
+    assert [call.args[0] for call in request.await_args_list] == ["get"]
+
+
+@pytest.mark.parametrize("tool", ["scan_course_content_accessibility", "fix_accessibility_issues"])
+@pytest.mark.parametrize("body", [None, ""])
+async def test_explicitly_empty_assignment_remains_readable(monkeypatch, server, tool, body):
+    monkeypatch.setattr(accessibility, "fetch_all_paginated_results", AsyncMock(return_value=[{
+        "id": 7, "name": "Empty assignment", "description": body,
+    }]))
+    async with Client(server) as client:
+        result = await client.call_tool(tool, {
+            "course_identifier": "42", "content_types": "assignments",
+        })
+    data = json.loads(result.content[0].text)
+    assert "error" not in data
+    assert "summary" in data
+
+
+@pytest.mark.parametrize("content_type,records", [
+    ("assignments", [
+        {"id": 7, "description": "<table><th>Title</th></table>"},
+        {"id": 8},
+    ]),
+    ("pages", [None]),
+])
+async def test_fixer_invalid_source_stops_before_writing_collected_changes(monkeypatch, server, content_type, records):
+    monkeypatch.setattr(accessibility, "fetch_all_paginated_results", AsyncMock(return_value=records))
+    request = AsyncMock()
+    monkeypatch.setattr(accessibility, "make_canvas_request", request)
+    async with Client(server) as client:
+        result = await client.call_tool("fix_accessibility_issues", {
+            "course_identifier": "42", "content_types": content_type,
+            "fix_types": "th_scope", "dry_run": False,
+        })
+    data = json.loads(result.content[0].text)
+    assert "error" in data and "summary" not in data
+    request.assert_not_awaited()
+
+
+@pytest.mark.parametrize("body", [None, ""])
+async def test_explicitly_empty_page_remains_readable_to_fixer(monkeypatch, server, body):
+    monkeypatch.setattr(accessibility, "fetch_all_paginated_results", AsyncMock(return_value=[{
+        "url": "empty-page", "title": "Empty page",
+    }]))
+    request = AsyncMock(return_value={"body": body})
+    monkeypatch.setattr(accessibility, "make_canvas_request", request)
+    async with Client(server) as client:
+        result = await client.call_tool("fix_accessibility_issues", {
+            "course_identifier": "42", "content_types": "pages", "dry_run": False,
+        })
+    data = json.loads(result.content[0].text)
+    assert "error" not in data and data["results"] == []
+    assert [call.args[0] for call in request.await_args_list] == ["get"]

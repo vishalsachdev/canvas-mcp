@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Accessibility scans and fixes refuse missing or malformed assignment
+  descriptions and page bodies instead of reporting a clean scan or no fixes.
+  Explicitly empty (`null` or empty-string) content remains valid, and invalid
+  sources are rejected before any collected changes can be written.
+
 ## [1.16.0] — 2026-10-24
 
 A security release. It fixes three privately reported issues and closes the last gap left by the 1.13.0 prompt-injection advisory. It also adds course group creation and an option to read submission text. Breaking for local code execution: the local sandbox now needs Node.js 22.18 or later.
