@@ -1,5 +1,5 @@
 import { createBatchRunner } from "../../batching.js";
-import { listSubmissions, Submission } from "../assignments/listSubmissions.js";
+import { listSubmissions, type Submission } from "../assignments/listSubmissions.js";
 import { createRubricGrader } from "./gradeWithRubric.js";
 
 export interface GradeResult {

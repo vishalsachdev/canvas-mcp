@@ -2944,14 +2944,15 @@ await bulkGrade({
 **Returns:** Combined stdout and stderr from execution, or error message if failed.
 
 **Platform Support:**
-- **macOS/Linux**: Uses `npx tsx` directly
-- **Windows**: Automatically locates the tsx CLI entry point via `shutil.which` or `%APPDATA%\npm\node_modules\tsx\dist\cli.mjs`, then invokes it via `node` to avoid `.cmd` batch wrapper limitations
+- **Local sandbox (default without a container runtime)**: Runs `node` directly under its permission model. Needs Node.js 22.18 or later; on an older Node the tool refuses to run and says why. TypeScript goes through Node's type stripping, so import types with `import type` and avoid enums and namespaces.
+- **Container sandbox and `ENABLE_TS_SANDBOX=false`**: Use `tsx`. On macOS/Linux that is `npx tsx`; on Windows the tsx CLI entry point is located via `shutil.which` or `%APPDATA%\npm\node_modules\tsx\dist\cli.mjs` and invoked via `node` to avoid `.cmd` batch wrapper limitations
 
 **Security:**
 - Code runs in a temporary file that is deleted after execution
 - Inherits Canvas API credentials from server environment
 - Timeout enforced to prevent runaway processes
-- Local sandbox controls are best-effort, not a complete security boundary; code can access resources allowed to the server process, and strict egress control requires external isolation (see [issue #157](https://github.com/vishalsachdev/canvas-mcp/issues/157))
+- In local sandbox mode, Node's permission model lets the code read only the code API, and refuses file writes, child processes, worker threads and native addons. Inherited `NODE_OPTIONS` is dropped, so it cannot widen those limits
+- Local sandbox controls are defense in depth, not an OS boundary; the code keeps the Canvas token, outbound network blocking is best-effort, and strict egress control requires external isolation (see [issue #157](https://github.com/vishalsachdev/canvas-mcp/issues/157))
 
 **Token Efficiency:**
 - **Traditional approach**: Tool-by-tool processing may return each submission to the model

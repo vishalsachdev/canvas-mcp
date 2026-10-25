@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- In local sandbox mode (the default whenever no container runtime is available), `execute_typescript` runs the caller's code with Node.js under its permission model instead of `tsx`. The code can read only the bundled code API, and Node refuses child processes, worker threads, native addons, `process.binding` and file writes. An inherited `NODE_OPTIONS` can no longer widen those limits. Outbound network blocking in local mode stays best-effort ([#157](https://github.com/vishalsachdev/canvas-mcp/issues/157)).
+
+### Changed
+
+- Local sandbox mode needs Node.js 22.18 or later, and refuses to run code, with the reason, on an older Node. Code in local sandbox mode goes through Node's TypeScript type stripping: import types with `import type`, and use objects or unions instead of enums and namespaces. When a script fails on one of these, its error output says how to fix it. Container mode and `ENABLE_TS_SANDBOX=false` still run `tsx`.
+
 ### Added
 
 - `list_submissions(include_body=True)` optionally returns submitted text after an explicit `manage_grades` permission check. Bodies retain anonymization redaction, are converted to plain text and fenced as untrusted data, and are bounded to 12,000 input characters per student and 60,000 output characters overall with clear truncation notices. The default compact output is unchanged; comments and attachments are excluded ([#513](https://github.com/vishalsachdev/canvas-mcp/issues/513)).
