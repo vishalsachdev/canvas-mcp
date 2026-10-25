@@ -7,13 +7,19 @@ from pathlib import Path
 
 import pytest
 
+import canvas_mcp
+
 
 @pytest.mark.parametrize("code", [
     "import canvas_mcp; assert isinstance(canvas_mcp.__version__, str)",
-    "from canvas_mcp.core.tool_policy import resolve_tool_policy; "
-    "assert resolve_tool_policy('none', 'http').allowed == frozenset()",
-    "from canvas_mcp.core.config import STUDENT_WRITE_TOOL_NAMES; "
-    "assert 'submit_assignment' in STUDENT_WRITE_TOOL_NAMES",
+    (
+        "from canvas_mcp.core.tool_policy import resolve_tool_policy; "
+        "assert resolve_tool_policy('none', 'http').allowed == frozenset()"
+    ),
+    (
+        "from canvas_mcp.core.config import STUDENT_WRITE_TOOL_NAMES; "
+        "assert 'submit_assignment' in STUDENT_WRITE_TOOL_NAMES"
+    ),
 ])
 def test_data_imports_do_not_load_the_server_framework(code: str) -> None:
     program = '''
@@ -35,14 +41,11 @@ sys.meta_path.insert(0, BlockServer())
 
 
 def test_public_main_keeps_the_server_entry_point() -> None:
-    from canvas_mcp import main
     from canvas_mcp.server import main as server_main
 
-    assert main is server_main
+    assert canvas_mcp.main is server_main
 
 
 def test_unknown_package_attribute_raises_attribute_error() -> None:
-    import canvas_mcp
-
     with pytest.raises(AttributeError, match="no_such_attribute"):
         _ = canvas_mcp.no_such_attribute
