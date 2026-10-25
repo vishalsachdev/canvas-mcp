@@ -29,6 +29,9 @@ _SAFE_ENV_KEYS = frozenset({
     "PATH", "HOME", "USER", "SHELL", "TERM", "LANG", "LC_ALL",
     "NODE_PATH", "NODE_OPTIONS", "NODE_ENV",
     "TMPDIR", "TMP", "TEMP",
+    # Windows system directories. Without SYSTEMROOT a Windows process cannot
+    # initialize networking (Winsock) or crypto, so Node fails at startup.
+    "SYSTEMROOT", "WINDIR",
     # Container runtime vars needed for Docker/Podman sandbox mode
     "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH",
     "CONTAINER_HOST",
@@ -372,10 +375,16 @@ def _node_runtime(node_path: str) -> tuple[tuple[int, int, int], bool] | None:
             check=False,
             env=env,
         )
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError) as error:
+        log_warning(f"Node.js probe could not run {node_path}: {error}")
         return None
     match = re.fullmatch(r"v(\d+)\.(\d+)\.(\d+) (true|false)\s*", completed.stdout)
     if completed.returncode != 0 or match is None:
+        detail = (completed.stderr or completed.stdout).strip().splitlines()[:1]
+        log_warning(
+            f"Node.js probe failed for {node_path} (exit {completed.returncode}): "
+            f"{detail[0] if detail else 'no output'}"
+        )
         return None
     major, minor, patch = (int(part) for part in match.groups()[:3])
     return (major, minor, patch), match.group(4) == "true"

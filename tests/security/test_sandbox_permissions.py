@@ -520,3 +520,34 @@ def test_probe_does_not_run_inherited_preloads(
         _node_runtime.cache_clear()
     assert runtime is not None and runtime[0] >= code_execution._MIN_SANDBOX_NODE
     assert not marker.exists(), "the version probe ran an inherited NODE_OPTIONS preload"
+
+
+def test_probe_passes_windows_system_dirs_but_not_node_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Node on Windows cannot start without SYSTEMROOT; NODE_OPTIONS must stay out.
+    monkeypatch.setenv("SYSTEMROOT", r"C:\Windows")
+    monkeypatch.setenv("NODE_OPTIONS", "--require=/tmp/preload.cjs")
+    monkeypatch.setenv("CANVAS_API_TOKEN", "not-for-the-probe")
+    completed = subprocess.CompletedProcess(["node"], 0, stdout="v22.18.0 false\n", stderr="")
+    _node_runtime.cache_clear()
+    with patch(
+        "canvas_mcp.tools.code_execution.subprocess.run", return_value=completed
+    ) as run:
+        assert _node_runtime("/fake/node") == ((22, 18, 0), False)
+    _node_runtime.cache_clear()
+    env = run.call_args.kwargs["env"]
+    assert env["SYSTEMROOT"] == r"C:\Windows"
+    assert "NODE_OPTIONS" not in env
+    assert "CANVAS_API_TOKEN" not in env
+
+
+def test_probe_failure_is_logged_with_its_reason(caplog) -> None:
+    completed = subprocess.CompletedProcess(
+        ["node"], 134, stdout="", stderr="Assertion failed: winsock init\nmore\n"
+    )
+    _node_runtime.cache_clear()
+    with patch("canvas_mcp.tools.code_execution.subprocess.run", return_value=completed):
+        assert _node_runtime("/fake/node") is None
+    _node_runtime.cache_clear()
+    assert "Assertion failed: winsock init" in caplog.text
