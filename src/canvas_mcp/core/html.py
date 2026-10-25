@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 _TAG_HEAD = re.compile(r"<\s*(/?)\s*([a-z][a-z0-9:_-]*+)", re.IGNORECASE | re.ASCII)
 _RAW_END = {
-    name: re.compile(rf"</{name}\s*>", re.IGNORECASE) for name in ("script", "style")
+    name: re.compile(rf"</{name}\s*>", re.IGNORECASE | re.ASCII) for name in ("script", "style")
 }
 _BLOCKS = frozenset({
     "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li", "ul", "ol",
