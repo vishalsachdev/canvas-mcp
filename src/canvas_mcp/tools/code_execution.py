@@ -1,16 +1,18 @@
 """Code execution tools for running TypeScript in Node.js environment."""
 
 import asyncio
+import functools
 import hashlib
 import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 from urllib.parse import urlparse
 
 from fastmcp import FastMCP
@@ -27,6 +29,9 @@ _SAFE_ENV_KEYS = frozenset({
     "PATH", "HOME", "USER", "SHELL", "TERM", "LANG", "LC_ALL",
     "NODE_PATH", "NODE_OPTIONS", "NODE_ENV",
     "TMPDIR", "TMP", "TEMP",
+    # Windows system directories. Without SYSTEMROOT a Windows process cannot
+    # initialize networking (Winsock) or crypto, so Node fails at startup.
+    "SYSTEMROOT", "WINDIR",
     # Container runtime vars needed for Docker/Podman sandbox mode
     "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH",
     "CONTAINER_HOST",
@@ -320,6 +325,166 @@ def _build_local_tsx_command(temp_file_path: str) -> list[str]:
             'console.error("Error: tsx not found. Install globally: npm install -g tsx"); process.exit(1)']
 
 
+# The local sandbox needs Node's permission model (stable from 22.13),
+# in-thread module hooks (module.registerHooks, 22.15) and TypeScript type
+# stripping on by default (22.18).
+_MIN_SANDBOX_NODE = (22, 18, 0)
+_SANDBOX_LOADER = "_sandbox_loader.mjs"
+
+# Node strips TypeScript types without type information, unlike tsx: a type
+# imported without `type` stays a runtime import, and enums or namespaces
+# need a transform. These are the errors that follow, with the fix.
+_TYPE_STRIPPING_ERRORS = (
+    "does not provide an export named",
+    "ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX",
+)
+_TYPE_STRIPPING_HINT = (
+    "Hint: the local sandbox runs TypeScript with Node's type stripping. "
+    "Import types with `import type { X }` (or `import { type X }`), and use "
+    "plain objects or union types instead of enums and namespaces."
+)
+
+
+class _SandboxNode(NamedTuple):
+    path: str
+    # Node 25+ also gates the network under --permission; Canvas calls need it.
+    grants_net: bool
+
+
+@functools.lru_cache(maxsize=8)
+def _node_runtime(node_path: str) -> tuple[tuple[int, int, int], bool] | None:
+    """Return (version, has --allow-net) for the Node at node_path, or None if unreadable."""
+    probe = (
+        "console.log(process.version, "
+        "process.allowedNodeEnvironmentFlags.has('--allow-net'))"
+    )
+    # `node -e` would run any preload named in an inherited NODE_OPTIONS, with
+    # no permission model and the server's full environment. The probe needs
+    # neither, so it gets the filtered keys without NODE_OPTIONS.
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key in _SAFE_ENV_KEYS and key != "NODE_OPTIONS"
+    }
+    try:
+        completed = subprocess.run(
+            [node_path, "-e", probe],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+            env=env,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        log_warning(f"Node.js probe could not run {node_path}: {error}")
+        return None
+    match = re.fullmatch(r"v(\d+)\.(\d+)\.(\d+) (true|false)\s*", completed.stdout)
+    if completed.returncode != 0 or match is None:
+        detail = (completed.stderr or completed.stdout).strip().splitlines()[:1]
+        log_warning(
+            f"Node.js probe failed for {node_path} (exit {completed.returncode}): "
+            f"{detail[0] if detail else 'no output'}"
+        )
+        return None
+    major, minor, patch = (int(part) for part in match.groups()[:3])
+    return (major, minor, patch), match.group(4) == "true"
+
+
+def _find_sandbox_node() -> tuple[_SandboxNode | None, str | None]:
+    """Return (node, None), or (None, reason) when the local sandbox cannot run."""
+    node_path = shutil.which("node")
+    if node_path is None:
+        return None, "Node.js was not found on PATH."
+    runtime = _node_runtime(node_path)
+    required = ".".join(str(part) for part in _MIN_SANDBOX_NODE)
+    if runtime is None:
+        return None, f"The Node.js version could not be read; {required} or later is required."
+    version, has_allow_net = runtime
+    if version < _MIN_SANDBOX_NODE:
+        found = ".".join(str(part) for part in version)
+        return None, f"Node.js {found} is too old; {required} or later is required."
+    return _SandboxNode(node_path, has_allow_net), None
+
+
+# The startup warning that Node 25+ prints for --allow-net, with the hint
+# line Node adds after a process's first warning. It has no warning code, so
+# --disable-warning could only silence the whole ExperimentalWarning category.
+_ALLOW_NET_WARNING = re.compile(
+    r"^\(node:\d+\) ExperimentalWarning: The flag --allow-net is under "
+    r"experimental phase\.\r?\n"
+    r"(?:\(Use `node --trace-warnings \.\.\.` to show where the warning was "
+    r"created\)\r?\n)?",
+    re.MULTILINE,
+)
+
+
+def _strip_allow_net_warning(stderr: str) -> str:
+    """Remove the sandbox's own --allow-net startup warning, and nothing else."""
+    return _ALLOW_NET_WARNING.sub("", stderr, count=1)
+
+
+def _local_sandbox_unavailable_error(reason: str) -> str:
+    """Refuse local sandboxed execution when the permission boundary is unavailable."""
+    log_warning(f"Refusing code execution: {reason}")
+    return (
+        f"❌ Code execution refused: {reason}\n\n"
+        "The local sandbox runs code under Node's permission model, which needs "
+        "Node.js 22.18 or later. It failed closed rather than running the code "
+        "without that boundary. Install a newer Node.js, use "
+        "TS_SANDBOX_MODE=container, or set ENABLE_TS_SANDBOX=false on a local "
+        "(stdio) server where running code with your own permissions is the "
+        "intended behavior."
+    )
+
+
+def _build_sandboxed_node_command(
+    node: _SandboxNode,
+    code_api_dir: Path,
+    script_path: str,
+    memory_limit_mb: int,
+    guard_path: Path | None,
+) -> list[str]:
+    """Return the command that runs a script under Node's permission model.
+
+    The only grant is reading code_api_dir, which holds the script, the API
+    modules, the loader and the network guard. Node then refuses child
+    processes, worker threads, native addons, WASI, process.binding, every
+    file write, and reads anywhere else (ERR_ACCESS_DENIED). That closes the
+    host-execution routes that the in-process network guard cannot. It is
+    defense in depth, not an OS boundary: outbound network access is still
+    limited only by that guard, and the code keeps the Canvas token.
+
+    Node 25 and later also deny the network under --permission. There the
+    command grants it with --allow-net, because the code must reach Canvas;
+    the network is then limited only by the in-process guard, as on Node 22,
+    which has no network permission at all. The flag's own experimental-phase
+    warning is removed from the output afterwards (_strip_allow_net_warning),
+    not suppressed: --disable-warning would also hide the caller's warnings.
+
+    Every flag is on the command line, and the caller removes NODE_OPTIONS
+    from the environment, so an inherited --allow-child-process (or any other
+    grant) cannot widen the sandbox.
+    """
+    cmd = [
+        node.path,
+        "--permission",
+        f"--allow-fs-read={code_api_dir}",
+    ]
+    if node.grants_net:
+        cmd.append("--allow-net")
+    cmd.extend([
+        # A file URL, not a path: on Windows a drive letter reads as a URL scheme.
+        "--import",
+        (code_api_dir / _SANDBOX_LOADER).as_uri(),
+    ])
+    if memory_limit_mb > 0:
+        cmd.append(f"--max-old-space-size={memory_limit_mb}")
+    if guard_path:
+        cmd.append(f"--require={guard_path}")
+    cmd.append(script_path)
+    return cmd
+
+
 def _detect_container_runtime() -> str | None:
     for runtime in ("docker", "podman"):
         if shutil.which(runtime):
@@ -382,10 +547,14 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
 
         Security is best-effort unless container sandboxing is available. In
         local mode the code runs on the host from a temp file that is deleted
-        afterwards; in container mode it is streamed to the sandboxed process
-        and never written to host disk. An outbound network allowlist, timeout,
-        memory, and CPU limits may apply; when sandboxing is enabled the output
-        ends with a "=== Sandbox ===" section listing the mode and limits.
+        afterwards, under Node's permission model (Node.js 22.18 or later): it
+        can read only the code API and cannot write files, start processes or
+        workers, or load native addons, so use console output and the Canvas
+        API rather than local files. In container mode it is streamed to the
+        sandboxed process and never written to host disk. An outbound network
+        allowlist, timeout, memory, and CPU limits may apply; when sandboxing
+        is enabled the output ends with a "=== Sandbox ===" section listing the
+        mode and limits.
 
         Args:
             code: TypeScript source; see imports above.
@@ -422,6 +591,7 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
         node_options_container: str | None = None
         sandbox_mode = "disabled"
         container_runtime: str | None = None
+        sandbox_node: _SandboxNode | None = None
 
         # Anything other than container mode runs the caller's TypeScript directly
         # on the host, with the service account's environment and the Canvas token
@@ -480,23 +650,45 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     "is not permitted over HTTP."
                 )
 
+            # Local mode runs the code on the host, so it runs only under
+            # Node's permission model, and only on a Node that has one.
+            if sandbox_mode == "local":
+                sandbox_node, node_problem = _find_sandbox_node()
+                if node_problem:
+                    return _local_sandbox_unavailable_error(node_problem)
+
             if block_outbound:
                 # Say plainly when the block is advisory. The guard patches
-                # net/tls/http/https and fetch inside the Node process, which
-                # executed code can step around via child_process, dgram, or a
-                # utility shipped in the image — and CANVAS_API_TOKEN is in that
-                # process's environment. Only the --network=none case above is
-                # actually enforced.
-                if sandbox_mode != "container" or allowlist_hosts:
-                    message = (
+                # net.connect, tls.connect, http/https.request and fetch inside
+                # the Node process; anything else that opens a socket (dgram,
+                # dns, a net.Socket built by hand) goes around it, and
+                # CANVAS_API_TOKEN is in that process's environment. In local
+                # mode the permission model closes the child-process and
+                # native-addon routes, not the network. Only the
+                # --network=none container case is actually enforced.
+                egress_message: str | None = None
+                if sandbox_mode == "local":
+                    egress_message = (
+                        "Outbound blocking is best-effort here: it is enforced by "
+                        "patching Node's connect, request and fetch functions "
+                        "in-process, and executed code can still reach the network "
+                        "through APIs the guard does not patch (dgram, dns, "
+                        "net.Socket). Node's permission model refuses child "
+                        "processes, workers and native addons. Kernel-level "
+                        "enforcement applies only to container mode with an empty "
+                        "allowlist."
+                    )
+                elif allowlist_hosts:
+                    egress_message = (
                         "Outbound blocking is best-effort here: it is enforced by "
                         "patching Node APIs in-process, which executed code can "
                         "bypass (child_process, dgram, bundled utilities). Kernel-"
                         "level enforcement applies only to container mode with an "
                         "empty allowlist."
                     )
-                    warnings.append(message)
-                    log_warning(message)
+                if egress_message:
+                    warnings.append(egress_message)
+                    log_warning(egress_message)
 
                 guard_path = _write_network_guard(allowlist_hosts, code_api_dir)
                 if sandbox_mode == "container":
@@ -566,7 +758,12 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
 
             # Prepare filtered environment variables (allowlist only)
             env = _build_safe_env(config)
-            if node_options_local:
+            if sandbox_mode == "local":
+                # The sandboxed command carries all of its flags in argv. An
+                # inherited NODE_OPTIONS could re-grant what the permission
+                # model withholds (--allow-child-process), so it is dropped.
+                env.pop("NODE_OPTIONS", None)
+            elif node_options_local:
                 env["NODE_OPTIONS"] = node_options_local
 
             effective_timeout = timeout
@@ -579,7 +776,8 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                     warnings.append(message)
                     log_warning(message)
 
-            # Execute with tsx, which runs TypeScript without a separate build step.
+            # Container mode runs tsx inside the container; local mode runs Node
+            # under its permission model; a disabled sandbox runs tsx directly.
             if sandbox_mode == "container" and container_runtime:
                 cmd = [
                     container_runtime,
@@ -665,7 +863,19 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                 # runtime has already been confirmed available). Either way
                 # temp_file_path was written in the non-container branch above.
                 assert temp_file_path is not None
-                cmd = _build_local_tsx_command(temp_file_path)
+                if sandbox_mode == "local":
+                    # Set together with sandbox_mode above, or execution returned.
+                    assert sandbox_node is not None
+                    cmd = _build_sandboxed_node_command(
+                        sandbox_node,
+                        code_api_dir,
+                        temp_file_path,
+                        config.ts_sandbox_memory_limit_mb,
+                        guard_path,
+                    )
+                else:
+                    # Sandbox disabled: tsx, with the server's own permissions.
+                    cmd = _build_local_tsx_command(temp_file_path)
 
             # Run the TypeScript code
             preexec_fn = None
@@ -704,6 +914,8 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
 
                 stdout = stdout_bytes.decode('utf-8', errors='replace')
                 stderr = stderr_bytes.decode('utf-8', errors='replace')
+                if sandbox_mode == "local" and sandbox_node and sandbox_node.grants_net:
+                    stderr = _strip_allow_net_warning(stderr)
 
                 # Format output
                 result_lines = []
@@ -716,6 +928,12 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                 if sandbox_enabled:
                     result_lines.append("=== Sandbox ===")
                     result_lines.append(f"Mode: {sandbox_mode}")
+                    if sandbox_mode == "local":
+                        result_lines.append(
+                            "Permissions: Node permission model (reads only the "
+                            "code API; no file writes, child processes, workers "
+                            "or native addons)"
+                        )
                     if block_outbound:
                         allowlist_label = ", ".join(allowlist_hosts) if allowlist_hosts else "none"
                         result_lines.append(f"Network allowlist: {allowlist_label}")
@@ -738,6 +956,10 @@ def register_code_execution_tools(mcp: FastMCP) -> None:
                 if stderr:
                     result_lines.append("=== Errors/Warnings ===")
                     result_lines.append(stderr)
+                    if sandbox_mode == "local" and any(
+                        marker in stderr for marker in _TYPE_STRIPPING_ERRORS
+                    ):
+                        result_lines.append(_TYPE_STRIPPING_HINT)
 
                 # Audit: log successful/failed execution
                 from ..core.audit import log_code_execution
