@@ -1,74 +1,74 @@
 {
-  "collected_at": "2026-10-05T14:00:08Z",
+  "collected_at": "2026-10-25T03:36:14Z",
   "github": {
-    "stars": 276,
-    "forks": 94,
-    "contributors": 26,
-    "open_issues": 12,
-    "views_14d": 2115,
-    "views_14d_unique": 959,
-    "clones_14d": 6027,
-    "clones_14d_unique": 1103,
+    "stars": 308,
+    "forks": 99,
+    "contributors": 27,
+    "open_issues": 15,
+    "views_14d": 977,
+    "views_14d_unique": 471,
+    "clones_14d": 6447,
+    "clones_14d_unique": 1034,
     "referrers": [
       {
         "referrer": "Google",
-        "count": 642,
-        "uniques": 493
+        "count": 220,
+        "uniques": 181
       },
       {
         "referrer": "github.com",
-        "count": 104,
-        "uniques": 71
+        "count": 41,
+        "uniques": 33
       },
       {
         "referrer": "canvas-mcp.illinihunt.org",
-        "count": 43,
-        "uniques": 32
-      },
-      {
-        "referrer": "reddit.com",
-        "count": 27,
-        "uniques": 22
+        "count": 14,
+        "uniques": 11
       },
       {
         "referrer": "Bing",
-        "count": 23,
-        "uniques": 17
-      },
-      {
-        "referrer": "DuckDuckGo",
-        "count": 20,
-        "uniques": 16
+        "count": 12,
+        "uniques": 12
       },
       {
         "referrer": "search.brave.com",
-        "count": 14,
-        "uniques": 14
+        "count": 11,
+        "uniques": 8
+      },
+      {
+        "referrer": "reddit.com",
+        "count": 6,
+        "uniques": 5
+      },
+      {
+        "referrer": "DuckDuckGo",
+        "count": 4,
+        "uniques": 4
       },
       {
         "referrer": "community.instructure.com",
-        "count": 10,
-        "uniques": 9
+        "count": 3,
+        "uniques": 3
       },
       {
-        "referrer": "chatgpt.com",
-        "count": 9,
-        "uniques": 5
+        "referrer": "Yahoo",
+        "count": 2,
+        "uniques": 2
       },
       {
-        "referrer": "teams.public.onecdn.static.microsoft",
-        "count": 7,
-        "uniques": 5
+        "referrer": "vishalsachdev.github.io",
+        "count": 2,
+        "uniques": 2
       }
     ]
   },
   "pypi": {
-    "last_day": 37,
-    "last_week": 514,
-    "last_month": 1188
+    "last_day": 55,
+    "last_week": 501,
+    "last_month": 1208
   },
   "npm": {
-    "last_month": 42
+    "last_month": 33
   },
   "history": [
     {
@@ -349,6 +349,33 @@
       "npm_month": 42,
       "views_unique": 959,
       "clones_unique": 1103
+    },
+    {
+      "date": "2026-10-12",
+      "stars": 290,
+      "forks": 96,
+      "pypi_month": 1208,
+      "npm_month": 44,
+      "views_unique": 863,
+      "clones_unique": 1266
+    },
+    {
+      "date": "2026-10-19",
+      "stars": 296,
+      "forks": 97,
+      "pypi_month": 1208,
+      "npm_month": 40,
+      "views_unique": 661,
+      "clones_unique": 1069
+    },
+    {
+      "date": "2026-10-24",
+      "stars": 308,
+      "forks": 99,
+      "pypi_month": 1208,
+      "npm_month": 33,
+      "views_unique": 471,
+      "clones_unique": 1034
     }
   ]
 }

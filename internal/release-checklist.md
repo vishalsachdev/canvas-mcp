@@ -8,7 +8,7 @@ When bumping the version in `pyproject.toml`, also update:
 - [ ] `server.json` - Update both `version` fields (top-level and packages[0]) for MCP Registry
 - [ ] `tools/TOOL_MANIFEST.json` - Update `version` field to match new version
 - [ ] `README.md` - Update "Latest Release" section with new version, date, and changelog
-- [ ] `docs/index.html` - Update version badge, tool count, and meta descriptions (Cloudflare Pages site; deploy by hand with `npx wrangler pages deploy docs/ --project-name=canvas-mcp --branch=main`)
+- [ ] Deploy the site with `./scripts/deploy_site.sh`: it runs `scripts/sync_site_facts.py --dates` (version, tool and skill counts, GitHub stats, sitemap dates; CI fails on a stale fact) and uploads `docs/` without the `.assetsignore` paths. Never run a bare `wrangler pages deploy docs/`.
 - [ ] `uv.lock` - Run `uv lock` after bumping `pyproject.toml`; the lock records the project version and drifts otherwise
 - [ ] Create git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
 - [ ] Confirm the production deploy ran: the tag push also triggers `deploy-prod.yml`. Merges to `main` do not deploy production; between releases, ship `main` with a manual `deploy-prod.yml` run from `main`.
@@ -22,7 +22,6 @@ When bumping the version in `pyproject.toml`, also update:
 ## Gotchas
 
 - A blanket `s/1.3.0/1.4.0/` also hits dep constraints (e.g. `pytest-asyncio>=1.3.0`) — verify `git diff` shows ONLY the package version before committing.
-- `docs/index.html` has both a `softwareVersion` field and a `vX.Y.Z`-style banner; a `\b`-anchored regex misses the `v`-prefixed banner — bump `v`-prefixed refs separately.
 - **`Installing mcp-publisher version: null` (first seen v1.11.0):** NOT the publish race. The
   registry job resolved the mcp-publisher tag via an *unauthenticated* `api.github.com` call,
   hit the per-runner-IP rate limit, and `jq` returned the string `null`. The download URL then

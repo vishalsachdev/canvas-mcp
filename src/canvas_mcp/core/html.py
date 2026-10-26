@@ -7,13 +7,31 @@ from dataclasses import dataclass
 
 _TAG_HEAD = re.compile(r"<\s*(/?)\s*([a-z][a-z0-9:_-]*+)", re.IGNORECASE | re.ASCII)
 _RAW_END = {
-    name: re.compile(rf"</{name}\s*>", re.IGNORECASE) for name in ("script", "style")
+    name: re.compile(rf"</{name}\s*>", re.IGNORECASE | re.ASCII) for name in ("script", "style")
 }
 _BLOCKS = frozenset({
     "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li", "ul", "ol",
     "tr", "table", "thead", "tbody", "tfoot", "section", "article", "header",
     "footer", "blockquote", "pre",
 })
+# U+10FFFF has 7 decimal digits, so a reference with more significant digits is out of range.
+_LONG_DECIMAL_REF = re.compile(r"&#([0-9]{8,})")
+
+
+def _shorten_decimal_ref(match: re.Match[str]) -> str:
+    digits = match.group(1).lstrip("0") or "0"
+    return "&#" + (digits if len(digits) <= 7 else "1114112")
+
+
+def unescape_html(text: str) -> str:
+    """html.unescape that does not raise on a decimal reference of more than 4,300 digits.
+
+    html.unescape converts the digits with int(), which CPython limits to
+    sys.get_int_max_str_digits() digits. Leading zeros are dropped and an
+    out-of-range value becomes 1114112, which html.unescape decodes to U+FFFD,
+    so the result is the one the standard gives without the limit.
+    """
+    return html.unescape(_LONG_DECIMAL_REF.sub(_shorten_decimal_ref, text))
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,7 +192,7 @@ def strip_html_tags(html_content: str | None) -> str:
     if hidden is None:
         parts.append(html_content[cursor:])
 
-    text = html.unescape("".join(parts))
+    text = unescape_html("".join(parts))
     text = re.sub(r"[ \t\xa0]+", " ", text)
     text = re.sub(r" *\n *", "\n", text)
     return re.sub(r"\n{3,}", "\n\n", text).strip()
