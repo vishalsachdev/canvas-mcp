@@ -11,6 +11,18 @@ __author__ = "Vishal Sachdev"
 __email__ = "vishal@illinois.edu"
 __description__ = "A Model Context Protocol server for Canvas LMS integration"
 
-from .server import main
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .server import main
+
+
+def __getattr__(name: str) -> Any:
+    if name == "main":
+        from .server import main
+
+        globals()[name] = main
+        return main
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = ["main", "__version__"]

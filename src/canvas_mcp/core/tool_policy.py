@@ -31,11 +31,14 @@ is explicit, and ``tests/security/test_tool_policy.py`` requires it to cover
 every tool and to agree with the annotations.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
-from fastmcp import FastMCP
+if TYPE_CHECKING:
+    from fastmcp import FastMCP
 
 ALLOWLIST_ENV = "ALLOWED_WRITE_TOOLS"
 
