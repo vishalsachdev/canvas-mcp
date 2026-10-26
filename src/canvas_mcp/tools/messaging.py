@@ -988,11 +988,14 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
         """
 
         try:
-            # First, get peer review completion analytics using the Canvas API
-            from ..core.cache import get_course_id
+            # Resolve once for analytics, message composition, confirmation,
+            # and Canvas's numeric course context.
+            from ..core.cache import resolve_numeric_course_id
             from ..core.peer_reviews import PeerReviewAnalyzer
 
-            course_id = await get_course_id(course_identifier)
+            course_id, course_error = await resolve_numeric_course_id(course_identifier)
+            if course_id is None:
+                return {"error": course_error, "nothing_sent": True}
             analyzer = PeerReviewAnalyzer()
 
             analytics_result = await analyzer.get_completion_analytics(
@@ -1108,6 +1111,7 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
             if composed_batches:
                 fingerprint = _CAMPAIGN_GUARD.fingerprint(
                     str(course_identifier),
+                    course_id,
                     str(assignment_id),
                     json.dumps(sorted(urgent_ids)),
                     json.dumps(sorted(partial_ids)),
@@ -1156,13 +1160,13 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
             # between the token check and the POST.
             for batch in composed_batches:
                 batch_result = await _post_conversation(
-                    course_identifier,
+                    course_id,
                     batch["recipient_ids"],
                     batch["subject"],
                     batch["body"],
                     group_conversation=True,
                     bulk_message=True,
-                    context_code=f"course_{course_identifier}",
+                    context_code=f"course_{course_id}",
                     mode="sync",
                     force_new=False,
                     attachment_ids=None,
