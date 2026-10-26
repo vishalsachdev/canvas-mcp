@@ -1333,12 +1333,12 @@ class TestMultiRecipientSendGating:
             "canvas_mcp.core.peer_reviews.PeerReviewAnalyzer.get_completion_analytics",
             new_callable=AsyncMock,
         ) as mock_analytics, patch(
-            "canvas_mcp.core.cache.get_course_id", new_callable=AsyncMock
+            "canvas_mcp.core.cache.resolve_numeric_course_id", new_callable=AsyncMock
         ) as mock_course_id, patch(
             "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
         ) as mock_request:
             mock_analytics.return_value = analytics
-            mock_course_id.return_value = "12345"
+            mock_course_id.return_value = ("12345", None)
             mock_request.return_value = assignment  # GETs (compose); POSTs same dict
             tool = self._tool("send_peer_review_followup_campaign")
 
@@ -1381,11 +1381,11 @@ class TestMultiRecipientSendGating:
             "canvas_mcp.core.peer_reviews.PeerReviewAnalyzer.get_completion_analytics",
             new_callable=AsyncMock,
         ) as mock_analytics, patch(
-            "canvas_mcp.core.cache.get_course_id", new_callable=AsyncMock
+            "canvas_mcp.core.cache.resolve_numeric_course_id", new_callable=AsyncMock
         ) as mock_course_id, patch(
             "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
         ) as mock_request:
-            mock_course_id.return_value = "12345"
+            mock_course_id.return_value = ("12345", None)
             mock_request.return_value = {"name": "Essay 1", "html_url": ""}
             tool = self._tool("send_peer_review_followup_campaign")
 
@@ -1419,11 +1419,11 @@ class TestMultiRecipientSendGating:
             "canvas_mcp.core.peer_reviews.PeerReviewAnalyzer.get_completion_analytics",
             new_callable=AsyncMock,
         ) as mock_analytics, patch(
-            "canvas_mcp.core.cache.get_course_id", new_callable=AsyncMock
+            "canvas_mcp.core.cache.resolve_numeric_course_id", new_callable=AsyncMock
         ) as mock_course_id, patch(
             "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
         ) as mock_request:
-            mock_course_id.return_value = "12345"
+            mock_course_id.return_value = ("12345", None)
             mock_request.return_value = {"name": "Essay 1", "html_url": ""}
             tool = self._tool("send_peer_review_followup_campaign")
 
@@ -1463,12 +1463,12 @@ class TestMultiRecipientSendGating:
             "canvas_mcp.core.peer_reviews.PeerReviewAnalyzer.get_completion_analytics",
             new_callable=AsyncMock,
         ) as mock_analytics, patch(
-            "canvas_mcp.core.cache.get_course_id", new_callable=AsyncMock
+            "canvas_mcp.core.cache.resolve_numeric_course_id", new_callable=AsyncMock
         ) as mock_cid, patch(
             "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
         ) as mock_req:
             mock_analytics.return_value = analytics
-            mock_cid.return_value = "1"
+            mock_cid.return_value = ("1", None)
             mock_req.return_value = {"name": "Essay 1", "html_url": ""}
             tool = self._tool("send_peer_review_followup_campaign")
             preview = await tool("CS101", 42)
@@ -1499,11 +1499,11 @@ class TestMultiRecipientSendGating:
             "canvas_mcp.core.peer_reviews.PeerReviewAnalyzer.get_completion_analytics",
             new_callable=AsyncMock,
         ) as mock_analytics, patch(
-            "canvas_mcp.core.cache.get_course_id", new_callable=AsyncMock
+            "canvas_mcp.core.cache.resolve_numeric_course_id", new_callable=AsyncMock
         ) as mock_course_id, patch(
             "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
         ) as mock_request:
-            mock_course_id.return_value = "12345"
+            mock_course_id.return_value = ("12345", None)
             mock_request.return_value = {"name": "Essay 1", "html_url": ""}
             tool = self._tool("send_peer_review_followup_campaign")
 
@@ -1562,12 +1562,12 @@ class TestMultiRecipientSendGating:
             "canvas_mcp.core.peer_reviews.PeerReviewAnalyzer.get_completion_analytics",
             new_callable=AsyncMock,
         ) as mock_analytics, patch(
-            "canvas_mcp.core.cache.get_course_id", new_callable=AsyncMock
+            "canvas_mcp.core.cache.resolve_numeric_course_id", new_callable=AsyncMock
         ) as mock_course_id, patch(
             "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
         ) as mock_request:
             mock_analytics.return_value = analytics
-            mock_course_id.return_value = "12345"
+            mock_course_id.return_value = ("12345", None)
             tool = self._tool("send_peer_review_followup_campaign")
 
             mock_request.return_value = {"name": "Essay 1", "html_url": ""}
@@ -2237,12 +2237,12 @@ class TestRound9Surfaces:
             "canvas_mcp.core.peer_reviews.PeerReviewAnalyzer.get_completion_analytics",
             new_callable=AsyncMock,
         ) as mock_analytics, patch(
-            "canvas_mcp.core.cache.get_course_id", new_callable=AsyncMock
+            "canvas_mcp.core.cache.resolve_numeric_course_id", new_callable=AsyncMock
         ) as mock_cid, patch(
             "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
         ) as mock_req:
             mock_analytics.return_value = analytics
-            mock_cid.return_value = "1"
+            mock_cid.return_value = ("1", None)
             mock_req.return_value = {"name": "HOSTILE NAME", "html_url": ""}
             from canvas_mcp.tools.messaging import register_educator_messaging_tools
             tool = _get_tool(register_educator_messaging_tools, "send_peer_review_followup_campaign")
