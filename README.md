@@ -341,7 +341,9 @@ If you use **Claude Desktop**, you can install Canvas MCP with one click — no 
 2. Double-click the file (or drag it into Claude Desktop → Settings → Extensions).
 3. When prompted, enter your **Canvas API URL** — this must include the `/api/v1` path (e.g. `https://canvas.youruniversity.edu/api/v1`) — and your **Canvas API token** (Canvas → Account → Settings → New Access Token — some institutions issue these by request form instead, see [below](#2-configure-environment)). The token is stored in your OS keychain.
 
-The extension runs the server locally and calls Canvas with **your own** token, so requests use that token's Canvas permissions. Canvas and your AI client may retain their own activity records. Requires Python 3.11+ (the bundled runtime manages dependencies automatically). For other clients, or to run from source, use the manual setup below.
+The extension runs the server locally and calls Canvas with **your own** token, so requests use that token's Canvas permissions. Canvas and your AI client may retain their own activity records. The extension uses `uv` to select Python 3.13 and manage dependencies; `uv` downloads Python 3.13 on first launch if it is missing (internet access is required, and Python downloads must be allowed). You do not need to install Python separately or change your system's default Python. For other clients, or to run from source, use the manual setup below.
+
+**Windows troubleshooting:** `spawn uv ENOENT` means Claude Desktop cannot find `uv`. Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then fully quit and reopen Claude Desktop so it picks up the updated PATH. Older extension bundles can select Python 3.15 and fail while compiling `cffi` with a "Microsoft Visual C++ 14.0 or greater is required" error; explicitly select Python 3.13 with `uv run --python 3.13` in a manual client configuration instead of installing a compiler. See [issue #391](https://github.com/vishalsachdev/canvas-mcp/issues/391). Existing released bundles do not acquire launcher changes until you install a release containing them.
 
 ## Local Installation
 
