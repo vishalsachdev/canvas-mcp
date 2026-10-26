@@ -1064,8 +1064,11 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
 
             composed_batches: list[dict[str, Any]] = []
             for label, ids, message, prefix in batch_specs:
+                # course_id, not course_identifier: _compose_reminder builds
+                # /courses/<x>/assignments/<id> from it, and Canvas only accepts
+                # a numeric id there. The raw course code would 404.
                 composed = await _compose_reminder(
-                    course_identifier, assignment_id, message, True, prefix
+                    course_id, assignment_id, message, True, prefix
                 )
                 if isinstance(composed, dict):
                     return composed
