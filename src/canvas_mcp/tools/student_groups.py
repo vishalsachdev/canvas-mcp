@@ -45,7 +45,6 @@ of it.
 
 from __future__ import annotations
 
-import html
 import re
 from typing import Any
 
@@ -58,6 +57,7 @@ from ..core.client import fetch_all_paginated_results
 from ..core.config import get_config
 from ..core.dates import format_date
 from ..core.file_validation import format_file_size
+from ..core.html import unescape_html
 from ..core.untrusted_content import fence_untrusted, fence_untrusted_inline
 from ..core.validation import coerce_canvas_id, validate_params
 
@@ -125,7 +125,7 @@ def _plain_text(markup: object) -> str:
     """Strip HTML tags and decode entities for display. Never sent back to Canvas."""
     if not isinstance(markup, str) or not markup:
         return ""
-    return html.unescape(_TAG.sub("", markup)).strip()
+    return unescape_html(_TAG.sub("", markup)).strip()
 
 
 _MAX_ERROR_DETAIL = 200

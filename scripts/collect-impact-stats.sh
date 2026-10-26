@@ -98,11 +98,13 @@ env \
 
 log "Done collecting stats"
 
+# The site shows the GitHub counts as static HTML; write them (and the other repeated facts) into the pages.
+"$PYTHON" "$SCRIPT_DIR/sync_site_facts.py" 2>&1 | tee -a "$LOG_FILE"
+
 # --- Optional deploy ---
 if [[ "${1:-}" == "--deploy" ]]; then
     log "Deploying to Cloudflare Pages..."
-    cd "$PROJECT_DIR"
-    npx wrangler pages deploy docs/ --project-name=canvas-mcp --branch=main --commit-dirty=true 2>&1 | tee -a "$LOG_FILE"
+    PYTHON="$PYTHON" "$SCRIPT_DIR/deploy_site.sh" 2>&1 | tee -a "$LOG_FILE"
     log "Deploy complete"
 fi
 

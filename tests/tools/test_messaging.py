@@ -258,6 +258,131 @@ class TestMessagingTools:
             assert "error" in result
 
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("identifier", ["badm_350_120251", "60366", "sis_course_id:BADM350"])
+    async def test_peer_review_followup_campaign_uses_resolved_course(self, identifier):
+        """Preview and both confirmed batches must target the resolved course."""
+        requests = []
+
+        async def fake_canvas_request(method, endpoint, **kwargs):
+            requests.append((method, endpoint, kwargs))
+            if method == "post":
+                return [{"id": len(requests)}]
+            return {"name": "Essay 1", "html_url": "https://canvas/e1"}
+
+        analytics = {
+            "completion_groups": {
+                "none_complete": [{"student_id": "101", "student_name": "A"}],
+                "partial_complete": [{"student_id": "102", "student_name": "B"}],
+                "complete": [],
+            }
+        }
+
+        with patch(
+            "canvas_mcp.core.cache.is_http_request_active", return_value=True,
+        ), patch(
+            "canvas_mcp.core.cache.fetch_all_paginated_results",
+            new=AsyncMock(return_value=[{
+                "id": 60366, "course_code": "badm_350_120251",
+                "name": "Business Analytics", "sis_course_id": "BADM350",
+            }]),
+        ), patch(
+            "canvas_mcp.core.peer_reviews.PeerReviewAnalyzer.get_completion_analytics",
+            new=AsyncMock(return_value=analytics),
+        ) as analyze, patch(
+            "canvas_mcp.tools.messaging.make_canvas_request",
+            new=fake_canvas_request,
+        ):
+            tool = get_educator_tool_function("send_peer_review_followup_campaign")
+            preview = await tool(identifier, 42)
+            assert analyze.await_args.kwargs["course_id"] == "60366"
+            assert preview["preview"] is True
+            assert preview["nothing_sent"] is True
+            assert [(method, endpoint) for method, endpoint, _ in requests] == [
+                ("get", "/courses/60366/assignments/42"),
+                ("get", "/courses/60366/assignments/42"),
+            ]
+            token = preview["confirmation_token"]
+            result = await tool(identifier, 42, confirmation_token=token)
+            replay = await tool(identifier, 42, confirmation_token=token)
+
+        assert result["success"] is True
+        assert result["summary"]["total_reminders_sent"] == 2
+        assert "already used" in replay["error"]
+        posts = [(endpoint, kwargs) for method, endpoint, kwargs in requests if method == "post"]
+        assert len(posts) == 2
+        assert [kwargs["data"]["recipients[]"] for _, kwargs in posts] == [["101"], ["102"]]
+        for endpoint, kwargs in posts:
+            assert endpoint == "/conversations"
+            assert kwargs["data"]["context_code"] == "course_60366"
+            assert kwargs["use_form_data"] is True
+
+    @pytest.mark.asyncio
+    async def test_peer_review_campaign_rejects_changed_resolved_course(self):
+        """Even unchanged messages and recipients cannot authorize another course."""
+        requests = []
+
+        async def fake_canvas_request(method, endpoint, **kwargs):
+            requests.append((method, endpoint))
+            return {"name": "Essay 1", "html_url": ""}
+
+        analytics = {"completion_groups": {
+            "none_complete": [{"student_id": "101"}],
+            "partial_complete": [],
+        }}
+
+        with patch(
+            "canvas_mcp.core.cache.resolve_numeric_course_id",
+            new=AsyncMock(side_effect=[("60366", None), ("99999", None), ("60366", None)]),
+        ), patch(
+            "canvas_mcp.core.peer_reviews.PeerReviewAnalyzer.get_completion_analytics",
+            new=AsyncMock(return_value=analytics),
+        ), patch(
+            "canvas_mcp.tools.messaging.make_canvas_request", new=fake_canvas_request,
+        ):
+            tool = get_educator_tool_function("send_peer_review_followup_campaign")
+            preview = await tool("badm_350_120251", 42)
+            token = preview["confirmation_token"]
+            changed = await tool("badm_350_120251", 42, confirmation_token=token)
+            reverted = await tool("badm_350_120251", 42, confirmation_token=token)
+
+        assert "error" in changed
+        assert changed["nothing_sent"] is True
+        assert "already used" in reverted["error"]
+        assert not [request for request in requests if request[0] == "post"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("identifier", ["unknown", "sis_course_id:missing", "duplicate"])
+    async def test_peer_review_campaign_refuses_unresolved_course(self, identifier):
+        """Unknown and ambiguous aliases must fail before analytics or messaging."""
+        courses = [
+            {"id": 60366, "course_code": "duplicate"},
+            {"id": 99999, "course_code": "duplicate"},
+        ]
+        with patch(
+            "canvas_mcp.core.cache.fetch_all_paginated_results",
+            new=AsyncMock(return_value=courses),
+        ), patch(
+            "canvas_mcp.core.cache.make_canvas_request",
+            new=AsyncMock(return_value={"error": "HTTP error: 404"}),
+        ), patch(
+            "canvas_mcp.core.peer_reviews.PeerReviewAnalyzer.get_completion_analytics",
+            new=AsyncMock(return_value={"completion_groups": {
+                "none_complete": [{"student_id": "101"}],
+            }}),
+        ) as analyze, patch(
+            "canvas_mcp.tools.messaging.make_canvas_request",
+            new=AsyncMock(return_value={"name": "Essay 1", "html_url": ""}),
+        ) as request:
+            tool = get_educator_tool_function("send_peer_review_followup_campaign")
+            result = await tool(identifier, 42)
+
+        assert "error" in result
+        assert result["nothing_sent"] is True
+        analyze.assert_not_awaited()
+        request.assert_not_awaited()
+
+
 class TestAnnouncementTools:
     """Test announcement tool functions."""
 
@@ -364,7 +489,7 @@ async def test_peer_review_campaign_counts_confirmed_batches_without_replay(firs
                 return {'error': 'HTTP error: 500'}
         return [{'id': len(calls)}]
 
-    with patch('canvas_mcp.core.cache.get_course_id', new=AsyncMock(return_value='123')), \
+    with patch('canvas_mcp.core.cache.resolve_numeric_course_id', new=AsyncMock(return_value=('123', None))), \
          patch('canvas_mcp.core.peer_reviews.PeerReviewAnalyzer.get_completion_analytics', new=AsyncMock(return_value=analytics)), \
          patch('canvas_mcp.tools.messaging.make_canvas_request', new=responder):
         tool = get_educator_tool_function('send_peer_review_followup_campaign')

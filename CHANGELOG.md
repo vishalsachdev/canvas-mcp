@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - The Claude Desktop extension explicitly selects Python 3.13 through `uv`, which downloads that interpreter when needed, instead of inheriting an untested system Python such as 3.15 and falling into a Windows `cffi` source build requiring a compiler ([#391](https://github.com/vishalsachdev/canvas-mcp/issues/391)).
+- Importing package metadata, configuration or write-policy data no longer
+  loads the server framework and its authentication dependencies. The public
+  `canvas_mcp.main` entry point still resolves to `canvas_mcp.server.main`.
 
 ## [1.16.0] — 2026-10-24
 

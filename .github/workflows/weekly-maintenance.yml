@@ -26,7 +26,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.11'
 
@@ -37,7 +37,7 @@ jobs:
 
       - name: Run Claude Maintenance Tasks
         id: claude-maintenance
-        uses: anthropics/claude-code-action@f27be6b65a4652f08a2ba3cff79114829b588967 # v1
+        uses: anthropics/claude-code-action@16f9f71ab9c490faf367f94dd294897edc25be33 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}

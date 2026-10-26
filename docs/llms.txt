@@ -6,6 +6,7 @@ Canvas MCP enables AI assistants to query courses, assignments, grades, discussi
 
 ## Key Features
 
+- Latest release: v1.16.0 (MIT license)
 - Natural language interface for Canvas LMS
 - Up to 128 MCP tools for comprehensive Canvas integration
 - 8 reusable agent skills (workflow recipes) installable into 40+ agents via skills.sh
@@ -25,7 +26,7 @@ Canvas MCP enables AI assistants to query courses, assignments, grades, discussi
 
 - [GitHub Repository](https://github.com/vishalsachdev/canvas-mcp): Full source code, issues, and contributions
 - [PyPI Package](https://pypi.org/project/canvas-mcp/): Python package installation via pip
-- [MCP Server Registry](https://github.com/modelcontextprotocol/servers): Listed in the official MCP server registry
+- [MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.vishalsachdev/canvas-mcp): Listed in the official MCP Registry as `io.github.vishalsachdev/canvas-mcp`
 
 ## Tool Categories
 
