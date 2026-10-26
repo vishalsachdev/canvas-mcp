@@ -245,10 +245,16 @@ class TestStudentToolsDatetimeComparison:
             get_my_submission_status = get_student_tool_function('get_my_submission_status')
             result = await get_my_submission_status(course_identifier="TEST-101")
 
-            midterm, report = result.split("Paper Midterm")[1].split("Work Term Report")
-            assert "Status: NOT SUBMITTED" in midterm
-            assert "OVERDUE" not in midterm
-            assert "Status: OVERDUE" in report
+            # Section-scoped now that missing and not-submitted work are listed
+            # separately: the report sits under "Missing", the midterm under
+            # "Not Submitted". Same three checks as before, plus membership.
+            missing_section = result.split("Not Submitted")[0]
+            not_submitted_section = result.split("Not Submitted")[1]
+            assert "Work Term Report" in missing_section
+            assert "Status: OVERDUE" in missing_section
+            assert "Paper Midterm" in not_submitted_section
+            assert "Status: NOT SUBMITTED" in not_submitted_section
+            assert "OVERDUE" not in not_submitted_section
 
     @pytest.mark.asyncio
     async def test_get_my_submission_status_separates_external_tools_from_missing(self):

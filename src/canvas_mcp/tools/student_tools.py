@@ -277,6 +277,7 @@ def register_student_tools(mcp: FastMCP) -> None:
         # false deadline breach.
         submitted = []
         missing = []
+        not_submitted = []
         external_tools = []
 
         for assignment in assignments:
@@ -293,12 +294,30 @@ def register_student_tools(mcp: FastMCP) -> None:
                 # excused work; true when a teacher marks the work missing.
                 missing.append((assignment, "OVERDUE"))
             else:
-                missing.append((assignment, "NOT SUBMITTED"))
+                # Graded on_paper work, excused work, and not-yet-submitted
+                # items are not missing work. They get their own section
+                # rather than a spot under the alarm heading (#390 moved
+                # external tools out for the same reason).
+                not_submitted.append((assignment, "NOT SUBMITTED"))
 
         # Format output
         if missing:
             output_lines.append(f"⚠️  Missing Submissions ({len(missing)}):\n")
             for assignment, status in missing:
+                name = assignment.get("name", "Unnamed")
+                due_at = format_date(assignment.get("due_at")) if assignment.get("due_at") else "No due date"
+                course_name = assignment.get("_course_name", "")
+
+                output_lines.append(
+                    f"• {fence_untrusted_inline(name, 'assignment name')}\n"
+                    f"  {f'Course: {course_name}' if course_name else ''}\n"
+                    f"  Due: {due_at}\n"
+                    f"  Status: {status}\n"
+                )
+
+        if not_submitted:
+            output_lines.append(f"\n📄  Not Submitted ({len(not_submitted)}):\n")
+            for assignment, status in not_submitted:
                 name = assignment.get("name", "Unnamed")
                 due_at = format_date(assignment.get("due_at")) if assignment.get("due_at") else "No due date"
                 course_name = assignment.get("_course_name", "")
