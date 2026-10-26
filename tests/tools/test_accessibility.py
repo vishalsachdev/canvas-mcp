@@ -256,8 +256,9 @@ class TestScanCourseContentAccessibility:
     @pytest.mark.asyncio
     async def test_scan_returns_json(self, mock_canvas_api):
         """Test that scan returns valid JSON with expected keys."""
-        mock_canvas_api['fetch_all_paginated_results'].return_value = [
-            {"page_id": 1, "title": "Home", "body": "<p>Clean content</p>"}
+        mock_canvas_api['fetch_all_paginated_results'].side_effect = [
+            [{"page_id": 1, "title": "Home", "body": "<p>Clean content</p>"}],
+            [{"id": 2, "name": "Essay", "description": "<p>Clean content</p>"}],
         ]
 
         fn = get_tool_function('scan_course_content_accessibility')
