@@ -258,6 +258,47 @@ class TestMessagingTools:
             assert "error" in result
 
 
+    @pytest.mark.asyncio
+    async def test_peer_review_followup_campaign_composes_with_resolved_course(self):
+        """A course code must resolve before the reminder text is composed.
+
+        _compose_reminder builds /courses/<x>/assignments/<id> from its first
+        argument, so the campaign must hand it the resolved numeric id. The raw
+        course code 404s in Canvas and the whole preview aborts.
+        """
+        requests = []
+
+        async def fake_canvas_request(method, endpoint, **kwargs):
+            requests.append((method, endpoint))
+            return {"name": "Essay 1", "html_url": "https://canvas/e1"}
+
+        analytics = {
+            "completion_groups": {
+                "none_complete": [{"student_id": "101", "student_name": "A"}],
+                "partial_complete": [],
+                "complete": [],
+            }
+        }
+
+        with patch(
+            "canvas_mcp.core.cache.get_course_id",
+            new=AsyncMock(return_value="60366"),
+        ), patch(
+            "canvas_mcp.core.peer_reviews.PeerReviewAnalyzer.get_completion_analytics",
+            new=AsyncMock(return_value=analytics),
+        ), patch(
+            "canvas_mcp.tools.messaging.make_canvas_request",
+            new=fake_canvas_request,
+        ):
+            tool = get_educator_tool_function("send_peer_review_followup_campaign")
+            preview = await tool("badm_350_120251", 42)
+
+        assert preview["preview"] is True
+        assert preview["nothing_sent"] is True
+        assert ("get", "/courses/60366/assignments/42") in requests
+        assert not [request for request in requests if request[0] == "post"]
+
+
 class TestAnnouncementTools:
     """Test announcement tool functions."""
 
