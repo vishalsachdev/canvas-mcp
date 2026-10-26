@@ -280,6 +280,64 @@ class TestStudentToolsDatetimeComparison:
             assert "OVERDUE" not in result
 
     @pytest.mark.asyncio
+    async def test_get_my_submission_status_keeps_non_missing_out_of_missing_bucket(self):
+        """Only Canvas-flagged-missing work counts under "Missing Submissions".
+
+        A graded on_paper midterm and an excused essay both carry
+        `missing: false`. PR #390 moved external-tool items out of this bucket
+        for the same reason, and PR #423 left the graded case behind, calling
+        it a separate issue. The heading and its count cover flagged-missing
+        work only.
+        """
+        past_date = (datetime.now(UTC) - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        mock_assignments = [
+            {
+                "id": 1,
+                "name": "Paper Midterm",
+                "due_at": past_date,
+                "submission_types": ["on_paper"],
+                "submission": {"workflow_state": "graded", "score": 23.0, "missing": False},
+            },
+            {
+                "id": 2,
+                "name": "Excused Essay",
+                "due_at": past_date,
+                "submission_types": ["online_upload"],
+                "submission": {"workflow_state": "unsubmitted", "excused": True, "missing": False},
+            },
+            {
+                "id": 3,
+                "name": "Work Term Report",
+                "due_at": past_date,
+                "submission_types": ["online_upload"],
+                "submission": {"workflow_state": "unsubmitted", "missing": True},
+            },
+        ]
+
+        with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch, \
+             patch('canvas_mcp.tools.student_tools.get_course_id', new_callable=AsyncMock) as mock_course_id, \
+             patch('canvas_mcp.tools.student_tools.get_course_code', new_callable=AsyncMock) as mock_course_code:
+            mock_fetch.return_value = mock_assignments
+            mock_course_id.return_value = "12345"
+            mock_course_code.return_value = "TEST-101"
+
+            get_my_submission_status = get_student_tool_function('get_my_submission_status')
+            result = await get_my_submission_status(course_identifier="TEST-101")
+
+        missing_section = result.split("Not Submitted")[0]
+        assert "⚠️  Missing Submissions (1):" in result
+        assert "Work Term Report" in missing_section
+        assert "Status: OVERDUE" in missing_section
+        assert "Paper Midterm" not in missing_section
+        assert "Excused Essay" not in missing_section
+
+        not_submitted_section = result.split("Not Submitted")[1]
+        assert "Not Submitted (2):" in result
+        assert "Paper Midterm" in not_submitted_section
+        assert "Status: NOT SUBMITTED" in not_submitted_section
+        assert "OVERDUE" not in not_submitted_section
+
+    @pytest.mark.asyncio
     async def test_get_my_upcoming_assignments_with_no_due_date(self):
         """Items with no due date at all are skipped gracefully."""
         item = self._planner_item("No Due Date Assignment", None)
