@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from filelock import FileLock, Timeout
+from keyring.backend import KeyringBackend
 from pydantic import ValidationError
 
 from canvas_mcp.auth.mobile import normalize_domain
@@ -104,21 +105,73 @@ def _verify_and_tighten_permissions(p: Path, *, is_dir: bool) -> None:
         _verify_and_tighten_posix_permissions(p, is_dir=is_dir)
 
 
-def _is_os_keyring_viable() -> bool:
-    """Check if a secure OS credential store backend is available and active."""
+def _get_trusted_backend_classes() -> tuple[type, ...]:
+    classes: list[type] = []
     try:
-        import keyring
+        import keyring.backends.macOS
+        classes.append(keyring.backends.macOS.Keyring)
+    except (ImportError, AttributeError) as exc:
+        logger.debug("macOS keyring backend unavailable: %s", exc)
+    try:
+        import keyring.backends.Windows
+        classes.append(keyring.backends.Windows.WinVaultKeyring)
+    except (ImportError, AttributeError) as exc:
+        logger.debug("Windows keyring backend unavailable: %s", exc)
+    try:
+        import keyring.backends.SecretService
+        classes.append(keyring.backends.SecretService.Keyring)
+    except (ImportError, AttributeError) as exc:
+        logger.debug("SecretService keyring backend unavailable: %s", exc)
+    return tuple(classes)
 
-        kr = keyring.get_keyring()
-        if getattr(kr, "priority", 0) <= 0:
-            return False
-        name = kr.__class__.__name__.lower()
-        if "fail" in name or "null" in name:
-            return False
-        return True
-    except Exception:
-        return False
 
+def _safe_priority(backend: KeyringBackend) -> float:
+    try:
+        return float(getattr(backend, "priority", 0))
+    except (RuntimeError, AttributeError, ValueError, TypeError) as exc:
+        logger.debug("Failed to read priority for %s: %s", backend, exc)
+        return 0.0
+
+
+def _secure_keyring_leaf(backend: KeyringBackend) -> KeyringBackend | None:
+    trusted_classes = _get_trusted_backend_classes()
+    if type(backend) in trusted_classes:
+        if _safe_priority(backend) > 0:
+            return backend
+        return None
+
+    try:
+        from keyring.backends.chainer import ChainerBackend
+
+        if type(backend) is ChainerBackend:
+            backends = list(getattr(backend, "backends", []))
+            if not backends:
+                return None
+            for leaf in backends:
+                if (
+                    type(leaf) not in trusted_classes
+                    or _safe_priority(leaf) <= 0
+                ):
+                    return None
+            return backends[0]
+    except (ImportError, AttributeError) as exc:
+        logger.debug("ChainerBackend unavailable or malformed: %s", exc)
+
+    return None
+
+
+def _select_secure_keyring() -> KeyringBackend | None:
+    """Select and return an approved native OS keyring backend, or None if unavailable."""
+    try:
+        import keyring.core
+
+        kr = keyring.core.get_keyring()
+        if kr is None:
+            return None
+        return _secure_keyring_leaf(kr)
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        logger.debug("Failed to discover secure OS keyring backend: %s", exc)
+        return None
 
 class TokenStore:
     """Domain-keyed token storage using OS credential manager (Keyring) or private local file."""
@@ -126,18 +179,26 @@ class TokenStore:
     def __init__(self, path: Path | None = None) -> None:
         self._custom_path = path is not None
         self.path = path.absolute() if path is not None else DEFAULT_STORE_PATH
+        self._pinned_keyring_resolved: bool = False
+        self._pinned_keyring: KeyringBackend | None = None
 
     @property
     def lock_path(self) -> Path:
         return Path(f"{self.path}.lock")
 
-    def _use_keyring(self) -> bool:
-        if self._custom_path:
-            return False
-        if os.environ.get(ALLOW_FILE_STORE_ENV) == "force":
-            return False
-        return _is_os_keyring_viable()
+    def _get_pinned_keyring(self) -> KeyringBackend | None:
+        if not self._pinned_keyring_resolved:
+            if self._custom_path:
+                self._pinned_keyring = None
+            elif os.environ.get(ALLOW_FILE_STORE_ENV) == "force":
+                self._pinned_keyring = None
+            else:
+                self._pinned_keyring = _select_secure_keyring()
+            self._pinned_keyring_resolved = True
+        return self._pinned_keyring
 
+    def _use_keyring(self) -> bool:
+        return self._get_pinned_keyring() is not None
     def _is_file_store_allowed(self) -> bool:
         if self._custom_path:
             return True
@@ -209,21 +270,33 @@ class TokenStore:
     def load(self, domain: str) -> StoredTokens | None:
         """Load stored tokens for the given Canvas domain, or None if absent."""
         norm_domain = normalize_domain(domain)
-        if self._use_keyring():
+        kr = self._get_pinned_keyring()
+        if kr is not None:
             try:
-                import keyring
-
-                raw = keyring.get_password(KEYRING_SERVICE_NAME, norm_domain)
-                if raw is not None:
-                    data = json.loads(raw)
-                    return StoredTokens.from_store_dict(data)
+                raw = kr.get_password(KEYRING_SERVICE_NAME, norm_domain)
             except Exception as e:
-                logger.debug(
-                    "Failed to load tokens from keyring for %s: %s", norm_domain, e
-                )
+                raise TokenStoreError(
+                    f"Failed to read tokens from keyring for {norm_domain}: {type(e).__name__}"
+                ) from None
+            if raw is not None:
+                try:
+                    data = json.loads(raw)
+                    entry = StoredTokens.from_store_dict(data)
+                except Exception as e:
+                    raise TokenStoreError(
+                        f"Corrupt token entry in keyring for {norm_domain}: {type(e).__name__}"
+                    ) from None
+                if entry.canvas_domain != norm_domain:
+                    raise TokenStoreError(
+                        f"Stored domain '{entry.canvas_domain}' does not match requested '{norm_domain}'"
+                    )
+                return entry
             # Check if file has legacy token if absent in keyring
-            if self.path.exists():
+            if self.path.exists() and self._is_file_store_allowed():
                 return self._read_map_unlocked().get(norm_domain)
+            return None
+
+        if not self._is_file_store_allowed():
             return None
 
         entries = self._read_map_unlocked()
@@ -239,21 +312,30 @@ class TokenStore:
                 f"Entry domain '{entry.canvas_domain}' does not match normalized domain '{norm_domain}'"
             )
 
-        if self._use_keyring():
+        kr = self._get_pinned_keyring()
+        if kr is not None:
             try:
-                import keyring
-
                 if expected is not None:
-                    raw_existing = keyring.get_password(
-                        KEYRING_SERVICE_NAME, norm_domain
-                    )
+                    try:
+                        raw_existing = kr.get_password(
+                            KEYRING_SERVICE_NAME, norm_domain
+                        )
+                    except Exception as e:
+                        raise TokenStoreError(
+                            f"Failed to read tokens from keyring for {norm_domain}: {type(e).__name__}"
+                        ) from None
                     if raw_existing is None:
                         raise TokenStoreConflict(
                             f"Token store conflict: expected existing entry for '{norm_domain}', but found none in keyring"
                         )
-                    existing_entry = StoredTokens.from_store_dict(
-                        json.loads(raw_existing)
-                    )
+                    try:
+                        existing_entry = StoredTokens.from_store_dict(
+                            json.loads(raw_existing)
+                        )
+                    except Exception as e:
+                        raise TokenStoreError(
+                            f"Corrupt existing token entry in keyring for {norm_domain}: {type(e).__name__}"
+                        ) from None
                     if (
                         existing_entry.access_token.get_secret_value()
                         != expected.access_token.get_secret_value()
@@ -268,12 +350,15 @@ class TokenStore:
                         )
 
                 payload = json.dumps(entry.to_store_dict())
-                keyring.set_password(KEYRING_SERVICE_NAME, norm_domain, payload)
+                try:
+                    kr.set_password(KEYRING_SERVICE_NAME, norm_domain, payload)
+                except Exception as e:
+                    raise TokenStoreError(
+                        f"Failed to save tokens to keyring for {norm_domain}: {type(e).__name__}"
+                    ) from None
                 return
             except TokenStoreConflict:
                 raise
-            except Exception as e:
-                raise TokenStoreError(f"Failed to save tokens to keyring: {e}") from None
 
         if not self._is_file_store_allowed():
             raise TokenStoreError(
@@ -387,21 +472,22 @@ class TokenStore:
         """Delete stored tokens for domain. Returns True if deleted, False if absent."""
         norm_domain = normalize_domain(domain)
         deleted = False
-        if self._use_keyring():
+        kr = self._get_pinned_keyring()
+        if kr is not None:
             try:
-                import keyring
-                from keyring.errors import PasswordDeleteError
-
-                try:
-                    keyring.delete_password(KEYRING_SERVICE_NAME, norm_domain)
-                    deleted = True
-                except PasswordDeleteError:
-                    pass
+                raw = kr.get_password(KEYRING_SERVICE_NAME, norm_domain)
             except Exception as e:
-                logger.debug(
-                    "Failed to delete tokens from keyring for %s: %s", norm_domain, e
-                )
-
+                raise TokenStoreError(
+                    f"Failed to read tokens from keyring for {norm_domain}: {type(e).__name__}"
+                ) from None
+            if raw is not None:
+                try:
+                    kr.delete_password(KEYRING_SERVICE_NAME, norm_domain)
+                    deleted = True
+                except Exception as e:
+                    raise TokenStoreError(
+                        f"Failed to delete tokens from keyring for {norm_domain}: {type(e).__name__}"
+                    ) from None
         if self.path.exists():
             store_dir = self.path.parent
             lock = FileLock(str(self.lock_path), timeout=5, mode=0o600)

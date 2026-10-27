@@ -400,13 +400,14 @@ class DictKeyring(KeyringBackend):
         self.storage.pop((service, username), None)
 
 
-def test_keyring_backend_lifecycle() -> None:
+def test_keyring_backend_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test saving, loading, CAS conflict, and deleting via Keyring backend."""
     fake = DictKeyring()
-    keyring.set_keyring(fake)
+    monkeypatch.setattr("canvas_mcp.auth.store._select_secure_keyring", lambda: fake)
 
     store = TokenStore()
     assert store._use_keyring() is True
+    assert store._get_pinned_keyring() is fake
 
     entry = _make_sample_entry("canvas.example.edu", access_token="keyring-acc-1")
     store.save(entry)
@@ -426,7 +427,6 @@ def test_keyring_backend_lifecycle() -> None:
     assert store.delete("canvas.example.edu") is True
     assert ("canvas-mcp", "canvas.example.edu") not in fake.storage
     assert store.load("canvas.example.edu") is None
-
 
 def test_keyring_unavailable_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
     """When OS credential store is unavailable, TokenStore fails closed unless file store is permitted."""
@@ -482,4 +482,155 @@ def test_keyring_unavailable_with_file_store_allowed(tmp_path: Path, monkeypatch
         loaded = store.load("canvas.example.edu")
         assert loaded is not None
         assert loaded.access_token.get_secret_value() == "fallback-token"
+
+
+def _patch_priority(cls: type, val: float, request: pytest.FixtureRequest) -> None:
+    from jaraco.classes.properties import classproperty
+    desc = cls.__dict__.get("priority")
+    type.__setattr__(cls, "priority", classproperty(classmethod(lambda c: val)))
+    request.addfinalizer(lambda: type.__setattr__(cls, "priority", desc))
+
+
+def test_secure_keyring_selector_allowlist(request: pytest.FixtureRequest) -> None:
+    """Only exact approved native backend classes with priority > 0 are selected."""
+    from canvas_mcp.auth.store import _select_secure_keyring
+    import keyring.backends.macOS
+    import keyring.backends.Windows
+    import keyring.backends.SecretService
+    import keyring.backends.fail
+
+    # Unapproved custom class with high priority
+    class UnsafeCustomKeyring(KeyringBackend):
+        priority = 100
+        def get_password(self, s: str, u: str) -> str | None: return None
+        def set_password(self, s: str, u: str, p: str) -> None: pass
+        def delete_password(self, s: str, u: str) -> None: pass
+
+    keyring.set_keyring(UnsafeCustomKeyring())
+    assert _select_secure_keyring() is None
+
+    # Subclass of approved backend is rejected (must be exact class)
+    class SubclassedMacOS(keyring.backends.macOS.Keyring):
+        pass
+
+    keyring.set_keyring(SubclassedMacOS())
+    assert _select_secure_keyring() is None
+
+    # Fail/Null backend is rejected
+    keyring.set_keyring(keyring.backends.fail.Keyring())
+    assert _select_secure_keyring() is None
+
+    # Exact macOS Keyring with priority > 0 is approved
+    mac_kr = keyring.backends.macOS.Keyring()
+    _patch_priority(keyring.backends.macOS.Keyring, 5.0, request)
+    keyring.set_keyring(mac_kr)
+    assert _select_secure_keyring() is mac_kr
+
+    # Exact WinVaultKeyring with priority > 0 is approved
+    win_kr = keyring.backends.Windows.WinVaultKeyring()
+    _patch_priority(keyring.backends.Windows.WinVaultKeyring, 5.0, request)
+    keyring.set_keyring(win_kr)
+    assert _select_secure_keyring() is win_kr
+
+    # Exact SecretService Keyring with priority > 0 is approved
+    ss_kr = keyring.backends.SecretService.Keyring()
+    _patch_priority(keyring.backends.SecretService.Keyring, 5.0, request)
+    keyring.set_keyring(ss_kr)
+    assert _select_secure_keyring() is ss_kr
+
+    # Priority <= 0 is rejected even for approved class
+    _patch_priority(keyring.backends.macOS.Keyring, 0.0, request)
+    keyring.set_keyring(mac_kr)
+    assert _select_secure_keyring() is None
+
+
+def test_secure_keyring_selector_chainer(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """ChainerBackend is resolved to its first approved leaf if all leaves are approved; otherwise rejected."""
+    from canvas_mcp.auth.store import _select_secure_keyring
+    import keyring.backends.macOS
+    import keyring.backends.Windows
+    from keyring.backends.chainer import ChainerBackend
+
+    mac_kr = keyring.backends.macOS.Keyring()
+    win_kr = keyring.backends.Windows.WinVaultKeyring()
+    _patch_priority(keyring.backends.macOS.Keyring, 10.0, request)
+    _patch_priority(keyring.backends.Windows.WinVaultKeyring, 5.0, request)
+
+    class UnsafeBackend(KeyringBackend):
+        priority = 1
+        def get_password(self, s: str, u: str) -> str | None: return None
+        def set_password(self, s: str, u: str, p: str) -> None: pass
+        def delete_password(self, s: str, u: str) -> None: pass
+
+    # Safe-only chain -> selects first approved leaf
+    chainer_safe = ChainerBackend()
+    monkeypatch.setattr(ChainerBackend, "backends", [mac_kr, win_kr])
+    keyring.set_keyring(chainer_safe)
+    assert _select_secure_keyring() is mac_kr
+
+    # Mixed chain with unapproved leaf -> rejected
+    monkeypatch.setattr(ChainerBackend, "backends", [mac_kr, UnsafeBackend()])
+    keyring.set_keyring(chainer_safe)
+    assert _select_secure_keyring() is None
+
+    # Empty chain -> rejected
+    monkeypatch.setattr(ChainerBackend, "backends", [])
+    keyring.set_keyring(chainer_safe)
+    assert _select_secure_keyring() is None
+
+
+def test_token_store_pins_keyring_backend_instance(request: pytest.FixtureRequest) -> None:
+    """TokenStore pins the selected keyring backend and does not follow later global changes."""
+    import keyring.backends.macOS
+    import keyring.backends.Windows
+
+    mac_kr = keyring.backends.macOS.Keyring()
+    win_kr = keyring.backends.Windows.WinVaultKeyring()
+    _patch_priority(keyring.backends.macOS.Keyring, 5.0, request)
+    _patch_priority(keyring.backends.Windows.WinVaultKeyring, 5.0, request)
+
+    keyring.set_keyring(mac_kr)
+    store = TokenStore()
+    assert store._get_pinned_keyring() is mac_kr
+
+    # Later global change does not affect the store's pinned backend
+    keyring.set_keyring(win_kr)
+    assert store._get_pinned_keyring() is mac_kr
+
+def test_native_backend_errors_sanitized(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keyring backend errors must raise sanitized TokenStoreError with op/domain/type only."""
+    class FailingSecureBackend(keyring.backends.macOS.Keyring):
+        priority = 5
+        def get_password(self, s: str, u: str) -> str | None:
+            raise RuntimeError("secret_token_12345 in db error")
+        def set_password(self, s: str, u: str, p: str) -> None:
+            raise RuntimeError("secret_token_12345 in db error")
+        def delete_password(self, s: str, u: str) -> None:
+            raise RuntimeError("secret_token_12345 in db error")
+
+    fake_kr = FailingSecureBackend()
+    store = TokenStore()
+    monkeypatch.setattr(store, "_get_pinned_keyring", lambda: fake_kr)
+
+    entry = _make_sample_entry("canvas.example.edu")
+    with pytest.raises(TokenStoreError) as exc_info:
+        store.save(entry)
+    err_msg = str(exc_info.value)
+    assert "secret_token_12345" not in err_msg
+    assert "RuntimeError" in err_msg
+    assert "canvas.example.edu" in err_msg
+
+    with pytest.raises(TokenStoreError) as exc_info:
+        store.load("canvas.example.edu")
+    err_msg = str(exc_info.value)
+    assert "secret_token_12345" not in err_msg
+    assert "RuntimeError" in err_msg
+    assert "canvas.example.edu" in err_msg
+
+    with pytest.raises(TokenStoreError) as exc_info:
+        store.delete("canvas.example.edu")
+    err_msg = str(exc_info.value)
+    assert "secret_token_12345" not in err_msg
+    assert "RuntimeError" in err_msg
+    assert "canvas.example.edu" in err_msg
 
