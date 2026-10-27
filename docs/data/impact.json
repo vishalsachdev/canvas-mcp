@@ -1,70 +1,70 @@
 {
-  "collected_at": "2026-10-25T03:36:14Z",
+  "collected_at": "2026-10-26T14:00:11Z",
   "github": {
-    "stars": 308,
+    "stars": 307,
     "forks": 99,
     "contributors": 27,
-    "open_issues": 15,
-    "views_14d": 977,
-    "views_14d_unique": 471,
-    "clones_14d": 6447,
-    "clones_14d_unique": 1034,
+    "open_issues": 19,
+    "views_14d": 1017,
+    "views_14d_unique": 499,
+    "clones_14d": 7122,
+    "clones_14d_unique": 1078,
     "referrers": [
       {
         "referrer": "Google",
-        "count": 220,
-        "uniques": 181
+        "count": 239,
+        "uniques": 195
       },
       {
         "referrer": "github.com",
-        "count": 41,
-        "uniques": 33
+        "count": 45,
+        "uniques": 37
+      },
+      {
+        "referrer": "aocr.org",
+        "count": 22,
+        "uniques": 22
       },
       {
         "referrer": "canvas-mcp.illinihunt.org",
-        "count": 14,
-        "uniques": 11
-      },
-      {
-        "referrer": "Bing",
-        "count": 12,
+        "count": 15,
         "uniques": 12
       },
       {
-        "referrer": "search.brave.com",
+        "referrer": "Bing",
         "count": 11,
-        "uniques": 8
+        "uniques": 10
       },
       {
         "referrer": "reddit.com",
-        "count": 6,
-        "uniques": 5
+        "count": 8,
+        "uniques": 7
       },
       {
         "referrer": "DuckDuckGo",
-        "count": 4,
-        "uniques": 4
+        "count": 7,
+        "uniques": 6
+      },
+      {
+        "referrer": "search.brave.com",
+        "count": 7,
+        "uniques": 6
       },
       {
         "referrer": "community.instructure.com",
-        "count": 3,
-        "uniques": 3
+        "count": 5,
+        "uniques": 5
       },
       {
-        "referrer": "Yahoo",
+        "referrer": "kagi.com",
         "count": 2,
-        "uniques": 2
-      },
-      {
-        "referrer": "vishalsachdev.github.io",
-        "count": 2,
-        "uniques": 2
+        "uniques": 1
       }
     ]
   },
   "pypi": {
-    "last_day": 55,
-    "last_week": 501,
+    "last_day": 233,
+    "last_week": 710,
     "last_month": 1208
   },
   "npm": {
@@ -376,6 +376,15 @@
       "npm_month": 33,
       "views_unique": 471,
       "clones_unique": 1034
+    },
+    {
+      "date": "2026-10-26",
+      "stars": 307,
+      "forks": 99,
+      "pypi_month": 1208,
+      "npm_month": 33,
+      "views_unique": 499,
+      "clones_unique": 1078
     }
   ]
 }
