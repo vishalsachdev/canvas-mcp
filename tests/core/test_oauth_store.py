@@ -1,7 +1,9 @@
 """Tests for Canvas OAuth local token store: locking, schema, permissions, concurrency."""
 
 import json
+import multiprocessing
 import os
+import sqlite3
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -727,3 +729,374 @@ def test_native_backend_errors_sanitized(monkeypatch: pytest.MonkeyPatch) -> Non
     assert "RuntimeError" in err_msg
     assert "canvas.example.edu" in err_msg
 
+
+
+class SqliteKeyringBackend(KeyringBackend):
+    priority = 5
+
+    def __init__(self, db_path: str) -> None:
+        self.db_path = db_path
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS credentials (service TEXT, username TEXT, password TEXT, PRIMARY KEY (service, username))"
+            )
+
+    def get_password(self, service: str, username: str) -> str | None:
+        with sqlite3.connect(self.db_path) as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT password FROM credentials WHERE service = ? AND username = ?",
+                (service, username),
+            )
+            row = cur.fetchone()
+            return row[0] if row else None
+
+    def set_password(self, service: str, username: str, password: str) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT INTO credentials (service, username, password) VALUES (?, ?, ?) "
+                "ON CONFLICT(service, username) DO UPDATE SET password = excluded.password",
+                (service, username, password),
+            )
+
+    def delete_password(self, service: str, username: str) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "DELETE FROM credentials WHERE service = ? AND username = ?",
+                (service, username),
+            )
+
+
+def _mp_worker_cas(
+    db_path: str,
+    store_path: str,
+    entry_dict: dict[str, Any],
+    expected_dict: dict[str, Any] | None,
+    is_paused_writer: bool,
+    event_inside_lock: Any,
+    event_resume: Any,
+    event_attempted: Any,
+    out_q: Any,
+) -> None:
+    try:
+        entry = StoredTokens.from_store_dict(entry_dict)
+        expected = StoredTokens.from_store_dict(expected_dict) if expected_dict is not None else None
+        backend = SqliteKeyringBackend(db_path)
+        store = TokenStore(Path(store_path))
+        store._pinned_keyring = backend
+        store._pinned_keyring_resolved = True
+
+        if is_paused_writer:
+            orig_set = backend.set_password
+
+            def _paused_set(s: str, u: str, p: str) -> None:
+                event_inside_lock.set()
+                if not event_resume.wait(timeout=10.0):
+                    raise RuntimeError("Timed out waiting for resume event")
+                orig_set(s, u, p)
+
+            backend.set_password = _paused_set  # type: ignore
+
+        if event_attempted is not None:
+            event_attempted.set()
+
+        store.save(entry, expected=expected)
+        out_q.put(("SUCCESS", entry.access_token.get_secret_value()))
+    except TokenStoreConflict as exc:
+        out_q.put(("CONFLICT", str(exc)))
+    except Exception as exc:
+        out_q.put(("ERROR", f"{type(exc).__name__}: {exc}"))
+
+
+def _mp_worker_delete(
+    db_path: str,
+    store_path: str,
+    domain: str,
+    out_q: Any,
+) -> None:
+    try:
+        backend = SqliteKeyringBackend(db_path)
+        store = TokenStore(Path(store_path))
+        store._pinned_keyring = backend
+        store._pinned_keyring_resolved = True
+        res = store.delete(domain)
+        out_q.put(("SUCCESS", res))
+    except Exception as exc:
+        out_q.put(("ERROR", f"{type(exc).__name__}: {exc}"))
+
+
+def test_legacy_file_migration_to_keyring(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Loading a domain from legacy file migrates it to keyring and removes it from file."""
+    fake = DictKeyring()
+    monkeypatch.setattr("canvas_mcp.auth.store._select_secure_keyring", lambda: fake)
+
+    store = TokenStore()
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    entry_1 = _make_sample_entry("canvas.example.edu", access_token="leg-1")
+    entry_2 = _make_sample_entry("other.example.edu", access_token="leg-2")
+    store.path.write_text(
+        json.dumps({
+            "canvas.example.edu": entry_1.to_store_dict(),
+            "other.example.edu": entry_2.to_store_dict(),
+        }, indent=2),
+        encoding="utf-8",
+    )
+    loaded = store.load("canvas.example.edu")
+    assert loaded is not None
+    assert loaded.access_token.get_secret_value() == "leg-1"
+
+    # Migrated to fake keyring
+    raw_in_keyring = fake.get_password("canvas-mcp", "canvas.example.edu")
+    assert raw_in_keyring is not None
+    assert json.loads(raw_in_keyring)["access_token"] == "leg-1"
+
+    # Removed from file, but other domain preserved
+    file_content = json.loads(store.path.read_text(encoding="utf-8"))
+    assert "canvas.example.edu" not in file_content
+    assert "other.example.edu" in file_content
+
+
+def test_legacy_file_migration_empty_file_preserves_empty_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """When last domain is migrated from legacy file, file is preserved with empty dict."""
+    fake = DictKeyring()
+    monkeypatch.setattr("canvas_mcp.auth.store._select_secure_keyring", lambda: fake)
+
+    store = TokenStore()
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    entry = _make_sample_entry("canvas.example.edu", access_token="leg-1")
+    store.path.write_text(
+        json.dumps({"canvas.example.edu": entry.to_store_dict()}),
+        encoding="utf-8",
+    )
+    loaded = store.load("canvas.example.edu")
+    assert loaded is not None
+
+    assert store.path.exists()
+    file_content = json.loads(store.path.read_text(encoding="utf-8"))
+    assert file_content == {}
+
+
+def test_migration_existing_native_precedence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """If keyring already has domain, native state is authoritative and stale legacy entry is purged."""
+    fake = DictKeyring()
+    monkeypatch.setattr("canvas_mcp.auth.store._select_secure_keyring", lambda: fake)
+
+    entry_native = _make_sample_entry("canvas.example.edu", access_token="native-tok")
+    entry_legacy = _make_sample_entry("canvas.example.edu", access_token="legacy-tok")
+    fake.set_password("canvas-mcp", "canvas.example.edu", json.dumps(entry_native.to_store_dict()))
+
+    store = TokenStore()
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    store.path.write_text(
+        json.dumps({"canvas.example.edu": entry_legacy.to_store_dict()}),
+        encoding="utf-8",
+    )
+    loaded = store.load("canvas.example.edu")
+    assert loaded is not None
+    assert loaded.access_token.get_secret_value() == "native-tok"
+
+    # Legacy residue cleaned up
+    file_content = json.loads(store.path.read_text(encoding="utf-8"))
+    assert "canvas.example.edu" not in file_content
+
+
+def test_migration_failed_native_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Failed native write during migration raises error and preserves legacy file untouched."""
+    class FailingWriteKeyring(DictKeyring):
+        def set_password(self, s: str, u: str, p: str) -> None:
+            raise RuntimeError("Keyring disk failure")
+
+    fake = FailingWriteKeyring()
+    monkeypatch.setattr("canvas_mcp.auth.store._select_secure_keyring", lambda: fake)
+
+    store = TokenStore()
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    entry_legacy = _make_sample_entry("canvas.example.edu", access_token="legacy-tok")
+    store.path.write_text(
+        json.dumps({"canvas.example.edu": entry_legacy.to_store_dict()}),
+        encoding="utf-8",
+    )
+    with pytest.raises(TokenStoreError, match="Failed to save tokens to keyring"):
+        store.load("canvas.example.edu")
+
+    # File preserved
+    file_content = json.loads(store.path.read_text(encoding="utf-8"))
+    assert "canvas.example.edu" in file_content
+
+
+def test_migration_failed_readback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Failed readback during migration raises error and preserves legacy file untouched."""
+    class BadReadbackKeyring(DictKeyring):
+        def get_password(self, s: str, u: str) -> str | None:
+            # Return None or different entry on readback
+            return None
+
+    fake = BadReadbackKeyring()
+    monkeypatch.setattr("canvas_mcp.auth.store._select_secure_keyring", lambda: fake)
+
+    store = TokenStore()
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    entry_legacy = _make_sample_entry("canvas.example.edu", access_token="legacy-tok")
+    store.path.write_text(
+        json.dumps({"canvas.example.edu": entry_legacy.to_store_dict()}),
+        encoding="utf-8",
+    )
+    with pytest.raises(TokenStoreError, match="Failed to verify migrated tokens in keyring"):
+        store.load("canvas.example.edu")
+
+    # File preserved
+    file_content = json.loads(store.path.read_text(encoding="utf-8"))
+    assert "canvas.example.edu" in file_content
+
+
+def test_migration_failed_legacy_replacement(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Failed legacy rewrite retains native state and next load retries cleanup."""
+    fake = DictKeyring()
+    monkeypatch.setattr("canvas_mcp.auth.store._select_secure_keyring", lambda: fake)
+
+    store = TokenStore()
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    entry_legacy = _make_sample_entry("canvas.example.edu", access_token="legacy-tok")
+    store.path.write_text(
+        json.dumps({"canvas.example.edu": entry_legacy.to_store_dict()}),
+        encoding="utf-8",
+    )
+
+    orig_replace = os.replace
+
+    def failing_replace(src: Any, dst: Any) -> None:
+        raise OSError("Read-only filesystem")
+
+    monkeypatch.setattr(os, "replace", failing_replace)
+    with pytest.raises(TokenStoreError, match="Failed to write token file"):
+        store.load("canvas.example.edu")
+
+    # Native state retained
+    assert fake.get_password("canvas-mcp", "canvas.example.edu") is not None
+
+    # Restore replace and next load cleans up stale legacy entry
+    monkeypatch.setattr(os, "replace", orig_replace)
+    loaded = store.load("canvas.example.edu")
+    assert loaded is not None
+    assert loaded.access_token.get_secret_value() == "legacy-tok"
+    file_content = json.loads(store.path.read_text(encoding="utf-8"))
+    assert "canvas.example.edu" not in file_content
+
+
+def test_cross_process_keyring_cas_multiprocessing(tmp_path: Path) -> None:
+    """Two spawned processes saving with same expected credential serialize with one winner and one conflict."""
+    ctx = multiprocessing.get_context("spawn")
+    db_path = str(tmp_path / "keyring.db")
+    store_path = str(tmp_path / "tokens.json")
+
+    # Seed initial entry in SQLite keyring
+    initial_entry = _make_sample_entry("canvas.example.edu", access_token="initial-tok")
+    init_backend = SqliteKeyringBackend(db_path)
+    init_backend.set_password("canvas-mcp", "canvas.example.edu", json.dumps(initial_entry.to_store_dict()))
+
+    entry_a = _make_sample_entry("canvas.example.edu", access_token="tok-worker-a")
+    entry_b = _make_sample_entry("canvas.example.edu", access_token="tok-worker-b")
+
+    event_inside_lock = ctx.Event()
+    event_resume = ctx.Event()
+    event_attempted_b = ctx.Event()
+    out_q = ctx.Queue()
+
+    proc_a = ctx.Process(
+        target=_mp_worker_cas,
+        args=(
+            db_path,
+            store_path,
+            entry_a.to_store_dict(),
+            initial_entry.to_store_dict(),
+            True,
+            event_inside_lock,
+            event_resume,
+            None,
+            out_q,
+        ),
+    )
+    proc_b = ctx.Process(
+        target=_mp_worker_cas,
+        args=(
+            db_path,
+            store_path,
+            entry_b.to_store_dict(),
+            initial_entry.to_store_dict(),
+            False,
+            None,
+            None,
+            event_attempted_b,
+            out_q,
+        ),
+    )
+
+    proc_a.start()
+    assert event_inside_lock.wait(timeout=5.0), "Worker A did not enter lock"
+
+    proc_b.start()
+    assert event_attempted_b.wait(timeout=5.0), "Worker B did not start attempt"
+
+    # Release Worker A to finish
+    event_resume.set()
+
+    proc_a.join(timeout=10.0)
+    proc_b.join(timeout=10.0)
+    assert not proc_a.is_alive(), "Worker A timed out"
+    assert not proc_b.is_alive(), "Worker B timed out"
+
+    res_1 = out_q.get(timeout=2.0)
+    res_2 = out_q.get(timeout=2.0)
+
+    statuses = [res_1[0], res_2[0]]
+    assert "SUCCESS" in statuses
+    assert "CONFLICT" in statuses
+
+    # Winner equals stored entry in SQLite
+    winner_token = res_1[1] if res_1[0] == "SUCCESS" else res_2[1]
+    final_raw = init_backend.get_password("canvas-mcp", "canvas.example.edu")
+    assert final_raw is not None
+    assert json.loads(final_raw)["access_token"] == winner_token
+
+    # Test unconditional login contender
+    entry_login = _make_sample_entry("canvas.example.edu", access_token="tok-cli-login")
+    proc_login = ctx.Process(
+        target=_mp_worker_cas,
+        args=(
+            db_path,
+            store_path,
+            entry_login.to_store_dict(),
+            None,  # expected=None
+            False,
+            None,
+            None,
+            None,
+            out_q,
+        ),
+    )
+    proc_login.start()
+    proc_login.join(timeout=5.0)
+    assert not proc_login.is_alive()
+    login_res = out_q.get(timeout=2.0)
+    assert login_res[0] == "SUCCESS"
+    final_raw = init_backend.get_password("canvas-mcp", "canvas.example.edu")
+    assert final_raw is not None
+    assert json.loads(final_raw)["access_token"] == "tok-cli-login"
+
+    # Test delete contender
+    proc_del = ctx.Process(
+        target=_mp_worker_delete,
+        args=(
+            db_path,
+            store_path,
+            "canvas.example.edu",
+            out_q,
+        ),
+    )
+    proc_del.start()
+    proc_del.join(timeout=5.0)
+    assert not proc_del.is_alive()
+    del_res = out_q.get(timeout=2.0)
+    assert del_res[0] == "SUCCESS"
+    assert del_res[1] is True
+    assert init_backend.get_password("canvas-mcp", "canvas.example.edu") is None

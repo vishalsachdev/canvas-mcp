@@ -1,6 +1,8 @@
 """Secure local token store with OS credential manager (Keyring), file locking, atomic replace, and permission checks."""
 
 import base64
+import collections.abc
+from contextlib import contextmanager
 import json
 import logging
 import os
@@ -295,6 +297,130 @@ class TokenStore:
         val = os.environ.get(ALLOW_FILE_STORE_ENV, "").lower()
         return val in ("1", "true", "yes", "force")
 
+    @contextmanager
+    def _locked(self) -> collections.abc.Iterator[None]:
+        store_dir = self.path.parent
+        _check_no_symlink(store_dir, "store directory")
+        _check_no_symlink(self.path, "store file")
+        _check_no_symlink(self.lock_path, "lock file")
+
+        if not store_dir.exists():
+            try:
+                store_dir.mkdir(parents=True, mode=0o700, exist_ok=True)
+                if os.name != "nt":
+                    os.chmod(store_dir, 0o700)
+                else:
+                    _verify_and_tighten_windows_permissions(store_dir, is_dir=True)
+            except OSError as e:
+                raise TokenStoreError(
+                    f"Failed to create token store directory {store_dir}: {e}"
+                ) from e
+        else:
+            _verify_and_tighten_permissions(store_dir, is_dir=True)
+
+        lock = FileLock(str(self.lock_path), timeout=5, mode=0o600)
+        try:
+            with lock:
+                _check_no_symlink(store_dir, "store directory")
+                _check_no_symlink(self.path, "store file")
+                _check_no_symlink(self.lock_path, "lock file")
+                _verify_and_tighten_permissions(self.lock_path, is_dir=False)
+                yield
+        except Timeout:
+            raise TokenStoreError(
+                f"Timeout waiting for token store lock at {self.lock_path}"
+            ) from None
+
+    def _write_map_unlocked(self, entries: dict[str, StoredTokens]) -> None:
+        store_dir = self.path.parent
+        _check_no_symlink(store_dir, "store directory")
+        _check_no_symlink(self.path, "store file")
+
+        serialized: dict[str, Any] = {
+            k: v.to_store_dict() for k, v in entries.items()
+        }
+        payload_bytes = json.dumps(serialized, indent=2).encode("utf-8")
+
+        fd, tmp_str = tempfile.mkstemp(
+            dir=store_dir,
+            prefix="tokens-",
+            suffix=".tmp",
+        )
+        tmp_path = Path(tmp_str)
+        try:
+            if os.name != "nt":
+                os.chmod(tmp_path, 0o600)
+            else:
+                _verify_and_tighten_windows_permissions(tmp_path, is_dir=False)
+            with os.fdopen(fd, "wb") as f:
+                f.write(payload_bytes)
+                f.flush()
+                os.fsync(f.fileno())
+
+            os.replace(tmp_path, self.path)
+            if os.name != "nt":
+                os.chmod(self.path, 0o600)
+            else:
+                _verify_and_tighten_windows_permissions(self.path, is_dir=False)
+        except Exception as e:
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except OSError as unlink_err:
+                    logger.debug(
+                        "Failed to remove temporary store file %s: %s",
+                        tmp_path,
+                        unlink_err,
+                    )
+            raise TokenStoreError(
+                f"Failed to write token file {self.path}: {type(e).__name__}"
+            ) from None
+
+    def _read_keyring_unlocked(self, domain: str) -> StoredTokens | None:
+        kr = self._get_pinned_keyring()
+        if kr is None:
+            return None
+        try:
+            raw = kr.get_password(KEYRING_SERVICE_NAME, domain)
+        except Exception as e:
+            raise TokenStoreError(
+                f"Failed to read tokens from keyring for {domain}: {type(e).__name__}"
+            ) from None
+
+        if raw is None:
+            return None
+
+        try:
+            data = json.loads(raw)
+            entry = StoredTokens.from_store_dict(data)
+        except Exception as e:
+            raise TokenStoreError(
+                f"Corrupt token entry in keyring for {domain}: {type(e).__name__}"
+            ) from None
+
+        if entry.canvas_domain != domain:
+            raise TokenStoreError(
+                f"Stored domain '{entry.canvas_domain}' does not match requested '{domain}'"
+            )
+        return entry
+
+    def _assert_expected(
+        self,
+        existing: StoredTokens | None,
+        expected: StoredTokens | None,
+        domain: str,
+    ) -> None:
+        if expected is None:
+            return
+        if existing is None:
+            raise TokenStoreConflict(
+                f"Token store conflict: expected existing entry for '{domain}', but found none"
+            )
+        if existing != expected:
+            raise TokenStoreConflict(
+                f"Token store conflict: tokens for '{domain}' were updated by another process"
+            )
+
     def _read_map_unlocked(self) -> dict[str, StoredTokens]:
         """Read and validate all entries from disk. Returns empty dict if file absent."""
         _check_no_symlink(self.path.parent, "store directory")
@@ -360,37 +486,49 @@ class TokenStore:
     def load(self, domain: str) -> StoredTokens | None:
         """Load stored tokens for the given Canvas domain, or None if absent."""
         norm_domain = normalize_domain(domain)
-        kr = self._get_pinned_keyring()
-        if kr is not None:
-            try:
-                raw = kr.get_password(KEYRING_SERVICE_NAME, norm_domain)
-            except Exception as e:
-                raise TokenStoreError(
-                    f"Failed to read tokens from keyring for {norm_domain}: {type(e).__name__}"
-                ) from None
-            if raw is not None:
-                try:
-                    data = json.loads(raw)
-                    entry = StoredTokens.from_store_dict(data)
-                except Exception as e:
-                    raise TokenStoreError(
-                        f"Corrupt token entry in keyring for {norm_domain}: {type(e).__name__}"
-                    ) from None
-                if entry.canvas_domain != norm_domain:
-                    raise TokenStoreError(
-                        f"Stored domain '{entry.canvas_domain}' does not match requested '{norm_domain}'"
-                    )
-                return entry
-            # Check if file has legacy token if absent in keyring
-            if self.path.exists() and self._is_file_store_allowed():
-                return self._read_map_unlocked().get(norm_domain)
-            return None
+        with self._locked():
+            kr = self._get_pinned_keyring()
+            if kr is not None:
+                native_entry = self._read_keyring_unlocked(norm_domain)
+                if native_entry is None:
+                    # Check legacy file for migration
+                    if self.path.exists():
+                        legacy_map = self._read_map_unlocked()
+                        if norm_domain in legacy_map:
+                            entry = legacy_map[norm_domain]
+                            # Write to native backend
+                            payload = json.dumps(entry.to_store_dict())
+                            try:
+                                kr.set_password(KEYRING_SERVICE_NAME, norm_domain, payload)
+                            except Exception as e:
+                                raise TokenStoreError(
+                                    f"Failed to save tokens to keyring for {norm_domain}: {type(e).__name__}"
+                                ) from None
+                            # Verify readback
+                            readback = self._read_keyring_unlocked(norm_domain)
+                            if readback != entry:
+                                raise TokenStoreError(
+                                    f"Failed to verify migrated tokens in keyring for {norm_domain}: readback mismatch"
+                                )
+                            # Cleanup legacy file entry
+                            del legacy_map[norm_domain]
+                            self._write_map_unlocked(legacy_map)
+                            return entry
+                    return None
+                else:
+                    # Native entry exists; cleanup stale legacy domain residue if present
+                    if self.path.exists():
+                        legacy_map = self._read_map_unlocked()
+                        if norm_domain in legacy_map:
+                            del legacy_map[norm_domain]
+                            self._write_map_unlocked(legacy_map)
+                    return native_entry
 
-        if not self._is_file_store_allowed():
-            return None
+            if not self._is_file_store_allowed():
+                return None
 
-        entries = self._read_map_unlocked()
-        return entries.get(norm_domain)
+            entries = self._read_map_unlocked()
+            return entries.get(norm_domain)
 
     def save(
         self, entry: StoredTokens, *, expected: StoredTokens | None = None
@@ -402,42 +540,18 @@ class TokenStore:
                 f"Entry domain '{entry.canvas_domain}' does not match normalized domain '{norm_domain}'"
             )
 
-        kr = self._get_pinned_keyring()
-        if kr is not None:
-            try:
-                if expected is not None:
-                    try:
-                        raw_existing = kr.get_password(
-                            KEYRING_SERVICE_NAME, norm_domain
-                        )
-                    except Exception as e:
-                        raise TokenStoreError(
-                            f"Failed to read tokens from keyring for {norm_domain}: {type(e).__name__}"
-                        ) from None
-                    if raw_existing is None:
-                        raise TokenStoreConflict(
-                            f"Token store conflict: expected existing entry for '{norm_domain}', but found none in keyring"
-                        )
-                    try:
-                        existing_entry = StoredTokens.from_store_dict(
-                            json.loads(raw_existing)
-                        )
-                    except Exception as e:
-                        raise TokenStoreError(
-                            f"Corrupt existing token entry in keyring for {norm_domain}: {type(e).__name__}"
-                        ) from None
-                    if (
-                        existing_entry.access_token.get_secret_value()
-                        != expected.access_token.get_secret_value()
-                        or existing_entry.refresh_token.get_secret_value()
-                        != expected.refresh_token.get_secret_value()
-                        or existing_entry.client_secret.get_secret_value()
-                        != expected.client_secret.get_secret_value()
-                        or existing_entry.last_refreshed_at != expected.last_refreshed_at
-                    ):
-                        raise TokenStoreConflict(
-                            f"Token store conflict: tokens for '{norm_domain}' were updated by another process"
-                        )
+        with self._locked():
+            kr = self._get_pinned_keyring()
+            if kr is not None:
+                # Reconcile native/legacy state before CAS
+                native_entry = self._read_keyring_unlocked(norm_domain)
+                if native_entry is None and self.path.exists():
+                    legacy_map = self._read_map_unlocked()
+                    existing = legacy_map.get(norm_domain)
+                else:
+                    existing = native_entry
+
+                self._assert_expected(existing, expected, norm_domain)
 
                 payload = json.dumps(entry.to_store_dict())
                 try:
@@ -446,176 +560,66 @@ class TokenStore:
                     raise TokenStoreError(
                         f"Failed to save tokens to keyring for {norm_domain}: {type(e).__name__}"
                     ) from None
-                return
-            except TokenStoreConflict:
-                raise
 
-        if not self._is_file_store_allowed():
-            raise TokenStoreError(
-                "No secure OS credential store available (Windows Credential Manager, "
-                "macOS Keychain, or Freedesktop Secret Service). Refusing to persist unencrypted credentials. "
-                "Set CANVAS_ALLOW_FILE_TOKEN_STORE=1 to permit secure file storage with private permissions."
-            )
-
-        store_dir = self.path.parent
-        _check_no_symlink(store_dir, "store directory")
-        _check_no_symlink(self.path, "store file")
-        _check_no_symlink(self.lock_path, "lock file")
-
-        # Ensure directory exists with 0700
-        if not store_dir.exists():
-            try:
-                store_dir.mkdir(parents=True, mode=0o700, exist_ok=True)
-                if os.name != "nt":
-                    os.chmod(store_dir, 0o700)
-                else:
-                    _verify_and_tighten_windows_permissions(store_dir, is_dir=True)
-            except OSError as e:
-                raise TokenStoreError(
-                    f"Failed to create token store directory {store_dir}: {e}"
-                ) from e
-        else:
-            _verify_and_tighten_permissions(store_dir, is_dir=True)
-
-        try:
-            lock = FileLock(str(self.lock_path), timeout=5, mode=0o600)
-            with lock:
-                _check_no_symlink(store_dir, "store directory")
-                _check_no_symlink(self.path, "store file")
-                _check_no_symlink(self.lock_path, "lock file")
-                _verify_and_tighten_permissions(self.lock_path, is_dir=False)
-                current_map = self._read_map_unlocked()
-
-                if expected is not None:
-                    existing = current_map.get(norm_domain)
-                    if existing is None:
-                        raise TokenStoreConflict(
-                            f"Token store conflict: expected existing entry for '{norm_domain}', but found none"
-                        )
-                    if (
-                        existing.access_token.get_secret_value()
-                        != expected.access_token.get_secret_value()
-                        or existing.refresh_token.get_secret_value()
-                        != expected.refresh_token.get_secret_value()
-                        or existing.client_secret.get_secret_value()
-                        != expected.client_secret.get_secret_value()
-                        or existing.last_refreshed_at != expected.last_refreshed_at
-                    ):
-                        raise TokenStoreConflict(
-                            f"Token store conflict: tokens for '{norm_domain}' were updated by another process"
-                        )
-
-                current_map[norm_domain] = entry
-
-                # Serialize map
-                serialized: dict[str, Any] = {
-                    k: v.to_store_dict() for k, v in current_map.items()
-                }
-                payload_bytes = json.dumps(serialized, indent=2).encode("utf-8")
-
-                # Write atomically via tempfile in store_dir
-                fd, tmp_str = tempfile.mkstemp(
-                    dir=store_dir,
-                    prefix="tokens-",
-                    suffix=".tmp",
-                )
-                tmp_path = Path(tmp_str)
-                try:
-                    if os.name != "nt":
-                        os.chmod(tmp_path, 0o600)
-                    else:
-                        _verify_and_tighten_windows_permissions(tmp_path, is_dir=False)
-                    with os.fdopen(fd, "wb") as f:
-                        f.write(payload_bytes)
-                        f.flush()
-                        os.fsync(f.fileno())
-
-                    os.replace(tmp_path, self.path)
-                    if os.name != "nt":
-                        os.chmod(self.path, 0o600)
-                    else:
-                        _verify_and_tighten_windows_permissions(self.path, is_dir=False)
-                except Exception as e:
-                    if tmp_path.exists():
-                        try:
-                            tmp_path.unlink()
-                        except OSError as unlink_err:
-                            logger.debug(
-                                "Failed to remove temporary store file %s: %s",
-                                tmp_path,
-                                unlink_err,
-                            )
+                readback = self._read_keyring_unlocked(norm_domain)
+                if readback != entry:
                     raise TokenStoreError(
-                        f"Failed to write token file {self.path}: {e}"
-                    ) from None
+                        f"Failed to verify saved tokens in keyring for {norm_domain}: readback mismatch"
+                    )
 
-        except Timeout as e:
-            raise TokenStoreError(
-                f"Timeout waiting for token store lock at {self.lock_path}"
-            ) from e
-        except TokenStoreError:
-            raise
-        except Exception as e:
-            raise TokenStoreError(f"Unexpected error saving token store: {e}") from None
+                # Remove same-domain legacy residue if present
+                if self.path.exists():
+                    legacy_map = self._read_map_unlocked()
+                    if norm_domain in legacy_map:
+                        del legacy_map[norm_domain]
+                        self._write_map_unlocked(legacy_map)
+                return
+
+            if not self._is_file_store_allowed():
+                raise TokenStoreError(
+                    "No secure OS credential store available (Windows Credential Manager, "
+                    "macOS Keychain, or Freedesktop Secret Service). Refusing to persist unencrypted credentials. "
+                    "Set CANVAS_ALLOW_FILE_TOKEN_STORE=1 to permit secure file storage with private permissions."
+                )
+
+            current_map = self._read_map_unlocked()
+            existing = current_map.get(norm_domain)
+            self._assert_expected(existing, expected, norm_domain)
+            current_map[norm_domain] = entry
+            self._write_map_unlocked(current_map)
 
     def delete(self, domain: str) -> bool:
         """Delete stored tokens for domain. Returns True if deleted, False if absent."""
         norm_domain = normalize_domain(domain)
-        deleted = False
-        kr = self._get_pinned_keyring()
-        if kr is not None:
-            try:
-                raw = kr.get_password(KEYRING_SERVICE_NAME, norm_domain)
-            except Exception as e:
-                raise TokenStoreError(
-                    f"Failed to read tokens from keyring for {norm_domain}: {type(e).__name__}"
-                ) from None
-            if raw is not None:
-                try:
-                    kr.delete_password(KEYRING_SERVICE_NAME, norm_domain)
-                    deleted = True
-                except Exception as e:
-                    raise TokenStoreError(
-                        f"Failed to delete tokens from keyring for {norm_domain}: {type(e).__name__}"
-                    ) from None
-        if self.path.exists():
-            store_dir = self.path.parent
-            lock = FileLock(str(self.lock_path), timeout=5, mode=0o600)
-            with lock:
-                current_map = self._read_map_unlocked()
-                if norm_domain in current_map:
-                    del current_map[norm_domain]
-                    deleted = True
-                    serialized = {
-                        k: v.to_store_dict() for k, v in current_map.items()
-                    }
-                    payload_bytes = json.dumps(serialized, indent=2).encode("utf-8")
-                    fd, tmp_str = tempfile.mkstemp(
-                        dir=store_dir,
-                        prefix="tokens-",
-                        suffix=".tmp",
-                    )
-                    tmp_path = Path(tmp_str)
-                    try:
-                        if os.name != "nt":
-                            os.chmod(tmp_path, 0o600)
-                        else:
-                            _verify_and_tighten_windows_permissions(tmp_path, is_dir=False)
-                        with os.fdopen(fd, "wb") as f:
-                            f.write(payload_bytes)
-                            f.flush()
-                            os.fsync(f.fileno())
-                        os.replace(tmp_path, self.path)
-                        if os.name != "nt":
-                            os.chmod(self.path, 0o600)
-                        else:
-                            _verify_and_tighten_windows_permissions(self.path, is_dir=False)
-                    except Exception as e:
-                        if tmp_path.exists():
-                            try:
-                                tmp_path.unlink()
-                            except OSError:
-                                pass
-                        raise TokenStoreError(f"Failed to delete token file {self.path}: {e}") from None
+        with self._locked():
+            kr = self._get_pinned_keyring()
+            if kr is not None:
+                had_legacy = False
+                if self.path.exists():
+                    legacy_map = self._read_map_unlocked()
+                    if norm_domain in legacy_map:
+                        del legacy_map[norm_domain]
+                        self._write_map_unlocked(legacy_map)
+                        had_legacy = True
 
-        return deleted
+                native_entry = self._read_keyring_unlocked(norm_domain)
+                had_native = native_entry is not None
+                if had_native:
+                    try:
+                        kr.delete_password(KEYRING_SERVICE_NAME, norm_domain)
+                    except Exception as e:
+                        raise TokenStoreError(
+                            f"Failed to delete tokens from keyring for {norm_domain}: {type(e).__name__}"
+                        ) from None
+
+                return had_legacy or had_native
+
+            if not self.path.exists():
+                return False
+
+            current_map = self._read_map_unlocked()
+            if norm_domain not in current_map:
+                return False
+            del current_map[norm_domain]
+            self._write_map_unlocked(current_map)
+            return True
