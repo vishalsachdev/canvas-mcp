@@ -588,3 +588,302 @@ async def test_multi_process_conflict_reloads_refreshed_store(tmp_path: Path) ->
         # Should have adopted concurrent-proc-token from store upon conflict
         assert tok == "concurrent-proc-token"
         assert session.snapshot()[0] == "concurrent-proc-token"
+
+
+@pytest.mark.asyncio
+async def test_oauth_session_init_requires_user_identity(tmp_path: Path) -> None:
+    """OAuthSession.__init__ must reject entries without user identity."""
+    store = TokenStore(tmp_path / "tokens.json")
+    now = datetime.now(UTC)
+    tokens = StoredTokens(
+        canvas_domain="canvas.example.edu",
+        access_token=SecretStr("old-access-tok"),
+        refresh_token=SecretStr("valid-refresh-tok"),
+        client_id="client-123",
+        client_secret=SecretStr("client-secret-abc"),
+        obtained_at=now,
+        last_refreshed_at=now,
+        user=None,
+    )
+    with pytest.raises(
+        ReauthenticationRequired,
+        match="Canvas OAuth identity is unavailable; run canvas-mcp-auth login and restart the MCP server.",
+    ):
+        OAuthSession(tokens, store)
+
+
+@pytest.mark.asyncio
+async def test_session_refuses_adoption_of_different_user(tmp_path: Path) -> None:
+    """OAuthSession must refuse to adopt a token belonging to another user from the store."""
+    store = TokenStore(tmp_path / "tokens.json")
+    now = datetime.now(UTC)
+    tokens_101 = StoredTokens(
+        canvas_domain="canvas.example.edu",
+        access_token=SecretStr("tok-101"),
+        refresh_token=SecretStr("ref-101"),
+        client_id="client-123",
+        client_secret=SecretStr("client-secret-abc"),
+        obtained_at=now,
+        last_refreshed_at=now,
+        user=OAuthUser(id=101, name="Student 101"),
+    )
+    store.save(tokens_101)
+    session = OAuthSession(tokens_101, store)
+
+    tokens_202 = StoredTokens(
+        canvas_domain="canvas.example.edu",
+        access_token=SecretStr("tok-202"),
+        refresh_token=SecretStr("ref-202"),
+        client_id="client-123",
+        client_secret=SecretStr("client-secret-abc"),
+        obtained_at=now,
+        last_refreshed_at=now,
+        user=OAuthUser(id=202, name="Student 202"),
+    )
+    store.save(tokens_202)
+
+    with pytest.raises(
+        ReauthenticationRequired,
+        match="Canvas OAuth account changed or cannot be verified; run canvas-mcp-auth login and restart the MCP server.",
+    ):
+        await session.refresh(0)
+
+    with pytest.raises(ReauthenticationRequired):
+        session.snapshot()
+
+    with pytest.raises(ReauthenticationRequired):
+        await session.refresh(0)
+
+    stored_final = store.load("canvas.example.edu")
+    assert stored_final is not None
+    assert stored_final.user is not None
+    assert stored_final.user.id == 202
+
+
+@pytest.mark.asyncio
+async def test_session_refuses_adoption_of_missing_user_identity(tmp_path: Path) -> None:
+    """OAuthSession must refuse to adopt a store entry where user identity is missing."""
+    store = TokenStore(tmp_path / "tokens.json")
+    now = datetime.now(UTC)
+    tokens_101 = StoredTokens(
+        canvas_domain="canvas.example.edu",
+        access_token=SecretStr("tok-101"),
+        refresh_token=SecretStr("ref-101"),
+        client_id="client-123",
+        client_secret=SecretStr("client-secret-abc"),
+        obtained_at=now,
+        last_refreshed_at=now,
+        user=OAuthUser(id=101, name="Student 101"),
+    )
+    store.save(tokens_101)
+    session = OAuthSession(tokens_101, store)
+
+    tokens_no_user = StoredTokens(
+        canvas_domain="canvas.example.edu",
+        access_token=SecretStr("tok-new"),
+        refresh_token=SecretStr("ref-new"),
+        client_id="client-123",
+        client_secret=SecretStr("client-secret-abc"),
+        obtained_at=now,
+        last_refreshed_at=now,
+        user=None,
+    )
+    store.save(tokens_no_user)
+
+    with pytest.raises(
+        ReauthenticationRequired,
+        match="Canvas OAuth account changed or cannot be verified; run canvas-mcp-auth login and restart the MCP server.",
+    ):
+        await session.refresh(0)
+
+
+@pytest.mark.asyncio
+async def test_refresh_in_flight_login_race_preserves_new_user_and_latches_error(
+    tmp_path: Path,
+) -> None:
+    """If CLI saves user 202 while user 101's refresh is in-flight, 101's refresh must fail and not overwrite 202."""
+    store = TokenStore(tmp_path / "tokens.json")
+    now = datetime.now(UTC)
+    tokens_101 = StoredTokens(
+        canvas_domain="canvas.example.edu",
+        access_token=SecretStr("tok-101"),
+        refresh_token=SecretStr("ref-101"),
+        client_id="client-123",
+        client_secret=SecretStr("client-secret-abc"),
+        obtained_at=now,
+        last_refreshed_at=now,
+        user=OAuthUser(id=101, name="Student 101"),
+    )
+    store.save(tokens_101)
+    session = OAuthSession(tokens_101, store)
+
+    pause_http = asyncio.Event()
+    resume_http = asyncio.Event()
+
+    async def mock_handler(request: httpx.Request) -> httpx.Response:
+        pause_http.set()
+        await resume_http.wait()
+        return httpx.Response(200, json={"access_token": "refreshed-tok-101"})
+
+    transport = httpx.MockTransport(mock_handler)
+    real_client = httpx.AsyncClient
+
+    with patch("httpx.AsyncClient", side_effect=lambda *a, **kw: real_client(transport=transport)):
+        refresh_task = asyncio.create_task(session.refresh(0))
+        await pause_http.wait()
+
+        # While HTTP refresh was in flight, user 202 logged in via CLI and replaced store
+        tokens_202 = StoredTokens(
+            canvas_domain="canvas.example.edu",
+            access_token=SecretStr("tok-202"),
+            refresh_token=SecretStr("ref-202"),
+            client_id="client-123",
+            client_secret=SecretStr("client-secret-abc"),
+            obtained_at=now,
+            last_refreshed_at=now,
+            user=OAuthUser(id=202, name="Student 202"),
+        )
+        store.save(tokens_202)
+        resume_http.set()
+
+        with pytest.raises(ReauthenticationRequired):
+            await refresh_task
+    # Verify 101 session is latched into terminal error
+    with pytest.raises(ReauthenticationRequired):
+        session.snapshot()
+
+    # Verify store still contains user 202 untouched
+    stored_final = store.load("canvas.example.edu")
+    assert stored_final is not None
+    assert stored_final.user is not None
+    assert stored_final.user.id == 202
+    assert stored_final.access_token.get_secret_value() == "tok-202"
+
+
+@pytest.mark.asyncio
+async def test_refresh_allows_same_user_display_name_change(tmp_path: Path) -> None:
+    """A refresh response for the same user ID with an updated name is accepted."""
+    store = TokenStore(tmp_path / "tokens.json")
+    now = datetime.now(UTC)
+    tokens_101 = StoredTokens(
+        canvas_domain="canvas.example.edu",
+        access_token=SecretStr("tok-101"),
+        refresh_token=SecretStr("ref-101"),
+        client_id="client-123",
+        client_secret=SecretStr("client-secret-abc"),
+        obtained_at=now,
+        last_refreshed_at=now,
+        user=OAuthUser(id=101, name="Original Name"),
+    )
+    store.save(tokens_101)
+    session = OAuthSession(tokens_101, store)
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "access_token": "new-tok-101",
+                "user": {"id": 101, "name": "New Name"},
+            },
+        )
+
+    transport = httpx.MockTransport(mock_handler)
+    with patch("httpx.AsyncClient", return_value=httpx.AsyncClient(transport=transport)):
+        tok = await session.refresh(0)
+        assert tok == "new-tok-101"
+        assert session._entry.user is not None
+        assert session._entry.user.id == 101
+        assert session._entry.user.name == "New Name"
+
+
+@pytest.mark.asyncio
+async def test_refresh_rejects_different_user_in_refresh_response(tmp_path: Path) -> None:
+    """A refresh response containing a different user ID must be rejected and latched."""
+    store = TokenStore(tmp_path / "tokens.json")
+    now = datetime.now(UTC)
+    tokens_101 = StoredTokens(
+        canvas_domain="canvas.example.edu",
+        access_token=SecretStr("tok-101"),
+        refresh_token=SecretStr("ref-101"),
+        client_id="client-123",
+        client_secret=SecretStr("client-secret-abc"),
+        obtained_at=now,
+        last_refreshed_at=now,
+        user=OAuthUser(id=101, name="Original Name"),
+    )
+    store.save(tokens_101)
+    session = OAuthSession(tokens_101, store)
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "access_token": "new-tok-different-user",
+                "user": {"id": 202, "name": "Different User"},
+            },
+        )
+
+    transport = httpx.MockTransport(mock_handler)
+    with patch("httpx.AsyncClient", return_value=httpx.AsyncClient(transport=transport)):
+        with pytest.raises(ReauthenticationRequired):
+            await session.refresh(0)
+
+    with pytest.raises(ReauthenticationRequired):
+        session.snapshot()
+
+
+@pytest.mark.asyncio
+async def test_httpx_auth_write_request_refuses_replay_when_user_swapped(
+    tmp_path: Path,
+) -> None:
+    """When a 401 triggers refresh and store has another user, replay must not occur with new user."""
+    store = TokenStore(tmp_path / "tokens.json")
+    now = datetime.now(UTC)
+    tokens_101 = StoredTokens(
+        canvas_domain="canvas.example.edu",
+        access_token=SecretStr("tok-101"),
+        refresh_token=SecretStr("ref-101"),
+        client_id="client-123",
+        client_secret=SecretStr("client-secret-abc"),
+        obtained_at=now,
+        last_refreshed_at=now,
+        user=OAuthUser(id=101, name="Student 101"),
+    )
+    store.save(tokens_101)
+    session = OAuthSession(tokens_101, store)
+    auth = MobileOAuthAuth(session)
+
+    sent_auth_headers: list[str] = []
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        hdr = request.headers.get("Authorization", "")
+        sent_auth_headers.append(hdr)
+        if request.url.path == "/api/v1/courses/1/assignments":
+            # First call with user 101's token returns 401
+            # Simulate CLI login replacing store with user 202 right now
+            tokens_202 = StoredTokens(
+                canvas_domain="canvas.example.edu",
+                access_token=SecretStr("tok-202"),
+                refresh_token=SecretStr("ref-202"),
+                client_id="client-123",
+                client_secret=SecretStr("client-secret-abc"),
+                obtained_at=now,
+                last_refreshed_at=now,
+                user=OAuthUser(id=202, name="Student 202"),
+            )
+            store.save(tokens_202)
+            return httpx.Response(401, json={"message": "Invalid access token"})
+        return httpx.Response(404)
+
+    transport = httpx.MockTransport(mock_handler)
+    async with httpx.AsyncClient(transport=transport, auth=auth) as client:
+        with pytest.raises(ReauthenticationRequired):
+            await client.post(
+                "https://canvas.example.edu/api/v1/courses/1/assignments",
+                json={"name": "New Assignment"},
+            )
+
+    # Exactly one request sent with user 101's token; NO replay with user 202's token!
+    assert sent_auth_headers == ["Bearer tok-101"]
+    with pytest.raises(ReauthenticationRequired):
+        session.snapshot()

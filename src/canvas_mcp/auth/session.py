@@ -30,8 +30,14 @@ class OAuthSession:
     """Manages memory credentials and single-flight token refresh for one domain."""
 
     def __init__(self, entry: StoredTokens, store: TokenStore) -> None:
+        if entry.user is None:
+            raise ReauthenticationRequired(
+                "Canvas OAuth identity is unavailable; run canvas-mcp-auth login and restart the MCP server."
+            )
         self._entry = entry
         self._store = store
+        self._bound_user_id: int = entry.user.id
+        self._bound_domain: str = entry.canvas_domain
         self._generation = 0
         self._latched_error: ReauthenticationRequired | None = None
         self._last_failure_time: float = 0.0
@@ -41,6 +47,19 @@ class OAuthSession:
         self._lock: asyncio.Lock | None = None
         self._refresh_task: asyncio.Task[str] | None = None
         self._loop_ref: weakref.ref[asyncio.AbstractEventLoop] | None = None
+
+    def _require_bound_identity(self, entry: StoredTokens) -> None:
+        if (
+            entry.user is None
+            or entry.user.id != self._bound_user_id
+            or entry.canvas_domain != self._bound_domain
+        ):
+            latched = ReauthenticationRequired(
+                "Canvas OAuth account changed or cannot be verified; run canvas-mcp-auth login and restart the MCP server."
+            )
+            self._latched_error = latched
+            self._last_failure_exc = latched
+            raise latched
 
     @property
     def canvas_domain(self) -> str:
@@ -84,20 +103,23 @@ class OAuthSession:
             if self._generation > observed_generation:
                 return self._entry.access_token.get_secret_value()
 
-            # Check if another process refreshed the store on disk/keyring
-            stored = await asyncio.to_thread(self._store.load, self._entry.canvas_domain)
-            if stored is not None and (
-                stored.last_refreshed_at > self._entry.last_refreshed_at
-                or stored.access_token.get_secret_value()
-                != self._entry.access_token.get_secret_value()
-            ):
-                self._entry = stored
-                self._generation += 1
-                self._last_failure_exc = None
-                return self._entry.access_token.get_secret_value()
-
+            # Check for an active _refresh_task before another caller performs store adoption
             if self._refresh_task is not None and not self._refresh_task.done():
                 return await asyncio.shield(self._refresh_task)
+
+            # Check if another process refreshed the store on disk/keyring
+            stored = await asyncio.to_thread(self._store.load, self._bound_domain)
+            if stored is not None:
+                self._require_bound_identity(stored)
+                if (
+                    stored.last_refreshed_at > self._entry.last_refreshed_at
+                    or stored.access_token.get_secret_value()
+                    != self._entry.access_token.get_secret_value()
+                ):
+                    self._entry = stored
+                    self._generation += 1
+                    self._last_failure_exc = None
+                    return self._entry.access_token.get_secret_value()
 
             # Deduplicate rapid concurrent burst immediately after failure
             loop = asyncio.get_running_loop()
@@ -114,13 +136,16 @@ class OAuthSession:
 
     async def _do_refresh(self) -> str:
         loop = asyncio.get_running_loop()
-        norm_domain = normalize_domain(self._entry.canvas_domain)
+        base_entry = self._entry
+        self._require_bound_identity(base_entry)
+
+        norm_domain = normalize_domain(base_entry.canvas_domain)
         token_url = f"https://{norm_domain}/login/oauth2/token"
         form_data = {
             "grant_type": "refresh_token",
-            "client_id": self._entry.client_id,
-            "client_secret": self._entry.client_secret.get_secret_value(),
-            "refresh_token": self._entry.refresh_token.get_secret_value(),
+            "client_id": base_entry.client_id,
+            "client_secret": base_entry.client_secret.get_secret_value(),
+            "refresh_token": base_entry.refresh_token.get_secret_value(),
             "redirect_uri": REDIRECT_URI,
         }
 
@@ -184,57 +209,72 @@ class OAuthSession:
         if new_refresh and isinstance(new_refresh, str) and new_refresh.strip():
             refresh_secret = SecretStr(new_refresh.strip())
         else:
-            refresh_secret = self._entry.refresh_token
+            refresh_secret = base_entry.refresh_token
 
         # User verification if present
-        user_obj = self._entry.user
-        user_data = data.get("user")
-        if user_data is not None and isinstance(user_data, dict):
+        user_obj = base_entry.user
+        if "user" in data:
+            user_data = data.get("user")
+            if not isinstance(user_data, dict):
+                malformed_err = OAuthRefreshError("Malformed user object in token refresh response")
+                self._last_failure_exc = malformed_err
+                self._last_failure_time = loop.time()
+                raise malformed_err
             new_uid = user_data.get("id")
             new_name = user_data.get("name")
             if (
-                isinstance(new_uid, int)
-                and not isinstance(new_uid, bool)
-                and isinstance(new_name, str)
-                and new_name.strip()
+                not isinstance(new_uid, int)
+                or isinstance(new_uid, bool)
+                or not isinstance(new_name, str)
+                or not new_name.strip()
             ):
-                if user_obj is not None and user_obj.id != new_uid:
-                    uid_err = OAuthRefreshError(
-                        "User ID changed during OAuth token refresh"
-                    )
-                    self._last_failure_exc = uid_err
-                    self._last_failure_time = loop.time()
-                    raise uid_err
-                user_obj = OAuthUser(id=new_uid, name=new_name)
+                invalid_user_err = OAuthRefreshError("Invalid user identity in token refresh response")
+                self._last_failure_exc = invalid_user_err
+                self._last_failure_time = loop.time()
+                raise invalid_user_err
+            if new_uid != self._bound_user_id:
+                latched = ReauthenticationRequired(
+                    "Canvas OAuth account changed or cannot be verified; run canvas-mcp-auth login and restart the MCP server."
+                )
+                self._latched_error = latched
+                self._last_failure_exc = latched
+                self._last_failure_time = loop.time()
+                raise latched
+            user_obj = OAuthUser(id=new_uid, name=new_name)
 
         now = datetime.now(UTC)
         updated_entry = StoredTokens(
-            canvas_domain=self._entry.canvas_domain,
+            canvas_domain=base_entry.canvas_domain,
             access_token=SecretStr(access_token_val.strip()),
             refresh_token=refresh_secret,
-            client_id=self._entry.client_id,
-            client_secret=self._entry.client_secret,
-            obtained_at=self._entry.obtained_at,
+            client_id=base_entry.client_id,
+            client_secret=base_entry.client_secret,
+            obtained_at=base_entry.obtained_at,
             last_refreshed_at=now,
             user=user_obj,
         )
+        self._require_bound_identity(updated_entry)
 
         try:
             await asyncio.to_thread(
-                self._store.save, updated_entry, expected=self._entry
+                self._store.save, updated_entry, expected=base_entry
             )
         except TokenStoreConflict as exc:
             # Check if another process refreshed the store concurrently
-            reloaded = await asyncio.to_thread(self._store.load, self._entry.canvas_domain)
-            if reloaded is not None and (
-                reloaded.last_refreshed_at > self._entry.last_refreshed_at
-                or reloaded.access_token.get_secret_value()
-                != self._entry.access_token.get_secret_value()
-            ):
-                self._entry = reloaded
-                self._generation += 1
-                self._last_failure_exc = None
-                return reloaded.access_token.get_secret_value()
+            reloaded = await asyncio.to_thread(self._store.load, base_entry.canvas_domain)
+            if reloaded is not None:
+                self._require_bound_identity(reloaded)
+                if (
+                    reloaded.last_refreshed_at > base_entry.last_refreshed_at
+                    or reloaded.access_token.get_secret_value()
+                    != base_entry.access_token.get_secret_value()
+                ):
+                    if self._latched_error is not None:
+                        raise self._latched_error
+                    self._entry = reloaded
+                    self._generation += 1
+                    self._last_failure_exc = None
+                    return reloaded.access_token.get_secret_value()
 
             conflict_err = TokenStoreConflict(
                 "Token store conflict: credentials modified by another process; restart server."
@@ -248,7 +288,11 @@ class OAuthSession:
             self._last_failure_time = loop.time()
             raise persist_err from exc
 
+        if self._latched_error is not None:
+            raise self._latched_error
+
         # Publish new state
+        self._require_bound_identity(updated_entry)
         self._entry = updated_entry
         self._generation += 1
         self._last_failure_exc = None
