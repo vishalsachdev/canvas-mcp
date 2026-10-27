@@ -7,6 +7,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
+import keyring
+from keyring.backend import KeyringBackend
 import pytest
 from pydantic import SecretStr
 
@@ -382,69 +384,94 @@ def test_windows_permissions_failure_raises(tmp_path: Path) -> None:
             _verify_and_tighten_windows_permissions(target_file, is_dir=False)
 
 
+class DictKeyring(KeyringBackend):
+    priority = 5
+
+    def __init__(self) -> None:
+        self.storage: dict[tuple[str, str], str] = {}
+
+    def get_password(self, service: str, username: str) -> str | None:
+        return self.storage.get((service, username))
+
+    def set_password(self, service: str, username: str, password: str) -> None:
+        self.storage[(service, username)] = password
+
+    def delete_password(self, service: str, username: str) -> None:
+        self.storage.pop((service, username), None)
+
+
 def test_keyring_backend_lifecycle() -> None:
     """Test saving, loading, CAS conflict, and deleting via Keyring backend."""
-    storage: dict[tuple[str, str], str] = {}
+    fake = DictKeyring()
+    keyring.set_keyring(fake)
 
-    class MockKeyring:
-        priority = 5
+    store = TokenStore()
+    assert store._use_keyring() is True
 
-        def get_password(self, service: str, username: str) -> str | None:
-            return storage.get((service, username))
+    entry = _make_sample_entry("canvas.example.edu", access_token="keyring-acc-1")
+    store.save(entry)
+    assert ("canvas-mcp", "canvas.example.edu") in fake.storage
 
-        def set_password(self, service: str, username: str, password: str) -> None:
-            storage[(service, username)] = password
+    loaded = store.load("canvas.example.edu")
+    assert loaded is not None
+    assert loaded.access_token.get_secret_value() == "keyring-acc-1"
 
-        def delete_password(self, service: str, username: str) -> None:
-            storage.pop((service, username), None)
+    # CAS Conflict
+    other_entry = _make_sample_entry("canvas.example.edu", access_token="keyring-acc-other")
+    stale_expected = _make_sample_entry("canvas.example.edu", access_token="stale-acc")
+    with pytest.raises(TokenStoreConflict):
+        store.save(other_entry, expected=stale_expected)
 
-    with patch("keyring.get_keyring", return_value=MockKeyring()):
-        store = TokenStore()
-        assert store._use_keyring() is True
-
-        entry = _make_sample_entry("canvas.example.edu", access_token="keyring-acc-1")
-        store.save(entry)
-
-        loaded = store.load("canvas.example.edu")
-        assert loaded is not None
-        assert loaded.access_token.get_secret_value() == "keyring-acc-1"
-
-        # CAS Conflict
-        other_entry = _make_sample_entry("canvas.example.edu", access_token="keyring-acc-other")
-        stale_expected = _make_sample_entry("canvas.example.edu", access_token="stale-acc")
-        with pytest.raises(TokenStoreConflict):
-            store.save(other_entry, expected=stale_expected)
-
-        # Delete
-        assert store.delete("canvas.example.edu") is True
-        assert store.load("canvas.example.edu") is None
+    # Delete
+    assert store.delete("canvas.example.edu") is True
+    assert ("canvas-mcp", "canvas.example.edu") not in fake.storage
+    assert store.load("canvas.example.edu") is None
 
 
 def test_keyring_unavailable_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
     """When OS credential store is unavailable, TokenStore fails closed unless file store is permitted."""
     monkeypatch.delenv("CANVAS_ALLOW_FILE_TOKEN_STORE", raising=False)
 
-    class InactiveKeyring:
+    class InactiveKeyring(KeyringBackend):
         priority = 0
 
-    with patch("keyring.get_keyring", return_value=InactiveKeyring()):
-        store = TokenStore()
-        assert store._use_keyring() is False
+        def get_password(self, service: str, username: str) -> str | None:
+            return None
 
-        entry = _make_sample_entry("canvas.example.edu")
-        with pytest.raises(TokenStoreError, match="No secure OS credential store available"):
-            store.save(entry)
+        def set_password(self, service: str, username: str, password: str) -> None:
+            pass
+
+        def delete_password(self, service: str, username: str) -> None:
+            pass
+
+    keyring.set_keyring(InactiveKeyring())
+    store = TokenStore()
+    assert store._use_keyring() is False
+
+    entry = _make_sample_entry("canvas.example.edu")
+    with pytest.raises(TokenStoreError, match="No secure OS credential store available"):
+        store.save(entry)
 
 
 def test_keyring_unavailable_with_file_store_allowed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """When OS credential store is unavailable and CANVAS_ALLOW_FILE_TOKEN_STORE=1, falls back to file store."""
     monkeypatch.setenv("CANVAS_ALLOW_FILE_TOKEN_STORE", "1")
 
-    class InactiveKeyring:
+    class InactiveKeyring(KeyringBackend):
         priority = 0
 
+        def get_password(self, service: str, username: str) -> str | None:
+            return None
+
+        def set_password(self, service: str, username: str, password: str) -> None:
+            pass
+
+        def delete_password(self, service: str, username: str) -> None:
+            pass
+
+    keyring.set_keyring(InactiveKeyring())
     store_file = tmp_path / "tokens.json"
-    with patch("keyring.get_keyring", return_value=InactiveKeyring()), patch("canvas_mcp.auth.store.DEFAULT_STORE_PATH", store_file):
+    with patch("canvas_mcp.auth.store.DEFAULT_STORE_PATH", store_file):
         store = TokenStore()
         assert store._use_keyring() is False
         assert store._is_file_store_allowed() is True
@@ -455,3 +482,4 @@ def test_keyring_unavailable_with_file_store_allowed(tmp_path: Path, monkeypatch
         loaded = store.load("canvas.example.edu")
         assert loaded is not None
         assert loaded.access_token.get_secret_value() == "fallback-token"
+
