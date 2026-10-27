@@ -9,7 +9,7 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from filelock import FileLock, Timeout
 from keyring.backend import KeyringBackend
@@ -245,7 +245,7 @@ def _secure_keyring_leaf(backend: KeyringBackend) -> KeyringBackend | None:
                     or _safe_priority(leaf) <= 0
                 ):
                     return None
-            return backends[0]
+            return cast(KeyringBackend, backends[0])
     except (ImportError, AttributeError) as exc:
         logger.debug("ChainerBackend unavailable or malformed: %s", exc)
 
@@ -258,8 +258,6 @@ def _select_secure_keyring() -> KeyringBackend | None:
         import keyring.core
 
         kr = keyring.core.get_keyring()
-        if kr is None:
-            return None
         return _secure_keyring_leaf(kr)
     except (ImportError, AttributeError, RuntimeError) as exc:
         logger.debug("Failed to discover secure OS keyring backend: %s", exc)
