@@ -354,35 +354,128 @@ def test_cli_error_does_not_leak_credentials(tmp_path: Path, monkeypatch: pytest
         assert s not in captured.out
 
 
-def test_windows_permissions_tightened(tmp_path: Path) -> None:
-    """Assert that on Windows, icacls is invoked to remove inheritance and grant user full control."""
-    from canvas_mcp.auth.store import _verify_and_tighten_windows_permissions
+def test_windows_permissions_powershell_invocation(tmp_path: Path) -> None:
+    """Assert that on Windows, powershell.exe is invoked with EncodedCommand to tighten DACLs."""
+    from canvas_mcp.auth.store import _verify_and_tighten_windows_permissions, _WIN_ACL_ENCODED
+    from unittest.mock import MagicMock
 
     target_file = tmp_path / "test_file.json"
     target_file.write_text("{}", encoding="utf-8")
 
-    with patch("os.name", "nt"), patch("os.environ.get", return_value="TestUser"), patch("subprocess.run") as mock_run:
-        from unittest.mock import MagicMock
-        mock_run.return_value = MagicMock(returncode=0)
+    fake_root = tmp_path / "Windows"
+    fake_ps = fake_root / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+    fake_ps.parent.mkdir(parents=True)
+    fake_ps.write_text("", encoding="utf-8")
+
+    with (
+        patch("os.name", "nt"),
+        patch.dict("os.environ", {"SystemRoot": str(fake_root)}),
+        patch("subprocess.run") as mock_run,
+    ):
+        mock_run.return_value = MagicMock(returncode=0, stdout="CANVAS_MCP_PRIVATE_ACL_OK\n")
         _verify_and_tighten_windows_permissions(target_file, is_dir=False)
 
         mock_run.assert_called_once()
         cmd = mock_run.call_args[0][0]
-        assert cmd == ["icacls", str(target_file), "/inheritance:r", "/grant:r", "TestUser:F"]
+        assert cmd == [str(fake_ps), "-NoProfile", "-NonInteractive", "-EncodedCommand", _WIN_ACL_ENCODED]
+        kwargs = mock_run.call_args[1]
+        assert kwargs["shell"] is False
+        assert kwargs["timeout"] == 15.0
+        assert kwargs["env"]["CANVAS_MCP_ACL_PATH"] == str(target_file.resolve())
+        assert kwargs["env"]["CANVAS_MCP_ACL_IS_DIR"] == "0"
 
 
 def test_windows_permissions_failure_raises(tmp_path: Path) -> None:
+    """Any failure in Windows permission enforcement must raise sanitized TokenStoreError."""
     from canvas_mcp.auth.store import _verify_and_tighten_windows_permissions
+    from unittest.mock import MagicMock
+    import subprocess
 
     target_file = tmp_path / "test_file.json"
     target_file.write_text("{}", encoding="utf-8")
 
-    with patch("os.name", "nt"), patch("os.environ.get", return_value="TestUser"), patch("subprocess.run") as mock_run:
-        from unittest.mock import MagicMock
-        mock_run.return_value = MagicMock(returncode=1, stderr="Access is denied")
-        with pytest.raises(TokenStoreError, match="Failed to tighten Windows ACLs"):
+    fake_root = tmp_path / "Windows"
+    fake_ps = fake_root / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+    fake_ps.parent.mkdir(parents=True)
+    fake_ps.write_text("", encoding="utf-8")
+
+    # Subprocess non-zero returncode
+    with (
+        patch("os.name", "nt"),
+        patch.dict("os.environ", {"SystemRoot": str(fake_root)}),
+        patch("subprocess.run", return_value=MagicMock(returncode=1, stdout="Failed")),
+    ):
+        with pytest.raises(TokenStoreError, match="Cannot establish private Windows permissions"):
             _verify_and_tighten_windows_permissions(target_file, is_dir=False)
 
+    # Subprocess returncode 0 but wrong stdout
+    with (
+        patch("os.name", "nt"),
+        patch.dict("os.environ", {"SystemRoot": str(fake_root)}),
+        patch("subprocess.run", return_value=MagicMock(returncode=0, stdout="SOMETHING_ELSE")),
+    ):
+        with pytest.raises(TokenStoreError, match="Cannot establish private Windows permissions"):
+            _verify_and_tighten_windows_permissions(target_file, is_dir=False)
+
+    # Subprocess timeout
+    with (
+        patch("os.name", "nt"),
+        patch.dict("os.environ", {"SystemRoot": str(fake_root)}),
+        patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="powershell", timeout=15.0)),
+    ):
+        with pytest.raises(TokenStoreError, match="Cannot establish private Windows permissions"):
+            _verify_and_tighten_windows_permissions(target_file, is_dir=False)
+
+    # Missing SystemRoot
+    with (
+        patch("os.name", "nt"),
+        patch.dict("os.environ", {}, clear=True),
+    ):
+        with pytest.raises(TokenStoreError, match="Cannot establish private Windows permissions"):
+            _verify_and_tighten_windows_permissions(target_file, is_dir=False)
+
+    # Missing powershell.exe
+    fake_ps.unlink()
+    with (
+        patch("os.name", "nt"),
+        patch.dict("os.environ", {"SystemRoot": str(fake_root)}),
+    ):
+        with pytest.raises(TokenStoreError, match="Cannot establish private Windows permissions"):
+            _verify_and_tighten_windows_permissions(target_file, is_dir=False)
+
+    # Non-existent target is a no-op
+    non_existent = tmp_path / "absent.json"
+    with patch("os.name", "nt"):
+        _verify_and_tighten_windows_permissions(non_existent, is_dir=False)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Requires native Windows")
+def test_windows_permissions_native_tighten_and_verify(tmp_path: Path) -> None:
+    """On native Windows, verify that DACLs are private to current user only."""
+    from canvas_mcp.auth.store import _verify_and_tighten_windows_permissions
+    import subprocess
+
+    test_dir = tmp_path / "private_dir"
+    test_dir.mkdir()
+    test_file = test_dir / "tokens.json"
+    test_file.write_text("{}", encoding="utf-8")
+
+    _verify_and_tighten_windows_permissions(test_dir, is_dir=True)
+    _verify_and_tighten_windows_permissions(test_file, is_dir=False)
+
+    check_script = """
+    $acl = Get-Acl -LiteralPath $env:TEST_FILE
+    $rules = $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])
+    if ($rules.Count -ne 1) { exit 1 }
+    if ($rules[0].IdentityReference.Value -ne [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value) { exit 2 }
+    exit 0
+    """
+    res = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", check_script],
+        env=dict(os.environ, TEST_FILE=str(test_file)),
+        capture_output=True,
+    )
+    assert res.returncode == 0
 
 class DictKeyring(KeyringBackend):
     priority = 5

@@ -1,5 +1,6 @@
 """Secure local token store with OS credential manager (Keyring), file locking, atomic replace, and permission checks."""
 
+import base64
 import json
 import logging
 import os
@@ -34,34 +35,123 @@ def _check_no_symlink(p: Path, name: str) -> None:
             raise TokenStoreError(f"Rejecting symlink for {name}: {curr}")
         curr = curr.parent
 
+_WIN_ACL_SCRIPT = """
+$ErrorActionPreference = 'Stop'
+$targetPath = $env:CANVAS_MCP_ACL_PATH
+$isDir = ($env:CANVAS_MCP_ACL_IS_DIR -eq '1')
+
+if (-not $targetPath -or -not (Test-Path -LiteralPath $targetPath)) {
+    throw "Target path does not exist"
+}
+
+$identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+$sid = $identity.User
+if (-not $sid) {
+    throw "Cannot determine current Windows SID"
+}
+
+$currentAcl = Get-Acl -LiteralPath $targetPath
+$currentOwner = $currentAcl.GetOwner([System.Security.Principal.SecurityIdentifier])
+if ($currentOwner -ne $sid) {
+    throw "Target path is owned by another principal"
+}
+
+if ($isDir) {
+    $acl = New-Object System.Security.AccessControl.DirectorySecurity
+    $inherit = [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
+} else {
+    $acl = New-Object System.Security.AccessControl.FileSecurity
+    $inherit = [System.Security.AccessControl.InheritanceFlags]::None
+}
+
+$acl.SetOwner($sid)
+$acl.SetAccessRuleProtection($true, $false)
+
+$prop = [System.Security.AccessControl.PropagationFlags]::None
+$rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+    $sid,
+    [System.Security.AccessControl.FileSystemRights]::FullControl,
+    $inherit,
+    $prop,
+    [System.Security.AccessControl.AccessControlType]::Allow
+)
+$acl.AddAccessRule($rule)
+
+Set-Acl -LiteralPath $targetPath -AclObject $acl
+
+$readbackAcl = Get-Acl -LiteralPath $targetPath
+$verifiedOwner = $readbackAcl.GetOwner([System.Security.Principal.SecurityIdentifier])
+if ($verifiedOwner -ne $sid) {
+    throw "Verified owner mismatch"
+}
+if (-not $readbackAcl.AreAccessRulesProtected) {
+    throw "Access rules are not protected from inheritance"
+}
+
+$rules = $readbackAcl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])
+if ($rules.Count -ne 1) {
+    throw "Expected exactly 1 access rule"
+}
+$vRule = $rules[0]
+if ($vRule.IdentityReference -ne $sid) {
+    throw "Access rule identity mismatch"
+}
+if ($vRule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow) {
+    throw "Access rule is not Allow"
+}
+if ($vRule.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::FullControl -ne [System.Security.AccessControl.FileSystemRights]::FullControl) {
+    throw "Access rule does not grant FullControl"
+}
+if ($vRule.IsInherited) {
+    throw "Access rule is inherited"
+}
+if ($vRule.InheritanceFlags -ne $inherit) {
+    throw "Inheritance flags mismatch"
+}
+if ($vRule.PropagationFlags -ne $prop) {
+    throw "Propagation flags mismatch"
+}
+
+[Console]::Out.Write("CANVAS_MCP_PRIVATE_ACL_OK")
+"""
+
+_WIN_ACL_ENCODED = base64.b64encode(_WIN_ACL_SCRIPT.encode("utf-16le")).decode("ascii")
+
 
 def _verify_and_tighten_windows_permissions(p: Path, *, is_dir: bool) -> None:
-    """Enforce private ACLs (remove inheritance, grant full control only to current user) on Windows."""
+    """Enforce and verify private DACL (current SID only, full control, no inheritance) on Windows."""
     if os.name != "nt":
         return
     if not p.exists():
         return
-    username = os.environ.get("USERNAME")
-    if not username:
-        try:
-            import getpass
 
-            username = getpass.getuser()
-        except Exception:
-            return
-    grant_perm = "(OI)(CI)F" if is_dir else "F"
-    cmd = ["icacls", str(p), "/inheritance:r", "/grant:r", f"{username}:{grant_perm}"]
+    system_root = os.environ.get("SystemRoot") or os.environ.get("SYSTEMROOT")
+    if not system_root:
+        raise TokenStoreError("Cannot establish private Windows permissions for token storage")
+
+    ps_exe = os.path.join(system_root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+    if not os.path.exists(ps_exe):
+        raise TokenStoreError("Cannot establish private Windows permissions for token storage")
+
+    child_env = os.environ.copy()
+    child_env["CANVAS_MCP_ACL_PATH"] = str(p.resolve())
+    child_env["CANVAS_MCP_ACL_IS_DIR"] = "1" if is_dir else "0"
+
     try:
-        res = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        if res.returncode != 0:
-            raise TokenStoreError(
-                f"Failed to tighten Windows ACLs on {p}: {res.stderr.strip()}"
-            )
-    except FileNotFoundError:
-        pass
-    except OSError as e:
-        raise TokenStoreError(f"Failed to execute icacls on {p}: {e}") from None
+        res = subprocess.run(
+            [ps_exe, "-NoProfile", "-NonInteractive", "-EncodedCommand", _WIN_ACL_ENCODED],
+            env=child_env,
+            capture_output=True,
+            text=True,
+            timeout=15.0,
+            shell=False,
+            check=False,
+        )
+    except (subprocess.SubprocessError, OSError):
+        raise TokenStoreError("Cannot establish private Windows permissions for token storage") from None
 
+    if res.returncode != 0 or res.stdout.strip() != "CANVAS_MCP_PRIVATE_ACL_OK":
+        raise TokenStoreError("Cannot establish private Windows permissions for token storage")
 
 def _verify_and_tighten_posix_permissions(p: Path, *, is_dir: bool) -> None:
     """Enforce private ownership and permissions (0700 dir, 0600 file) on POSIX."""
