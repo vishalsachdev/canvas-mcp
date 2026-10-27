@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "name": "canvas-mcp",
-  "version": "1.14.0",
+  "version": "1.16.0",
   "description": "MCP server for Canvas Learning Management System API",
   "categories": [
     {
@@ -31,6 +31,60 @@
     }
   ],
   "tools": [
+    {
+      "name": "create_course_groups",
+      "category": "educator",
+      "description": "Preview then confirm a NEW course group set, groups and memberships from CSV; rejects duplicates/conflicts and requires explicit group-management/roster permissions",
+      "parameters": [
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": true,
+          "description": "Course code or Canvas ID"
+        },
+        {
+          "name": "group_set_name",
+          "type": "string",
+          "required": true,
+          "description": "New group-set name (existing names refused)"
+        },
+        {
+          "name": "csv_data",
+          "type": "string",
+          "required": true,
+          "description": "Exact columns group_name,description,canvas_user_id; one active student per row. Up to 200 students, 50 groups, 250000 characters. Duplicate students/conflicting rows refused."
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Single-use token from the current preview; show the preview and obtain explicit instructor approval first"
+        }
+      ],
+      "returns": "Preview/token or complete/partial/needs-inspection report with recorded IDs, member outcomes and caller-owned run_id. Unknown creation outcomes require manual inspection. No automatic rollback.",
+      "notes": "Requires manage_groups_add, manage_groups_manage and read_roster. Run records expire after 24h/server restart. Do not edit the target group set concurrently. Educator Canvas write; HTTP requires ALLOWED_WRITE_TOOLS."
+    },
+    {
+      "name": "resume_course_group_creation",
+      "category": "educator",
+      "description": "Fresh preview then confirm pending work in a prior caller-owned run, using only its recorded created targets and revalidating every membership; all detected conflicts refused",
+      "parameters": [
+        {
+          "name": "run_id",
+          "type": "string",
+          "required": true,
+          "description": "Server-issued run ID from the earlier run; no arbitrary Canvas IDs or changed CSV accepted"
+        },
+        {
+          "name": "confirmation_token",
+          "type": "string",
+          "required": false,
+          "description": "Single-use token from the current preview; show the preview and obtain explicit instructor approval first"
+        }
+      ],
+      "returns": "Fresh preview/token, complete/partial report or all detected membership conflicts with no writes. Pending groups can be created within the recorded set; verified members skipped.",
+      "notes": "Same explicit permissions and write allowlist as create_course_groups. No adoption by name, student moves or restoration of changed confirmed memberships. Server-local 24h records; unknown creation IDs cannot be resumed automatically."
+    },
     {
       "name": "get_my_profile",
       "category": "shared",
@@ -307,7 +361,7 @@
     {
       "name": "list_submissions",
       "category": "educator",
-      "description": "View student submissions for an assignment",
+      "description": "View compact submission metadata; opt in to bounded, fenced submission text with manage_grades permission and existing anonymization",
       "parameters": [
         {
           "name": "course_identifier",
@@ -320,9 +374,16 @@
           "type": "string | integer",
           "required": true,
           "description": "Assignment ID"
+        },
+        {
+          "name": "include_body",
+          "type": "boolean",
+          "required": false,
+          "default": false,
+          "description": "Include untrusted plain text; requires explicit manage_grades. Existing anonymization still redacts bodies. Limit 12,000 input characters per body and 60,000 total output characters; truncation and omitted records are marked."
         }
       ],
-      "returns": "List of submissions with student info, scores, and status",
+      "returns": "Submission metadata and optional bounded, fenced text; no comments, attachments, URLs, media, or history",
       "examples": [
         "Who has submitted Assignment 2?",
         "Show me submissions for the latest assignment"

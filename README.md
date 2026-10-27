@@ -8,7 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![skills.sh](https://img.shields.io/badge/skills.sh-canvas--mcp-blue)](https://skills.sh)
 
-MCP server for Canvas LMS with **up to 126 tools** and **8 agent skills**. Designed for Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh); setup and capabilities vary by client.
+MCP server for Canvas LMS with **up to 128 tools** and **8 agent skills**. Designed for Claude Desktop, Cursor, Codex, Windsurf, and [40+ other agents](https://skills.sh); setup and capabilities vary by client.
 
 ## Quick Start
 
@@ -36,7 +36,7 @@ See [Agent Skills](#-agent-skills) for the list. If your agent is Claude Code, t
   See CLAUDE.md "Documentation Maintenance" for full guidelines.
 -->
 
-Canvas MCP provides **up to 126 tools** for interacting with Canvas LMS; the default profile registers fewer, and optional feature-gated tools can raise the total to 126. Tools are organized by user type:
+Canvas MCP provides **up to 128 tools** for interacting with Canvas LMS; the default profile registers fewer, and optional feature-gated tools can raise the total to 128. Tools are organized by user type:
 
 <details>
 <summary><strong>Student Tools</strong> (click to expand)</summary>
@@ -67,6 +67,8 @@ Canvas MCP provides **up to 126 tools** for interacting with Canvas LMS; the def
 | Tool | Purpose | Example Prompt |
 |------|---------|----------------|
 | `list_assignments` | All assignments in course | "Show assignments in BADM 350" |
+| `create_course_groups` | Preview and confirm a new group set, groups and memberships from CSV | "Create project groups from these Canvas user IDs" |
+| `resume_course_group_creation` | Preview and confirm remaining work from a prior group run; refuse membership conflicts | "Resume the group run after resolving these conflicts" |
 | `create_assignment` | Create new assignment | "Create an assignment due Jan 26 with online text submission" |
 | `update_assignment` | Update existing assignment | "Change the due date for Assignment 3 to Feb 15" |
 | `list_submissions` | Student submissions | "Who submitted Assignment 3?" |
@@ -149,22 +151,27 @@ Canvas MCP provides **up to 126 tools** for interacting with Canvas LMS; the def
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing role-specific workflows for students, educators, learning designers, and developers. Built on the Model Context Protocol (MCP), it is designed for MCP-compatible clients; setup and supported capabilities vary by client.
 
-## Latest Release: v1.14.0
+## Latest Release: v1.16.0
 
 **Released:** October 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
 
-A student-tools and correctness release, most of it contributed by [@KKazuhaK](https://github.com/KKazuhaK). Students get read-only tools for their groups, grades, quizzes, calendar and a cross-course "what's new" feed, plus Inbox messaging that is off unless the operator enables it. Instructors get guarded body edits and complete reads.
+A security release. It fixes three privately reported issues and closes the last gap left by the 1.13.0 prompt-injection advisory, and it adds course group creation. Breaking for local code execution: the local sandbox now needs Node.js 22.18 or later.
 
-- **Student tools** (student profile): `list_my_groups`, `get_my_assignment_scores` and `calculate_grade_scenarios` (what-if grades the way Canvas computes them), `list_quizzes` and `get_quiz_details` (never start an attempt), `list_calendar_events` and `list_planner_notes`, `list_my_announcements` and `get_my_activity_stream`. Student writes register only when named in `STUDENT_WRITE_TOOLS` and remain subject to `ALLOWED_WRITE_TOOLS`. Messaging (`send_message`, `reply_to_conversation`) previews first and reaches at most 5 individual people. Planner-note updates/deletes and personal-calendar deletes also require a preview and confirmation token. **`create_planner_note`, `mark_planner_item_complete`, and `create_personal_calendar_event` write immediately on the first valid call; they have no preview step.** Completing course content can also change module progression. Get the user's approval before invoking these immediate writes ([#465](https://github.com/vishalsachdev/canvas-mcp/pull/465) to [#476](https://github.com/vishalsachdev/canvas-mcp/pull/476))
-- **Guarded body edits**: `edit_page_content`, `update_assignment`, `update_discussion_topic` and `update_syllabus` take `expect_updated_at` or `expect_body_sha256`, `find`/`replace` and `require`, and report a write as confirmed only when the read-back proves it ([#437](https://github.com/vishalsachdev/canvas-mcp/pull/437))
-- **Discussions inside group spaces** via `group_id` and `list_group_discussion_topics` ([#433](https://github.com/vishalsachdev/canvas-mcp/pull/433), thanks [@papatistos](https://github.com/papatistos)); **anonymous discussions** read through GraphQL ([#439](https://github.com/vishalsachdev/canvas-mcp/pull/439), thanks [@papatistos](https://github.com/papatistos)) and refused for updates ([#446](https://github.com/vishalsachdev/canvas-mcp/pull/446))
-- **Complete reads**: full-content tools return whole text, previews say they are previews ([#458](https://github.com/vishalsachdev/canvas-mcp/pull/458)); course codes with spaces, course names and SIS IDs resolve ([#457](https://github.com/vishalsachdev/canvas-mcp/pull/457)); opt-in `raw_dates` ([#438](https://github.com/vishalsachdev/canvas-mcp/pull/438))
-- **Behavior change**: `assign_peer_review` never posts a placeholder submission and needs a numeric `reviewee_id` ([#436](https://github.com/vishalsachdev/canvas-mcp/pull/436))
+- **Local code sandbox** ([GHSA-7pp5-29mw-9jq3](https://github.com/vishalsachdev/canvas-mcp/security/advisories/GHSA-7pp5-29mw-9jq3)): in local sandbox mode, the default without a container runtime, `execute_typescript` runs under Node's permission model. The code can read only the bundled code API, and Node refuses child processes, worker threads, native addons and file writes. Breaking: needs Node.js 22.18+, and TypeScript is type-stripped, so import types with `import type` and avoid enums and namespaces. Network blocking in local mode stays best-effort ([#157](https://github.com/vishalsachdev/canvas-mcp/issues/157)).
+- **Canvas token stays with Canvas** ([GHSA-7mj9-4mcg-hvhv](https://github.com/vishalsachdev/canvas-mcp/security/advisories/GHSA-7mj9-4mcg-hvhv)): file downloads from separate storage hosts no longer carry the Canvas token, including after redirects, and an upload confirmation outside Canvas is refused.
+- **File contents are fenced** ([GHSA-hmr8-mvr2-mvw5](https://github.com/vishalsachdev/canvas-mcp/security/advisories/GHSA-hmr8-mvr2-mvw5)): `read_course_file` marks returned file contents as untrusted Canvas data, and the CI registry test checks that payload.
+- **Windows download permissions** ([GHSA-qf6c-jv93-38gv](https://github.com/vishalsachdev/canvas-mcp/security/advisories/GHSA-qf6c-jv93-38gv)): on Windows, downloaded files inherit the destination folder's permissions. Every Windows download now says so. This is a documented limitation.
+- **Course group creation**: `create_course_groups` previews and confirms a new group set, groups and memberships from CSV, and `resume_course_group_creation` finishes interrupted work ([#526](https://github.com/vishalsachdev/canvas-mcp/pull/526)).
+- **Submission text on request**: `list_submissions(include_body=True)` returns submitted text after a `manage_grades` check, anonymized, fenced and bounded ([#523](https://github.com/vishalsachdev/canvas-mcp/pull/523)).
 
-Also fixed: graded paper and no-submission assignments are no longer reported overdue ([#423](https://github.com/vishalsachdev/canvas-mcp/pull/423), thanks [@lindsay-cheng](https://github.com/lindsay-cheng)). The suite runs on Windows in CI ([#456](https://github.com/vishalsachdev/canvas-mcp/pull/456), with UTF-8 groundwork by [@bruchris](https://github.com/bruchris) in [#445](https://github.com/vishalsachdev/canvas-mcp/pull/445)). Patched `pyjwt`, `urllib3` and `multidict`.
+Thanks to [@EQSTLab](https://github.com/EQSTLab), [@KKazuhaK](https://github.com/KKazuhaK) and [@bruchris](https://github.com/bruchris) for reporting.
 
 <details>
 <summary>Previous releases</summary>
+
+**v1.15.0** — A hardening release: HTTP callers are kept apart from each other ([#480](https://github.com/vishalsachdev/canvas-mcp/pull/480), [#491](https://github.com/vishalsachdev/canvas-mcp/pull/491)), HTML is parsed in one bounded pass ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)), the release pipeline verifies what it publishes, and `get_student_submission` is new ([#487](https://github.com/vishalsachdev/canvas-mcp/pull/487)).
+
+**v1.14.0** — A student-tools and correctness release, most of it contributed by [@KKazuhaK](https://github.com/KKazuhaK). Read-only student tools for groups, grades and what-if scenarios, quizzes, calendar and a cross-course feed, plus Inbox messaging that is off unless the operator enables it ([#465](https://github.com/vishalsachdev/canvas-mcp/pull/465) to [#476](https://github.com/vishalsachdev/canvas-mcp/pull/476)). Guarded body edits with read-back confirmation ([#437](https://github.com/vishalsachdev/canvas-mcp/pull/437)), group and anonymous discussion reads ([#433](https://github.com/vishalsachdev/canvas-mcp/pull/433), [#439](https://github.com/vishalsachdev/canvas-mcp/pull/439); thanks [@papatistos](https://github.com/papatistos)), complete full-content reads ([#458](https://github.com/vishalsachdev/canvas-mcp/pull/458)) and shared course resolution ([#457](https://github.com/vishalsachdev/canvas-mcp/pull/457)). Behavior change: `assign_peer_review` never posts a placeholder submission ([#436](https://github.com/vishalsachdev/canvas-mcp/pull/436)). The suite runs on Windows in CI ([#456](https://github.com/vishalsachdev/canvas-mcp/pull/456)).
 
 **v1.13.0** — A security release ([GHSA-hmr8-mvr2-mvw5](https://github.com/vishalsachdev/canvas-mcp/security/advisories/GHSA-hmr8-mvr2-mvw5)): tools that change anything exist only if the operator allows them. Breaking: HTTP servers are read-only unless `ALLOWED_WRITE_TOOLS` is set, `send_conversation` always previews first, `get_conversation_details` loses `auto_mark_read`, rubric grading stops when settings cannot be verified, and local file exports refuse HTTP callers. Also new: **`update_rubric`** for guarded edits of existing rubrics ([#386](https://github.com/vishalsachdev/canvas-mcp/pull/386)) and **`update_syllabus`**, which previews before replacing existing content. Fixed: external-tool assignments such as Gradescope are no longer reported missing ([#390](https://github.com/vishalsachdev/canvas-mcp/pull/390), thanks [@EastArctica](https://github.com/EastArctica)), TypeScript pagination follows `Link` headers within a page budget ([#403](https://github.com/vishalsachdev/canvas-mcp/pull/403)), and confirmation and grading workflows were hardened ([#394](https://github.com/vishalsachdev/canvas-mcp/pull/394) to [#408](https://github.com/vishalsachdev/canvas-mcp/pull/408)). The `execute_typescript` sandbox now runs as a non-root user with a read-only root filesystem ([#317](https://github.com/vishalsachdev/canvas-mcp/pull/317), [#339](https://github.com/vishalsachdev/canvas-mcp/pull/339)). Built on FastMCP 4 and MCP SDK 2 ([#354](https://github.com/vishalsachdev/canvas-mcp/pull/354)).
 
@@ -334,7 +341,9 @@ If you use **Claude Desktop**, you can install Canvas MCP with one click — no 
 2. Double-click the file (or drag it into Claude Desktop → Settings → Extensions).
 3. When prompted, enter your **Canvas API URL** — this must include the `/api/v1` path (e.g. `https://canvas.youruniversity.edu/api/v1`) — and your **Canvas API token** (Canvas → Account → Settings → New Access Token — some institutions issue these by request form instead, see [below](#2-configure-environment)). The token is stored in your OS keychain.
 
-The extension runs the server locally and calls Canvas with **your own** token, so requests use that token's Canvas permissions. Canvas and your AI client may retain their own activity records. Requires Python 3.11+ (the bundled runtime manages dependencies automatically). For other clients, or to run from source, use the manual setup below.
+The extension runs the server locally and calls Canvas with **your own** token, so requests use that token's Canvas permissions. Canvas and your AI client may retain their own activity records. The extension uses `uv` to select Python 3.13 and manage dependencies; `uv` downloads Python 3.13 on first launch if it is missing (internet access is required, and Python downloads must be allowed). You do not need to install Python separately or change your system's default Python. For other clients, or to run from source, use the manual setup below.
+
+**Windows troubleshooting:** `spawn uv ENOENT` means Claude Desktop cannot find `uv`. Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then fully quit and reopen Claude Desktop so it picks up the updated PATH. Older extension bundles can select Python 3.15 and fail while compiling `cffi` with a "Microsoft Visual C++ 14.0 or greater is required" error; explicitly select Python 3.13 with `uv run --python 3.13` in a manual client configuration instead of installing a compiler. See [issue #391](https://github.com/vishalsachdev/canvas-mcp/issues/391). Existing released bundles do not acquire launcher changes until you install a release containing them.
 
 ## Local Installation
 
@@ -609,7 +618,7 @@ await bulkGrade({
 
 | Mode | Config | What It Does |
 |------|--------|-------------|
-| Local sandbox (default) | None needed | Timeout 120s, memory 512MB, filtered environment, best-effort network controls |
+| Local sandbox (default) | Node.js 22.18+ | Node permission model (reads only the code API; no file writes, child processes or native addons), timeout 120s, memory 512MB, filtered environment, best-effort network controls |
 | Container sandbox | `TS_SANDBOX_MODE=container` | Container filesystem isolation via Docker/Podman; egress guarantees depend on deployment configuration |
 | No sandbox | `ENABLE_TS_SANDBOX=false` | Full local access (not recommended) |
 

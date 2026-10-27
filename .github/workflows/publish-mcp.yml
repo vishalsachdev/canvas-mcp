@@ -12,7 +12,6 @@ on:
         type: string
 
 permissions:
-  id-token: write
   contents: read
 
 concurrency:
@@ -23,6 +22,9 @@ jobs:
   publish-pypi:
     name: Build & publish to PyPI
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # PyPI trusted publishing.
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -41,7 +43,7 @@ jobs:
           echo "Resolved version: $VERSION"
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.11'
 
@@ -56,7 +58,7 @@ jobs:
         # suite could not stop a release. pytest exit code 5 is the genuine
         # "no tests collected" case and is the only one tolerated here.
         run: |
-          uv pip install --system pytest pytest-asyncio
+          uv pip install --system pytest pytest-asyncio pyyaml
           pytest tests/ -q || { code=$?; [ "$code" -eq 5 ] && echo "No tests collected" || exit "$code"; }
 
       - name: Build package
@@ -64,8 +66,11 @@ jobs:
           uv pip install --system build
           python -m build
 
+      - name: Check packages for local-only files
+        run: python scripts/check_package_contents.py dist/
+
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1
         with:
           skip-existing: true
 
@@ -73,6 +78,9 @@ jobs:
     name: Publish to MCP Registry
     needs: publish-pypi
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # MCP Registry's github-oidc login.
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -100,32 +108,17 @@ jobs:
 
       - name: Install MCP Publisher
         env:
-          # Unauthenticated api.github.com calls are rate-limited per runner IP,
-          # which are shared. On v1.11.0 the limit was hit, jq returned the string
-          # "null", and the download URL 404'd into `tar: not in gzip format` —
-          # a confusing failure three steps away from the real cause.
-          GH_TOKEN: ${{ github.token }}
+          # Official v1.8.1 Linux amd64 asset, independently downloaded and
+          # checked against the GitHub release's published digest, 2026-10-20.
+          MCP_PUBLISHER_VERSION: v1.8.1
+          MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
         run: |
           set -euo pipefail
-          # Get latest mcp-publisher release version dynamically
-          VERSION=$(curl -sSL \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/modelcontextprotocol/registry/releases/latest \
-            | jq -r '.tag_name')
-          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
-            echo "ERROR: could not resolve the latest mcp-publisher release tag."
-            echo "Got: '$VERSION'. Likely an api.github.com rate limit or outage."
-            exit 1
-          fi
-          echo "Installing mcp-publisher version: $VERSION"
-          OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-          ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
-          # Naming format: mcp-publisher_OS_ARCH.tar.gz (no version in filename)
-          # --fail so an HTML error page never reaches tar as if it were an archive.
-          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/${VERSION}/mcp-publisher_${OS}_${ARCH}.tar.gz" | tar xz
-          sudo mv mcp-publisher /usr/local/bin/
-          mcp-publisher --version
+          python3 scripts/install_mcp_publisher.py \
+            --version "$MCP_PUBLISHER_VERSION" --sha256 "$MCP_PUBLISHER_SHA256" \
+            --destination "$RUNNER_TEMP/mcp-publisher"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/mcp-publisher" --version
 
       - name: Login to MCP Registry
         run: mcp-publisher login github-oidc

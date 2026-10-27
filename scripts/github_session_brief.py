@@ -16,12 +16,10 @@ Constraints, each measured on the web (remote) environment:
 - Fail soft. A network error, rate limit or missing tool becomes a one-line
   note, never a failed hook: a session must always open.
 - Stdlib only. The hook runs before any virtualenv is guaranteed to exist.
-- Every fetched title, login and label is third-party text from a public repo,
-  injected into the model's context unasked on every session start. That is
-  the threat shape issue 239 fenced for Canvas content, so the same shape is
-  applied here: each section sits between explicit provenance markers, and
-  bracket runs inside the text are collapsed so no title can open or close a
-  marker. The instruction line at the end is ours and stays outside the fence.
+- Automatic context includes validated identifiers, constructed URLs, ages,
+  counts and status. Author-controlled titles, logins, labels, categories and
+  check names are omitted; fetch details only when asked. Provenance markers
+  remain a context cue, not a security boundary.
 - One wall-clock budget (``BUDGET``) bounds the whole run, well inside the
   hook's 45s timeout: a harness kill happens before the JSON fallback can be
   printed, so per-call timeouts alone would not keep the fail-soft promise on
@@ -58,6 +56,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from typing import Any
 
 FALLBACK_REPO = "vishalsachdev/canvas-mcp"
 API = "https://api.github.com"
@@ -72,7 +71,6 @@ PAGE = 50            # issues page size; a full page means the total is a floor
 
 FENCE_START = "<<<UNTRUSTED GITHUB CONTENT"
 FENCE_END = "<<<END UNTRUSTED GITHUB CONTENT>>>"
-_BRACKET_RUN = re.compile(r"<{3,}|>{3,}")
 
 
 class Deadline:
@@ -83,18 +81,6 @@ class Deadline:
 
     def remaining(self) -> float:
         return self._end - time.monotonic()
-
-
-def neutralize(text: object) -> str:
-    """Third-party text, one line, unable to forge a fence marker.
-
-    Any run of three or more angle brackets collapses to two, so an issue
-    titled with our closing marker cannot end the fence early. Whitespace is
-    collapsed because a title with an embedded newline could otherwise start
-    a line of its own inside the brief.
-    """
-    flat = " ".join(str(text).split())
-    return _BRACKET_RUN.sub(lambda m: m.group(0)[0] * 2, flat)
 
 
 def fence(lines: list[str], source: str) -> list[str]:
@@ -169,9 +155,18 @@ def age(iso: str | None, now: dt.datetime) -> str:
     return f"{seconds // (7 * 86400)}w"
 
 
+def _records(value: object) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
+        raise RuntimeError("Invalid GitHub list response")
+    return value
+
+
 def ci_state(repo: str, sha: str, deadline: Deadline) -> str:
     try:
-        runs = api(f"/repos/{repo}/commits/{sha}/check-runs", deadline, per_page=100)["check_runs"]
+        payload = api(f"/repos/{repo}/commits/{sha}/check-runs", deadline, per_page=100)
+        if not isinstance(payload, dict):
+            return "CI unknown"
+        runs = _records(payload["check_runs"])
     except Exception:  # noqa: BLE001 - any failure is "unknown", not a crash
         return "CI unknown"
     if not runs:
@@ -180,17 +175,20 @@ def ci_state(repo: str, sha: str, deadline: Deadline) -> str:
     red = [r["name"] for r in runs
            if r["status"] == "completed" and r["conclusion"] not in ("success", "skipped", "neutral")]
     if red:
-        return "CI RED (" + ", ".join(neutralize(n) for n in red[:3]) + ")"
+        return f"CI RED ({len(red)} failed)"
     if pending:
         return f"CI pending ({len(pending)})"
     return "CI green"
 
 
 def fetch_prs(repo: str, now: dt.datetime, deadline: Deadline) -> list[str]:
-    prs = api(f"/repos/{repo}/pulls", deadline, state="open", sort="updated",
-              direction="desc", per_page=MAX_PRS)
-    lines = []
+    prs = _records(api(f"/repos/{repo}/pulls", deadline, state="open", sort="updated",
+              direction="desc", per_page=MAX_PRS))
+    lines: list[str] = []
     for i, pr in enumerate(prs):
+        number = pr.get("number")
+        if type(number) is not int or number <= 0:
+            continue
         if i >= CHECKED_PRS:
             state = "CI not checked"
         elif deadline.remaining() < CHECK_RUNS_MIN_BUDGET:
@@ -199,30 +197,33 @@ def fetch_prs(repo: str, now: dt.datetime, deadline: Deadline) -> list[str]:
             state = ci_state(repo, pr["head"]["sha"], deadline)
         flags = ["draft"] if pr.get("draft") else []
         if pr.get("requested_reviewers"):
-            flags.append("review requested: "
-                         + ", ".join(neutralize(u["login"]) for u in pr["requested_reviewers"]))
+            flags.append(f"review requested ({len(pr['requested_reviewers'])})")
         flag_text = f" [{'; '.join(flags)}]" if flags else ""
         lines.append(
-            f"- #{pr['number']} {neutralize(pr['title'])} — @{neutralize(pr['user']['login'])}, "
-            f"updated {age(pr['updated_at'], now)} ago, {state}{flag_text}"
+            f"- #{number} — updated {age(pr['updated_at'], now)} ago, {state}{flag_text} "
+            f"https://github.com/{repo}/pull/{number}"
         )
     return lines
 
 
 def fetch_issues(repo: str, now: dt.datetime, deadline: Deadline) -> tuple[list[str], str]:
     """Issue lines plus the total as text: a floor ("50+") when the page was full."""
-    items = api(f"/repos/{repo}/issues", deadline, state="open", sort="updated",
-                direction="desc", per_page=PAGE)
+    items = _records(api(f"/repos/{repo}/issues", deadline, state="open", sort="updated",
+                direction="desc", per_page=PAGE))
     issues = [i for i in items if "pull_request" not in i]
-    lines = []
-    for issue in issues[:MAX_ISSUES]:
-        labels = ", ".join(neutralize(lb["name"]) for lb in issue.get("labels", []))
-        label_text = f" [{labels}]" if labels else ""
+    lines: list[str] = []
+    for issue in issues:
+        if len(lines) >= MAX_ISSUES:
+            break
+        number = issue.get("number")
+        if type(number) is not int or number <= 0:
+            continue
         comments = issue.get("comments", 0)
+        comments = comments if type(comments) is int and comments >= 0 else 0
         comment_text = f", {comments} comment{'s' if comments != 1 else ''}" if comments else ""
         lines.append(
-            f"- #{issue['number']} {neutralize(issue['title'])} — @{neutralize(issue['user']['login'])}, "
-            f"updated {age(issue['updated_at'], now)} ago{comment_text}{label_text}"
+            f"- #{number} — updated {age(issue['updated_at'], now)} ago{comment_text} "
+            f"https://github.com/{repo}/issues/{number}"
         )
     total = f"{len(issues)}+" if len(items) >= PAGE else str(len(issues))
     return lines, total
@@ -241,7 +242,7 @@ def fetch_discussions(repo: str, now: dt.datetime, deadline: Deadline) -> list[s
     query = (
         "query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){"
         "discussions(first:$n,orderBy:{field:UPDATED_AT,direction:DESC}){totalCount nodes{"
-        "number title url updatedAt isAnswered author{login} category{name} comments{totalCount}}}}}"
+        "number updatedAt isAnswered comments{totalCount}}}}}"
     )
     try:
         out = subprocess.run(
@@ -260,14 +261,17 @@ def fetch_discussions(repo: str, now: dt.datetime, deadline: Deadline) -> list[s
         return [f"- `gh` could not fetch discussions: {detail.strip().splitlines()[-1] if detail.strip() else exc}"]
     if not data["nodes"]:
         return ["- none"]
-    lines = []
+    lines: list[str] = []
     for d in data["nodes"]:
-        author = neutralize((d.get("author") or {}).get("login", "ghost"))
+        number = d.get("number")
+        if type(number) is not int or number <= 0:
+            continue
         answered = ", answered" if d.get("isAnswered") else ""
-        cat = neutralize((d.get("category") or {}).get("name", ""))
+        comments = d["comments"]["totalCount"]
+        comments = comments if type(comments) is int and comments >= 0 else 0
         lines.append(
-            f"- #{d['number']} {neutralize(d['title'])} — @{author}, {cat}, updated "
-            f"{age(d['updatedAt'], now)} ago, {d['comments']['totalCount']} comments{answered}"
+            f"- #{number} — updated {age(d['updatedAt'], now)} ago, "
+            f"{comments} comments{answered} https://github.com/{repo}/discussions/{number}"
         )
     if data["totalCount"] > len(data["nodes"]):
         lines.append(f"- … {data['totalCount'] - len(data['nodes'])} more")

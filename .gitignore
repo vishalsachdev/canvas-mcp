@@ -123,6 +123,11 @@ internal/*
 # compute its cutoff, so untracking them breaks continuity. They must not name
 # external collaborators' institutional affiliations or evaluation status.
 !internal/issue-triage/
+# Deliberately public engineering evidence, outside the Pages website root.
+!internal/overhaul/
+internal/overhaul/*
+!internal/overhaul/PLAN.md
+!internal/overhaul/STATUS.md
 # ---------------------------------------------------------------------------
 
 # docs/ is the Cloudflare Pages publish root — defensive backstop in case a
@@ -136,3 +141,7 @@ docs/compliance/
 # Local agent skills (not part of the public package)
 .agents/
 internal/hosted-spec-draft/
+
+# Operator briefs and local execution workspaces must not enter source packages.
+/BRIEF.md
+/.superpowers/

@@ -80,7 +80,7 @@ class TestWeeklyMaintenancePermissions:
 
     def test_issues_write_is_still_granted(self):
         """The job must remain able to do its one job."""
-        job = _load(AI_WORKFLOW)["jobs"]["maintenance"]
+        job = _load(AI_WORKFLOW)["jobs"]["publish-report"]
         assert job.get("permissions", {}).get("issues") == "write"
 
     def test_gh_is_not_unrestricted(self):
@@ -93,7 +93,7 @@ class TestWeeklyMaintenancePermissions:
             "Bash(gh:*) permits any GitHub mutation the token allows, including "
             "`gh api` against arbitrary endpoints"
         )
-        assert "gh issue create" in args, "the job still needs to file its report"
+        assert "gh issue create" not in args, "the model must not publish arbitrary local files"
 
     def test_untrusted_input_is_framed_as_data(self):
         """The prompt should tell the model that fetched content is not instructions."""
@@ -172,3 +172,42 @@ class TestWorkflowPermissions:
             assert job.get("permissions", {}).get("contents") == "read", (
                 f"{workflow_name}:{job_name} should declare least-privilege checkout permissions"
             )
+
+
+class TestInteractiveClaudeBoundary:
+    def test_only_human_collaborator_mentions_reach_the_agent(self):
+        """Removing any sender/association gate exposes a write token to outsiders."""
+        job = _load(WORKFLOWS / "claude.yml")["jobs"]["claude"]
+        condition = " ".join(job["if"].split())
+        branches = []
+        for event, payload in [
+            ("issue_comment", "comment"),
+            ("pull_request_review_comment", "comment"),
+            ("pull_request_review", "review"),
+            ("issues", "issue"),
+        ]:
+            mention = f"contains(github.event.{payload}.body, '@claude')"
+            if event == "issues":
+                mention = f"({mention} || contains(github.event.issue.title, '@claude'))"
+            branches.append(
+                f"(github.event_name == '{event}' && "
+                "contains(fromJSON('[\"OWNER\",\"MEMBER\",\"COLLABORATOR\"]'), "
+                f"github.event.{payload}.author_association) && {mention})"
+            )
+        # Exact grouping matters: an extra OR must not bypass the human gate.
+        assert condition == (
+            "github.event.sender.type == 'User' && "
+            "!endsWith(github.actor, '[bot]') && ( " + " || ".join(branches) + " )"
+        )
+        agent = next(s for s in job["steps"] if "claude-code-action@" in s.get("uses", ""))
+        assert not agent["with"].get("allowed_non_write_users")
+        assert not agent["with"].get("allowed_bots")
+
+    def test_reply_permissions_are_explicit_and_bounded(self):
+        job = _load(WORKFLOWS / "claude.yml")["jobs"]["claude"]
+        assert job["permissions"] == {
+            "contents": "read", "pull-requests": "write",
+            "issues": "write", "actions": "read",
+        }
+        checkout = next(s for s in job["steps"] if "actions/checkout@" in s.get("uses", ""))
+        assert checkout["with"]["persist-credentials"] is False

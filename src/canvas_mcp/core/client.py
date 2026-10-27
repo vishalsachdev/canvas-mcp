@@ -329,9 +329,7 @@ def _endpoint_anonymization_mode(endpoint: str) -> str:
         return ANONYMIZE_FULL
 
     # Endpoints whose responses contain student records
-    if _has_route_segment(
-        segments, {"users", "submissions", "enrollments", "analytics"}
-    ):
+    if _has_route_segment(segments, {'users', 'submissions', 'enrollments', 'analytics', 'memberships'}):
         return ANONYMIZE_FULL
 
     # /search/recipients is the Inbox address book: the people the caller may
@@ -476,6 +474,57 @@ async def canvas_authenticated_client() -> AsyncIterator[httpx.AsyncClient]:
         raise PermissionError("Canvas token required for HTTP request")
 
     yield _get_http_client()
+
+
+def is_canvas_origin(url: str | httpx.URL) -> bool:
+    """Whether a file URL shares the caller's Canvas scheme, host and port."""
+    from .config import get_config
+
+    credentials = get_request_credentials()
+    base_url = credentials.api_url if credentials else get_config().canvas_api_url
+    try:
+        target = httpx.URL(url)
+        base = httpx.URL(base_url)
+    except (httpx.InvalidURL, TypeError):
+        return False
+    return (
+        target.scheme in ("http", "https")
+        and bool(target.host)
+        and (target.scheme, target.host, target.port)
+        == (base.scheme, base.host, base.port)
+    )
+
+
+@asynccontextmanager
+async def canvas_file_download_client() -> AsyncIterator[httpx.AsyncClient]:
+    """Scope download credentials before every request, including redirects.
+
+    Storage URLs use their own signed parameters. Once a chain leaves Canvas,
+    never reattach the token, even if storage redirects back to Canvas.
+    """
+    from .config import get_config
+
+    left_canvas = False
+
+    async def scope_credentials(request: httpx.Request) -> None:
+        nonlocal left_canvas
+        if not is_canvas_origin(request.url):
+            left_canvas = True
+        if left_canvas:
+            request.headers.pop("Authorization", None)
+
+    # Preserve the shared resolver's hosted missing-token refusal and caller
+    # isolation, but give each download its own headers, hooks and cookie jar.
+    async with canvas_authenticated_client() as authenticated:
+        async with httpx.AsyncClient(
+            headers={
+                name: authenticated.headers[name]
+                for name in ("Authorization", "User-Agent")
+            },
+            timeout=get_config().api_timeout,
+            event_hooks={"request": [scope_credentials]},
+        ) as client:
+            yield client
 
 
 async def make_canvas_request(
@@ -846,13 +895,18 @@ async def upload_file_to_storage(
                 # Redirect - follow it to get file info from Canvas
                 redirect_url = response.headers.get("Location")
                 if redirect_url:
-                    # Follow the redirect to get file info. This goes back to the
-                    # Canvas API and needs auth; route through the shared
-                    # fail-closed resolver so HTTP mode never uses the server's
-                    # own token.
+                    # Storage chooses Location; only Canvas may get the token.
+                    confirm_url = response.url.join(redirect_url)
+                    if not is_canvas_origin(confirm_url):
+                        return {"error": (
+                            "Upload confirmation redirected outside Canvas and was not followed. "
+                            "The file may have reached storage without being confirmed."
+                        )}
                     try:
                         async with canvas_authenticated_client() as canvas_client:
-                            confirm_response = await canvas_client.get(redirect_url)
+                            confirm_response = await canvas_client.get(
+                                confirm_url, follow_redirects=False
+                            )
                             confirm_response.raise_for_status()
                             confirmed: dict[str, Any] = confirm_response.json()
                             return confirmed

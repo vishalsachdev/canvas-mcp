@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "canvas-mcp"
-version = "1.14.0"
+version = "1.16.0"
 description = "A Model Context Protocol server for Canvas LMS integration"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"
 authors = [
-    { name = "Vishal Sachdev", email = "vsachde2@illinois.edu" },
+    { name = "Vishal Sachdev", email = "vishal@illinois.edu" },
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

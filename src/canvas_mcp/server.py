@@ -56,6 +56,7 @@ from .tools import (
     register_educator_module_tools,
     register_educator_page_crud_tools,
     register_enrollment_tools,
+    register_group_creation_tools,
     register_page_tools,
     register_peer_review_comment_tools,
     register_peer_review_tools,
@@ -527,6 +528,7 @@ def register_all_tools(mcp: FastMCP, role: str = "all") -> None:
     if role in ("educator", "all"):
         register_educator_assignment_tools(mcp)
         register_educator_course_tools(mcp)
+        register_group_creation_tools(mcp)
         register_content_migration_tools(mcp)
         register_educator_discussion_tools(mcp)
         register_educator_module_tools(mcp)
@@ -647,7 +649,7 @@ def main(argv: list[str] | None = None) -> None:
         "--role",
         choices=["student", "educator", "all"],
         default=None,
-        help="Tool profile: student (~51 tools), educator (~93 tools), all (default: all)",
+        help="Tool profile: student (~51 tools), educator (~96 tools), all (default: all)"
     )
     parser.add_argument(
         "--list-grants",

@@ -14,6 +14,7 @@ This module handles all three steps transparently.
 
 import base64
 import os
+import sys
 import tempfile
 
 from fastmcp import FastMCP
@@ -21,7 +22,7 @@ from mcp.types import ToolAnnotations
 
 from ..core.cache import get_course_code, get_course_id, resolve_numeric_course_id
 from ..core.client import (
-    canvas_authenticated_client,
+    canvas_file_download_client,
     fetch_all_paginated_results,
     make_canvas_request,
     upload_file_to_storage,
@@ -34,7 +35,7 @@ from ..core.file_validation import (
     sanitize_filename,
     validate_file_for_upload,
 )
-from ..core.untrusted_content import fence_untrusted_inline
+from ..core.untrusted_content import fence_untrusted, fence_untrusted_inline
 from ..core.validation import validate_params
 
 
@@ -57,6 +58,10 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
 
         Only available on a local (stdio) server. Use read_course_file to get
         file content back in the response instead.
+
+        On Windows, owner-only access is not enforced: files inherit the
+        destination folder's permissions. Use a folder with verified private
+        Windows permissions, or read_course_file to avoid saving a local copy.
 
         Use list_course_files or list_module_items to find file IDs.
 
@@ -121,8 +126,8 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
         # of the protection.
         # The 0o600 mode is owner-only on POSIX. Windows has no permission bits:
         # the mode only sets the read-only attribute, and access follows the ACL
-        # inherited from save_dir (the default, the per-user temp dir, is
-        # private to that user).
+        # inherited from save_dir. Even the default temp directory's ACL may
+        # have been customized; disclose this limitation on Windows below.
         open_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
         try:
             fd = os.open(save_path, open_flags, 0o600)
@@ -140,7 +145,7 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
         try:
             total_bytes = 0
             with os.fdopen(fd, 'wb') as f:
-                async with canvas_authenticated_client() as client:
+                async with canvas_file_download_client() as client:
                     async with client.stream(
                         "GET", download_url, follow_redirects=True
                     ) as response:
@@ -163,7 +168,16 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
 
         # Filename is uploader-controlled (issue 239); the on-disk path uses
         # the sanitized value, only the display is fenced.
-        result = f"Downloaded: {fence_untrusted_inline(filename, 'file name')}\n"
+        result = ""
+        if sys.platform == "win32":
+            result += (
+                "Warning: On Windows, downloaded files inherit the destination "
+                "folder's permissions; owner-only access is not enforced. "
+                "Other local users may be able to read this file. Use a folder "
+                "with verified private Windows permissions, or read_course_file "
+                "to avoid saving a local copy.\n"
+            )
+        result += f"Downloaded: {fence_untrusted_inline(filename, 'file name')}\n"
         result += f"  Path: {save_path}\n"
         result += f"  Size: {size_str}\n"
         result += f"  Type: {content_type}\n"
@@ -235,7 +249,7 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
         # Download the file content into memory
         try:
             buffer = bytearray()
-            async with canvas_authenticated_client() as client:
+            async with canvas_file_download_client() as client:
                 async with client.stream("GET", download_url, follow_redirects=True) as response:
                     response.raise_for_status()
 
@@ -257,7 +271,9 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
             result += f"  Type: {content_type}\n"
             result += f"  Course: {course_display}\n"
             result += "  Encoding: base64\n"
-            result += f"  Content:\n{base64_content}\n"
+            result += "  Content:\n" + fence_untrusted(
+                base64_content, "file content (base64)"
+            ) + "\n"
             return result
 
         except Exception as e:

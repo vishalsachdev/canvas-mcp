@@ -62,9 +62,10 @@ def _deferred(rationale: str) -> ReadToolContentPolicy:
 # therefore make an explicit trust-boundary decision before it can merge.
 #
 # ``guards`` names a call or documented handoff visible in the registered tool
-# function. Runtime behavior tests in tests/security/test_untrusted_content.py
-# still exercise the returned values; this registry prevents coverage from
-# silently shrinking when a tool is added or its fencing path is removed.
+# function. This is a source-name smoke check, not proof that the main payload
+# reaches that guard. Runtime tests in tests/security/test_untrusted_content.py
+# exercise returned values; test_untrusted_content_registry.py additionally
+# checks read_course_file's actual primary payload through the live registry.
 READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "analyze_peer_review_quality": _fenced("fence_untrusted_fields"),
     "calculate_grade_scenarios": _fenced("_render_grade_scenarios"),
@@ -155,12 +156,10 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "list_quizzes": _fenced("fence_untrusted_inline"),
     "list_planner_notes": _fenced("_format_note"),
     "list_rubrics": _fenced("fence_untrusted_inline"),
-    "list_submissions": _deferred(
-        "Returns IDs, timestamps, scores/grade labels, and course code; no unrestricted author free text."
-    ),
+    "list_submissions": _fenced("fence_untrusted"),
     "list_users": _fenced("fence_untrusted_inline"),
     "parse_ufixit_violations": _fenced("fence_untrusted_fields"),
-    "read_course_file": _fenced("fence_untrusted_inline"),
+    "read_course_file": _fenced("fence_untrusted"),
     "scan_course_content_accessibility": _fenced("fence_untrusted_fields"),
     "search_canvas_tools": _safe(
         "Returns registered tool and bundled source metadata, not Canvas content."
@@ -175,6 +174,12 @@ RESOURCE_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "code-api-file": _safe(
         "Returns bundled local TypeScript/JavaScript source, not Canvas-authored content."
     ),
+}
+
+# Prompts arrive as user-role messages, so their interpolated Canvas labels
+# need provenance even where ordinary tool outputs allow course identity.
+PROMPT_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
+    "summarize-course": _fenced("fence_untrusted_inline"),
 }
 
 # The markers deliberately carry their own instruction so every fence is

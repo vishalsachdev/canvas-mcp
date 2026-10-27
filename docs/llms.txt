@@ -1,13 +1,14 @@
 # Canvas MCP
 
-> Canvas MCP is an open-source Model Context Protocol (MCP) server that bridges AI assistants with Canvas Learning Management System (LMS). It provides up to 126 tools for students, educators, and developers to interact with Canvas using natural language. It is designed for MCP-compatible clients and includes optional privacy controls for FERPA-conscious workflows.
+> Canvas MCP is an open-source Model Context Protocol (MCP) server that bridges AI assistants with Canvas Learning Management System (LMS). It provides up to 128 tools for students, educators, and developers to interact with Canvas using natural language. It is designed for MCP-compatible clients and includes optional privacy controls for FERPA-conscious workflows.
 
 Canvas MCP enables AI assistants to query courses, assignments, grades, discussions, and more through the Canvas API. Its code execution API can process bulk operations locally without loading every item into the model's context.
 
 ## Key Features
 
+- Latest release: v1.16.0 (MIT license)
 - Natural language interface for Canvas LMS
-- Up to 126 MCP tools for comprehensive Canvas integration
+- Up to 128 MCP tools for comprehensive Canvas integration
 - 8 reusable agent skills (workflow recipes) installable into 40+ agents via skills.sh
 - Optional student identity anonymization
 - Code execution API for bulk grading and operations
@@ -25,7 +26,7 @@ Canvas MCP enables AI assistants to query courses, assignments, grades, discussi
 
 - [GitHub Repository](https://github.com/vishalsachdev/canvas-mcp): Full source code, issues, and contributions
 - [PyPI Package](https://pypi.org/project/canvas-mcp/): Python package installation via pip
-- [MCP Server Registry](https://github.com/modelcontextprotocol/servers): Listed in the official MCP server registry
+- [MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.vishalsachdev/canvas-mcp): Listed in the official MCP Registry as `io.github.vishalsachdev/canvas-mcp`
 
 ## Tool Categories
 

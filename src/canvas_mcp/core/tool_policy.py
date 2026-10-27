@@ -31,11 +31,14 @@ is explicit, and ``tests/security/test_tool_policy.py`` requires it to cover
 every tool and to agree with the annotations.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
-from fastmcp import FastMCP
+if TYPE_CHECKING:
+    from fastmcp import FastMCP
 
 ALLOWLIST_ENV = "ALLOWED_WRITE_TOOLS"
 
@@ -55,7 +58,7 @@ class Effect(StrEnum):
 
 
 TOOL_EFFECTS: dict[str, Effect] = {
-    # --- READ (71) ---
+    # --- READ (72) ---
     "analyze_peer_review_quality": Effect.READ,
     "calculate_grade_scenarios": Effect.READ,
     "check_enrollment": Effect.READ,
@@ -128,7 +131,9 @@ TOOL_EFFECTS: dict[str, Effect] = {
     "read_course_file": Effect.READ,
     "scan_course_content_accessibility": Effect.READ,
     "search_canvas_tools": Effect.READ,
-    # --- CANVAS_WRITE (49) ---
+    # --- CANVAS_WRITE (51) ---
+    "create_course_groups": Effect.CANVAS_WRITE,
+    "resume_course_group_creation": Effect.CANVAS_WRITE,
     "add_module_item": Effect.CANVAS_WRITE,
     "assign_peer_review": Effect.CANVAS_WRITE,
     "associate_rubric": Effect.CANVAS_WRITE,

@@ -26,6 +26,7 @@ url:GET|/api/v1/courses/:course_id/files
 url:GET|/api/v1/courses/:course_id/files/:id
 url:GET|/api/v1/courses/:course_id/front_page
 url:GET|/api/v1/courses/:course_id/grading_standards/:grading_standard_id
+url:GET|/api/v1/courses/:course_id/group_categories
 url:GET|/api/v1/courses/:course_id/groups
 url:GET|/api/v1/courses/:course_id/modules
 url:GET|/api/v1/courses/:course_id/modules/:id
@@ -42,6 +43,8 @@ url:GET|/api/v1/courses/:course_id/rubrics/:id
 url:GET|/api/v1/courses/:course_id/rubrics/upload/:id
 url:GET|/api/v1/courses/:course_id/users
 url:GET|/api/v1/courses/:id
+url:GET|/api/v1/group_categories/:group_category_id
+url:GET|/api/v1/group_categories/:group_category_id/groups
 url:GET|/api/v1/groups/:group_id
 url:GET|/api/v1/groups/:group_id/discussion_topics
 url:GET|/api/v1/groups/:group_id/discussion_topics/:topic_id
@@ -50,7 +53,9 @@ url:GET|/api/v1/groups/:group_id/discussion_topics/:topic_id/entries/:entry_id/r
 url:GET|/api/v1/groups/:group_id/discussion_topics/:topic_id/entry_list
 url:GET|/api/v1/groups/:group_id/discussion_topics/:topic_id/view
 url:GET|/api/v1/groups/:group_id/files
+url:GET|/api/v1/groups/:group_id/memberships
 url:GET|/api/v1/groups/:group_id/users
+url:GET|/api/v1/groups/:group_id/users/:user_id
 url:GET|/api/v1/planner/items
 url:GET|/api/v1/planner/overrides
 url:GET|/api/v1/planner_notes

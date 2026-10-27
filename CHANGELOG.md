@@ -6,11 +6,64 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+
+- **Canvas mobile OAuth login and automatic token refresh.** A new CLI command `canvas-mcp-auth login` enables interactive sign-in via Playwright browser or manual callback entry using the Canvas mobile SSO flow. Credentials and refresh tokens are securely stored with file locking and atomic writes. The shared HTTP client injects tokens and handles single-flight automatic refresh on HTTP 401. Stdio servers without a PAT use the stored token matching `CANVAS_API_URL`. Personal access tokens (`CANVAS_API_TOKEN`) and hosted HTTP mode retain strict precedence and isolation.
+
+### Fixed
+
+- The Claude Desktop extension explicitly selects Python 3.13 through `uv`, which downloads that interpreter when needed, instead of inheriting an untested system Python such as 3.15 and falling into a Windows `cffi` source build requiring a compiler ([#391](https://github.com/vishalsachdev/canvas-mcp/issues/391)).
+- Importing package metadata, configuration or write-policy data no longer
+  loads the server framework and its authentication dependencies. The public
+  `canvas_mcp.main` entry point still resolves to `canvas_mcp.server.main`.
+
+## [1.16.0] — 2026-10-24
+
+A security release. It fixes three privately reported issues and closes the last gap left by the 1.13.0 prompt-injection advisory. It also adds course group creation and an option to read submission text. Breaking for local code execution: the local sandbox now needs Node.js 22.18 or later.
+
+### Security
+
+- In local sandbox mode (the default whenever no container runtime is available), `execute_typescript` runs the caller's code with Node.js under its permission model instead of `tsx`. The code can read only the bundled code API, and Node refuses child processes, worker threads, native addons, `process.binding` and file writes. An inherited `NODE_OPTIONS` can no longer widen those limits. Outbound network blocking in local mode stays best-effort ([#157](https://github.com/vishalsachdev/canvas-mcp/issues/157)). [GHSA-7pp5-29mw-9jq3](https://github.com/vishalsachdev/canvas-mcp/security/advisories/GHSA-7pp5-29mw-9jq3), reported by [@EQSTLab](https://github.com/EQSTLab).
+- File transfers limit Canvas credentials to the configured Canvas origin. Downloads from separate file hosts use their signed URLs without Canvas credentials, and upload confirmation is refused outside Canvas. [GHSA-7mj9-4mcg-hvhv](https://github.com/vishalsachdev/canvas-mcp/security/advisories/GHSA-7mj9-4mcg-hvhv), reported by [@KKazuhaK](https://github.com/KKazuhaK).
+- Windows file downloads now prominently warn that owner-only access is not enforced and that access follows the destination folder's Windows permissions. The tool description explains the limitation before use; choose a folder with verified private permissions or use `read_course_file` to avoid saving a local copy. This is a documented limitation, not enforcement: [GHSA-qf6c-jv93-38gv](https://github.com/vishalsachdev/canvas-mcp/security/advisories/GHSA-qf6c-jv93-38gv), reported by [@bruchris](https://github.com/bruchris).
+- `read_course_file` marks returned file contents as untrusted Canvas data while preserving the base64 payload. Registry tests check the file payload itself in addition to the filename. This closes the remaining gap in [GHSA-hmr8-mvr2-mvw5](https://github.com/vishalsachdev/canvas-mcp/security/advisories/GHSA-hmr8-mvr2-mvw5).
+
+### Changed
+
+- Local sandbox mode needs Node.js 22.18 or later, and refuses to run code, with the reason, on an older Node. Code in local sandbox mode goes through Node's TypeScript type stripping: import types with `import type`, and use objects or unions instead of enums and namespaces. When a script fails on one of these, its error output says how to fix it. Container mode and `ENABLE_TS_SANDBOX=false` still run `tsx`.
 
 ### Added
 
-- **Canvas mobile OAuth login and automatic token refresh.** A new CLI command `canvas-mcp-auth login` enables interactive sign-in via Playwright browser or manual callback entry using the Canvas mobile SSO flow. Credentials and refresh tokens are securely stored in `~/.canvas-mcp/tokens.json` with file locking and atomic writes. The shared HTTP client injects tokens and handles single-flight automatic refresh on HTTP 401. Stdio servers without a PAT use the stored token matching `CANVAS_API_URL`. Personal access tokens (`CANVAS_API_TOKEN`) and hosted HTTP mode retain strict precedence and isolation.
-- When `ALLOWED_WRITE_TOOLS` withholds tools, the server's MCP instructions now say so: a read-only server states it is read-only (and, on HTTP, that the user can run Canvas MCP locally to make changes), and an allowlisted server names the write tools it offers. A missing write tool no longer looks like a bug to the user. No tool is added or changed.
+- `list_submissions(include_body=True)` optionally returns submitted text after an explicit `manage_grades` permission check. Bodies retain anonymization redaction, are converted to plain text and fenced as untrusted data, and are bounded to 12,000 input characters per student and 60,000 output characters overall with clear truncation notices. The default compact output is unchanged; comments and attachments are excluded ([#513](https://github.com/vishalsachdev/canvas-mcp/issues/513)).
+- `create_course_groups` previews and then confirms a new course group set, groups and memberships from CSV. `resume_course_group_creation` resumes pending work using caller-owned recorded IDs, a fresh preview/token and current membership checks. Duplicate/conflicting input and all detected conflicting memberships are refused; existing groups are never adopted and students are never intentionally reassigned. Partial reports distinguish confirmed, failed, uncertain and pending work. Both educator tools follow the hosted write allowlist ([#520](https://github.com/vishalsachdev/canvas-mcp/issues/520)).
+
+## [1.15.0] — 2026-10-23
+
+A hardening release. Hosted (HTTP) callers are kept apart from each other, untrusted HTML is parsed in one bounded pass, and the release pipeline verifies what it publishes. One new tool reads a single student submission; no existing tool's name, arguments or output contract changed.
+
+### Security
+
+- Locked dependencies moved to patched releases: `mcp` 2.2.0 for [GHSA-84m7-p3x7-pcfv](https://github.com/advisories/GHSA-84m7-p3x7-pcfv), with the floor raised to `mcp>=2.2` ([#511](https://github.com/vishalsachdev/canvas-mcp/pull/511)); `certifi` 2026.10.19 for [GHSA-6q48-6c7w-9gw2](https://github.com/advisories/GHSA-6q48-6c7w-9gw2); `opentelemetry-api` 1.45.1 for [GHSA-xcq7-p3pf-p88h](https://github.com/advisories/GHSA-xcq7-p3pf-p88h) and the dev-only `black` 26.10.1 for [GHSA-cg8m-r9f2-5wm2](https://github.com/advisories/GHSA-cg8m-r9f2-5wm2) ([#522](https://github.com/vishalsachdev/canvas-mcp/pull/522)).
+- HTTP mode keeps each caller's state to that caller: course aliases and labels ([#480](https://github.com/vishalsachdev/canvas-mcp/pull/480)), course metadata caches, course-policy verdicts ([#491](https://github.com/vishalsachdev/canvas-mcp/pull/491)), the discussion REST-unservable hint ([#494](https://github.com/vishalsachdev/canvas-mcp/pull/494)) and anonymization statistics ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)). `RequestCredentials` no longer shows its API token in its `repr` ([#490](https://github.com/vishalsachdev/canvas-mcp/pull/490)). Thanks [@KKazuhaK](https://github.com/KKazuhaK) for #490, #491 and #494.
+- An ambiguous course alias is refused before any read or write is sent ([#482](https://github.com/vishalsachdev/canvas-mcp/pull/482)).
+- Canvas error bodies stay out of student tool output, and student tool errors are fenced as untrusted data ([#481](https://github.com/vishalsachdev/canvas-mcp/pull/481)). Startup context and remote statistics are fenced as data too ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)).
+- Release pipeline: the MCP publisher binary is pinned and hash-verified, `id-token` is limited to the two publish jobs, packages are checked for local-only files, and the maintenance workflow separates agent analysis from posting ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)). Interactive Claude review triggers are restricted ([#516](https://github.com/vishalsachdev/canvas-mcp/pull/516)).
+
+### Added
+
+- **`get_student_submission`** reads one student's current submission and its visible text comments ([#487](https://github.com/vishalsachdev/canvas-mcp/pull/487)). It requires the Canvas `manage_grades` permission, validates the requested and returned IDs, keeps anonymization and body redaction, and fences untrusted text. Input is bounded: 12,000 body characters and ten comments of 800 characters, with a notice when it truncates. It returns no attachments, URLs, media or submission history. `list_submissions` is unchanged.
+- When `ALLOWED_WRITE_TOOLS` withholds tools, the server's MCP instructions now say so: a read-only server states it is read-only (and, on HTTP, that the user can run Canvas MCP locally to make changes), and an allowlisted server names the write tools it offers. A missing write tool no longer looks like a bug to the user. No tool is added or changed ([#503](https://github.com/vishalsachdev/canvas-mcp/pull/503)).
+
+### Fixed
+
+- HTML and email text go through one bounded tokenizer that never rescans the rest of the input after malformed markup ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)). It keeps scanning after a stray quote, accepts a null page body, handles compound underlines, and matches DesignPLUS IDs and manual bullets.
+- Accessibility scans parse tags and attributes, request page bodies, and report an error instead of a clean result when Canvas returns no content ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)).
+- Announcement deletion refuses a target that Canvas reports as an ordinary discussion ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)).
+- The package metadata gave a wrong maintainer email. It and `SECURITY.md` now name vishal@illinois.edu ([#521](https://github.com/vishalsachdev/canvas-mcp/pull/521)).
+
+### Documentation
+
+- Canvas OAuth scope inventory and institutional pilot matrix ([#486](https://github.com/vishalsachdev/canvas-mcp/pull/486)); corrected student planner write-confirmation claims ([#479](https://github.com/vishalsachdev/canvas-mcp/pull/479)); a link to the companion UIUC course discovery MCP server.
 
 ## [1.14.0] — 2026-10-07
 

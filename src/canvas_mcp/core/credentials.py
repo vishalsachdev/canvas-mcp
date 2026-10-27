@@ -38,6 +38,15 @@ _request_course_labels: ContextVar[dict[str, str] | None] = ContextVar(
     "request_course_labels", default=None
 )
 
+_request_anonymization_cache: ContextVar[dict[str, str] | None] = ContextVar(
+    "request_anonymization_cache", default=None
+)
+
+
+def get_request_anonymization_cache() -> dict[str, str] | None:
+    """Pseudonym mappings owned by this request, never a shared default."""
+    return _request_anonymization_cache.get()
+
 
 def get_request_course_labels() -> dict[str, str] | None:
     """Course labels read under the current request's Canvas credential."""
@@ -53,12 +62,14 @@ def set_request_credentials(creds: RequestCredentials) -> None:
     """Set Canvas credentials for the current async context."""
     _request_credentials.set(creds)
     _request_course_labels.set({})
+    _request_anonymization_cache.set({})
 
 
 def clear_request_credentials() -> None:
     """Clear credentials after request completes."""
     _request_credentials.set(None)
     _request_course_labels.set(None)
+    _request_anonymization_cache.set(None)
 
 
 def is_http_request_active() -> bool:
@@ -74,6 +85,7 @@ def set_http_request_active(active: bool = True) -> None:
     """Mark whether the current async context is handling an HTTP request."""
     _http_request_active.set(active)
     _request_course_labels.set({} if active else None)
+    _request_anonymization_cache.set({} if active else None)
 
 
 def clear_http_request_context() -> None:
@@ -81,3 +93,4 @@ def clear_http_request_context() -> None:
     _request_credentials.set(None)
     _http_request_active.set(False)
     _request_course_labels.set(None)
+    _request_anonymization_cache.set(None)

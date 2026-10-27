@@ -17,10 +17,26 @@ anonymous in the second.
 
 import hashlib
 import re
+from itertools import islice
 from typing import Any
+
+from .credentials import (
+    get_request_anonymization_cache,
+    get_request_credentials,
+    is_http_request_active,
+)
 
 # Global anonymization mapping cache
 _anonymization_cache: dict[str, str] = {}
+
+
+def _session_cache() -> dict[str, str]:
+    """Use request-owned HTTP state and preserve the local stdio session cache."""
+    if is_http_request_active() or get_request_credentials() is not None:
+        cache = get_request_anonymization_cache()
+        # Missing/cleared credentials must never fall back to stdio history.
+        return cache if cache is not None else {}
+    return _anonymization_cache
 
 # --------------------------------------------------------------------------
 # Field policy for the recursive identity scrubber (issue #166)
@@ -188,7 +204,9 @@ FREE_TEXT_FIELDS = frozenset({
 #: an explicit value *inside* it suppresses duck-typing entirely.
 KNOWN_DATA_TYPES = frozenset({'users', 'discussions', 'submissions', 'assignments'})
 
-_EMAIL_RE = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b')
+# Start only at the edge of an address-like run. A word boundary alone retries
+# at every dot in attacker-authored text, making a missing '@' quadratic.
+_EMAIL_RE = re.compile(r'(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]++@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b')
 _PHONE_RE = re.compile(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b')
 _SSN_RE = re.compile(r'\b\d{3}-\d{2}-\d{4}\b')
 
@@ -214,10 +232,11 @@ def generate_anonymous_id(real_id: str | int, prefix: str = "Student") -> str:
         Consistent anonymous identifier
     """
     real_id_str = str(real_id)
+    cache = _session_cache()
 
     # Check cache first
-    if real_id_str in _anonymization_cache:
-        return _anonymization_cache[real_id_str]
+    if real_id_str in cache:
+        return cache[real_id_str]
 
     # Generate consistent hash-based ID
     hash_object = hashlib.sha256(real_id_str.encode())
@@ -227,7 +246,7 @@ def generate_anonymous_id(real_id: str | int, prefix: str = "Student") -> str:
     anonymous_id = f"{prefix}_{hash_hex[:8]}"
 
     # Cache the mapping
-    _anonymization_cache[real_id_str] = anonymous_id
+    cache[real_id_str] = anonymous_id
 
     return anonymous_id
 
@@ -524,11 +543,12 @@ def get_anonymization_stats() -> dict[str, Any]:
     Returns:
         Dictionary with anonymization statistics
     """
+    cache = _session_cache()
     return {
-        "total_anonymized_ids": len(_anonymization_cache),
+        "total_anonymized_ids": len(cache),
         "sample_mappings": {
             f"real_id_{i}": anon_id
-            for i, anon_id in enumerate(list(_anonymization_cache.values())[:3])
+            for i, anon_id in enumerate(islice(cache.values(), 3))
         },
         "privacy_status": "PROTECTED"
     }
@@ -536,5 +556,4 @@ def get_anonymization_stats() -> dict[str, Any]:
 
 def clear_anonymization_cache() -> None:
     """Clear the anonymization cache (use when switching courses/contexts)."""
-    global _anonymization_cache
-    _anonymization_cache.clear()
+    _session_cache().clear()

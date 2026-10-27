@@ -1,5 +1,13 @@
 # Canvas MCP — Architecture Review: MCP Server vs. Direct Canvas API Access
 
+> Current-status note, 2026-10-20: this is a historical review of v1.4.0, not
+> the current implementation. Live enumeration now gives 113 default / 126
+> fully enabled tools (student 51/62, educator 94/96). Code execution is off by
+> default. The current architecture, verified findings and deliberately
+> unimplemented compatibility proposals are in [the overhaul plan](overhaul/PLAN.md).
+> Follow `CLAUDE.md` for development rules; the recommendations below are not
+> authorization to change public tools or hosted infrastructure.
+
 **Status:** Internal design review (adversarial)
 **Date:** 2026-06-21
 **Reviewed against:** commit `6682886` (post-v1.4.0), `main` as of this date

@@ -12,24 +12,21 @@ permissions:
 jobs:
   maintenance:
     runs-on: ubuntu-latest
-    # Least privilege. This job reads untrusted input — public issue text and
-    # web search results — into a model that also holds a GitHub token, so the
-    # token must not be able to do more than the job's one real output: filing
-    # a maintenance issue. contents stays read (checkout only); pull-requests
-    # write is not needed at all.
+    # The model only analyzes. A separate job publishes one validated artifact
+    # without the Claude credential or any model-selectable local file path.
     permissions:
       contents: read
-      issues: write
-      id-token: write
+      issues: read
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.11'
 
@@ -40,9 +37,10 @@ jobs:
 
       - name: Run Claude Maintenance Tasks
         id: claude-maintenance
-        uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc # v1
+        uses: anthropics/claude-code-action@16f9f71ab9c490faf367f94dd294897edc25be33 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
           prompt: |
             REPO: ${{ github.repository }}
 
@@ -85,18 +83,53 @@ jobs:
                - Review environment variable usage
                - Scan for common security anti-patterns
 
-            Create a detailed maintenance report as a GitHub issue with:
+            Return a detailed maintenance report in the structured report field with:
             - Summary of findings
             - Actionable recommendations
             - Priority levels for each item
             - Links to relevant files/lines
 
-            Use gh CLI to create the issue with label "maintenance".
+            Do not publish or create an issue. Keep the report below 32000
+            characters and 64000 UTF-8 bytes. The workflow validates and
+            publishes that text in a separate job.
 
-          # gh is restricted to the read commands this job needs plus the single
-          # write it exists to perform. Bash(gh:*) would have allowed any GitHub
-          # API mutation the token permits, including `gh api` against arbitrary
-          # endpoints.
+          # No model-held issue creation command, App token or OIDC grant.
           claude_args: >-
             --allowed-tools
-            "Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh issue create:*),Bash(gh label list:*),Read,Glob,Grep,WebSearch"
+            "Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh label list:*),Read,Glob,Grep,WebSearch"
+            --json-schema '{"type":"object","properties":{"report":{"type":"string","maxLength":32000}},"required":["report"],"additionalProperties":false}'
+
+      - name: Validate maintenance report
+        env:
+          REPORT_JSON: ${{ steps.claude-maintenance.outputs.structured_output }}
+        run: python scripts/prepare_maintenance_report.py --output "$RUNNER_TEMP/maintenance-report.md"
+
+      - name: Upload validated report
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maintenance-report
+          path: ${{ runner.temp }}/maintenance-report.md
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-report:
+    needs: maintenance
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    steps:
+      - name: Download validated report
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maintenance-report
+          path: ${{ runner.temp }}/maintenance-report
+
+      - name: Publish maintenance issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh issue create --title "Weekly maintenance report ($(date -u +%F))" \
+            --label maintenance --body-file "$RUNNER_TEMP/maintenance-report/maintenance-report.md"
