@@ -12,6 +12,7 @@ Test Coverage:
 
 import json
 import subprocess
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -125,6 +126,13 @@ class TestOutdatedDependencies:
 
 class TestDependencyPinning:
     """Test that dependencies are properly pinned."""
+
+    def test_fastmcp_minimum_includes_security_fixes(self):
+        """Keep FastMCP at or above the release fixing known advisories."""
+        pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+        dependencies = pyproject["project"]["dependencies"]
+
+        assert "fastmcp>=4.1.2,<5" in dependencies
 
     def test_dependencies_pinned_in_pyproject(self):
         """Verify dependencies have version constraints."""
