@@ -184,9 +184,8 @@ class TestStudentToolsDatetimeComparison:
             assert "error" not in result.lower()
 
     @pytest.mark.asyncio
-    async def test_get_my_submission_status_overdue_comparison(self):
-        """Test that overdue detection works with timezone-aware dates."""
-        # Create a past date to test overdue detection
+    async def test_get_my_submission_status_missing_with_timezone_aware_date(self):
+        """Canvas-flagged missing work is displayed with timezone-aware dates."""
         past_date = (datetime.now(UTC) - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         mock_assignments = [
@@ -210,8 +209,7 @@ class TestStudentToolsDatetimeComparison:
 
             result = await get_my_submission_status(course_identifier="TEST-101")
 
-            # Should complete without datetime comparison errors and mark as overdue
-            assert "OVERDUE" in result
+            assert "Status: MISSING" in result
             assert "error" not in result.lower()
 
     @pytest.mark.asyncio
@@ -245,16 +243,13 @@ class TestStudentToolsDatetimeComparison:
             get_my_submission_status = get_student_tool_function('get_my_submission_status')
             result = await get_my_submission_status(course_identifier="TEST-101")
 
-            # Section-scoped now that missing and not-submitted work are listed
-            # separately: the report sits under "Missing", the midterm under
-            # "Not Submitted". Same three checks as before, plus membership.
-            missing_section = result.split("Not Submitted")[0]
-            not_submitted_section = result.split("Not Submitted")[1]
+            missing_section, no_submission_section = result.split("No Canvas Submission Recorded")
             assert "Work Term Report" in missing_section
-            assert "Status: OVERDUE" in missing_section
-            assert "Paper Midterm" in not_submitted_section
-            assert "Status: NOT SUBMITTED" in not_submitted_section
-            assert "OVERDUE" not in not_submitted_section
+            assert "Status: MISSING" in missing_section
+            assert "Paper Midterm" in no_submission_section
+            assert "Status: GRADED" in no_submission_section
+            assert "NOT SUBMITTED" not in no_submission_section
+            assert "OVERDUE" not in no_submission_section
 
     @pytest.mark.asyncio
     async def test_get_my_submission_status_separates_external_tools_from_missing(self):
@@ -330,18 +325,79 @@ class TestStudentToolsDatetimeComparison:
             get_my_submission_status = get_student_tool_function('get_my_submission_status')
             result = await get_my_submission_status(course_identifier="TEST-101")
 
-        missing_section = result.split("Not Submitted")[0]
+        missing_section, no_submission_section = result.split("No Canvas Submission Recorded")
         assert "⚠️  Missing Submissions (1):" in result
         assert "Work Term Report" in missing_section
-        assert "Status: OVERDUE" in missing_section
+        assert "Status: MISSING" in missing_section
         assert "Paper Midterm" not in missing_section
         assert "Excused Essay" not in missing_section
 
-        not_submitted_section = result.split("Not Submitted")[1]
-        assert "Not Submitted (2):" in result
-        assert "Paper Midterm" in not_submitted_section
-        assert "Status: NOT SUBMITTED" in not_submitted_section
-        assert "OVERDUE" not in not_submitted_section
+        assert "No Canvas Submission Recorded (2):" in result
+        midterm, essay = no_submission_section.split("Excused Essay")
+        assert "Paper Midterm" in midterm
+        assert "Status: GRADED" in midterm
+        assert "Status: EXCUSED" in essay
+        assert "NOT SUBMITTED" not in no_submission_section
+        assert "OVERDUE" not in no_submission_section
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("submission_types", "submission", "due_at", "section", "status"),
+        [
+            (["on_paper"], {"workflow_state": "graded", "score": 0.0, "missing": False},
+             "2020-01-01T00:00:00Z", "No Canvas Submission Recorded", "GRADED"),
+            (["online_upload"], {"workflow_state": "graded", "score": 0.0, "missing": False},
+             None, "No Canvas Submission Recorded", "GRADED"),
+            (["online_upload"], {"workflow_state": "graded", "excused": True, "missing": False},
+             "2020-01-01T00:00:00Z", "No Canvas Submission Recorded", "EXCUSED"),
+            (["on_paper"], {"workflow_state": "unsubmitted", "missing": False},
+             "2099-01-01T00:00:00Z", "No Canvas Submission Recorded", "NO ONLINE SUBMISSION REQUIRED"),
+            (["none"], {"workflow_state": "unsubmitted", "missing": False},
+             None, "No Canvas Submission Recorded", "NO ONLINE SUBMISSION REQUIRED"),
+            (["online_upload"], {"workflow_state": "unsubmitted", "missing": False},
+             "2099-01-01T00:00:00Z", "No Canvas Submission Recorded", "NOT SUBMITTED"),
+            (["online_upload"], {"workflow_state": "unsubmitted", "missing": False},
+             "2020-01-01T00:00:00Z", "No Canvas Submission Recorded", "NOT SUBMITTED"),
+            (["online_upload"], None,
+             None, "No Canvas Submission Recorded", "NOT SUBMITTED"),
+            (["online_upload"], {"workflow_state": "graded", "score": 0.0, "missing": True},
+             "2020-01-01T00:00:00Z", "Missing Submissions", "MISSING"),
+            (["online_upload"], {"workflow_state": "unsubmitted", "missing": True},
+             "2099-01-01T00:00:00Z", "Missing Submissions", "MISSING"),
+            (["online_upload"], {"workflow_state": "submitted", "missing": True,
+                                 "submitted_at": "2020-01-01T00:00:00Z"},
+             None, "Missing Submissions", "MISSING"),
+            (["external_tool"], {"workflow_state": "graded", "score": 10.0, "missing": True},
+             "2020-01-01T00:00:00Z", "External-tool assignments",
+             "Canvas does not report external-tool submission state"),
+            (["external_tool"], {"workflow_state": "submitted", "missing": False,
+                                 "submitted_at": "2020-01-01T00:00:00Z"},
+             "2020-01-01T00:00:00Z", "Submitted", None),
+        ],
+    )
+    async def test_get_my_submission_status_distinguishes_canvas_states(
+        self, submission_types, submission, due_at, section, status,
+    ):
+        """No timestamp alone establishes neither missing work nor an outstanding obligation."""
+        assignment = {
+            "id": 1, "name": "State example", "due_at": due_at,
+            "submission_types": submission_types, "submission": submission,
+        }
+        with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as fetch, \
+             patch('canvas_mcp.tools.student_tools.get_course_id', new_callable=AsyncMock, return_value="12345"), \
+             patch('canvas_mcp.tools.student_tools.get_course_code', new_callable=AsyncMock, return_value="TEST-101"):
+            fetch.return_value = [assignment]
+            tool = get_student_tool_function('get_my_submission_status')
+            result = await tool(course_identifier="TEST-101")
+
+        assert f"{section} (1):" in result
+        assert result.count("State example") == 1
+        if status:
+            assert f"Status: {status}\n" in result
+        for other in ("Missing Submissions", "No Canvas Submission Recorded", "External-tool assignments"):
+            if other != section:
+                assert other not in result
+        assert "OVERDUE" not in result
 
     @pytest.mark.asyncio
     async def test_get_my_upcoming_assignments_with_no_due_date(self):

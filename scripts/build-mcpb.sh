@@ -8,9 +8,10 @@
 # Usage:  ./scripts/build-mcpb.sh
 # Output: canvas-mcp.mcpb in the repo root.
 #
-# The runtime path uses uv (server.type=python + `uv run canvas-mcp-server`), so
+# The runtime path uses uv (`uv run --python 3.13 ... canvas-mcp-server`), so
 # the END USER needs `uv` available; Claude Desktop's uv-managed runtime provides
-# it. No Python deps are vendored — they resolve from pyproject.toml on first run.
+# it. uv selects/downloads Python 3.13. No Python deps are vendored — they
+# resolve from pyproject.toml on first run.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

@@ -97,7 +97,7 @@ Check your submission status across assignments.
 "What haven't I turned in yet?"
 ```
 
-**Returns:** Submitted and missing assignments, with overdue items flagged.
+**Returns:** Submitted assignments, Canvas-flagged missing work, external-tool assignments, and items with no Canvas submission recorded. The last group distinguishes graded, excused, and no-online-submission-required work from work not yet submitted; a missing timestamp alone does not mean work is missing.
 
 ---
 

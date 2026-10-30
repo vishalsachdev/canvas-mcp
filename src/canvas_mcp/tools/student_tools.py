@@ -277,7 +277,7 @@ def register_student_tools(mcp: FastMCP) -> None:
         # false deadline breach.
         submitted = []
         missing = []
-        not_submitted = []
+        no_canvas_submission = []
         external_tools = []
 
         for assignment in assignments:
@@ -285,20 +285,25 @@ def register_student_tools(mcp: FastMCP) -> None:
             is_submitted = submission and submission.get("submitted_at") is not None
             is_external_tool = "external_tool" in assignment.get("submission_types", [])
 
-            if is_submitted:
+            if submission and submission.get("missing") and not is_external_tool:
+                # Trust Canvas's explicit status, including manual missing
+                # overrides on graded/submitted work or work not yet due.
+                missing.append((assignment, "MISSING"))
+            elif is_submitted:
                 submitted.append(assignment)
             elif is_external_tool:
                 external_tools.append(assignment)
-            elif submission and submission.get("missing"):
-                # Canvas's own flag: false for on_paper/none types, graded or
-                # excused work; true when a teacher marks the work missing.
-                missing.append((assignment, "OVERDUE"))
             else:
-                # Graded on_paper work, excused work, and not-yet-submitted
-                # items are not missing work. They get their own section
-                # rather than a spot under the alarm heading (#390 moved
-                # external tools out for the same reason).
-                not_submitted.append((assignment, "NOT SUBMITTED"))
+                # No timestamp does not imply an outstanding obligation.
+                if submission and submission.get("excused"):
+                    status = "EXCUSED"
+                elif submission and submission.get("workflow_state") == "graded":
+                    status = "GRADED"
+                elif assignment.get("submission_types") in (["on_paper"], ["none"]):
+                    status = "NO ONLINE SUBMISSION REQUIRED"
+                else:
+                    status = "NOT SUBMITTED"
+                no_canvas_submission.append((assignment, status))
 
         # Format output
         if missing:
@@ -315,9 +320,9 @@ def register_student_tools(mcp: FastMCP) -> None:
                     f"  Status: {status}\n"
                 )
 
-        if not_submitted:
-            output_lines.append(f"\n📄  Not Submitted ({len(not_submitted)}):\n")
-            for assignment, status in not_submitted:
+        if no_canvas_submission:
+            output_lines.append(f"\n📄  No Canvas Submission Recorded ({len(no_canvas_submission)}):\n")
+            for assignment, status in no_canvas_submission:
                 name = assignment.get("name", "Unnamed")
                 due_at = format_date(assignment.get("due_at")) if assignment.get("due_at") else "No due date"
                 course_name = assignment.get("_course_name", "")
