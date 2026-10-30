@@ -273,7 +273,7 @@ def register_student_tools(mcp: FastMCP) -> None:
         # Canvas only knows whether work was submitted *to Canvas*. LTI/external
         # assignments (such as Gradescope) can be completed and graded there
         # while Canvas continues to return an unsubmitted local record.
-        # Keep those out of the missing/overdue bucket rather than reporting a
+        # Keep those out of the missing bucket rather than reporting a
         # false deadline breach.
         submitted = []
         missing = []
