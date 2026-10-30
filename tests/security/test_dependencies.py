@@ -16,6 +16,9 @@ import tomllib
 from pathlib import Path
 
 import pytest
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
+from packaging.version import Version
 
 
 class TestDependencyVulnerabilities:
@@ -132,7 +135,29 @@ class TestDependencyPinning:
         pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
         dependencies = pyproject["project"]["dependencies"]
 
-        assert "fastmcp>=4.1.2,<5" in dependencies
+        requirements = [Requirement(dependency) for dependency in dependencies]
+        fastmcp = [
+            requirement for requirement in requirements
+            if canonicalize_name(requirement.name) == "fastmcp"
+        ]
+        assert len(fastmcp) == 1, "Declare one unconditional FastMCP requirement"
+        requirement = fastmcp[0]
+        assert requirement.url is None, "A URL cannot enforce the patched minimum"
+        assert requirement.marker is None, "The minimum must cover every installation"
+
+        # Both GHSA-7xgj-8392-5q4r and GHSA-vqqp-x5qm-5qp4 affect 4.x <4.1.2.
+        # Parse bounds so reordered clauses, compatible releases and exact pins
+        # remain valid; a later patched minimum is valid too. Wildcards start
+        # at .dev0, not at the final release (==4.1.2.* admits 4.1.2a1).
+        assert any(
+            specifier.operator in {">=", ">", "~=", "==", "==="}
+            and Version(specifier.version.replace(".*", ".dev0")) >= Version("4.1.2")
+            for specifier in requirement.specifier
+        ), "FastMCP must declare a minimum of at least 4.1.2"
+        for vulnerable in ("4.0.0a1", "4.0.3", "4.1.1", "4.1.2rc1"):
+            assert not requirement.specifier.contains(vulnerable, prereleases=True), (
+                f"FastMCP requirement permits vulnerable version {vulnerable}"
+            )
 
     def test_dependencies_pinned_in_pyproject(self):
         """Verify dependencies have version constraints."""
