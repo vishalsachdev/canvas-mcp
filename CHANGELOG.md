@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+
+- **Canvas mobile OAuth login and automatic token refresh.** A new CLI command `canvas-mcp-auth login` enables interactive sign-in via Playwright browser or manual callback entry using the Canvas mobile SSO flow. Credentials and refresh tokens are securely stored with file locking and atomic writes. The shared HTTP client injects tokens and handles single-flight automatic refresh on HTTP 401. Stdio servers without a PAT use the stored token matching `CANVAS_API_URL`. Personal access tokens (`CANVAS_API_TOKEN`) and hosted HTTP mode retain strict precedence and isolation.
 
 ### Fixed
 
