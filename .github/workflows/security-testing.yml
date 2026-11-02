@@ -123,8 +123,9 @@ jobs:
       - name: Export locked dependencies
         run: |
           # Audit the exact pinned dependency set that actually ships (uv.lock),
-          # including the optional "hosted" extra, rather than a fresh resolve.
-          uv export --frozen --format requirements-txt \
+          # including the optional "hosted" extra. --locked also rejects stale
+          # project metadata instead of silently auditing an out-of-date lock.
+          uv export --locked --format requirements-txt \
             --no-emit-project --no-hashes --all-extras > requirements-audit.txt
       
       - name: Run pip-audit (fails the build on vulnerabilities)
