@@ -1,6 +1,11 @@
 """Shared pytest fixtures for Canvas MCP tests."""
 
+import collections.abc
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
+
+import keyring.backends.fail
+import keyring.core
 
 import pytest
 
@@ -25,6 +30,40 @@ def reset_config_between_tests(monkeypatch):
     yield
     reset_config()
 
+
+@pytest.fixture(autouse=True)
+def hermetic_auth_environment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> collections.abc.Generator[None, None, None]:
+    """Isolate token store filesystem and keyring backends in all tests.
+
+    Redirects DEFAULT_STORE_DIR and DEFAULT_STORE_PATH into tmp_path, clears
+    CANVAS_ALLOW_FILE_TOKEN_STORE, and clears stdio OAuth cache.
+    Installs a failing Keyring backend and forbids native backend discovery.
+    Restores the original keyring cache without calling get_keyring().
+    """
+    from canvas_mcp.auth.session import clear_stdio_oauth_cache
+
+    store_dir = tmp_path / ".canvas-mcp"
+    store_path = store_dir / "tokens.json"
+    monkeypatch.setattr("canvas_mcp.auth.store.DEFAULT_STORE_DIR", store_dir)
+    monkeypatch.setattr("canvas_mcp.auth.store.DEFAULT_STORE_PATH", store_path)
+    monkeypatch.delenv("CANVAS_ALLOW_FILE_TOKEN_STORE", raising=False)
+
+    orig_backend = keyring.core._keyring_backend
+    monkeypatch.setattr(keyring.core, "_keyring_backend", orig_backend)
+
+    def _forbid_discovery() -> None:
+        raise AssertionError("Native keyring discovery forbidden in tests")
+
+    monkeypatch.setattr(keyring.core, "init_backend", _forbid_discovery)
+    keyring.set_keyring(keyring.backends.fail.Keyring())
+    clear_stdio_oauth_cache()
+
+    try:
+        yield
+    finally:
+        clear_stdio_oauth_cache()
 
 @pytest.fixture(autouse=True)
 def isolated_course_cache(monkeypatch):

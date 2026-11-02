@@ -27,31 +27,37 @@ from canvas_mcp.tools.code_execution import (
 class TestValidateContainerImage:
     """_validate_container_image must reject anything that could inject argv."""
 
-    @pytest.mark.parametrize("image", [
-        "node:20-alpine",
-        "node:18",
-        "alpine:latest",
-        "registry.io/org/image:tag",
-        "ghcr.io/vishalsachdev/canvas-mcp:v1.4.0",
-        "my_registry.local/team/img:1.2.3",
-    ])
+    @pytest.mark.parametrize(
+        "image",
+        [
+            "node:20-alpine",
+            "node:18",
+            "alpine:latest",
+            "registry.io/org/image:tag",
+            "ghcr.io/vishalsachdev/canvas-mcp:v1.4.0",
+            "my_registry.local/team/img:1.2.3",
+        ],
+    )
     def test_valid_images_accepted(self, image):
         assert _validate_container_image(image) is True
 
-    @pytest.mark.parametrize("image", [
-        "",                       # empty
-        "node",                   # no tag
-        "node:",                  # empty tag
-        ":tag",                   # empty name
-        "node:20; rm -rf /",      # shell metacharacter ;
-        "node:20 && evil",        # space + &&
-        "node:$(whoami)",         # command substitution
-        "node:`id`",              # backtick substitution
-        "node:20|cat /etc/passwd",  # pipe
-        "node:20\nFROM evil",     # newline injection
-        "node:20 --privileged",   # arg injection via space
-        "node:tag with spaces",   # spaces
-    ])
+    @pytest.mark.parametrize(
+        "image",
+        [
+            "",  # empty
+            "node",  # no tag
+            "node:",  # empty tag
+            ":tag",  # empty name
+            "node:20; rm -rf /",  # shell metacharacter ;
+            "node:20 && evil",  # space + &&
+            "node:$(whoami)",  # command substitution
+            "node:`id`",  # backtick substitution
+            "node:20|cat /etc/passwd",  # pipe
+            "node:20\nFROM evil",  # newline injection
+            "node:20 --privileged",  # arg injection via space
+            "node:tag with spaces",  # spaces
+        ],
+    )
     def test_injection_attempts_rejected(self, image):
         assert _validate_container_image(image) is False
 
@@ -59,16 +65,19 @@ class TestValidateContainerImage:
 class TestNormalizeHost:
     """_normalize_host extracts a bare lowercase hostname from varied inputs."""
 
-    @pytest.mark.parametrize("value,expected", [
-        ("https://canvas.illinois.edu/api/v1", "canvas.illinois.edu"),
-        ("http://Canvas.Illinois.EDU/courses", "canvas.illinois.edu"),
-        ("canvas.illinois.edu", "canvas.illinois.edu"),
-        ("canvas.illinois.edu:443", "canvas.illinois.edu"),
-        ("canvas.illinois.edu/courses/123", "canvas.illinois.edu"),
-        ("HTTPS://EXAMPLE.COM", "example.com"),
-        ("", ""),
-        ("   ", ""),
-    ])
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            ("https://canvas.illinois.edu/api/v1", "canvas.illinois.edu"),
+            ("http://Canvas.Illinois.EDU/courses", "canvas.illinois.edu"),
+            ("canvas.illinois.edu", "canvas.illinois.edu"),
+            ("canvas.illinois.edu:443", "canvas.illinois.edu"),
+            ("canvas.illinois.edu/courses/123", "canvas.illinois.edu"),
+            ("HTTPS://EXAMPLE.COM", "example.com"),
+            ("", ""),
+            ("   ", ""),
+        ],
+    )
     def test_normalize(self, value, expected):
         assert _normalize_host(value) == expected
 
@@ -97,7 +106,10 @@ class TestAppendNodeOptions:
     """_append_node_options composes NODE_OPTIONS without leaking empties."""
 
     def test_none_existing(self):
-        assert _append_node_options(None, ["--max-old-space-size=256"]) == "--max-old-space-size=256"
+        assert (
+            _append_node_options(None, ["--max-old-space-size=256"])
+            == "--max-old-space-size=256"
+        )
 
     def test_empty_existing(self):
         assert _append_node_options("", ["--require=/g.cjs"]) == "--require=/g.cjs"
@@ -125,26 +137,91 @@ class TestResolveCanvasCredentials:
         )
 
     def test_per_request_credentials_take_precedence(self):
-        req = SimpleNamespace(api_url="https://req.instructure.com/api/v1", api_token="req-token")
-        with patch("canvas_mcp.tools.code_execution.get_request_credentials", return_value=req):
+        req = SimpleNamespace(
+            api_url="https://req.instructure.com/api/v1", api_token="req-token"
+        )
+        with patch(
+            "canvas_mcp.tools.code_execution.get_request_credentials", return_value=req
+        ):
             url, token = _resolve_canvas_credentials(self._config())
         assert url == "https://req.instructure.com/api/v1"
         assert token == "req-token"
 
     def test_http_mode_without_request_creds_fails_closed(self):
         """HTTP request active but no per-request token → never use env token."""
-        with patch("canvas_mcp.tools.code_execution.get_request_credentials", return_value=None), \
-             patch("canvas_mcp.tools.code_execution.is_http_request_active", return_value=True):
+        with (
+            patch(
+                "canvas_mcp.tools.code_execution.get_request_credentials",
+                return_value=None,
+            ),
+            patch(
+                "canvas_mcp.tools.code_execution.is_http_request_active",
+                return_value=True,
+            ),
+        ):
             with pytest.raises(PermissionError, match="Canvas token required"):
                 _resolve_canvas_credentials(self._config())
 
     def test_stdio_mode_falls_back_to_env(self):
         """stdio mode (no HTTP request active) uses the server's configured token."""
-        with patch("canvas_mcp.tools.code_execution.get_request_credentials", return_value=None), \
-             patch("canvas_mcp.tools.code_execution.is_http_request_active", return_value=False):
+        with (
+            patch(
+                "canvas_mcp.tools.code_execution.get_request_credentials",
+                return_value=None,
+            ),
+            patch(
+                "canvas_mcp.tools.code_execution.is_http_request_active",
+                return_value=False,
+            ),
+        ):
             url, token = _resolve_canvas_credentials(self._config())
         assert url == "https://env.instructure.com/api/v1"
         assert token == "env-token"
+
+    def test_stdio_mode_with_oauth_when_env_token_empty(self):
+        from unittest.mock import MagicMock
+
+        cfg = SimpleNamespace(
+            canvas_api_url="https://canvas.example.edu/api/v1",
+            canvas_api_token="",
+        )
+        mock_session = MagicMock()
+        mock_session.snapshot.return_value = ("oauth-access-tok", 1)
+        with (
+            patch(
+                "canvas_mcp.tools.code_execution.get_request_credentials",
+                return_value=None,
+            ),
+            patch(
+                "canvas_mcp.tools.code_execution.is_http_request_active",
+                return_value=False,
+            ),
+            patch("canvas_mcp.auth.get_stdio_oauth", return_value=mock_session),
+        ):
+            url, token = _resolve_canvas_credentials(cfg)
+        assert url == "https://canvas.example.edu/api/v1"
+        assert token == "oauth-access-tok"
+
+    def test_stdio_mode_pat_takes_precedence_over_oauth(self):
+        cfg = SimpleNamespace(
+            canvas_api_url="https://canvas.example.edu/api/v1",
+            canvas_api_token="pat-takes-precedence",
+        )
+        with (
+            patch(
+                "canvas_mcp.tools.code_execution.get_request_credentials",
+                return_value=None,
+            ),
+            patch(
+                "canvas_mcp.tools.code_execution.is_http_request_active",
+                return_value=False,
+            ),
+            patch("canvas_mcp.auth.get_stdio_oauth") as mock_oauth,
+        ):
+            url, token = _resolve_canvas_credentials(cfg)
+            mock_oauth.assert_not_called()
+        assert url == "https://canvas.example.edu/api/v1"
+        assert token == "pat-takes-precedence"
 
 
 if __name__ == "__main__":

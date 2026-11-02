@@ -1,5 +1,6 @@
 """Tests for configuration management (singleton lifecycle, env parsing)."""
 
+from datetime import UTC
 from unittest.mock import patch
 
 import pytest
@@ -68,7 +69,10 @@ def test_reset_config_clears_invalid_env_caches(monkeypatch):
         ("https://canvas.school.edu/api/v1#frag", "https://canvas.school.edu/api/v1"),
         # Over-specified path (copied from a browser) is truncated, not
         # double-appended into '…/courses/api/v1'.
-        ("https://canvas.school.edu/api/v1/courses", "https://canvas.school.edu/api/v1"),
+        (
+            "https://canvas.school.edu/api/v1/courses",
+            "https://canvas.school.edu/api/v1",
+        ),
         # Alternate Canvas API roots are not inferred from CANVAS_API_URL.
         ("https://canvas.school.edu/api/quiz/v1", "https://canvas.school.edu/api/v1"),
         # An explicit version segment is preserved, not downgraded to /api/v1,
@@ -77,7 +81,10 @@ def test_reset_config_clears_invalid_env_caches(monkeypatch):
         ("https://canvas.school.edu/api/v2/foo", "https://canvas.school.edu/api/v2"),
         ("https://canvas.school.edu/api/v10", "https://canvas.school.edu/api/v10"),
         # A Canvas install under a sub-path keeps that prefix.
-        ("https://canvas.school.edu/lms/api/v1", "https://canvas.school.edu/lms/api/v1"),
+        (
+            "https://canvas.school.edu/lms/api/v1",
+            "https://canvas.school.edu/lms/api/v1",
+        ),
         # Host:port is preserved.
         ("https://canvas.school.edu:8443", "https://canvas.school.edu:8443/api/v1"),
         # A scheme-less value is left untouched for validate_config() to flag.
@@ -106,7 +113,9 @@ def test_normalize_canvas_url(raw, expected):
         ("https:///canvas.school.edu", "hostname"),
     ],
 )
-def test_validate_config_warns_with_specific_diagnostic(url, expected_fragment, monkeypatch):
+def test_validate_config_warns_with_specific_diagnostic(
+    url, expected_fragment, monkeypatch
+):
     """A bad CANVAS_API_URL is accepted but warned about with a message that
     names the actual defect (scheme vs. missing host)."""
     monkeypatch.setenv("CANVAS_API_TOKEN", "test-token")
@@ -197,7 +206,9 @@ def test_config_normalizes_canvas_api_url(monkeypatch):
     monkeypatch.setenv("CANVAS_API_TOKEN", "test-token")
     monkeypatch.setenv("CANVAS_API_URL", "https://canvas.school.edu")
     config_module.reset_config()
-    assert config_module.get_config().canvas_api_url == "https://canvas.school.edu/api/v1"
+    assert (
+        config_module.get_config().canvas_api_url == "https://canvas.school.edu/api/v1"
+    )
 
 
 def test_execute_typescript_disabled_by_default(monkeypatch):
@@ -241,3 +252,89 @@ def test_scheme_check_ignores_defects_it_does_not_own(monkeypatch):
         monkeypatch.setenv("CANVAS_API_URL", url)
         config_module.reset_config()
         assert config_module.validate_canvas_url_scheme() is True, url
+
+
+def test_validate_config_pat_precedence_without_store_access(tmp_path, monkeypatch):
+    monkeypatch.setenv("CANVAS_API_TOKEN", "valid-pat-token")
+    monkeypatch.setenv("CANVAS_API_URL", "https://canvas.example.edu/api/v1")
+    config_module.reset_config()
+
+    with patch("canvas_mcp.auth.store.TokenStore.load") as mock_load:
+        assert config_module.validate_config() is True
+        mock_load.assert_not_called()
+
+
+def test_validate_config_accepts_valid_oauth_when_pat_absent(tmp_path, monkeypatch):
+    from datetime import datetime
+
+    from pydantic import SecretStr
+
+    from canvas_mcp.auth.models import OAuthUser, StoredTokens
+    from canvas_mcp.auth.store import TokenStore
+
+    monkeypatch.delenv("CANVAS_API_TOKEN", raising=False)
+    monkeypatch.setenv("CANVAS_API_URL", "https://canvas.example.edu/api/v1")
+    config_module.reset_config()
+
+    store_file = tmp_path / "tokens.json"
+    now = datetime.now(UTC)
+    store = TokenStore(store_file)
+    store.save(
+        StoredTokens(
+            canvas_domain="canvas.example.edu",
+            access_token=SecretStr("acc"),
+            refresh_token=SecretStr("ref"),
+            client_id="cid",
+            client_secret=SecretStr("sec"),
+            obtained_at=now,
+            last_refreshed_at=now,
+            user=OAuthUser(id=1, name="Test User"),
+        )
+    )
+
+    with patch("canvas_mcp.auth.session.TokenStore", return_value=store):
+        assert config_module.validate_config() is True
+
+
+def test_validate_config_rejects_missing_oauth_when_pat_absent(tmp_path, monkeypatch):
+    from canvas_mcp.auth.store import TokenStore
+
+    monkeypatch.delenv("CANVAS_API_TOKEN", raising=False)
+    monkeypatch.setenv("CANVAS_API_URL", "https://canvas.example.edu/api/v1")
+    config_module.reset_config()
+
+    store = TokenStore(tmp_path / "empty_tokens.json")
+    with patch("canvas_mcp.auth.session.TokenStore", return_value=store):
+        with patch.object(config_module, "log_error") as mock_err:
+            assert config_module.validate_config() is False
+    logged = " ".join(str(c) for c in mock_err.call_args_list)
+    assert "Set CANVAS_API_TOKEN or run canvas-mcp-auth login" in logged
+
+
+def test_validate_config_corrupt_store_reports_safe_category(tmp_path, monkeypatch):
+    from canvas_mcp.auth.store import TokenStore
+
+    monkeypatch.delenv("CANVAS_API_TOKEN", raising=False)
+    monkeypatch.setenv("CANVAS_API_URL", "https://canvas.example.edu/api/v1")
+    config_module.reset_config()
+
+    corrupt_file = tmp_path / "corrupt.json"
+    corrupt_file.write_text("CORRUPT_NOT_JSON", encoding="utf-8")
+    store = TokenStore(corrupt_file)
+
+    with patch("canvas_mcp.auth.session.TokenStore", return_value=store):
+        with patch.object(config_module, "log_error") as mock_err:
+            assert config_module.validate_config() is False
+    logged = " ".join(str(c) for c in mock_err.call_args_list)
+    assert "TokenStoreError" in logged
+    assert "CORRUPT_NOT_JSON" not in logged
+
+
+def test_validate_config_never_launches_browser(monkeypatch):
+    monkeypatch.delenv("CANVAS_API_TOKEN", raising=False)
+    monkeypatch.setenv("CANVAS_API_URL", "https://canvas.example.edu/api/v1")
+    config_module.reset_config()
+
+    with patch("canvas_mcp.auth.browser.capture_authorization_code") as mock_browser:
+        _ = config_module.validate_config()
+        mock_browser.assert_not_called()

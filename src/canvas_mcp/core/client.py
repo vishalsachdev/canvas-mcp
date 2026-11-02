@@ -11,6 +11,8 @@ from urllib.parse import urlencode
 
 import httpx
 
+from canvas_mcp.auth import OAuthError, OAuthRefreshError, TokenStoreError
+
 from .anonymization import anonymize_response_data, scrub_identity
 from .credentials import get_request_credentials, is_http_request_active
 from .logging import log_debug, log_error, log_warning, sanitize_url
@@ -29,16 +31,24 @@ API_ROOT_QUIZ: Final = "quiz"
 API_ROOT_GRAPHQL: Final = "graphql"
 
 
-def _canvas_auth_headers(api_token: str) -> dict[str, str]:
-    """Build the standard Canvas auth + User-Agent headers for a token."""
+def _canvas_user_agent() -> str:
+    """Build the standard User-Agent header for Canvas MCP."""
     from .. import __version__
 
+    return f"canvas-mcp/{__version__} (https://github.com/vishalsachdev/canvas-mcp)"
+
+
+def _canvas_auth_headers(api_token: str) -> dict[str, str]:
+    """Build the standard Canvas auth + User-Agent headers for a token."""
     return {
         "Authorization": f"Bearer {api_token}",
-        "User-Agent": f"canvas-mcp/{__version__} (https://github.com/vishalsachdev/canvas-mcp)",
+        "User-Agent": _canvas_user_agent(),
     }
 
-def _resolve_canvas_api_root(base_api_url: str, api_root: Literal["rest", "quiz", "graphql"]) -> str:
+
+def _resolve_canvas_api_root(
+    base_api_url: str, api_root: Literal["rest", "quiz", "graphql"]
+) -> str:
     """Resolve a configured ``…/api/v<N>`` base URL to a selected Canvas API root.
 
     ``rest`` keeps the configured URL unchanged. ``quiz`` rewrites only the
@@ -57,17 +67,21 @@ def _resolve_canvas_api_root(base_api_url: str, api_root: Literal["rest", "quiz"
         )
 
     if api_root == API_ROOT_GRAPHQL:
-        return f"{base_api_url[:match.start()]}/api"
-    return f"{base_api_url[:match.start()]}/api/quiz/v1"
+        return f"{base_api_url[: match.start()]}/api"
+    return f"{base_api_url[: match.start()]}/api/quiz/v1"
 
 
 # HTTP client will be initialized with configuration
 http_client: httpx.AsyncClient | None = None
-_http_client_loop_ref: "weakref.ref[asyncio.AbstractEventLoop] | None" = None  # weakref to the loop that owns http_client
+_http_client_loop_ref: "weakref.ref[asyncio.AbstractEventLoop] | None" = (
+    None  # weakref to the loop that owns http_client
+)
 
 # Concurrency limiter for outbound Canvas API calls
 _request_semaphore: asyncio.Semaphore | None = None
-_semaphore_loop_ref: "weakref.ref[asyncio.AbstractEventLoop] | None" = None  # weakref to the loop that owns _request_semaphore
+_semaphore_loop_ref: "weakref.ref[asyncio.AbstractEventLoop] | None" = (
+    None  # weakref to the loop that owns _request_semaphore
+)
 
 
 def _get_request_semaphore() -> asyncio.Semaphore:
@@ -89,21 +103,28 @@ def _get_request_semaphore() -> asyncio.Semaphore:
 
     stored_loop = _semaphore_loop_ref() if _semaphore_loop_ref is not None else None
 
-    if _request_semaphore is not None and current_loop is not None and stored_loop is not current_loop:
+    if (
+        _request_semaphore is not None
+        and current_loop is not None
+        and stored_loop is not current_loop
+    ):
         _request_semaphore = None
         _semaphore_loop_ref = None
 
     if _request_semaphore is None:
         from .config import get_config
+
         _request_semaphore = asyncio.Semaphore(get_config().max_concurrent_requests)
-        _semaphore_loop_ref = weakref.ref(current_loop) if current_loop is not None else None
+        _semaphore_loop_ref = (
+            weakref.ref(current_loop) if current_loop is not None else None
+        )
     return _request_semaphore
 
 
 def _path_segments(endpoint: str) -> list[str]:
     """Lower-cased, query-stripped path segments of a Canvas API endpoint."""
-    path = endpoint.lower().split('?', 1)[0]
-    return [seg for seg in path.split('/') if seg]
+    path = endpoint.lower().split("?", 1)[0]
+    return [seg for seg in path.split("/") if seg]
 
 
 def _is_route_segment(segments: list[str], index: int) -> bool:
@@ -113,7 +134,7 @@ def _is_route_segment(segments: list[str], index: int) -> bool:
     page named "users" at /courses/{id}/pages/users — and must never be treated
     as a route keyword.
     """
-    return not (index > 0 and segments[index - 1] == 'pages')
+    return not (index > 0 and segments[index - 1] == "pages")
 
 
 def _has_route_segment(segments: list[str], names: set[str]) -> bool:
@@ -135,10 +156,10 @@ def _self_submission_indices(segments: list[str]) -> set[int]:
     return {
         i
         for i, seg in enumerate(segments)
-        if seg == 'submissions'
+        if seg == "submissions"
         and _is_route_segment(segments, i)
         and i + 1 < len(segments)
-        and segments[i + 1] == 'self'
+        and segments[i + 1] == "self"
     }
 
 
@@ -160,10 +181,12 @@ def _self_submission_indices(segments: list[str]) -> set[int]:
 #       see request parameters, so exempting the path would let those bypass
 #       anonymization whenever that include is present. get_my_enrollments
 #       deliberately reads /courses instead, so nothing needs this exemption.
-_SELF_ONLY_ENDPOINTS = frozenset({
-    "users/self",
-    "users/self/profile",
-})
+_SELF_ONLY_ENDPOINTS = frozenset(
+    {
+        "users/self",
+        "users/self/profile",
+    }
+)
 
 
 def _is_self_only_endpoint(segments: list[str]) -> bool:
@@ -180,17 +203,17 @@ def _determine_data_type(endpoint: str) -> str:
     """
     segments = _path_segments(endpoint)
 
-    if _has_route_segment(segments, {'users'}):
-        return 'users'
-    if _has_route_segment(segments, {'discussion_topics', 'discussion_entries'}):
-        return 'discussions'
-    if _has_route_segment(segments, {'submissions'}):
-        return 'submissions'
-    if _has_route_segment(segments, {'assignments'}):
-        return 'assignments'
-    if _has_route_segment(segments, {'enrollments'}):
-        return 'users'  # Enrollments contain user data
-    return 'general'
+    if _has_route_segment(segments, {"users"}):
+        return "users"
+    if _has_route_segment(segments, {"discussion_topics", "discussion_entries"}):
+        return "discussions"
+    if _has_route_segment(segments, {"submissions"}):
+        return "submissions"
+    if _has_route_segment(segments, {"assignments"}):
+        return "assignments"
+    if _has_route_segment(segments, {"enrollments"}):
+        return "users"  # Enrollments contain user data
+    return "general"
 
 
 # --------------------------------------------------------------------------
@@ -289,12 +312,12 @@ def _endpoint_anonymization_mode(endpoint: str) -> str:
 
     # GraphQL has a single endpoint, so its path says nothing about what the
     # query returns. Treat every response as sensitive (fail closed).
-    if segments == ['graphql']:
+    if segments == ["graphql"]:
         return ANONYMIZE_FULL
 
     # Discussion content endpoints carry student posts and names
-    if 'discussion_topics' in segments and _has_route_segment(
-        segments, {'entries', 'view', 'entry_list', 'replies'}
+    if "discussion_topics" in segments and _has_route_segment(
+        segments, {"entries", "view", "entry_list", "replies"}
     ):
         return ANONYMIZE_FULL
 
@@ -302,7 +325,7 @@ def _endpoint_anonymization_mode(endpoint: str) -> str:
     # written by group members: any student in the group can start one, so the
     # topic record's message, user_name and author block are student data. This
     # is the rule that protects the discussion tools' group_id path.
-    if 'discussion_topics' in segments and _has_route_segment(segments, {'groups'}):
+    if "discussion_topics" in segments and _has_route_segment(segments, {"groups"}):
         return ANONYMIZE_FULL
 
     # Endpoints whose responses contain student records
@@ -316,7 +339,10 @@ def _endpoint_anonymization_mode(endpoint: str) -> str:
     # (student_messaging._display_name) pseudonymises non-staff entries, per
     # course, because the address book is a full roster. Exact path, not a
     # 'search' prefix.
-    if _has_route_segment(segments, {'conversations'}) or segments == ['search', 'recipients']:
+    if _has_route_segment(segments, {"conversations"}) or segments == [
+        "search",
+        "recipients",
+    ]:
         return ANONYMIZE_FREE_TEXT
 
     # 'front_page' is a page too and returns the same last_edited_by block, but
@@ -324,7 +350,7 @@ def _endpoint_anonymization_mode(endpoint: str) -> str:
     # ungated after #179. Unlike a page slug, 'front_page' is a fixed Canvas
     # route word and cannot be user-controlled, so matching it needs no
     # escalation guard.
-    if _has_route_segment(segments, {'pages'}) or 'front_page' in segments:
+    if _has_route_segment(segments, {"pages"}) or "front_page" in segments:
         return ANONYMIZE_IDENTITY
 
     return ANONYMIZE_NONE
@@ -389,12 +415,25 @@ def _get_http_client() -> httpx.AsyncClient:
 
     if http_client is None:
         from .config import get_config
+
         config = get_config()
-        http_client = httpx.AsyncClient(
-            headers=_canvas_auth_headers(config.canvas_api_token),
-            timeout=config.api_timeout
+        from canvas_mcp.auth import MobileOAuthAuth, get_stdio_oauth
+
+        oauth_session = get_stdio_oauth(config)
+        if oauth_session is not None:
+            http_client = httpx.AsyncClient(
+                headers={"User-Agent": _canvas_user_agent()},
+                auth=MobileOAuthAuth(oauth_session),
+                timeout=config.api_timeout,
+            )
+        else:
+            http_client = httpx.AsyncClient(
+                headers=_canvas_auth_headers(config.canvas_api_token),
+                timeout=config.api_timeout,
+            )
+        _http_client_loop_ref = (
+            weakref.ref(current_loop) if current_loop is not None else None
         )
-        _http_client_loop_ref = weakref.ref(current_loop) if current_loop is not None else None
     return http_client
 
 
@@ -523,7 +562,7 @@ async def make_canvas_request(
     req_creds = get_request_credentials()
 
     # Ensure the endpoint starts with a slash
-    if not endpoint.startswith('/'):
+    if not endpoint.startswith("/"):
         endpoint = f"/{endpoint}"
 
     # Endpoints are built by f-string interpolation of caller-supplied identifiers
@@ -539,13 +578,19 @@ async def make_canvas_request(
             "Blocked Canvas API request with a delimiter in the endpoint path",
             endpoint=sanitize_url(endpoint),
         )
-        return RequestFailure(f"Invalid endpoint: '{bad_delimiter}' is not allowed in a request path", WriteOutcome.NOT_DISPATCHED)
+        return RequestFailure(
+            f"Invalid endpoint: '{bad_delimiter}' is not allowed in a request path",
+            WriteOutcome.NOT_DISPATCHED,
+        )
     if any(seg == ".." for seg in endpoint.split("/")):
         log_warning(
             "Blocked Canvas API request with a traversal segment in the endpoint path",
             endpoint=sanitize_url(endpoint),
         )
-        return RequestFailure("Invalid endpoint: '..' is not allowed in a request path", WriteOutcome.NOT_DISPATCHED)
+        return RequestFailure(
+            "Invalid endpoint: '..' is not allowed in a request path",
+            WriteOutcome.NOT_DISPATCHED,
+        )
 
     if api_root not in (API_ROOT_REST, API_ROOT_QUIZ, API_ROOT_GRAPHQL):
         return {"error": f"Unsupported api_root: {api_root}"}
@@ -557,7 +602,7 @@ async def make_canvas_request(
             timeout=config.api_timeout,
         )
         try:
-            base_url = _resolve_canvas_api_root(req_creds.api_url.rstrip('/'), api_root)
+            base_url = _resolve_canvas_api_root(req_creds.api_url.rstrip("/"), api_root)
         except ValueError as exc:
             await client.aclose()
             return {"error": str(exc)}
@@ -574,9 +619,11 @@ async def make_canvas_request(
     else:
         # Shared client is selected immediately before dispatch (stdio mode).
         try:
-            base_url = _resolve_canvas_api_root(config.canvas_api_url.rstrip('/'), api_root)
+            base_url = _resolve_canvas_api_root(
+                config.canvas_api_url.rstrip("/"), api_root
+            )
         except ValueError as exc:
-            return {"error": str(exc)}
+            return RequestFailure(str(exc), WriteOutcome.NOT_DISPATCHED)
         url = f"{base_url}{endpoint}"
         _close_client = False
 
@@ -595,6 +642,18 @@ async def make_canvas_request(
                 return {"error": "Invalid pagination link: origin or endpoint changed"}
             url = str(target)
             params = None
+        extra_kwargs: dict[str, Any] = {}
+        if not req_creds and not is_http_request_active():
+            from canvas_mcp.auth import (
+                CANVAS_OAUTH_RETRY_STATE_KEY,
+                OAuthRetryState,
+                get_stdio_oauth,
+            )
+
+            oauth_session = get_stdio_oauth(config)
+            if oauth_session is not None:
+                retry_state = OAuthRetryState()
+                extra_kwargs["extensions"] = {CANVAS_OAUTH_RETRY_STATE_KEY: retry_state}
         semaphore = _get_request_semaphore()
         async with semaphore:
             for attempt in range(MAX_RETRIES + 1):
@@ -605,11 +664,15 @@ async def make_canvas_request(
                         client = _get_http_client()
                     # Log the request for debugging (if enabled)
                     if config.log_api_requests:
-                        retry_info = f" (retry {attempt}/{MAX_RETRIES})" if attempt > 0 else ""
-                        log_debug(f"Making {method.upper()} request to {sanitize_url(url)}{retry_info}")
+                        retry_info = (
+                            f" (retry {attempt}/{MAX_RETRIES})" if attempt > 0 else ""
+                        )
+                        log_debug(
+                            f"Making {method.upper()} request to {sanitize_url(url)}{retry_info}"
+                        )
 
                     if method.lower() == "get":
-                        response = await client.get(url, params=params)
+                        response = await client.get(url, params=params, **extra_kwargs)
                     elif method.lower() == "post":
                         if files:
                             # File uploads always pass dict form fields, never
@@ -618,6 +681,7 @@ async def make_canvas_request(
                                 url,
                                 data=cast("dict[str, Any] | None", data),
                                 files=files,
+                                **extra_kwargs,
                             )
                         elif use_form_data:
                             # Handle list of tuples separately to work around httpx async bug
@@ -627,12 +691,17 @@ async def make_canvas_request(
                                 response = await client.post(
                                     url,
                                     content=encoded,
-                                    headers={"Content-Type": "application/x-www-form-urlencoded"}
+                                    headers={
+                                        "Content-Type": "application/x-www-form-urlencoded"
+                                    },
+                                    **extra_kwargs,
                                 )
                             else:
-                                response = await client.post(url, data=data)
+                                response = await client.post(
+                                    url, data=data, **extra_kwargs
+                                )
                         else:
-                            response = await client.post(url, json=data)
+                            response = await client.post(url, json=data, **extra_kwargs)
                     elif method.lower() == "put":
                         if use_form_data:
                             # Handle list of tuples separately to work around httpx async bug
@@ -641,14 +710,21 @@ async def make_canvas_request(
                                 response = await client.put(
                                     url,
                                     content=encoded,
-                                    headers={"Content-Type": "application/x-www-form-urlencoded"}
+                                    headers={
+                                        "Content-Type": "application/x-www-form-urlencoded"
+                                    },
+                                    **extra_kwargs,
                                 )
                             else:
-                                response = await client.put(url, data=data)
+                                response = await client.put(
+                                    url, data=data, **extra_kwargs
+                                )
                         else:
-                            response = await client.put(url, json=data)
+                            response = await client.put(url, json=data, **extra_kwargs)
                     elif method.lower() == "delete":
-                        response = await client.delete(url, params=params)
+                        response = await client.delete(
+                            url, params=params, **extra_kwargs
+                        )
                     else:
                         return {"error": f"Unsupported method: {method}"}
 
@@ -676,16 +752,20 @@ async def make_canvas_request(
                     # Handle rate limiting with exponential backoff
                     if e.response.status_code == 429 and attempt < MAX_RETRIES:
                         # Check for Retry-After header
-                        retry_after = e.response.headers.get('Retry-After')
+                        retry_after = e.response.headers.get("Retry-After")
                         if retry_after:
                             try:
                                 wait_time = int(retry_after)
                             except ValueError:
-                                wait_time = INITIAL_BACKOFF_SECONDS * (2 ** attempt)
+                                wait_time = INITIAL_BACKOFF_SECONDS * (2**attempt)
                         else:
-                            wait_time = INITIAL_BACKOFF_SECONDS * (2 ** attempt)
+                            wait_time = INITIAL_BACKOFF_SECONDS * (2**attempt)
 
-                        log_warning(f"Rate limited (429). Retrying in {wait_time}s...", attempt=attempt + 1, max_retries=MAX_RETRIES)
+                        log_warning(
+                            f"Rate limited (429). Retrying in {wait_time}s...",
+                            attempt=attempt + 1,
+                            max_retries=MAX_RETRIES,
+                        )
                         await asyncio.sleep(wait_time)
                         continue
 
@@ -698,22 +778,42 @@ async def make_canvas_request(
                         error_details = e.response.text
                         error_message += f", Text: {error_details}"
 
-                    log_error(f"API error on {sanitize_url(endpoint)}", status_code=e.response.status_code)
+                    log_error(
+                        f"API error on {sanitize_url(endpoint)}",
+                        status_code=e.response.status_code,
+                    )
 
                     # Audit: log HTTP error (status code only — response body may contain PII)
-                    log_data_access(method, endpoint, "error", f"HTTP {e.response.status_code}")
+                    log_data_access(
+                        method, endpoint, "error", f"HTTP {e.response.status_code}"
+                    )
 
-                    outcome = (WriteOutcome.REJECTED if e.response.status_code in NO_WRITE_STATUSES
-                               else WriteOutcome.MAY_HAVE_WRITTEN)
+                    outcome = (
+                        WriteOutcome.REJECTED
+                        if e.response.status_code in NO_WRITE_STATUSES
+                        else WriteOutcome.MAY_HAVE_WRITTEN
+                    )
                     return RequestFailure(error_message, outcome)
-
+                except OAuthRefreshError as e:
+                    log_error(f"OAuth refresh failed for {sanitize_url(endpoint)}: {e}")
+                    log_data_access(method, endpoint, "error", type(e).__name__)
+                    return RequestFailure(str(e), WriteOutcome.REJECTED)
+                except (OAuthError, TokenStoreError) as e:
+                    log_error(f"OAuth error for {sanitize_url(endpoint)}: {e}")
+                    log_data_access(method, endpoint, "error", type(e).__name__)
+                    return RequestFailure(str(e), WriteOutcome.NOT_DISPATCHED)
                 except Exception as e:
-                    log_error(f"Request failed for {sanitize_url(endpoint)}", error_type=type(e).__name__)
+                    log_error(
+                        f"Request failed for {sanitize_url(endpoint)}",
+                        error_type=type(e).__name__,
+                    )
 
                     # Audit: log request exception (type only — message may contain PII)
                     log_data_access(method, endpoint, "error", type(e).__name__)
 
-                    return RequestFailure(f"Request failed: {str(e)}", WriteOutcome.MAY_HAVE_WRITTEN)
+                    return RequestFailure(
+                        f"Request failed: {str(e)}", WriteOutcome.MAY_HAVE_WRITTEN
+                    )
 
             # Should never reach here, but just in case
             return {"error": "Max retries exceeded"}
@@ -727,7 +827,7 @@ async def upload_file_to_storage(
     upload_params: dict[str, Any],
     file_path: str,
     filename: str,
-    content_type: str
+    content_type: str,
 ) -> dict[str, Any]:
     """Upload a file to Canvas storage URL (step 2 of 3-step upload process).
 
@@ -757,26 +857,26 @@ async def upload_file_to_storage(
     async with httpx.AsyncClient(timeout=config.api_timeout) as client:
         try:
             # Read the file content
-            with open(file_path, 'rb') as f:
+            with open(file_path, "rb") as f:
                 file_content = f.read()
 
             # Build multipart form data
             # upload_params contains required fields like 'key', 'Policy', 'Signature', etc.
-            files = {
-                'file': (filename, file_content, content_type)
-            }
+            files = {"file": (filename, file_content, content_type)}
 
             # Log for debugging
             if config.log_api_requests:
-                log_debug(f"Uploading file to storage: {sanitize_url(upload_url)}", filename=filename, content_type=content_type, size=len(file_content))
+                log_debug(
+                    f"Uploading file to storage: {sanitize_url(upload_url)}",
+                    filename=filename,
+                    content_type=content_type,
+                    size=len(file_content),
+                )
 
             # Make the upload request
             # Note: follow_redirects=False because Canvas may return a 3xx with file info
             response = await client.post(
-                upload_url,
-                data=upload_params,
-                files=files,
-                follow_redirects=False
+                upload_url, data=upload_params, files=files, follow_redirects=False
             )
 
             # Canvas storage upload can return:
@@ -793,7 +893,7 @@ async def upload_file_to_storage(
 
             elif response.status_code in (301, 302, 303):
                 # Redirect - follow it to get file info from Canvas
-                redirect_url = response.headers.get('Location')
+                redirect_url = response.headers.get("Location")
                 if redirect_url:
                     # Storage chooses Location; only Canvas may get the token.
                     confirm_url = response.url.join(redirect_url)
@@ -820,7 +920,7 @@ async def upload_file_to_storage(
                 error_text = response.text
                 return {
                     "error": f"Storage upload failed with status {response.status_code}",
-                    "details": error_text
+                    "details": error_text,
                 }
 
         except FileNotFoundError:
@@ -869,8 +969,12 @@ async def fetch_all_paginated_results(
 
     for _ in range(MAX_PAGINATION_PAGES):
         response = await make_canvas_request(
-            "get", endpoint, params=current_params, skip_anonymization=True,
-            api_root=api_root, _pagination=pagination,
+            "get",
+            endpoint,
+            params=current_params,
+            skip_anonymization=True,
+            api_root=api_root,
+            _pagination=pagination,
         )
         if isinstance(response, dict) and "error" in response:
             return response
@@ -892,16 +996,21 @@ async def fetch_all_paginated_results(
         pagination["url"] = next_url
         current_params = {}  # The opaque next URL contains the complete query.
     else:
-        return {"error": f"Pagination exceeded {MAX_PAGINATION_PAGES} pages; no partial result returned"}
+        return {
+            "error": f"Pagination exceeded {MAX_PAGINATION_PAGES} pages; no partial result returned"
+        }
 
     # Apply anonymization to the complete result set if needed
     from .config import get_config
+
     config = get_config()
 
     if not skip_anonymization and config.enable_data_anonymization:
         all_results, applied = _anonymize_for_endpoint(all_results, endpoint)
 
         if config.anonymization_debug and applied != ANONYMIZE_NONE:
-            log_debug(f"Applied {applied} anonymization to paginated results from {endpoint}")
+            log_debug(
+                f"Applied {applied} anonymization to paginated results from {endpoint}"
+            )
 
     return all_results

@@ -11,6 +11,7 @@ Test Coverage:
 
 import os
 import tempfile
+from datetime import UTC
 from pathlib import Path
 from unittest.mock import patch
 
@@ -48,13 +49,16 @@ class TestSandboxSecurity:
         from canvas_mcp.core.config import Config
         from canvas_mcp.tools.code_execution import _build_safe_env
 
-        with patch.dict(os.environ, {
-            "CANVAS_API_TOKEN": "secret_token",
-            "CANVAS_API_URL": "https://x.com/api/v1",
-            "AWS_SECRET_ACCESS_KEY": "aws_secret",
-            "DATABASE_PASSWORD": "db_pass",
-            "PATH": "/usr/bin",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "CANVAS_API_TOKEN": "secret_token",
+                "CANVAS_API_URL": "https://x.com/api/v1",
+                "AWS_SECRET_ACCESS_KEY": "aws_secret",
+                "DATABASE_PASSWORD": "db_pass",
+                "PATH": "/usr/bin",
+            },
+        ):
             config = Config()
             env = _build_safe_env(config)
             # Canvas creds are explicitly added (needed for execution)
@@ -62,6 +66,170 @@ class TestSandboxSecurity:
             # Other secrets must NOT be present
             assert "AWS_SECRET_ACCESS_KEY" not in env
             assert "DATABASE_PASSWORD" not in env
+
+    def test_oauth_env_filtering_prevents_secret_leakage(self, tmp_path):
+        """Verify OAuth refresh token, client secret, and store path never leak to subprocess env."""
+        from datetime import datetime
+
+        from pydantic import SecretStr
+
+        from canvas_mcp.auth.models import OAuthUser, StoredTokens
+        from canvas_mcp.auth.store import TokenStore
+        from canvas_mcp.core.config import Config
+        from canvas_mcp.tools.code_execution import _build_safe_env
+
+        store_file = tmp_path / "tokens.json"
+        now = datetime.now(UTC)
+        store = TokenStore(store_file)
+        store.save(
+            StoredTokens(
+                canvas_domain="canvas.example.edu",
+                access_token=SecretStr("super-secret-access-token"),
+                refresh_token=SecretStr("super-secret-refresh-token"),
+                client_id="cid-12345",
+                client_secret=SecretStr("super-secret-client-secret"),
+                obtained_at=now,
+                last_refreshed_at=now,
+                user=OAuthUser(id=99, name="Test User"),
+            )
+        )
+
+        with patch.dict(
+            os.environ,
+            {
+                "CANVAS_API_TOKEN": "",
+                "CANVAS_API_URL": "https://canvas.example.edu/api/v1",
+            },
+        ):
+            config = Config()
+            with patch("canvas_mcp.auth.session.TokenStore", return_value=store):
+                env = _build_safe_env(config)
+
+        assert env["CANVAS_API_TOKEN"] == "super-secret-access-token"
+        assert env["CANVAS_API_URL"] == "https://canvas.example.edu/api/v1"
+
+        assert "super-secret-refresh-token" not in env.values()
+        assert "super-secret-client-secret" not in env.values()
+        assert "cid-12345" not in env.values()
+        for k in env:
+            assert "REFRESH" not in k
+            assert "CLIENT_SECRET" not in k
+            assert "TOKEN_STORE" not in k
+
+    @pytest.mark.asyncio
+    async def test_execute_typescript_refreshes_oauth_before_spawn(self):
+        """Verify execute_typescript triggers session.refresh before spawning subprocess."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from fastmcp import FastMCP
+
+        from canvas_mcp.tools.code_execution import register_code_execution_tools
+
+        captured: dict = {}
+        mcp = FastMCP("test")
+        original = mcp.tool
+
+        def capturing(*a, **k):
+            decorator = original(*a, **k)
+
+            def wrapper(fn):
+                captured[fn.__name__] = fn
+                return decorator(fn)
+
+            return wrapper
+
+        mcp.tool = capturing
+        register_code_execution_tools(mcp)
+        tool_fn = captured["execute_typescript"]
+
+        mock_session = MagicMock()
+        mock_session.snapshot.return_value = ("fresh-access-tok", 0)
+        mock_session.refresh = AsyncMock(return_value="fresh-access-tok")
+
+        with patch.dict(
+            os.environ,
+            {
+                "CANVAS_API_TOKEN": "",
+                "CANVAS_API_URL": "https://canvas.example.edu/api/v1",
+                "EXECUTE_TYPESCRIPT_ENABLED": "true",
+                "TS_SANDBOX_MODE": "local",
+            },
+        ):
+            from canvas_mcp.core import config as cfg_mod
+
+            cfg_mod.reset_config()
+
+            mock_proc = AsyncMock()
+            mock_proc.communicate.return_value = (b"output from ts", b"")
+            mock_proc.returncode = 0
+
+            with (
+                patch("canvas_mcp.auth.get_stdio_oauth", return_value=mock_session),
+                patch(
+                    "asyncio.create_subprocess_exec", return_value=mock_proc
+                ) as mock_exec,
+            ):
+                _ = await tool_fn("console.log(123);")
+
+            mock_session.refresh.assert_called_once_with(0)
+            mock_exec.assert_called_once()
+            passed_env = mock_exec.call_args[1]["env"]
+            assert passed_env["CANVAS_API_TOKEN"] == "fresh-access-tok"
+
+    @pytest.mark.asyncio
+    async def test_execute_typescript_refuses_spawn_on_refresh_failure(self):
+        """Verify execute_typescript blocks subprocess execution if token refresh fails."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from fastmcp import FastMCP
+
+        from canvas_mcp.auth.models import OAuthRefreshError
+        from canvas_mcp.tools.code_execution import register_code_execution_tools
+
+        captured: dict = {}
+        mcp = FastMCP("test")
+        original = mcp.tool
+
+        def capturing(*a, **k):
+            decorator = original(*a, **k)
+
+            def wrapper(fn):
+                captured[fn.__name__] = fn
+                return decorator(fn)
+
+            return wrapper
+
+        mcp.tool = capturing
+        register_code_execution_tools(mcp)
+        tool_fn = captured["execute_typescript"]
+
+        mock_session = MagicMock()
+        mock_session.snapshot.return_value = ("stale-token", 0)
+        mock_session.refresh = AsyncMock(
+            side_effect=OAuthRefreshError("Server rejected refresh")
+        )
+
+        with patch.dict(
+            os.environ,
+            {
+                "CANVAS_API_TOKEN": "",
+                "CANVAS_API_URL": "https://canvas.example.edu/api/v1",
+                "EXECUTE_TYPESCRIPT_ENABLED": "true",
+                "TS_SANDBOX_MODE": "local",
+            },
+        ):
+            from canvas_mcp.core import config as cfg_mod
+
+            cfg_mod.reset_config()
+
+            with (
+                patch("canvas_mcp.auth.get_stdio_oauth", return_value=mock_session),
+                patch("asyncio.create_subprocess_exec") as mock_exec,
+            ):
+                res = await tool_fn("console.log(123);")
+
+            assert "❌ Code execution refused: OAuth token refresh failed" in res
+            mock_exec.assert_not_called()
 
     def test_resource_exhaustion_timeout(self):
         """TC-3.1.4: Test timeout protection for infinite loops."""
@@ -75,10 +243,13 @@ class TestSandboxSecurity:
         """TC-3.1.4: Verify memory limit is set in Config defaults."""
         from canvas_mcp.core.config import Config
 
-        with patch.dict(os.environ, {
-            "CANVAS_API_TOKEN": "test",
-            "CANVAS_API_URL": "https://x.com/api/v1",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "CANVAS_API_TOKEN": "test",
+                "CANVAS_API_URL": "https://x.com/api/v1",
+            },
+        ):
             config = Config()
             # Default memory limit should be 512 MB (non-zero)
             assert config.ts_sandbox_memory_limit_mb == 512
@@ -128,12 +299,15 @@ class TestCodeExecutionAudit:
         )
 
         reset_audit_state()
-        with patch.dict(os.environ, {
-            "LOG_ACCESS_EVENTS": "false",
-            "LOG_EXECUTION_EVENTS": "true",
-            "CANVAS_API_TOKEN": "test",
-            "AUDIT_LOG_DIR": _tempfile.mkdtemp(),
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "LOG_ACCESS_EVENTS": "false",
+                "LOG_EXECUTION_EVENTS": "true",
+                "CANVAS_API_TOKEN": "test",
+                "AUDIT_LOG_DIR": _tempfile.mkdtemp(),
+            },
+        ):
             old = cfg_mod._config
             cfg_mod._config = None
             try:
@@ -161,12 +335,15 @@ class TestCodeExecutionAudit:
         )
 
         reset_audit_state()
-        with patch.dict(os.environ, {
-            "LOG_ACCESS_EVENTS": "false",
-            "LOG_EXECUTION_EVENTS": "true",
-            "CANVAS_API_TOKEN": "test",
-            "AUDIT_LOG_DIR": _tempfile.mkdtemp(),
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "LOG_ACCESS_EVENTS": "false",
+                "LOG_EXECUTION_EVENTS": "true",
+                "CANVAS_API_TOKEN": "test",
+                "AUDIT_LOG_DIR": _tempfile.mkdtemp(),
+            },
+        ):
             old = cfg_mod._config
             cfg_mod._config = None
             try:
@@ -237,21 +414,25 @@ class TestCodeExecutionIsolation:
         from canvas_mcp.core.config import Config
         from canvas_mcp.tools.code_execution import _SAFE_ENV_KEYS, _build_safe_env
 
-        with patch.dict(os.environ, {
-            "CANVAS_API_TOKEN": "test",
-            "CANVAS_API_URL": "https://x.com/api/v1",
-            "PATH": "/usr/bin",
-            "HOME": "/home/user",
-            "MY_CUSTOM_VAR": "should_not_appear",
-            "PGPASSWORD": "should_not_appear",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "CANVAS_API_TOKEN": "test",
+                "CANVAS_API_URL": "https://x.com/api/v1",
+                "PATH": "/usr/bin",
+                "HOME": "/home/user",
+                "MY_CUSTOM_VAR": "should_not_appear",
+                "PGPASSWORD": "should_not_appear",
+            },
+        ):
             config = Config()
             env = _build_safe_env(config)
 
             # Only safe keys + Canvas credentials should be present
             for key in env:
                 assert key in _SAFE_ENV_KEYS or key in (
-                    "CANVAS_API_URL", "CANVAS_API_TOKEN"
+                    "CANVAS_API_URL",
+                    "CANVAS_API_TOKEN",
                 ), f"Unexpected key in env: {key}"
 
             assert "MY_CUSTOM_VAR" not in env
@@ -264,92 +445,115 @@ class TestWindowsTsxCommand:
     def test_non_windows_uses_npx(self):
         """On non-Windows platforms, _build_local_tsx_command returns npx tsx."""
         from canvas_mcp.tools.code_execution import _build_local_tsx_command
-        with patch('canvas_mcp.tools.code_execution.sys.platform', 'linux'):
-            cmd = _build_local_tsx_command('/tmp/test.ts')
-        assert cmd == ['npx', 'tsx', '/tmp/test.ts']
+
+        with patch("canvas_mcp.tools.code_execution.sys.platform", "linux"):
+            cmd = _build_local_tsx_command("/tmp/test.ts")
+        assert cmd == ["npx", "tsx", "/tmp/test.ts"]
 
     def test_windows_uses_node_with_tsx_cli_via_which(self, tmp_path):
         """On Windows, finds tsx cli.mjs relative to tsx.cmd discovered via PATH."""
         from canvas_mcp.tools.code_execution import _build_local_tsx_command
+
         # Simulate tsx.cmd in a directory alongside node_modules/tsx
-        tsx_cmd_dir = tmp_path / 'npm'
+        tsx_cmd_dir = tmp_path / "npm"
         tsx_cmd_dir.mkdir()
-        tsx_cmd = tsx_cmd_dir / 'tsx.cmd'
+        tsx_cmd = tsx_cmd_dir / "tsx.cmd"
         tsx_cmd.touch()
-        tsx_cli = tsx_cmd_dir / 'node_modules' / 'tsx' / 'dist' / 'cli.mjs'
+        tsx_cli = tsx_cmd_dir / "node_modules" / "tsx" / "dist" / "cli.mjs"
         tsx_cli.parent.mkdir(parents=True)
         tsx_cli.touch()
 
         def mock_which(name):
-            if name == 'node':
-                return '/usr/bin/node'
-            if name == 'tsx':
+            if name == "node":
+                return "/usr/bin/node"
+            if name == "tsx":
                 return str(tsx_cmd)
             return None
 
-        with patch('canvas_mcp.tools.code_execution.sys.platform', 'win32'), \
-             patch('canvas_mcp.tools.code_execution.shutil.which', side_effect=mock_which), \
-             patch.dict(os.environ, {'APPDATA': str(tmp_path / 'nonexistent')}):
-            cmd = _build_local_tsx_command('/tmp/test.ts')
+        with (
+            patch("canvas_mcp.tools.code_execution.sys.platform", "win32"),
+            patch(
+                "canvas_mcp.tools.code_execution.shutil.which", side_effect=mock_which
+            ),
+            patch.dict(os.environ, {"APPDATA": str(tmp_path / "nonexistent")}),
+        ):
+            cmd = _build_local_tsx_command("/tmp/test.ts")
 
-        assert cmd[0] == '/usr/bin/node'
+        assert cmd[0] == "/usr/bin/node"
         assert cmd[1] == str(tsx_cli)
-        assert cmd[2] == '/tmp/test.ts'
+        assert cmd[2] == "/tmp/test.ts"
 
     def test_windows_uses_appdata_fallback_when_which_fails(self, tmp_path):
         """On Windows, falls back to APPDATA when shutil.which('tsx') returns None."""
         from canvas_mcp.tools.code_execution import _build_local_tsx_command
-        tsx_cli = tmp_path / 'npm' / 'node_modules' / 'tsx' / 'dist' / 'cli.mjs'
+
+        tsx_cli = tmp_path / "npm" / "node_modules" / "tsx" / "dist" / "cli.mjs"
         tsx_cli.parent.mkdir(parents=True)
         tsx_cli.touch()
 
         def mock_which(name):
-            if name == 'node':
-                return '/usr/bin/node'
+            if name == "node":
+                return "/usr/bin/node"
             return None
 
-        with patch('canvas_mcp.tools.code_execution.sys.platform', 'win32'), \
-             patch('canvas_mcp.tools.code_execution.shutil.which', side_effect=mock_which), \
-             patch.dict(os.environ, {'APPDATA': str(tmp_path)}):
-            cmd = _build_local_tsx_command('/tmp/test.ts')
+        with (
+            patch("canvas_mcp.tools.code_execution.sys.platform", "win32"),
+            patch(
+                "canvas_mcp.tools.code_execution.shutil.which", side_effect=mock_which
+            ),
+            patch.dict(os.environ, {"APPDATA": str(tmp_path)}),
+        ):
+            cmd = _build_local_tsx_command("/tmp/test.ts")
 
-        assert cmd[0] == '/usr/bin/node'
+        assert cmd[0] == "/usr/bin/node"
         assert cmd[1] == str(tsx_cli)
-        assert cmd[2] == '/tmp/test.ts'
+        assert cmd[2] == "/tmp/test.ts"
 
     def test_windows_error_when_tsx_not_found(self):
         """On Windows, returns error command when tsx CLI module cannot be located."""
         from canvas_mcp.tools.code_execution import _build_local_tsx_command
-        with patch('canvas_mcp.tools.code_execution.sys.platform', 'win32'), \
-             patch('canvas_mcp.tools.code_execution.shutil.which', return_value=None), \
-             patch.dict(os.environ, {'APPDATA': '/nonexistent_appdata_path'}):
-            cmd = _build_local_tsx_command('/tmp/test.ts')
+
+        with (
+            patch("canvas_mcp.tools.code_execution.sys.platform", "win32"),
+            patch("canvas_mcp.tools.code_execution.shutil.which", return_value=None),
+            patch.dict(os.environ, {"APPDATA": "/nonexistent_appdata_path"}),
+        ):
+            cmd = _build_local_tsx_command("/tmp/test.ts")
         # Should return a node -e error command, not npx
-        assert cmd[0] == 'node'
-        assert cmd[1] == '-e'
-        assert 'tsx not found' in cmd[2]
+        assert cmd[0] == "node"
+        assert cmd[1] == "-e"
+        assert "tsx not found" in cmd[2]
 
     def test_find_tsx_cli_windows_returns_none_when_not_found(self):
         """_find_tsx_cli_windows returns None when tsx is not installed."""
         from canvas_mcp.tools.code_execution import _find_tsx_cli_windows
-        with patch('canvas_mcp.tools.code_execution.shutil.which', return_value=None), \
-             patch.dict(os.environ, {'APPDATA': '/nonexistent_path_xyz'}):
+
+        with (
+            patch("canvas_mcp.tools.code_execution.shutil.which", return_value=None),
+            patch.dict(os.environ, {"APPDATA": "/nonexistent_path_xyz"}),
+        ):
             result = _find_tsx_cli_windows()
         assert result is None
 
     def test_find_tsx_cli_windows_skips_empty_appdata(self, tmp_path):
         """_find_tsx_cli_windows skips APPDATA check when env var is empty."""
         from canvas_mcp.tools.code_execution import _find_tsx_cli_windows
-        tsx_cmd_dir = tmp_path / 'bin'
+
+        tsx_cmd_dir = tmp_path / "bin"
         tsx_cmd_dir.mkdir()
-        tsx_cmd = tsx_cmd_dir / 'tsx.cmd'
+        tsx_cmd = tsx_cmd_dir / "tsx.cmd"
         tsx_cmd.touch()
-        tsx_cli = tsx_cmd_dir / 'node_modules' / 'tsx' / 'dist' / 'cli.mjs'
+        tsx_cli = tsx_cmd_dir / "node_modules" / "tsx" / "dist" / "cli.mjs"
         tsx_cli.parent.mkdir(parents=True)
         tsx_cli.touch()
 
-        with patch('canvas_mcp.tools.code_execution.shutil.which', return_value=str(tsx_cmd)), \
-             patch.dict(os.environ, {'APPDATA': ''}):
+        with (
+            patch(
+                "canvas_mcp.tools.code_execution.shutil.which",
+                return_value=str(tsx_cmd),
+            ),
+            patch.dict(os.environ, {"APPDATA": ""}),
+        ):
             result = _find_tsx_cli_windows()
         assert result == str(tsx_cli)
 

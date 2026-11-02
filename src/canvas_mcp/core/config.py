@@ -21,23 +21,25 @@ VALID_SANDBOX_MODES = frozenset({"auto", "local", "container"})
 # stays free of imports from it. Quiz-taking is deliberately absent: it is an
 # academic-integrity decision gated behind its own separate flag, not something
 # an operator can switch on by naming it in this allowlist.
-STUDENT_WRITE_TOOL_NAMES = frozenset({
-    "submit_assignment",
-    "comment_on_my_submission",
-    "mark_module_item_done",
-    # Calendar and planner (tools/student_calendar.py). Personal state only:
-    # notes, planner check-marks and events on the caller's own calendar.
-    "create_planner_note",
-    "update_planner_note",
-    "delete_planner_note",
-    "mark_planner_item_complete",
-    "create_personal_calendar_event",
-    "delete_personal_calendar_event",
-    # Inbox (tools/student_messaging.py). Preview-then-confirm, explicit
-    # recipients only, narrower than the educator send_conversation.
-    "send_message",
-    "reply_to_conversation",
-})
+STUDENT_WRITE_TOOL_NAMES = frozenset(
+    {
+        "submit_assignment",
+        "comment_on_my_submission",
+        "mark_module_item_done",
+        # Calendar and planner (tools/student_calendar.py). Personal state only:
+        # notes, planner check-marks and events on the caller's own calendar.
+        "create_planner_note",
+        "update_planner_note",
+        "delete_planner_note",
+        "mark_planner_item_complete",
+        "create_personal_calendar_event",
+        "delete_personal_calendar_event",
+        # Inbox (tools/student_messaging.py). Preview-then-confirm, explicit
+        # recipients only, narrower than the educator send_conversation.
+        "send_message",
+        "reply_to_conversation",
+    }
+)
 
 
 def _parse_keys(raw: str) -> frozenset[str]:
@@ -283,12 +285,16 @@ class Config:
         # Code execution sandbox configuration (secure defaults)
         self.enable_ts_sandbox = _bool_env("ENABLE_TS_SANDBOX", True)
         self.ts_sandbox_mode = os.getenv("TS_SANDBOX_MODE", "auto").lower()
-        self.ts_sandbox_block_outbound_network = _bool_env("TS_SANDBOX_BLOCK_OUTBOUND_NETWORK", True)
+        self.ts_sandbox_block_outbound_network = _bool_env(
+            "TS_SANDBOX_BLOCK_OUTBOUND_NETWORK", True
+        )
         self.ts_sandbox_allowlist_hosts = os.getenv("TS_SANDBOX_ALLOWLIST_HOSTS", "")
         self.ts_sandbox_cpu_limit = _int_env("TS_SANDBOX_CPU_LIMIT", 30)
         self.ts_sandbox_memory_limit_mb = _int_env("TS_SANDBOX_MEMORY_LIMIT_MB", 512)
         self.ts_sandbox_timeout_sec = _int_env("TS_SANDBOX_TIMEOUT_SEC", 120)
-        self.ts_sandbox_container_image = os.getenv("TS_SANDBOX_CONTAINER_IMAGE", "node:20-alpine")
+        self.ts_sandbox_container_image = os.getenv(
+            "TS_SANDBOX_CONTAINER_IMAGE", "node:20-alpine"
+        )
         self.ts_sandbox_uid_gid = _parse_ts_sandbox_uid_gid(
             os.getenv("TS_SANDBOX_UID_GID", _DEFAULT_TS_SANDBOX_UID_GID)
         )
@@ -331,7 +337,9 @@ class Config:
         # Entra object IDs permitted to use this server (empty = allow any
         # platform-authenticated identity).
         self.entra_auth_enabled = _bool_env("ENTRA_AUTH_ENABLED", False)
-        self.mcp_entra_allowed_oids = _parse_keys(os.getenv("MCP_ENTRA_ALLOWED_OIDS", ""))
+        self.mcp_entra_allowed_oids = _parse_keys(
+            os.getenv("MCP_ENTRA_ALLOWED_OIDS", "")
+        )
 
         # --- Self-service access-approval flow (hosted-only; off by default) ---
         # Feature flag. When false (default) the gate behaves exactly as before
@@ -350,7 +358,9 @@ class Config:
             if e.strip()
         ]
         # Public base URL used to build approval links (no trailing slash).
-        self.access_approve_base_url = os.getenv("ACCESS_APPROVE_BASE_URL", "").rstrip("/")
+        self.access_approve_base_url = os.getenv("ACCESS_APPROVE_BASE_URL", "").rstrip(
+            "/"
+        )
         # HMAC secret for approval tokens; empty disables the feature (fail-closed).
         self.access_token_secret = os.getenv("ACCESS_TOKEN_SECRET", "")
         # Suppress re-emailing the admin for the same OID within this window.
@@ -380,16 +390,22 @@ class Config:
         )
         # Per-course instructor policy. Can further restrict (never expand) the
         # operator ceiling above.
-        self.course_agent_policy_enabled = _bool_env("COURSE_AGENT_POLICY_ENABLED", True)
+        self.course_agent_policy_enabled = _bool_env(
+            "COURSE_AGENT_POLICY_ENABLED", True
+        )
         # Posture when a course has no policy artifact. Institutional decision, so
         # it is operator-configurable; "deny" is the safe default.
-        self.course_agent_policy_default = os.getenv(
-            "COURSE_AGENT_POLICY_DEFAULT", "deny"
-        ).strip().lower()
+        self.course_agent_policy_default = (
+            os.getenv("COURSE_AGENT_POLICY_DEFAULT", "deny").strip().lower()
+        )
         # Denials cache longer than grants. A stale grant is a revocation window on
         # an attempt-consuming action, so it is deliberately short.
-        self.course_agent_policy_allow_ttl = _int_env("COURSE_AGENT_POLICY_ALLOW_TTL", 30)
-        self.course_agent_policy_deny_ttl = _int_env("COURSE_AGENT_POLICY_DENY_TTL", 300)
+        self.course_agent_policy_allow_ttl = _int_env(
+            "COURSE_AGENT_POLICY_ALLOW_TTL", 30
+        )
+        self.course_agent_policy_deny_ttl = _int_env(
+            "COURSE_AGENT_POLICY_DENY_TTL", 300
+        )
 
 
 # Global configuration instance
@@ -428,6 +444,9 @@ def reset_config() -> None:
     _config = None
     _INVALID_INT_ENV_VARS.clear()
     _INVALID_FLOAT_ENV_VARS.clear()
+    from canvas_mcp.auth.session import clear_stdio_oauth_cache
+
+    clear_stdio_oauth_cache()
 
 
 def validate_config() -> bool:
@@ -448,11 +467,23 @@ def validate_config() -> bool:
         "FIREWALL_HINT": "firewall hints are documentation-only",
     }
 
-    if not config.canvas_api_token:
-        log_error("CANVAS_API_TOKEN environment variable is required")
-        log_error("Please set CANVAS_API_TOKEN in your .env file")
-        return False
+    has_pat = bool(config.canvas_api_token and config.canvas_api_token.strip())
+    has_oauth = False
+    if not has_pat:
+        try:
+            from canvas_mcp.auth import OAuthError, TokenStoreError, get_stdio_oauth
 
+            session = get_stdio_oauth(config)
+            has_oauth = session is not None
+        except (OAuthError, TokenStoreError, ValueError) as e:
+            log_error(f"Failed to load mobile OAuth session: {type(e).__name__}")
+            return False
+
+    if not has_pat and not has_oauth:
+        log_error(
+            "Set CANVAS_API_TOKEN or run canvas-mcp-auth login for the configured CANVAS_API_URL."
+        )
+        return False
     if not config.canvas_api_url:
         log_error("CANVAS_API_URL environment variable is required")
         log_error("Please set CANVAS_API_URL in your .env file")
@@ -519,8 +550,7 @@ def validate_config() -> bool:
 
     for env_name, env_value in _INVALID_INT_ENV_VARS.items():
         log_warning(
-            f"{env_name} expects an integer; using default value "
-            f"(got '{env_value}')"
+            f"{env_name} expects an integer; using default value (got '{env_value}')"
         )
 
     for env_name, env_value in _INVALID_FLOAT_ENV_VARS.items():
