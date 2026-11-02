@@ -7,12 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.16.1] — 2026-11-02
+
+A security and fix release. It moves the locked dependencies past the advisories found since 1.16.0 and requires a patched FastMCP for fresh installs. It also fixes two HTML-handling bugs, binds peer-review reminder campaigns to the resolved course, and makes the desktop extension choose its Python.
+
+### Security
+
+- The lockfile installs FastMCP 4.1.2, which fixes [GHSA-7xgj-8392-5q4r](https://github.com/PrefectHQ/fastmcp/security/advisories/GHSA-7xgj-8392-5q4r) and [GHSA-vqqp-x5qm-5qp4](https://github.com/PrefectHQ/fastmcp/security/advisories/GHSA-vqqp-x5qm-5qp4) ([#531](https://github.com/vishalsachdev/canvas-mcp/pull/531)). Fresh installs now also require `fastmcp>=4.1.2`, so a resolver can no longer pick an earlier 4.x release ([#548](https://github.com/vishalsachdev/canvas-mcp/pull/548)).
+- Transitive dependencies with published advisories are locked to fixed releases: Authlib 1.9.1, dnspython 2.9.0 and joserfc 1.7.7 ([#548](https://github.com/vishalsachdev/canvas-mcp/pull/548)). The dependency audit now exports with `--locked`, so it fails on a stale lockfile instead of scanning it.
+- Script and style text ends only at an ASCII end tag. Unicode case folding previously let look-alike tags such as `</ſcript>` close a script block, so text a browser keeps hidden reached the model ([#535](https://github.com/vishalsachdev/canvas-mcp/pull/535)).
+
 ### Fixed
 
-- The Claude Desktop extension explicitly selects Python 3.13 through `uv`, which downloads that interpreter when needed, instead of inheriting an untested system Python such as 3.15 and falling into a Windows `cffi` source build requiring a compiler ([#391](https://github.com/vishalsachdev/canvas-mcp/issues/391)).
+- A decimal character reference longer than 4,300 digits in a Canvas page, syllabus, event or group description no longer crashes the tool reading it. It decodes to U+FFFD, as the HTML standard specifies ([#542](https://github.com/vishalsachdev/canvas-mcp/pull/542)).
+- Peer-review reminder campaigns resolve the course to its numeric ID before analytics, composition, confirmation and sending, and refuse an unresolved or ambiguous course before anything is sent ([#541](https://github.com/vishalsachdev/canvas-mcp/pull/541), thanks [@lindsay-cheng](https://github.com/lindsay-cheng)).
+- The Claude Desktop extension explicitly selects Python 3.13 through `uv`, which downloads that interpreter when needed, instead of inheriting an untested system Python such as 3.15 and falling into a Windows `cffi` source build requiring a compiler ([#391](https://github.com/vishalsachdev/canvas-mcp/issues/391)). First launch therefore needs network access and allowed Python downloads when 3.13 is not installed.
 - Importing package metadata, configuration or write-policy data no longer
   loads the server framework and its authentication dependencies. The public
-  `canvas_mcp.main` entry point still resolves to `canvas_mcp.server.main`.
+  `canvas_mcp.main` entry point still resolves to `canvas_mcp.server.main` ([#534](https://github.com/vishalsachdev/canvas-mcp/pull/534), thanks [@KKazuhaK](https://github.com/KKazuhaK)).
 
 ## [1.16.0] — 2026-10-24
 
