@@ -151,23 +151,23 @@ Canvas MCP provides **up to 128 tools** for interacting with Canvas LMS; the def
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing role-specific workflows for students, educators, learning designers, and developers. Built on the Model Context Protocol (MCP), it is designed for MCP-compatible clients; setup and supported capabilities vary by client.
 
-## Latest Release: v1.16.0
+## Latest Release: v1.16.1
 
-**Released:** October 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
+**Released:** November 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
 
-A security release. It fixes three privately reported issues and closes the last gap left by the 1.13.0 prompt-injection advisory, and it adds course group creation. Breaking for local code execution: the local sandbox now needs Node.js 22.18 or later.
+A security and fix release on top of 1.16.0.
 
-- **Local code sandbox** ([GHSA-7pp5-29mw-9jq3](https://github.com/vishalsachdev/canvas-mcp/security/advisories/GHSA-7pp5-29mw-9jq3)): in local sandbox mode, the default without a container runtime, `execute_typescript` runs under Node's permission model. The code can read only the bundled code API, and Node refuses child processes, worker threads, native addons and file writes. Breaking: needs Node.js 22.18+, and TypeScript is type-stripped, so import types with `import type` and avoid enums and namespaces. Network blocking in local mode stays best-effort ([#157](https://github.com/vishalsachdev/canvas-mcp/issues/157)).
-- **Canvas token stays with Canvas** ([GHSA-7mj9-4mcg-hvhv](https://github.com/vishalsachdev/canvas-mcp/security/advisories/GHSA-7mj9-4mcg-hvhv)): file downloads from separate storage hosts no longer carry the Canvas token, including after redirects, and an upload confirmation outside Canvas is refused.
-- **File contents are fenced** ([GHSA-hmr8-mvr2-mvw5](https://github.com/vishalsachdev/canvas-mcp/security/advisories/GHSA-hmr8-mvr2-mvw5)): `read_course_file` marks returned file contents as untrusted Canvas data, and the CI registry test checks that payload.
-- **Windows download permissions** ([GHSA-qf6c-jv93-38gv](https://github.com/vishalsachdev/canvas-mcp/security/advisories/GHSA-qf6c-jv93-38gv)): on Windows, downloaded files inherit the destination folder's permissions. Every Windows download now says so. This is a documented limitation.
-- **Course group creation**: `create_course_groups` previews and confirms a new group set, groups and memberships from CSV, and `resume_course_group_creation` finishes interrupted work ([#526](https://github.com/vishalsachdev/canvas-mcp/pull/526)).
-- **Submission text on request**: `list_submissions(include_body=True)` returns submitted text after a `manage_grades` check, anonymized, fenced and bounded ([#523](https://github.com/vishalsachdev/canvas-mcp/pull/523)).
+- **Patched dependencies**: FastMCP 4.1.2 is locked and now required for fresh installs, and the transitive Authlib, dnspython and joserfc pins move past their published advisories ([#531](https://github.com/vishalsachdev/canvas-mcp/pull/531), [#548](https://github.com/vishalsachdev/canvas-mcp/pull/548)).
+- **HTML handling**: look-alike Unicode end tags no longer close a script block early ([#535](https://github.com/vishalsachdev/canvas-mcp/pull/535)), and an oversized numeric entity no longer crashes a read ([#542](https://github.com/vishalsachdev/canvas-mcp/pull/542)).
+- **Peer-review campaigns** bind confirmation and delivery to the resolved numeric course ([#541](https://github.com/vishalsachdev/canvas-mcp/pull/541)).
+- **Desktop extension** selects Python 3.13 through `uv` instead of the system default ([#536](https://github.com/vishalsachdev/canvas-mcp/pull/536)).
 
-Thanks to [@EQSTLab](https://github.com/EQSTLab), [@KKazuhaK](https://github.com/KKazuhaK) and [@bruchris](https://github.com/bruchris) for reporting.
+Thanks to [@lindsay-cheng](https://github.com/lindsay-cheng) and [@KKazuhaK](https://github.com/KKazuhaK).
 
 <details>
 <summary>Previous releases</summary>
+
+**v1.16.0** — A security release fixing three privately reported issues and the last gap in the 1.13.0 prompt-injection advisory, plus course group creation and opt-in submission text. Breaking for local code execution: the sandbox needs Node.js 22.18+.
 
 **v1.15.0** — A hardening release: HTTP callers are kept apart from each other ([#480](https://github.com/vishalsachdev/canvas-mcp/pull/480), [#491](https://github.com/vishalsachdev/canvas-mcp/pull/491)), HTML is parsed in one bounded pass ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)), the release pipeline verifies what it publishes, and `get_student_submission` is new ([#487](https://github.com/vishalsachdev/canvas-mcp/pull/487)).
 
