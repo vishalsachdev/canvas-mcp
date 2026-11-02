@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Importing package metadata, configuration or write-policy data no longer
   loads the server framework and its authentication dependencies. The public
   `canvas_mcp.main` entry point still resolves to `canvas_mcp.server.main`.
+- Accessibility scans and fixes refuse missing or malformed assignment
+  descriptions and page bodies instead of reporting a clean scan or no fixes.
+  Explicitly empty (`null` or empty-string) content remains valid, and invalid
+  sources, including pages without a usable URL slug, are rejected before any
+  collected changes can be written.
 
 ## [1.16.0] — 2026-10-24
 

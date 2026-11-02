@@ -328,8 +328,10 @@ def _register_builtin_scanner_tools(mcp: FastMCP) -> None:
                 return json.dumps({"error": f"Could not scan assignments: {format_canvas_error(detail)}"})
             if isinstance(assignments, list):
                 for assignment in assignments:
+                    if not isinstance(assignment, dict) or "description" not in assignment or not isinstance(assignment["description"], str | None):
+                        return json.dumps({"error": "Could not scan assignments: Canvas did not return readable assignment content"})
                     issues = _check_content_accessibility(
-                        assignment.get("description", ""),
+                        assignment["description"] or "",
                         content_type="assignment",
                         content_id=assignment.get("id"),
                         content_title=assignment.get("name")
@@ -400,16 +402,20 @@ def _register_builtin_scanner_tools(mcp: FastMCP) -> None:
                 return json.dumps({"error": f"Could not read pages for fixes: {format_canvas_error(detail)}"})
             if isinstance(pages, list):
                 for page in pages:
+                    if not isinstance(page, dict):
+                        return json.dumps({"error": "Could not read pages for fixes: Canvas returned an invalid page record"})
                     slug = page.get("url")
-                    if not slug:
-                        continue
+                    if not isinstance(slug, str) or not slug.strip():
+                        return json.dumps({"error": "Could not read pages for fixes: Canvas did not return a valid page URL slug"})
                     full = await make_canvas_request(
                         "get", f"/courses/{course_id}/pages/{slug}"
                     )
                     if not isinstance(full, dict) or "error" in full:
                         detail = full.get("error", "Invalid page response") if isinstance(full, dict) else "Invalid page response"
                         return json.dumps({"error": f"Could not read a page for fixes: {format_canvas_error(detail)}"})
-                    body = full.get("body", "") if isinstance(full, dict) else ""
+                    if "body" not in full or not isinstance(full["body"], str | None):
+                        return json.dumps({"error": "Could not read a page for fixes: Canvas did not return readable page content"})
+                    body = full["body"] or ""
                     if body:
                         items.append({
                             "type": "page",
@@ -429,7 +435,9 @@ def _register_builtin_scanner_tools(mcp: FastMCP) -> None:
                 return json.dumps({"error": f"Could not read assignments for fixes: {format_canvas_error(detail)}"})
             if isinstance(assignments, list):
                 for asgn in assignments:
-                    desc = asgn.get("description", "")
+                    if not isinstance(asgn, dict) or "description" not in asgn or not isinstance(asgn["description"], str | None):
+                        return json.dumps({"error": "Could not read assignments for fixes: Canvas did not return readable assignment content"})
+                    desc = asgn["description"] or ""
                     if desc:
                         items.append({
                             "type": "assignment",
