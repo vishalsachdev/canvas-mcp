@@ -123,8 +123,9 @@ jobs:
       - name: Export locked dependencies
         run: |
           # Audit the exact pinned dependency set that actually ships (uv.lock),
-          # including the optional "hosted" extra, rather than a fresh resolve.
-          uv export --frozen --format requirements-txt \
+          # including the optional "hosted" extra. --locked also rejects stale
+          # project metadata instead of silently auditing an out-of-date lock.
+          uv export --locked --format requirements-txt \
             --no-emit-project --no-hashes --all-extras > requirements-audit.txt
       
       - name: Run pip-audit (fails the build on vulnerabilities)
@@ -184,7 +185,7 @@ jobs:
         continue-on-error: true
       
       - name: TruffleHog scan
-        uses: trufflesecurity/trufflehog@048de9ff07098d943136cd5231a0e93fbb3ea443 # main@2026-08-10
+        uses: trufflesecurity/trufflehog@5a3176fcddc07bed6ee62a84adb613091030b243 # main@2026-08-10
         with:
           path: ./
           base: main
