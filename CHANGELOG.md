@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (breaking for hosted operators)
+
+- **An empty Entra allowlist now needs an explicit setting.** With `ENTRA_AUTH_ENABLED=true` and an empty `MCP_ENTRA_ALLOWED_OIDS`, the HTTP server refuses to start unless `ACCESS_REQUEST_ENABLED=true` (only identities granted through the access-request flow get in) or the new `MCP_ENTRA_ALLOW_ANY_TENANT_IDENTITY=true` (every platform-authenticated tenant identity gets in, the old default). The request middleware applies the same rule. Deployments with a non-empty allowlist are unaffected.
+
 ## [1.16.1] — 2026-11-02
 
 A security and fix release. It moves the locked dependencies past the advisories found since 1.16.0 and requires a patched FastMCP for fresh installs. It also fixes two HTML-handling bugs, binds peer-review reminder campaigns to the resolved course, and makes the desktop extension choose its Python.
