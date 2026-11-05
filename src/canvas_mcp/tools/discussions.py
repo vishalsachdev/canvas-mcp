@@ -30,7 +30,7 @@ from ..core.untrusted_content import (
     fence_untrusted,
     fence_untrusted_inline,
 )
-from ..core.validation import coerce_canvas_id, validate_params
+from ..core.validation import coerce_canvas_id, numeric_id_error, validate_params
 from ..core.write_confirmation import (
     ConfirmationGuard,
     preview_with_token,
@@ -717,6 +717,8 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                 updated_at and checkpoint dates exactly as Canvas returns them
                 (null stays null). Default False.
         """
+        if id_error := numeric_id_error(topic_id=topic_id):
+            return id_error
         course_id = await get_course_id(course_identifier)
         prefix, prefix_error = await _discussion_prefix(course_id, group_id)
         if prefix_error:
@@ -836,6 +838,8 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                 students start in a group exist only there. The group must
                 belong to the course.
         """
+        if id_error := numeric_id_error(topic_id=topic_id):
+            return id_error
         course_id = await get_course_id(course_identifier)
         prefix, prefix_error = await _discussion_prefix(course_id, group_id)
         if prefix_error:
@@ -1090,6 +1094,8 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                 students start in a group exist only there. The group must
                 belong to the course.
         """
+        if id_error := numeric_id_error(entry_id=entry_id, topic_id=topic_id):
+            return id_error
         course_id = await get_course_id(course_identifier)
         prefix, prefix_error = await _discussion_prefix(course_id, group_id)
         if prefix_error:
@@ -1303,6 +1309,8 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
                 students start in a group exist only there. The group must
                 belong to the course.
         """
+        if id_error := numeric_id_error(topic_id=topic_id):
+            return id_error
         course_id = await get_course_id(course_identifier)
         prefix, prefix_error = await _discussion_prefix(course_id, group_id)
         if prefix_error:
@@ -1444,6 +1452,8 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             topic_id: Discussion topic ID
             message: Entry message content
         """
+        if id_error := numeric_id_error(topic_id=topic_id):
+            return id_error
         # Backstop for issue 239: never publish our provenance fence markers.
         if contains_fence_markers(message):
             return FENCE_LEAK_ERROR
@@ -1504,6 +1514,8 @@ def register_shared_discussion_tools(mcp: FastMCP) -> None:
             entry_id: Discussion entry ID to reply to
             message: Reply message content
         """
+        if id_error := numeric_id_error(entry_id=entry_id, topic_id=topic_id):
+            return id_error
         # Backstop for issue 239: never publish our provenance fence markers.
         if contains_fence_markers(message):
             return FENCE_LEAK_ERROR
@@ -1659,6 +1671,8 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
                 it when you read it; refuse if the message has changed. Each
                 guarded edit reports the new hash for the next edit.
         """
+        if id_error := numeric_id_error(topic_id=topic_id):
+            return id_error
         if expect_updated_at is not None:
             return (
                 "❌ Discussion topics have no updated_at in Canvas, so "
@@ -1968,6 +1982,8 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
             require_title_match: Only delete if title matches this string exactly
             confirmation_token: Token from the preview call; omit to preview
         """
+        if id_error := numeric_id_error(announcement_id=announcement_id):
+            return id_error
         course_id = await get_course_id(course_identifier)
 
         announcement = await make_canvas_request(

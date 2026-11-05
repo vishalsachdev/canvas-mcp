@@ -10,7 +10,7 @@ from .client import fetch_all_paginated_results, make_canvas_request
 from .credentials import get_request_course_labels, is_http_request_active
 from .logging import log_error, log_info
 from .untrusted_content import fence_untrusted_inline
-from .validation import coerce_canvas_id, validate_params
+from .validation import coerce_canvas_id, path_segment_error, validate_params
 
 # Global cache for course codes to IDs
 course_code_to_id_cache: dict[str, str] = {}
@@ -154,7 +154,7 @@ async def get_course_id(course_identifier: str | int) -> str:
 
     # If it's a SIS ID format
     if course_str.startswith("sis_course_id:"):
-        return course_str
+        return _pass_through(course_str)
 
     if is_http_request_active():
         courses = await fetch_all_paginated_results("/courses", {"per_page": 100})
@@ -166,7 +166,9 @@ async def get_course_id(course_identifier: str | int) -> str:
                 return found
         # Preserve the legacy pass-through contract, without using another
         # caller's aliases. Canvas still authorizes the eventual request.
-        return f"sis_course_id:{course_str}" if "_" in course_str else course_str
+        return _pass_through(
+            f"sis_course_id:{course_str}" if "_" in course_str else course_str
+        )
 
     # One of the caller's courses by code (spaces allowed, as in 'COMPSCI
     # 161'), name or SIS ID, ignoring case and surrounding whitespace. On a
@@ -187,10 +189,24 @@ async def get_course_id(course_identifier: str | int) -> str:
     # If it looks like a course code (contains underscores)
     if "_" in course_str:
         # Return SIS format as a fallback
-        return f"sis_course_id:{course_str}"
+        return _pass_through(f"sis_course_id:{course_str}")
 
     # Last resort, return as is
-    return course_str
+    return _pass_through(course_str)
+
+
+def _pass_through(identifier: str) -> str:
+    """Return an unresolved course identifier, refusing one that is not one path segment.
+
+    Callers interpolate the result into ``/courses/{id}/...``. A value carrying a
+    path delimiter would retarget that request, so it is refused (ValueError, as
+    for an ambiguous alias) before any request is made. A course that matched by
+    code or name never reaches here: it resolved to its numeric ID.
+    """
+    error = path_segment_error("course_identifier", identifier)
+    if error:
+        raise ValueError(error)
+    return identifier
 
 
 async def get_course_code(course_id: str | int) -> str | None:

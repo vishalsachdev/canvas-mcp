@@ -5,6 +5,7 @@ and module items. Modules are the primary content organization system in Canvas.
 """
 
 
+import json
 from typing import Any
 
 from fastmcp import FastMCP
@@ -18,7 +19,7 @@ from ..core.untrusted_content import (
     contains_fence_markers,
     fence_untrusted_inline,
 )
-from ..core.validation import validate_params
+from ..core.validation import numeric_id_error, validate_params
 from ..core.write_confirmation import (
     ConfirmationGuard,
     preview_with_token,
@@ -331,6 +332,8 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             prerequisite_module_ids: Comma-separated prerequisite module IDs, or empty to clear
             published: Whether the module is published
         """
+        if id_error := numeric_id_error(module_id=module_id):
+            return json.dumps({"error": id_error})
         # Backstop for issue 239: never publish our provenance markers.
         if name is not None and contains_fence_markers(name):
             return FENCE_LEAK_ERROR
@@ -422,6 +425,8 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             module_id: Module ID to delete
             confirmation_token: Token from the preview call; omit to preview
         """
+        if id_error := numeric_id_error(module_id=module_id):
+            return json.dumps({"error": id_error})
         course_id = await get_course_id(course_identifier)
 
         module_response = await make_canvas_request(
@@ -497,6 +502,8 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             completion_requirement_type: One of: must_view, must_submit, must_contribute, min_score, must_mark_done
             completion_requirement_min_score: Minimum score (only for min_score type)
         """
+        if id_error := numeric_id_error(module_id=module_id):
+            return json.dumps({"error": id_error})
         # Backstop for issue 239: never publish our provenance markers.
         if title is not None and contains_fence_markers(title):
             return FENCE_LEAK_ERROR
@@ -644,6 +651,8 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             published: Whether the item is published
             move_to_module_id: Move item to a different module
         """
+        if id_error := numeric_id_error(item_id=item_id, module_id=module_id):
+            return json.dumps({"error": id_error})
         # Backstop for issue 239: never publish our provenance markers.
         if title is not None and contains_fence_markers(title):
             return FENCE_LEAK_ERROR
@@ -747,6 +756,8 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             item_id: Item ID to remove
             confirmation_token: Token from the preview call; omit to preview
         """
+        if id_error := numeric_id_error(item_id=item_id, module_id=module_id):
+            return json.dumps({"error": id_error})
         course_id = await get_course_id(course_identifier)
 
         item_response = await make_canvas_request(

@@ -21,7 +21,7 @@ from ..core.untrusted_content import (
     fence_untrusted,
     fence_untrusted_inline,
 )
-from ..core.validation import validate_params
+from ..core.validation import numeric_id_error, validate_params
 from ..core.write_confirmation import (
     ConfirmationGuard,
     preview_with_token,
@@ -903,6 +903,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             rubric_id: Canvas rubric ID (direct lookup)
             assignment_id: Canvas assignment ID (get rubric attached to assignment)
         """
+        if id_error := numeric_id_error(assignment_id=assignment_id, rubric_id=rubric_id):
+            return id_error
         if rubric_id is None and assignment_id is None:
             return (
                 "Error: You must provide either rubric_id or assignment_id.\n\n"
@@ -1095,6 +1097,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             assignment_id: Canvas assignment ID
             user_id: Canvas user ID of the student
         """
+        if id_error := numeric_id_error(assignment_id=assignment_id, user_id=user_id):
+            return id_error
         course_id = await get_course_id(course_identifier)
         assignment_id_str = str(assignment_id)
         user_id_str = str(user_id)
@@ -1222,6 +1226,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                 cannot be un-sent. Never generate one that merely restates the
                 grade or narrates that grading happened.
         """
+        if id_error := numeric_id_error(assignment_id=assignment_id):
+            return id_error
         # Backstop for issue 239: a comment or criterion comment lifted from
         # fenced read output would publish our provenance markers into the
         # student-visible gradebook. Refuse before any write.
@@ -1699,6 +1705,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                 omit to keep the current one
             confirmation_token: Token from the preview call; omit to preview
         """
+        if id_error := numeric_id_error(rubric_id=rubric_id):
+            return id_error
         if contains_fence_markers(title) or contains_fence_markers(criteria):
             return FENCE_LEAK_ERROR
 
@@ -1863,6 +1871,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             use_for_grading: Use rubric for grade calculation (default: False)
             purpose: Association purpose: grading, bookmark (default: grading)
         """
+        if id_error := numeric_id_error(assignment_id=assignment_id):
+            return id_error
         course_id = await get_course_id(course_identifier)
         rubric_id_str = str(rubric_id)
         assignment_id_str = str(assignment_id)

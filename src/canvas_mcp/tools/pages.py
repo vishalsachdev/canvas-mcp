@@ -20,7 +20,7 @@ from ..core.untrusted_content import (
     contains_fence_markers,
     fence_untrusted_inline,
 )
-from ..core.validation import validate_params
+from ..core.validation import page_slug_error, validate_params
 from ..core.write_confirmation import (
     ConfirmationGuard,
     preview_with_token,
@@ -164,6 +164,8 @@ def register_page_tools(mcp: FastMCP) -> None:
                 look unchecked afterward. Has no effect on an unpublished page
                 or a page under a minute old.
         """
+        if slug_error := page_slug_error(page_url_or_id):
+            return slug_error
         course_id = await get_course_id(course_identifier)
 
         # Build update parameters (only include specified settings)
@@ -438,6 +440,8 @@ def register_educator_page_crud_tools(mcp: FastMCP) -> None:
             replace: Text that replaces find (may be empty to delete it)
             require: Strings that must already be present in the current body
         """
+        if slug_error := page_slug_error(page_url_or_id):
+            return slug_error
         guard = BodyGuard(expect_updated_at, find, replace, require)
         if guard.active:
             return await _guarded_page_edit(
@@ -503,6 +507,8 @@ def register_educator_page_crud_tools(mcp: FastMCP) -> None:
             require_title_match: Safety check — only delete if page title matches exactly
             confirmation_token: Token from the preview call; omit to preview
         """
+        if slug_error := page_slug_error(page_url_or_id):
+            return slug_error
         course_id = await get_course_id(course_identifier)
 
         page = await make_canvas_request(

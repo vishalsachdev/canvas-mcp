@@ -17,7 +17,7 @@ from ..core.untrusted_content import (
     fence_untrusted,
     fence_untrusted_fields,
 )
-from ..core.validation import validate_params
+from ..core.validation import numeric_id_error, validate_params
 from ..core.write_confirmation import ConfirmationGuard, redeem_confirmation
 from ..core.write_outcome import NO_WRITE_STATUSES, RequestFailure, WriteOutcome
 
@@ -419,6 +419,8 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
             conversation_id: Conversation ID
             include_messages: Include all messages
         """
+        if id_error := numeric_id_error(conversation_id=conversation_id):
+            return {"error": id_error.removeprefix("Error: ")}
 
         try:
             # Canvas marks a conversation read on GET unless told not to. A
