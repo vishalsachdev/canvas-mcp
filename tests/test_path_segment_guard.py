@@ -165,3 +165,45 @@ async def test_guarded_page_edit_refuses_multi_segment_slug_before_any_request()
             "1", "page/zz", "<p>x</p>", None, BodyGuard(None, None, None, None))
     assert result.startswith("Error: Parameter 'page_url_or_id'")
     req.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("call", [
+    lambda m: m["peer_reviews"].PeerReviewAnalyzer().get_assignments("123/zz", 5),
+    lambda m: m["peer_reviews"].PeerReviewAnalyzer().get_assignments("123", "5/zz"),
+    lambda m: m["peer_reviews"].PeerReviewAnalyzer().get_completion_analytics("123/zz", 5),
+    lambda m: m["peer_review_comments"].PeerReviewCommentAnalyzer().get_peer_review_comments(123, "5/zz"),
+])
+async def test_core_peer_review_helpers_refuse_before_any_request(call):
+    from canvas_mcp.core import peer_review_comments, peer_reviews
+
+    mods = {"peer_reviews": peer_reviews, "peer_review_comments": peer_review_comments}
+    with patch.object(peer_reviews, "make_canvas_request", new=AsyncMock()) as r1, \
+         patch.object(peer_review_comments, "make_canvas_request", new=AsyncMock()) as r2, \
+         patch.object(peer_reviews, "fetch_all_paginated_results", new=AsyncMock()) as r3, \
+         patch.object(peer_review_comments, "fetch_all_paginated_results", new=AsyncMock()) as r4:
+        result = await call(mods)
+    assert isinstance(result, dict) and "error" in result
+    for mock in (r1, r2, r3, r4):
+        mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("helper,arg", [("_fetch_my_note", "7/zz"), ("_fetch_my_personal_event", "7/zz")])
+async def test_calendar_helpers_refuse_before_any_request(helper, arg):
+    from canvas_mcp.tools import student_calendar
+
+    with patch.object(student_calendar, "make_canvas_request", new=AsyncMock()) as req:
+        found, error = await getattr(student_calendar, helper)(arg, "1")
+    assert found is None and error and "numeric" in error
+    req.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_load_reply_target_refuses_before_any_request():
+    from canvas_mcp.tools import student_messaging
+
+    with patch.object(student_messaging, "make_canvas_request", new=AsyncMock()) as req:
+        result = await student_messaging._load_reply_target("7/zz")
+    assert isinstance(result, str) and "numeric" in result
+    req.assert_not_called()

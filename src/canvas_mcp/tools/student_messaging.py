@@ -434,6 +434,8 @@ async def _load_reply_target(
     conversation_id: str,
 ) -> dict[str, Any] | str:
     """Read the conversation and work out exactly who a reply would reach."""
+    if coerce_canvas_id(conversation_id) is None:
+        return "Error: conversation_id must be a numeric Canvas conversation ID."
     me = await make_canvas_request("get", "/users/self")
     my_id = (
         coerce_canvas_id(me.get("id", ""))

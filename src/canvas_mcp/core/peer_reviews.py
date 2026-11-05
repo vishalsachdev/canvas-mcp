@@ -11,6 +11,7 @@ from typing import Any
 from .client import fetch_all_paginated_results, make_canvas_request
 from .csv_safety import csv_safe_cell, rows_to_csv_string
 from .dates import parse_date
+from .validation import numeric_id_error, path_segment_error
 
 
 class PeerReviewAnalyzer:
@@ -27,6 +28,10 @@ class PeerReviewAnalyzer:
         include_submission_details: bool = False
     ) -> dict[str, Any]:
         """Get peer review assignments with clear reviewer-reviewee mapping."""
+        if id_error := numeric_id_error(assignment_id=assignment_id):
+            return {"error": id_error.removeprefix("Error: ")}
+        if segment_error := path_segment_error("course_id", str(course_id)):
+            return {"error": segment_error}
 
         try:
             # Get assignment details
@@ -115,6 +120,10 @@ class PeerReviewAnalyzer:
         group_by_status: bool = True
     ) -> dict[str, Any]:
         """Get detailed analytics on peer review completion rates."""
+        if id_error := numeric_id_error(assignment_id=assignment_id):
+            return {"error": id_error.removeprefix("Error: ")}
+        if segment_error := path_segment_error("course_id", str(course_id)):
+            return {"error": segment_error}
 
         try:
             # Get the assignments data

@@ -17,6 +17,7 @@ import httpx
 import pytest
 
 from canvas_mcp.core import client as client_module
+from canvas_mcp.core.config import STUDENT_WRITE_TOOL_NAMES
 
 MARKER = "zzsmuggle"
 # Parameters ending in "_id" that are not Canvas object IDs.
@@ -46,12 +47,18 @@ EXTRA_ARGS: dict[str, dict[str, Any]] = {
     "bulk_update_pages": {"published": True},
     "send_conversation": {"recipient_ids": ["5"]},
     "send_bulk_messages_from_list": {"recipient_data": [{"user_id": "5", "name": "N"}]},
+    "submit_assignment": {"submission_type": "online_text_entry", "body": "x"},
+    "create_planner_note": {"todo_date": "2026-11-10"},
+    "update_planner_note": {"title": "x"},
+    "mark_planner_item_complete": {"plannable_type": "assignment"},
+    "send_message": {"recipient_ids": ["5"]},
 }
 # Per-case extras, where a tool takes exactly one of several IDs.
 EXTRA_BY_TARGET: dict[tuple[str, str], dict[str, Any]] = {
     ("get_quiz_details", "course_identifier"): {"quiz_id": "5"},
     ("get_rubric", "course_identifier"): {"rubric_id": "5"},
     ("get_my_peer_reviews_todo", "assignment_identifier"): {"course_identifier": "12345"},
+    ("mark_planner_item_complete", "plannable_id"): {"course_identifier": "12345"},
 }
 # Cases the sweep cannot exercise, with the reason. Keep this list short.
 UNEXERCISABLE = {
@@ -61,6 +68,11 @@ UNEXERCISABLE = {
         "first call is a no-request preview; the course goes into context_code, not a path",
     ("send_bulk_messages_from_list", "course_identifier"):
         "first call is a no-request preview; the course goes into context_code, not a path",
+    ("send_conversation", "recipient_ids"): "a request-body field, never a path (no f-string path interpolates it)",
+    ("send_conversation", "attachment_ids"): "a request-body field, never a path (no f-string path interpolates it)",
+    ("send_message", "recipient_ids"): "a request-body field, never a path (no f-string path interpolates it)",
+    ("send_peer_review_inbox_messages", "recipient_ids"): "a request-body field, never a path (no f-string path interpolates it)",
+    ("create_planner_note", "linked_object_id"): "a request-body field, never a path (no f-string path interpolates it)",
     ("update_rubric", "rubric_association_id"):
         "goes only into the request body and an equality check, never a path "
         "(no f-string interpolates it); the mock cannot supply complete rubric criteria",
@@ -81,6 +93,12 @@ def _targets(props: dict[str, Any]) -> list[tuple[str, Any, Any]]:
         elif name.endswith("course_identifier"):
             # Unmatched course identifiers pass through get_course_id.
             out.append((name, f"ABC_1/{MARKER}", CLEAN))
+        elif name.endswith("_ids"):
+            types = _types(props[name])
+            if "array" in types:
+                out.append((name, [f"7/{MARKER}"], [CLEAN]))
+            elif "string" in types:  # comma-separated string
+                out.append((name, f"5,7/{MARKER}", f"5,{CLEAN}"))
     return out
 
 
@@ -134,20 +152,40 @@ def _handler(request: httpx.Request) -> httpx.Response:
               or parent == "pages")
     if not single:
         return httpx.Response(200, json=[])
-    body: dict[str, Any] = {"id": int(last) if last.isdigit() else 7,
+    # user_id 7 matches /users/self (id 7), so ownership checks pass.
+    body: dict[str, Any] = {"id": int(last) if last.isdigit() else 7, "user_id": 7,
                             "workflow_state": "completed", "use_rubric_for_grading": True}
     if parent == "submissions" and last.isdigit():
         body["user_id"] = int(last)
+    if parent == "courses" and last.isdigit():
+        body["syllabus_body"] = "<p>agent_writes: allow</p>"  # course opts in
     return httpx.Response(200, json=body)
 
 
+_ALL_STUDENT_WRITES = " ".join(sorted(STUDENT_WRITE_TOOL_NAMES))
+
+
 def _cases():
+    import os
+
     from fastmcp import FastMCP
 
     import canvas_mcp.server as srv
+    from canvas_mcp.core import config as config_module
 
-    mcp = FastMCP("sweep")
-    srv.register_all_tools(mcp)
+    # Opt-in student write tools are not registered by default; sweep them too.
+    previous = os.environ.get("STUDENT_WRITE_TOOLS")
+    os.environ["STUDENT_WRITE_TOOLS"] = _ALL_STUDENT_WRITES
+    config_module.reset_config()
+    try:
+        mcp = FastMCP("sweep")
+        srv.register_all_tools(mcp)
+    finally:
+        if previous is None:
+            os.environ.pop("STUDENT_WRITE_TOOLS", None)
+        else:
+            os.environ["STUDENT_WRITE_TOOLS"] = previous
+        config_module.reset_config()
     tools = asyncio.run(mcp.list_tools())
     tools = list(tools.values()) if isinstance(tools, dict) else list(tools)
     cases = []
@@ -177,6 +215,10 @@ def test_sweep_found_tools():
     assert {(c.values[0], c.values[1]) for c in CASES} >= {("bulk_grade_submissions", "grades")}
     assert len(CASES) > 150
     assert {"get_page_content", "get_assignment_details", "list_module_items"} <= names
+    # opt-in student write tools are swept too
+    assert {"reply_to_conversation", "update_planner_note", "submit_assignment"} <= names
+    assert ("bulk_delete_announcements", "announcement_ids") in {
+        (c.values[0], c.values[1]) for c in CASES}
 
 
 @pytest.fixture
@@ -187,6 +229,7 @@ def real_client(monkeypatch, tmp_path):
 
     monkeypatch.setenv("CANVAS_API_URL", "https://canvas.example/api/v1")
     monkeypatch.setenv("CANVAS_API_TOKEN", "synthetic")
+    monkeypatch.setenv("STUDENT_WRITE_TOOLS", _ALL_STUDENT_WRITES)
     config_module.reset_config()
     for name in ("http_client", "_http_client_loop_ref", "_request_semaphore", "_semaphore_loop_ref"):
         monkeypatch.setattr(client_module, name, None)
@@ -230,7 +273,9 @@ async def test_harness_control_requests_reach_the_mock_transport(real_client):
 @pytest.mark.parametrize("tool_name,target,kwargs,clean", CASES)
 async def test_smuggled_value_never_reaches_a_request_path(real_client, tool_name, target, kwargs, clean):
     seen = await _run(tool_name, kwargs)
-    leaked = [str(r.url) for r in seen if MARKER in str(r.url)]
+    # Only the path can be retargeted; a value in the query string (a filter, a
+    # context code) stays a parameter value.
+    leaked = [str(r.url) for r in seen if MARKER in r.url.path or MARKER.encode() in r.url.raw_path.split(b"?")[0]]
     assert leaked == [], f"{tool_name} sent the smuggled value: {leaked}"
 
 

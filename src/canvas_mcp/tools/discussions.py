@@ -2061,6 +2061,12 @@ def register_educator_discussion_tools(mcp: FastMCP) -> None:
             limit: Max number of announcements per call (default: 25); pass a higher value to override
             confirmation_token: Token from the preview call; omit to preview
         """
+        bad_id = next((a for a in announcement_ids if coerce_canvas_id(a) is None), None)
+        if bad_id is not None:
+            return (
+                "Error: every announcement ID must be a numeric Canvas ID; "
+                f"got {bad_id!r}. Nothing was deleted."
+            )
         course_id = await get_course_id(course_identifier)
 
         if len(announcement_ids) > limit:
