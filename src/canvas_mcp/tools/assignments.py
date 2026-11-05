@@ -1351,6 +1351,14 @@ def register_educator_assignment_tools(mcp: FastMCP) -> None:
         # Validate that we have grades to process
         if not grades:
             return "Error: No grades provided. The grades dictionary is empty."
+        # Every key becomes a path segment (/submissions/<user_id>). Check them
+        # all before the batch starts, so a bad key cannot follow sent grades.
+        bad_user = next((uid for uid in grades if coerce_canvas_id(uid) is None), None)
+        if bad_user is not None:
+            return (
+                "Error: every key in grades must be a numeric Canvas user ID; "
+                f"got {bad_user!r}. No grades were submitted."
+            )
 
         # Check if rubric is configured for grading (if using rubric assessments)
         has_rubric_grades = any(

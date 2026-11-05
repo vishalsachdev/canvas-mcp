@@ -126,3 +126,42 @@ async def test_get_course_id_control_matched_name_with_slash_still_resolves(empt
     contains '/' still resolves to its numeric ID."""
     monkeypatch.setattr(cache, "course_code_to_id_cache", {"A/B TEST 101": "555"})
     assert await cache.get_course_id("A/B TEST 101") == "555"
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers check their own inputs (not only their registered callers)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("course,assignment", [("1/zz", "2"), ("1", "2/zz"), ("1", "x")])
+async def test_compose_reminder_refuses_before_any_request(course, assignment):
+    from canvas_mcp.tools import messaging
+
+    with patch.object(messaging, "make_canvas_request", new=AsyncMock()) as req:
+        result = await messaging._compose_reminder(course, assignment, None, True, "P")
+    assert isinstance(result, dict) and "error" in result
+    req.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_compose_reminder_control_clean_ids_are_requested():
+    from canvas_mcp.tools import messaging
+
+    with patch.object(messaging, "make_canvas_request",
+                      new=AsyncMock(return_value={"name": "A", "html_url": "u"})) as req:
+        await messaging._compose_reminder("1", "2", None, True, "P")
+    assert req.call_args.args[1] == "/courses/1/assignments/2"
+
+
+@pytest.mark.asyncio
+async def test_guarded_page_edit_refuses_multi_segment_slug_before_any_request():
+    from canvas_mcp.core.guarded_edit import BodyGuard
+    from canvas_mcp.tools import pages
+
+    with patch.object(pages, "make_canvas_request", new=AsyncMock()) as req, \
+         patch.object(pages, "get_course_id", new=AsyncMock(return_value="1")):
+        result = await pages._guarded_page_edit(
+            "1", "page/zz", "<p>x</p>", None, BodyGuard(None, None, None, None))
+    assert result.startswith("Error: Parameter 'page_url_or_id'")
+    req.assert_not_called()

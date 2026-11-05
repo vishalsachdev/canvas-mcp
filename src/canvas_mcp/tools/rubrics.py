@@ -1226,7 +1226,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                 cannot be un-sent. Never generate one that merely restates the
                 grade or narrates that grading happened.
         """
-        if id_error := numeric_id_error(assignment_id=assignment_id):
+        if id_error := numeric_id_error(assignment_id=assignment_id, user_id=user_id):
             return id_error
         # Backstop for issue 239: a comment or criterion comment lifted from
         # fenced read output would publish our provenance markers into the

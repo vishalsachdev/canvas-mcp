@@ -49,6 +49,8 @@ async def _guarded_page_edit(
     guard: BodyGuard,
 ) -> str:
     """edit_page_content with any issue-419 guard supplied."""
+    if slug_error := page_slug_error(page_url_or_id):
+        return slug_error
     error = validate_guard(guard, "new_content", new_content)
     if error:
         return error
@@ -255,6 +257,9 @@ def register_page_tools(mcp: FastMCP) -> None:
 
         if not urls:
             return "No pages specified. Please provide a comma-separated list of page URLs."
+        for page_url in urls:
+            if slug_error := page_slug_error(page_url):
+                return f"{slug_error} No pages were updated."
 
         # Build update parameters
         wiki_page_params: dict[str, Any] = {}

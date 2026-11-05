@@ -51,6 +51,7 @@ EXTRA_ARGS: dict[str, dict[str, Any]] = {
 EXTRA_BY_TARGET: dict[tuple[str, str], dict[str, Any]] = {
     ("get_quiz_details", "course_identifier"): {"quiz_id": "5"},
     ("get_rubric", "course_identifier"): {"rubric_id": "5"},
+    ("get_my_peer_reviews_todo", "assignment_identifier"): {"course_identifier": "12345"},
 }
 # Cases the sweep cannot exercise, with the reason. Keep this list short.
 UNEXERCISABLE = {
@@ -60,20 +61,36 @@ UNEXERCISABLE = {
         "first call is a no-request preview; the course goes into context_code, not a path",
     ("send_bulk_messages_from_list", "course_identifier"):
         "first call is a no-request preview; the course goes into context_code, not a path",
+    ("update_rubric", "rubric_association_id"):
+        "goes only into the request body and an equality check, never a path "
+        "(no f-string interpolates it); the mock cannot supply complete rubric criteria",
 }
 
 
-def _targets(props: dict[str, Any]) -> list[tuple[str, str]]:
-    out = []
+CLEAN = "424242"  # distinctive clean token: must show up in a request
+
+
+def _targets(props: dict[str, Any]) -> list[tuple[str, Any, Any]]:
+    """(param, smuggled value, clean value) for each ID-like parameter."""
+    out: list[tuple[str, Any, Any]] = []
     for name in props:
         if name in SLUG_PARAMS:
-            out.append((name, f"page/{MARKER}"))
+            out.append((name, f"page/{MARKER}", f"slug-{CLEAN}"))
         elif name in NUMERIC_EXTRA or (name.endswith("_id") and name not in TEXT_ID_PARAMS):
-            out.append((name, f"7/{MARKER}"))
+            out.append((name, f"7/{MARKER}", CLEAN))
         elif name.endswith("course_identifier"):
             # Unmatched course identifiers pass through get_course_id.
-            out.append((name, f"ABC_1/{MARKER}"))
+            out.append((name, f"ABC_1/{MARKER}", CLEAN))
     return out
+
+
+# IDs nested inside list or dict arguments that reach a request path.
+NESTED_TARGETS: dict[str, list[tuple[str, Any, Any]]] = {
+    "bulk_grade_submissions": [
+        ("grades", {f"7/{MARKER}": {"grade": "1"}}, {CLEAN: {"grade": "1"}})],
+    "bulk_update_pages": [
+        ("page_urls", f"ok-page,page/{MARKER}", f"ok-page,slug-{CLEAN}")],
+}
 
 
 def _types(schema: dict[str, Any]) -> list[str]:
@@ -99,14 +116,28 @@ def _dummy(name: str, schema: dict[str, Any]) -> Any:
     return None
 
 
+_GROUP = {"id": int(CLEAN), "name": "G", "course_id": 12345, "group_category_id": int(CLEAN)}
+
+
 def _handler(request: httpx.Request) -> httpx.Response:
+    """A cooperative Canvas: grants permissions, lists the caller in group CLEAN,
+    and echoes requested IDs, so tools get past their gates to the ID under test."""
     parts = request.url.path.rstrip("/").split("/")
     last, parent = parts[-1], parts[-2] if len(parts) > 1 else ""
     if parent == "progress":
         return httpx.Response(200, json={"id": 7, "workflow_state": "completed"})
+    if last == "permissions":
+        return httpx.Response(200, json={"manage_grades": True, "create_announcement": True})
+    if last == "groups" and request.method == "GET":
+        return httpx.Response(200, json=[_GROUP])
     single = (request.method != "GET" or last.isdigit() or last in {"self", "front_page"}
               or parent == "pages")
-    body: Any = {"id": 7, "workflow_state": "completed"} if single else []
+    if not single:
+        return httpx.Response(200, json=[])
+    body: dict[str, Any] = {"id": int(last) if last.isdigit() else 7,
+                            "workflow_state": "completed", "use_rubric_for_grading": True}
+    if parent == "submissions" and last.isdigit():
+        body["user_id"] = int(last)
     return httpx.Response(200, json=body)
 
 
@@ -126,12 +157,14 @@ def _cases():
         params = t.parameters or {}
         props = params.get("properties", {})
         required = set(params.get("required", []))
-        for target, value in _targets(props):
+        for target, value, clean_value in _targets(props) + NESTED_TARGETS.get(t.name, []):
             kwargs = {n: _dummy(n, props[n]) for n in required}
             kwargs.update(EXTRA_ARGS.get(t.name, {}))
             kwargs.update(EXTRA_BY_TARGET.get((t.name, target), {}))
+            clean = dict(kwargs)
             kwargs[target] = value
-            cases.append(pytest.param(t.name, kwargs, id=f"{t.name}-{target}"))
+            clean[target] = clean_value
+            cases.append(pytest.param(t.name, target, kwargs, clean, id=f"{t.name}-{target}"))
     return cases
 
 
@@ -141,6 +174,7 @@ CASES = _cases()
 def test_sweep_found_tools():
     """Positive control: the sweep must actually enumerate the ID parameters."""
     names = {c.values[0] for c in CASES}
+    assert {(c.values[0], c.values[1]) for c in CASES} >= {("bulk_grade_submissions", "grades")}
     assert len(CASES) > 150
     assert {"get_page_content", "get_assignment_details", "list_module_items"} <= names
 
@@ -193,26 +227,21 @@ async def test_harness_control_requests_reach_the_mock_transport(real_client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("tool_name,kwargs", CASES)
-async def test_smuggled_value_never_reaches_a_request_path(real_client, tool_name, kwargs):
+@pytest.mark.parametrize("tool_name,target,kwargs,clean", CASES)
+async def test_smuggled_value_never_reaches_a_request_path(real_client, tool_name, target, kwargs, clean):
     seen = await _run(tool_name, kwargs)
     leaked = [str(r.url) for r in seen if MARKER in str(r.url)]
     assert leaked == [], f"{tool_name} sent the smuggled value: {leaked}"
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("tool_name,kwargs", CASES)
-async def test_every_case_is_exercised(real_client, tool_name, kwargs):
-    """A case only proves something if the tool sends a request when the value is
-    clean. If the clean run sends nothing, the tool exits before the ID is used:
-    add the missing arguments to EXTRA_ARGS."""
-    target = next(n for n, v in kwargs.items() if isinstance(v, str) and MARKER in v)
+@pytest.mark.parametrize("tool_name,target,kwargs,clean", CASES)
+async def test_every_case_is_exercised(real_client, tool_name, target, kwargs, clean):
+    """A case proves something only if, with a clean value, that value reaches a
+    request (URL or body). Otherwise the tool stops before using it: add the
+    missing arguments to EXTRA_ARGS, or the mock fields it needs to _handler."""
     if (tool_name, target) in UNEXERCISABLE:
         pytest.skip(UNEXERCISABLE[(tool_name, target)])
-    clean = dict(kwargs)
-    for name, value in kwargs.items():
-        if isinstance(value, str) and MARKER in value:
-            clean[name] = ("week-1-overview" if name in SLUG_PARAMS
-                           else "12345" if name.endswith("identifier") else "7")
     seen = await _run(tool_name, clean)
-    assert seen, f"{tool_name} sent no request even with clean arguments"
+    reached = [r for r in seen if CLEAN in str(r.url) or CLEAN.encode() in (r.content or b"")]
+    assert reached, f"{tool_name}: clean {target} never reached a request ({len(seen)} sent)"
