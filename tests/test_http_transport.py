@@ -26,12 +26,14 @@ class _FakeConfig:
         entra_auth_enabled=False,
         mcp_entra_allowed_oids=frozenset(),
         access_request_enabled=False,
+        mcp_entra_allow_any_tenant_identity=False,
     ):
         self.canvas_api_url = canvas_api_url
         self.mcp_access_keys = mcp_access_keys
         self.entra_auth_enabled = entra_auth_enabled
         self.mcp_entra_allowed_oids = mcp_entra_allowed_oids
         self.access_request_enabled = access_request_enabled
+        self.mcp_entra_allow_any_tenant_identity = mcp_entra_allow_any_tenant_identity
 
 # ---------------------------------------------------------------------------
 # ContextVar credential tests
@@ -809,6 +811,9 @@ class TestHttpAccessKeyStartupGuard:
         monkeypatch.delenv("MCP_ACCESS_KEYS", raising=False)
         monkeypatch.delenv("MCP_ALLOW_UNAUTHENTICATED", raising=False)
         monkeypatch.delenv("ENTRA_AUTH_ENABLED", raising=False)
+        monkeypatch.delenv("MCP_ENTRA_ALLOWED_OIDS", raising=False)
+        monkeypatch.delenv("MCP_ENTRA_ALLOW_ANY_TENANT_IDENTITY", raising=False)
+        monkeypatch.delenv("ACCESS_REQUEST_ENABLED", raising=False)
         for key, value in env.items():
             monkeypatch.setenv(key, value)
 
@@ -850,12 +855,44 @@ class TestHttpAccessKeyStartupGuard:
         assert exc.code == 1
 
     def test_entra_enabled_with_optin_starts(self, monkeypatch):
-        """ENTRA_AUTH_ENABLED=true + MCP_ALLOW_UNAUTHENTICATED=true -> starts (exit 0)."""
+        """Entra + external-auth opt-in + a non-empty OID allowlist -> starts (exit 0)."""
         exc = self._run_main(
             monkeypatch,
             env={
                 "ENTRA_AUTH_ENABLED": "true",
                 "MCP_ALLOW_UNAUTHENTICATED": "true",
+                "MCP_ENTRA_ALLOWED_OIDS": "oid-alice",
+            },
+        )
+        assert exc.code == 0
+
+    def test_entra_empty_allowlist_without_any_identity_optin_exits_nonzero(self, monkeypatch):
+        """Entra + empty MCP_ENTRA_ALLOWED_OIDS and no opt-in -> refuse to start."""
+        exc = self._run_main(
+            monkeypatch,
+            env={"ENTRA_AUTH_ENABLED": "true", "MCP_ALLOW_UNAUTHENTICATED": "true"},
+        )
+        assert exc.code == 1
+
+    def test_entra_empty_allowlist_with_any_identity_optin_starts(self, monkeypatch):
+        exc = self._run_main(
+            monkeypatch,
+            env={
+                "ENTRA_AUTH_ENABLED": "true",
+                "MCP_ALLOW_UNAUTHENTICATED": "true",
+                "MCP_ENTRA_ALLOW_ANY_TENANT_IDENTITY": "true",
+            },
+        )
+        assert exc.code == 0
+
+    def test_entra_empty_allowlist_with_access_overlay_starts(self, monkeypatch):
+        """Empty env list + overlay on is the overlay-only mode: a valid config."""
+        exc = self._run_main(
+            monkeypatch,
+            env={
+                "ENTRA_AUTH_ENABLED": "true",
+                "MCP_ALLOW_UNAUTHENTICATED": "true",
+                "ACCESS_REQUEST_ENABLED": "true",
             },
         )
         assert exc.code == 0
@@ -958,8 +995,8 @@ class TestEntraPlatformAuth:
         assert send.call_args_list[0][0][0]["status"] == 403
 
     @pytest.mark.asyncio
-    async def test_empty_allowlist_allows_any_platform_identity(self, middleware):
-        """Empty allowlist -> any platform-authenticated identity proceeds."""
+    async def test_empty_allowlist_allows_any_identity_only_with_explicit_optin(self, middleware):
+        """Empty allowlist + MCP_ENTRA_ALLOW_ANY_TENANT_IDENTITY -> any identity proceeds."""
         captured = {}
 
         async def capture_app(scope, receive, send):
@@ -975,11 +1012,79 @@ class TestEntraPlatformAuth:
                 (b"x-canvas-token", b"tok"),
             ],
         }
-        cfg = _FakeConfig(entra_auth_enabled=True, mcp_entra_allowed_oids=frozenset())
+        cfg = _FakeConfig(
+            entra_auth_enabled=True,
+            mcp_entra_allowed_oids=frozenset(),
+            mcp_entra_allow_any_tenant_identity=True,
+        )
         with patch("canvas_mcp.server.get_config", return_value=cfg):
             await middleware(scope, AsyncMock(), AsyncMock())
 
         assert captured["token"] == "tok"
+
+    @pytest.mark.asyncio
+    async def test_any_identity_optin_does_not_open_a_non_empty_allowlist(self, middleware):
+        """The opt-in applies only to an EMPTY list; a listed server stays listed."""
+        inner = AsyncMock()
+        middleware.app = inner
+        send = AsyncMock()
+        scope = {
+            "type": "http",
+            "headers": [
+                (b"x-ms-client-principal-id", b"oid-mallory"),
+                (b"x-ms-client-principal", _principal_header({"scp": "access_as_user"})),
+                (b"x-canvas-token", b"tok"),
+            ],
+        }
+        cfg = _FakeConfig(
+            entra_auth_enabled=True,
+            mcp_entra_allowed_oids=frozenset({"oid-alice"}),
+            mcp_entra_allow_any_tenant_identity=True,
+        )
+        with patch("canvas_mcp.server.get_config", return_value=cfg):
+            await middleware(scope, AsyncMock(), send)
+
+        inner.assert_not_called()
+        assert send.call_args_list[0][0][0]["status"] == 403
+
+    @pytest.mark.asyncio
+    async def test_any_identity_optin_still_requires_an_identity(self, middleware):
+        inner = AsyncMock()
+        middleware.app = inner
+        send = AsyncMock()
+        scope = {"type": "http", "headers": [(b"x-canvas-token", b"tok")]}
+        cfg = _FakeConfig(
+            entra_auth_enabled=True,
+            mcp_entra_allowed_oids=frozenset(),
+            mcp_entra_allow_any_tenant_identity=True,
+        )
+        with patch("canvas_mcp.server.get_config", return_value=cfg):
+            await middleware(scope, AsyncMock(), send)
+
+        inner.assert_not_called()
+        assert send.call_args_list[0][0][0]["status"] == 401
+
+    @pytest.mark.asyncio
+    async def test_empty_allowlist_without_optin_returns_403(self, middleware):
+        """Empty allowlist and no opt-in -> deny. Startup refuses this config too;
+        the middleware fails closed on its own as a second line."""
+        inner = AsyncMock()
+        middleware.app = inner
+        send = AsyncMock()
+        scope = {
+            "type": "http",
+            "headers": [
+                (b"x-ms-client-principal-id", b"oid-anyone"),
+                (b"x-ms-client-principal", _principal_header({"scp": "access_as_user"})),
+                (b"x-canvas-token", b"tok"),
+            ],
+        }
+        cfg = _FakeConfig(entra_auth_enabled=True, mcp_entra_allowed_oids=frozenset())
+        with patch("canvas_mcp.server.get_config", return_value=cfg):
+            await middleware(scope, AsyncMock(), send)
+
+        inner.assert_not_called()
+        assert send.call_args_list[0][0][0]["status"] == 403
 
 
 # ---------------------------------------------------------------------------
@@ -1009,9 +1114,73 @@ class TestAccessOverlayGate:
             "acs_endpoint": "https://acs",
             "acs_sender": "x@d",
             "access_notify_cooldown_hours": 24,
+            "mcp_entra_allow_any_tenant_identity": False,
         }
         base.update(kw)
         return SimpleNamespace(**base)
+
+    def _scope(self, oid: bytes):
+        return {"type": "http", "path": "/mcp", "headers": [
+            (b"x-ms-client-principal-id", oid),
+            (b"x-ms-client-principal", _principal_header(
+                {"scp": "x", "name": "N", "preferred_username": "n@x.edu"})),
+            (b"x-canvas-token", b"tok")]}
+
+    @pytest.mark.asyncio
+    async def test_empty_env_list_with_overlay_denies_ungranted_oid(self, middleware):
+        """Overlay on + empty env allowlist means overlay-only, not any identity."""
+        from canvas_mcp.core.access.store import AccessStore, InMemoryBackend
+        store = AccessStore(InMemoryBackend(), cache_ttl_seconds=0)
+        inner = AsyncMock()
+        middleware.app = inner
+        send = AsyncMock()
+        with patch("canvas_mcp.server.get_config",
+                   return_value=self._cfg(mcp_entra_allowed_oids=frozenset())), \
+             patch("canvas_mcp.server._access_store", return_value=store), \
+             patch("canvas_mcp.server._schedule_notify") as sched:
+            await middleware(self._scope(b"oid-stranger"), AsyncMock(), send)
+        inner.assert_not_called()
+        assert send.call_args_list[0][0][0]["status"] == 403
+        sched.assert_called_once()  # the access-request email still goes out
+
+    @pytest.mark.asyncio
+    async def test_empty_env_list_with_overlay_admits_granted_oid(self, middleware):
+        from canvas_mcp.core.access.store import AccessStore, InMemoryBackend, Requester
+        store = AccessStore(InMemoryBackend(), cache_ttl_seconds=0)
+        store.grant(Requester("oid-granted", "g@x", "G"), jti="j1")
+        inner = AsyncMock()
+        middleware.app = inner
+        with patch("canvas_mcp.server.get_config",
+                   return_value=self._cfg(mcp_entra_allowed_oids=frozenset())), \
+             patch("canvas_mcp.server._access_store", return_value=store):
+            await middleware(self._scope(b"oid-granted"), AsyncMock(), AsyncMock())
+        inner.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_any_identity_optin_with_overlay_skips_overlay_lookup(self, middleware):
+        """Tenant-wide mode admits without consulting the overlay store."""
+        inner = AsyncMock()
+        middleware.app = inner
+        with patch("canvas_mcp.server.get_config",
+                   return_value=self._cfg(mcp_entra_allowed_oids=frozenset(),
+                                          mcp_entra_allow_any_tenant_identity=True)), \
+             patch("canvas_mcp.server._access_store") as store_factory:
+            await middleware(self._scope(b"oid-anyone"), AsyncMock(), AsyncMock())
+        inner.assert_called_once()
+        store_factory.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_empty_env_list_with_overlay_store_unavailable_denies(self, middleware):
+        """No store (feature not ready) -> nobody is granted -> deny, never open."""
+        inner = AsyncMock()
+        middleware.app = inner
+        send = AsyncMock()
+        with patch("canvas_mcp.server.get_config",
+                   return_value=self._cfg(mcp_entra_allowed_oids=frozenset())), \
+             patch("canvas_mcp.server._access_store", return_value=None):
+            await middleware(self._scope(b"oid-stranger"), AsyncMock(), send)
+        inner.assert_not_called()
+        assert send.call_args_list[0][0][0]["status"] == 403
 
     @pytest.mark.asyncio
     async def test_overlay_oid_is_authorized(self, middleware):
