@@ -200,10 +200,25 @@ def _cases():
             kwargs.update(EXTRA_ARGS.get(t.name, {}))
             kwargs.update(EXTRA_BY_TARGET.get((t.name, target), {}))
             clean = dict(kwargs)
-            kwargs[target] = value
             clean[target] = clean_value
-            cases.append(pytest.param(t.name, target, kwargs, clean, id=f"{t.name}-{target}"))
+            # Each attack also runs percent-encoded, so a check that stops
+            # decoding before it looks for a delimiter is caught here too.
+            for variant, attack in (("raw", value), ("encoded", _encoded(value))):
+                smuggled = dict(kwargs)
+                smuggled[target] = attack
+                cases.append(pytest.param(t.name, target, smuggled, clean,
+                                          id=f"{t.name}-{target}-{variant}"))
     return cases
+
+
+def _encoded(value: Any) -> Any:
+    if isinstance(value, str):
+        return value.replace("/", "%2F")
+    if isinstance(value, list):
+        return [_encoded(v) for v in value]
+    if isinstance(value, dict):
+        return {_encoded(k): v for k, v in value.items()}
+    return value
 
 
 CASES = _cases()
@@ -213,7 +228,8 @@ def test_sweep_found_tools():
     """Positive control: the sweep must actually enumerate the ID parameters."""
     names = {c.values[0] for c in CASES}
     assert {(c.values[0], c.values[1]) for c in CASES} >= {("bulk_grade_submissions", "grades")}
-    assert len(CASES) > 150
+    assert len(CASES) > 300
+    assert any(c.id.endswith("-encoded") for c in CASES)
     assert {"get_page_content", "get_assignment_details", "list_module_items"} <= names
     # opt-in student write tools are swept too
     assert {"reply_to_conversation", "update_planner_note", "submit_assignment"} <= names
@@ -279,8 +295,12 @@ async def test_smuggled_value_never_reaches_a_request_path(real_client, tool_nam
     assert leaked == [], f"{tool_name} sent the smuggled value: {leaked}"
 
 
+# The clean run is the same for both variants of a case; run it once.
+EXERCISE_CASES = [c for c in CASES if c.id.endswith("-raw")]
+
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize("tool_name,target,kwargs,clean", CASES)
+@pytest.mark.parametrize("tool_name,target,kwargs,clean", EXERCISE_CASES)
 async def test_every_case_is_exercised(real_client, tool_name, target, kwargs, clean):
     """A case proves something only if, with a clean value, that value reaches a
     request (URL or body). Otherwise the tool stops before using it: add the
