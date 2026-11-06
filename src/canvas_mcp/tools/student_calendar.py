@@ -648,6 +648,8 @@ def _event_sort_key(event: dict) -> dt.datetime:
 
 async def _fetch_my_note(note_id: str, my_id: str) -> tuple[dict | None, str | None]:
     """Read a planner note and prove it belongs to the caller."""
+    if coerce_canvas_id(note_id) is None:
+        return None, _INVALID_ID.format(name="note_id")
     note = await make_canvas_request("get", f"/planner_notes/{note_id}")
     if not isinstance(note, dict) or _is_error(note):
         return None, f"Error fetching planner note {note_id}: {_error_detail(note)}"
@@ -664,6 +666,8 @@ async def _fetch_my_note(note_id: str, my_id: str) -> tuple[dict | None, str | N
 
 async def _fetch_my_personal_event(event_id: str, my_id: str) -> tuple[dict | None, str | None]:
     """Read a calendar event and prove it is on the caller's personal calendar."""
+    if coerce_canvas_id(event_id) is None:
+        return None, _INVALID_ID.format(name="event_id")
     event = await make_canvas_request("get", f"/calendar_events/{event_id}")
     if not isinstance(event, dict) or _is_error(event):
         return None, f"Error fetching calendar event {event_id}: {_error_detail(event)}"

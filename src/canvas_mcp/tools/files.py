@@ -36,7 +36,7 @@ from ..core.file_validation import (
     validate_file_for_upload,
 )
 from ..core.untrusted_content import fence_untrusted, fence_untrusted_inline
-from ..core.validation import validate_params
+from ..core.validation import numeric_id_error, validate_params
 
 
 def register_shared_file_tools(mcp: FastMCP) -> None:
@@ -70,6 +70,8 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
             file_id: Canvas file ID
             save_directory: Local directory to save to (default: system temp dir, must exist)
         """
+        if id_error := numeric_id_error(file_id=file_id):
+            return id_error
         # This tool writes to the *server's* filesystem. On a local stdio server
         # that is the caller's own machine; on a shared HTTP one it is somebody
         # else's host, and the caller picks both the destination directory and
@@ -206,6 +208,8 @@ def register_shared_file_tools(mcp: FastMCP) -> None:
                 READ_FILE_MAX_SIZE_MB (default 100). Files larger than the effective limit are
                 rejected to avoid excessive memory usage.
         """
+        if id_error := numeric_id_error(file_id=file_id):
+            return id_error
         if max_size_mb <= 0:
             return (
                 f"Error: max_size_mb must be positive (got {max_size_mb}). "

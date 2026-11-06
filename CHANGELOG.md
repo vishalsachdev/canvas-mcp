@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Request paths keep each identifier as one segment.** Educator and shared tools now refuse an ID argument that is not a numeric Canvas ID and a page slug that contains a path delimiter (`/`, `\`, `?` or `#`, raw or percent-encoded) or is `.` or `..`, before any request. An unmatched course identifier that would pass through to Canvas is refused the same way. A course that matches by code or name, including one with `/` in its code, still resolves as before. A new test sweeps every registered tool with such values.
+
 ### Changed (breaking for hosted operators)
 
 - **An empty Entra allowlist now needs an explicit setting.** With `ENTRA_AUTH_ENABLED=true` and an empty `MCP_ENTRA_ALLOWED_OIDS`, the HTTP server refuses to start unless `ACCESS_REQUEST_ENABLED=true` (only identities granted through the access-request flow get in) or the new `MCP_ENTRA_ALLOW_ANY_TENANT_IDENTITY=true` (every platform-authenticated tenant identity gets in, the old default). The request middleware applies the same rule. Deployments with a non-empty allowlist are unaffected.

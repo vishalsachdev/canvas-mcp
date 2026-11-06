@@ -35,7 +35,7 @@ from ..core.untrusted_content import (
     fence_untrusted,
     fence_untrusted_inline,
 )
-from ..core.validation import validate_params
+from ..core.validation import numeric_id_error, page_slug_error, validate_params
 from ..core.write_confirmation import (
     ConfirmationGuard,
     preview_with_token,
@@ -627,6 +627,8 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
             course_identifier: Course code or Canvas ID
             page_url_or_id: Page URL slug or page ID
         """
+        if slug_error := page_slug_error(page_url_or_id):
+            return slug_error
         course_id = await get_course_id(course_identifier)
 
         response = await make_canvas_request("get", f"/courses/{course_id}/pages/{page_url_or_id}")
@@ -675,6 +677,8 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
             course_identifier: Course code or Canvas ID
             page_url_or_id: Page URL slug or page ID
         """
+        if slug_error := page_slug_error(page_url_or_id):
+            return slug_error
         course_id = await get_course_id(course_identifier)
 
         response = await make_canvas_request("get", f"/courses/{course_id}/pages/{page_url_or_id}")
@@ -800,6 +804,8 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
             module_id: The module ID
             include_content_details: Include additional content details (default: True)
         """
+        if id_error := numeric_id_error(module_id=module_id):
+            return id_error
         course_id = await get_course_id(course_identifier)
 
         params: dict[str, Any] = {"per_page": 100}
