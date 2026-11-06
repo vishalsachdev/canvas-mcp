@@ -133,15 +133,18 @@ async def get_course_id(course_identifier: str | int) -> str:
                           - A SIS ID format (e.g., 'sis_course_id:xxx')
 
     A course code (spaces allowed), name or bare SIS ID of one of the caller's
-    courses resolves as in ``resolve_numeric_course_id``. An identifier that
-    matches none of them is passed through as before (an
-    underscore code as ``sis_course_id:<code>``), so the result may not be
-    numeric; code that puts it in a path or compares it should use
-    ``resolve_numeric_course_id`` instead. Ambiguous aliases raise ValueError
-    before a tool can dispatch a request against an arbitrary course.
+    courses resolves as in ``resolve_numeric_course_id``. Explicit
+    ``sis_course_id:`` forms pass through; code needing a numeric result
+    should use ``resolve_numeric_course_id`` instead.
 
     Returns:
         The course ID as a string
+
+    Raises:
+        ValueError: before any target request, when the identifier matches
+            more than one of the caller's courses, matches none of them (with
+            "Did you mean" suggestions for a partial name or code), or the
+            course list could not be loaded at all.
     """
     global course_code_to_id_cache, id_to_course_code_cache
 
@@ -164,19 +167,23 @@ async def get_course_id(course_identifier: str | int) -> str:
                 raise ValueError(error)
             if found is not None:
                 return found
-        # Preserve the legacy pass-through contract, without using another
-        # caller's aliases. Canvas still authorizes the eventual request.
-        return _pass_through(
-            f"sis_course_id:{course_str}" if "_" in course_str else course_str
-        )
+        if not isinstance(courses, list):
+            raise ValueError(
+                f"Could not find course {course_str}: your course list could not be loaded from Canvas."
+            )
+        return _unresolved_course(course_str, course_records(courses))
 
     # One of the caller's courses by code (spaces allowed, as in 'COMPSCI
-    # 161'), name or SIS ID, ignoring case and surrounding whitespace. On a
+    # 161'), name or SIS ID, ignoring case and whitespace differences. On a
     # miss the course list is re-read once (shared and rate-limited, see
     # _refresh_after_miss) and searched again. An ambiguous match is not
     # retried; it is refused before any target request.
     found, ambiguous = _match_cached(course_str)
-    if found is None and ambiguous is None and await _refresh_after_miss():
+    if found is None and ambiguous is None:
+        if not await _refresh_after_miss() and not course_records_cache:
+            raise ValueError(
+                f"Could not find course {course_str}: your course list could not be loaded from Canvas."
+            )
         found, ambiguous = _match_cached(course_str)
     if ambiguous is not None:
         # Refuse ambiguity rather than reinterpret it as a SIS target.
@@ -184,15 +191,52 @@ async def get_course_id(course_identifier: str | int) -> str:
     if found is not None:
         return found
 
-    # Unchanged fallback for an identifier none of the caller's courses has;
-    # callers pass it on to Canvas, which decides.
-    # If it looks like a course code (contains underscores)
-    if "_" in course_str:
-        # Return SIS format as a fallback
-        return _pass_through(f"sis_course_id:{course_str}")
+    return _unresolved_course(course_str)
 
-    # Last resort, return as is
-    return _pass_through(course_str)
+
+def _course_suggestions(identifier: str, records: Iterable[CourseRecord]) -> str | None:
+    """Suggest partial name/code matches for a refusal, never resolve them."""
+    identifier = identifier.strip()
+    key = _alias_key(identifier)
+    if len(key.replace(" ", "")) < 3:
+        return None
+    candidates = {
+        course_id: (code, name)
+        for course_id, code, name, _ in records
+        if key in _alias_key(code) or key in _alias_key(name)
+    }
+    if not candidates:
+        return None
+    choices = []
+    for course_id in sorted(candidates, key=int)[:5]:  # IDs are digits (course_records)
+        code, name = candidates[course_id]
+        choices.append(
+            f'{fence_untrusted_inline(code, "course code")} '
+            f'"{fence_untrusted_inline(name, "course name")}" (ID {course_id})'
+        )
+    if len(candidates) > 5:
+        choices.append(f"{len(candidates) - 5} more")
+    return (
+        f"Could not find course {identifier}. Did you mean: {'; '.join(choices)}? "
+        "Pass that course ID or its exact code or name."
+    )
+
+
+def _unresolved_course(
+    identifier: str, records: Iterable[CourseRecord] | None = None,
+) -> str:
+    """Refuse an unknown alias before a caller can construct a target path."""
+    identifier = identifier.strip()
+    suggestion = _course_suggestions(
+        identifier, course_records_cache if records is None else records,
+    )
+    if suggestion:
+        raise ValueError(suggestion)
+    _pass_through(identifier)  # Preserve the path-segment safety refusal.
+    raise ValueError(
+        f"Could not find course {identifier} among your Canvas courses. "
+        "Use a course code or name from list_courses, or a numeric Canvas course ID."
+    )
 
 
 def _pass_through(identifier: str) -> str:
@@ -277,8 +321,8 @@ def course_records(courses: Iterable[Any]) -> list[CourseRecord]:
 
 
 def _alias_key(value: object) -> str:
-    """A course alias compared case-insensitively, ignoring surrounding whitespace."""
-    return str(value).strip().casefold()
+    """A course alias compared case-insensitively, normalizing whitespace."""
+    return " ".join(str(value).split()).casefold()
 
 
 def _match_course(
@@ -296,6 +340,7 @@ def _match_course(
     instructor can set a course code to anything).
     """
     key = _alias_key(identifier)
+    records = list(records)
     matches: set[str] = set()
     for course_id, code, name, sis in records:
         if code and _alias_key(code) == key:
@@ -312,9 +357,14 @@ def _match_course(
         return next(iter(matches)), None
     if matches:
         ids = ", ".join(sorted(matches, key=int))
+        labels = ", ".join(sorted({
+            fence_untrusted_inline(code, "course code")
+            for course_id, code, _, _ in records if course_id in matches and code
+        }))
         return None, (
             f"Could not find course {identifier}: it matches more than one of "
-            f"your courses (IDs {ids}). Pass the numeric Canvas course ID."
+            f"your courses (IDs {ids}; course codes: {labels or 'unavailable'}). "
+            "Pass the numeric Canvas course ID."
         )
     return None, None
 
@@ -323,8 +373,8 @@ def match_course(identifier: str, courses: Iterable[Any]) -> tuple[str | None, s
     """Match ``identifier`` against the given Canvas course objects only.
 
     Same rules as ``resolve_numeric_course_id`` (course code, SIS ID with or
-    without the ``sis_course_id:`` prefix, or name; case and surrounding
-    whitespace ignored; more than one course is an error), with no request.
+    without the ``sis_course_id:`` prefix, or name; case and whitespace differences
+    ignored; more than one course is an error), with no request.
     Returns ``(None, None)`` on a miss so the caller can word that itself.
     """
     return _match_course(str(identifier).strip(), course_records(courses))
@@ -373,9 +423,10 @@ async def resolve_numeric_course_id(
       segment (no ``/``, backslash, ``?``, ``#``, ``%``, ``..``, whitespace or
       control characters). Any other SIS form is refused without a request.
     - Anything else (a course code such as ``COMPSCI 161``, a course name, or
-      a bare SIS ID) is matched case-insensitively, ignoring surrounding
-      whitespace, against the caller's courses; a value that names more than
-      one course, under any alias, is refused. On a miss the course list is
+      a bare SIS ID) is matched case-insensitively, ignoring whitespace
+      differences, against the caller's courses; a value that names more than
+      one course, under any alias, is refused. A miss lists partial matches as
+      "Did you mean" suggestions but never resolves one. On a miss the course list is
       re-read and searched again, whether the cache was cold or warm, unless
       it was read within ``REFRESH_ON_MISS_INTERVAL_SECONDS``. The identifier
       is never sent to Canvas.
@@ -386,7 +437,7 @@ async def resolve_numeric_course_id(
             cache; no refresh is made. Numeric and SIS forms behave as above.
     """
     raw = str(course_identifier).strip()
-    not_found = f"Could not find course {course_identifier}"
+    not_found = f"Could not find course {raw}"
     not_listed = (
         f"{not_found} among your Canvas courses. Use a course code or name from "
         "list_courses, or a numeric Canvas course ID."
@@ -425,15 +476,18 @@ async def resolve_numeric_course_id(
         return (found, None) if found is not None else (None, not_found)
 
     if courses is not None:
-        found, error = match_course(raw, courses)
-        return (found, None) if found is not None else (None, error or not_listed)
+        records = course_records(courses)
+        found, error = _match_course(raw, records)
+        if found is not None or error:
+            return found, error
+        return None, _course_suggestions(raw, records) or not_listed
 
     found, error = _match_cached(raw)
     if found is not None or error:
         return found, error
-    if not await _refresh_after_miss():
+    if not await _refresh_after_miss() and not course_records_cache:
         return None, f"{not_found}: your course list could not be loaded from Canvas."
     found, error = _match_cached(raw)
     if found is not None or error:
         return found, error
-    return None, not_listed
+    return None, _course_suggestions(raw, course_records_cache) or not_listed

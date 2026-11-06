@@ -9,8 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Identifier refusals use each tool's own wording: the module write tools return plain `Error: ...` text like the rest of their responses, and `bulk_update_pages` names its `page_urls` parameter.
+- **Course names resolve in one call, and a partial name gets suggestions.** Names and codes match ignoring case and any whitespace differences. A name that matches no course is refused before any request; if it is part of one or more course names or codes, the refusal lists up to five as "Did you mean" with their IDs, and never selects one. A name that matches several courses lists their course codes.
+
 - **Request paths keep each identifier as one segment.** Educator and shared tools now refuse an ID argument that is not a numeric Canvas ID and a page slug that contains a path delimiter (`/`, `\`, `?` or `#`, raw or percent-encoded) or is `.` or `..`, before any request. An unmatched course identifier that would pass through to Canvas is refused the same way. A course that matches by code or name, including one with `/` in its code, still resolves as before. A new test sweeps every registered tool with such values.
+
+- Identifier refusals use each tool's own wording: the module write tools return plain `Error: ...` text like the rest of their responses, and `bulk_update_pages` names its `page_urls` parameter.
+
+### Changed (breaking)
+
+- **An unmatched course identifier is refused instead of sent to Canvas.** A bare value with underscores that matches none of your courses is no longer guessed as a SIS ID; pass `sis_course_id:<id>` for a SIS lookup (for example a concluded course missing from your course list). If the course list cannot be loaded and nothing is cached, a course code or name is refused rather than passed through; numeric IDs and `sis_course_id:` forms are unaffected.
 
 ### Changed (breaking for hosted operators)
 
@@ -901,7 +908,6 @@ rather than papered over. Two independent review rounds ran against the result.
   local stdio path is not a URL swap — the documented stdio config uses an
   absolute venv binary path and credentials live in the server's `.env`
   ([#249](https://github.com/vishalsachdev/canvas-mcp/issues/249)).
-
 
 ## [1.7.0] — 2026-08-08
 

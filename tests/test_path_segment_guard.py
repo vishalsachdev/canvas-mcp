@@ -114,9 +114,10 @@ async def test_get_course_id_fallback_refuses_delimiters(empty_course_cache, ide
 
 
 @pytest.mark.asyncio
-async def test_get_course_id_fallback_control_plain_values_pass(empty_course_cache):
+async def test_get_course_id_numeric_and_explicit_sis_pass_but_unknown_alias_is_refused(empty_course_cache):
     assert await cache.get_course_id("123") == "123"
-    assert await cache.get_course_id("abc_1") == "sis_course_id:abc_1"
+    with pytest.raises(ValueError, match="Could not find course"):
+        await cache.get_course_id("abc_1")
     assert await cache.get_course_id("sis_course_id:abc_1") == "sis_course_id:abc_1"
 
 
