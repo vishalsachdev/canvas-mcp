@@ -23,7 +23,7 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 - Course identifiers are `str | int` resolved with `get_course_id()`; dates go out through `format_date()`.
   Code that needs a numeric course ID (paths, context codes, comparisons) uses `resolve_numeric_course_id()`, which returns `(id, error)` and never yields an unvalidated string. `get_course_id()` matches the same way and refuses unknown aliases; explicit `sis_course_id:` forms keep their validated pass-through behavior.
 - Canvas POST/PUT needs `use_form_data=True`, `/conversations` included.
-- Errors: dict tools return an `"error"` key; string tools return `"Error ..."`. `modules.py` and `accessibility.py` return JSON-stringified errors; keep the local convention.
+- Errors: dict tools return an `"error"` key; string tools return `"Error ..."`. `accessibility.py` and the read/structure tools in `modules.py` (`get_course_structure`) return JSON-stringified errors; the `modules.py` write tools return plain text; keep each function's local convention.
 - Privacy: student IDs preserved, names anonymized at the client layer (`_should_anonymize_endpoint()`); a new endpoint must be checked against the tier rules.
 - Show course codes, not IDs, in user-facing output; handle published and unpublished states.
 

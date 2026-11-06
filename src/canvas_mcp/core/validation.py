@@ -438,7 +438,7 @@ def numeric_id_error(**ids: str | int | None) -> str | None:
     return None
 
 
-def page_slug_error(value: str) -> str | None:
+def page_slug_error(value: str, param_name: str = "page_url_or_id") -> str | None:
     """Return a tool error if a page slug or ID would not stay one path segment."""
-    error = path_segment_error("page_url_or_id", value)
+    error = path_segment_error(param_name, value)
     return f"Error: {error}" if error else None
