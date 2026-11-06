@@ -77,9 +77,8 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 ## Session Log
 > Full history: `internal/session-history.md`, local-only and untracked since 2026-08-20. Do not re-add it to git.
 
-### 2026-10-25 → 10-27 — OSS Verify follow-ups; html fixes; site simplified with fact sync; #541 merged
-- **OSS Verify:** the 8 post-merge follow-ups went in theorem-labs/oss-verify#42 (11 records, `--twice` identical). Theorem **paused proof work on canvas-mcp** 10-25 20:02 CDT: #42 stays open, unmerged, no changes asked; enrollment stays.
-- **html.py:** #535 (`_RAW_END` needs `re.ASCII`: `</ſcript>` and `</scrİpt>` ended script hiding) and #542 (a decimal entity of 4,301+ digits raised `ValueError` from `html.unescape`; `unescape_html` now guards all three call sites; 200,000-case fuzz against unlimited `html.unescape`, 0 mismatches). Both came from the independent fuzz checks.
-- **Site:** #538 and #539: effects removed, impact panel static and moved before "Built for Your Role", Monthly Installs card removed, @vishalsachdev on X. `scripts/sync_site_facts.py` (CI `--check`) owns version, tool, skill and GitHub numbers; `scripts/deploy_site.sh` honours `.assetsignore` (Pages does not: `triage/`, `audits/`, `superpowers/` were live until 10-25). Cloudflare AI-training block kept zone-wide (Vishal, option B). The 10-26 scheduled impact run deployed itself (307 stars).
-- **#541** (lindsay-cheng; peer-review campaign used the raw course code for its assignment GET and message context) merged 10-26 09:19 CDT as `1de55e4` with the prepared numeric-course fix; red-first 6 failures; 3798 passed; approval on head came from the prepared-fix reviewer on Vishal's account. Earlier runner SOCKS failures were its `ALL_PROXY` env (httpx needs `socksio`).
-- **Next:** 1.16.1 release (fastmcp 4.1.2, #535, #541, #542; control owns it). Open PRs #545 (lindsay-cheng), #533 (KKazuhaK), #510 (mobile OAuth re-review). CVE IDs for the four advisories; Anthropic's review of oss-scanner#1115. Carry: F6 token revoke, remove `llkarri2`, #489.
+### 2026-11-05 → 11-06 — identifier hardening; course names (#564)
+- #566 (`28fc227`): request paths keep each identifier as one path segment.
+- #567 (`806cb20`): course names now resolve regardless of case and spacing. A partial or unknown identifier is refused with up to 5 "Did you mean" choices. This is breaking: bare underscore IDs now need `sis_course_id:`. #567 closed issue #564.
+- #568 (`d3a598f`): each refusal names the tool's own parameter.
+- **Next:** release 1.17.0, a minor bump for the breaking entries in Unreleased. Open PRs: #510, #533, #545, #552, #556, #559.
