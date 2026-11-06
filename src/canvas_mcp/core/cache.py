@@ -437,7 +437,7 @@ async def resolve_numeric_course_id(
             cache; no refresh is made. Numeric and SIS forms behave as above.
     """
     raw = str(course_identifier).strip()
-    not_found = f"Could not find course {course_identifier}"
+    not_found = f"Could not find course {raw}"
     not_listed = (
         f"{not_found} among your Canvas courses. Use a course code or name from "
         "list_courses, or a numeric Canvas course ID."
@@ -480,14 +480,14 @@ async def resolve_numeric_course_id(
         found, error = _match_course(raw, records)
         if found is not None or error:
             return found, error
-        return None, _course_suggestions(str(course_identifier), records) or not_listed
+        return None, _course_suggestions(raw, records) or not_listed
 
     found, error = _match_cached(raw)
     if found is not None or error:
         return found, error
-    if not await _refresh_after_miss():
+    if not await _refresh_after_miss() and not course_records_cache:
         return None, f"{not_found}: your course list could not be loaded from Canvas."
     found, error = _match_cached(raw)
     if found is not None or error:
         return found, error
-    return None, _course_suggestions(str(course_identifier), course_records_cache) or not_listed
+    return None, _course_suggestions(raw, course_records_cache) or not_listed

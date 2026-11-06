@@ -442,6 +442,23 @@ class TestGetCourseIdLooksUpOnMiss:
         assert all(path == "/courses" for path in canvas.paths())
 
     @pytest.mark.asyncio
+    async def test_both_resolvers_agree_after_a_failed_refresh_with_a_warm_cache(self, canvas):
+        warm(COURSES)
+        canvas.courses = {"error": "HTTP error: 500"}
+        found, error = await resolve_numeric_course_id("Algorithms")
+        assert found is None and "Did you mean" in error and "(ID 4242)" in error
+        found, error = await resolve_numeric_course_id("zz nothing like it")
+        assert found is None and "could not be loaded" not in error
+
+    @pytest.mark.asyncio
+    async def test_both_resolvers_echo_the_identifier_trimmed(self, canvas):
+        with pytest.raises(ValueError) as exc:
+            await cache.get_course_id("  zz nothing like it  ")
+        _, error = await resolve_numeric_course_id("  zz nothing like it  ")
+        assert "zz nothing like it" in error and "  zz nothing" not in error
+        assert "  zz nothing" not in str(exc.value)
+
+    @pytest.mark.asyncio
     async def test_refusal_echoes_the_identifier_trimmed(self, canvas):
         with pytest.raises(ValueError) as exc:
             await cache.get_course_id("  zz nothing like it  ")
