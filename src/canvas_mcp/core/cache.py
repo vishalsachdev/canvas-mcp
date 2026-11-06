@@ -167,7 +167,7 @@ async def get_course_id(course_identifier: str | int) -> str:
             raise ValueError(
                 f"Could not find course {course_str}: your course list could not be loaded from Canvas."
             )
-        return _unresolved_course(course_str)
+        return _unresolved_course(course_str, course_records(courses))
 
     # One of the caller's courses by code (spaces allowed, as in 'COMPSCI
     # 161'), name or SIS ID, ignoring case and whitespace differences. On a
@@ -190,8 +190,42 @@ async def get_course_id(course_identifier: str | int) -> str:
     return _unresolved_course(course_str)
 
 
-def _unresolved_course(identifier: str) -> str:
+def _course_suggestions(identifier: str, records: Iterable[CourseRecord]) -> str | None:
+    """Suggest partial name/code matches for a refusal, never resolve them."""
+    key = _alias_key(identifier)
+    if len(key.replace(" ", "")) < 3:
+        return None
+    candidates = {
+        course_id: (code, name)
+        for course_id, code, name, _ in records
+        if key in _alias_key(code) or key in _alias_key(name)
+    }
+    if not candidates:
+        return None
+    choices = []
+    for course_id in sorted(candidates, key=int)[:5]:
+        code, name = candidates[course_id]
+        choices.append(
+            f'{fence_untrusted_inline(code, "course code")} '
+            f'"{fence_untrusted_inline(name, "course name")}" (ID {course_id})'
+        )
+    if len(candidates) > 5:
+        choices.append(f"{len(candidates) - 5} more")
+    return (
+        f"Could not find course {identifier}. Did you mean: {'; '.join(choices)}? "
+        "Pass that course ID or its exact code or name."
+    )
+
+
+def _unresolved_course(
+    identifier: str, records: Iterable[CourseRecord] | None = None,
+) -> str:
     """Refuse an unknown alias before a caller can construct a target path."""
+    suggestion = _course_suggestions(
+        identifier, course_records_cache if records is None else records,
+    )
+    if suggestion:
+        raise ValueError(suggestion)
     _pass_through(identifier)  # Preserve the path-segment safety refusal.
     raise ValueError(
         f"Could not find course {identifier} among your Canvas courses. "
@@ -435,8 +469,11 @@ async def resolve_numeric_course_id(
         return (found, None) if found is not None else (None, not_found)
 
     if courses is not None:
-        found, error = match_course(raw, courses)
-        return (found, None) if found is not None else (None, error or not_listed)
+        records = course_records(courses)
+        found, error = _match_course(raw, records)
+        if found is not None or error:
+            return found, error
+        return None, _course_suggestions(str(course_identifier), records) or not_listed
 
     found, error = _match_cached(raw)
     if found is not None or error:
@@ -446,4 +483,4 @@ async def resolve_numeric_course_id(
     found, error = _match_cached(raw)
     if found is not None or error:
         return found, error
-    return None, not_listed
+    return None, _course_suggestions(str(course_identifier), course_records_cache) or not_listed
