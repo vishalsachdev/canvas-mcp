@@ -328,10 +328,15 @@ class Config:
         # reads that for per-identity authorization + audit (the token is already
         # validated upstream). Gate behind a flag so local/stdio runs never trust
         # the spoofable X-MS-* headers. mcp_entra_allowed_oids is the allowlist of
-        # Entra object IDs permitted to use this server (empty = allow any
-        # platform-authenticated identity).
+        # Entra object IDs permitted to use this server. An empty list admits no
+        # one by itself: with ACCESS_REQUEST_ENABLED it means "overlay grants
+        # only", and admitting every tenant identity needs the explicit
+        # MCP_ENTRA_ALLOW_ANY_TENANT_IDENTITY=true (startup refuses otherwise).
         self.entra_auth_enabled = _bool_env("ENTRA_AUTH_ENABLED", False)
         self.mcp_entra_allowed_oids = _parse_keys(os.getenv("MCP_ENTRA_ALLOWED_OIDS", ""))
+        self.mcp_entra_allow_any_tenant_identity = _bool_env(
+            "MCP_ENTRA_ALLOW_ANY_TENANT_IDENTITY", False
+        )
 
         # --- Self-service access-approval flow (hosted-only; off by default) ---
         # Feature flag. When false (default) the gate behaves exactly as before

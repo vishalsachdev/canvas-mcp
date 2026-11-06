@@ -356,13 +356,20 @@ class CanvasCredentialMiddleware:
                 if not oid:
                     await _send_json_error(send, 401, "Missing verified Entra identity")
                     return
+                # An empty env allowlist admits every tenant identity ONLY under
+                # the explicit opt-in; otherwise it admits no one by itself, so
+                # with the overlay on it means "overlay grants only".
+                any_identity = (
+                    not config.mcp_entra_allowed_oids
+                    and config.mcp_entra_allow_any_tenant_identity
+                )
                 in_env = oid in config.mcp_entra_allowed_oids
                 in_overlay = False
                 store = None
-                if not in_env and config.access_request_enabled:
+                if not (in_env or any_identity) and config.access_request_enabled:
                     store = _access_store(config)
                     in_overlay = store.is_granted(oid) if store else False
-                if config.mcp_entra_allowed_oids and not (in_env or in_overlay):
+                if not (any_identity or in_env or in_overlay):
                     # Send the deny FIRST, so scheduling the access-request email
                     # can never delay or break the 403 (auth boundary: respond,
                     # then notify). The notify is additionally guarded so a
@@ -670,6 +677,31 @@ def main() -> None:
                 "platform, the identity header is client-spoofable."
             )
             sys.exit(1)
+        if config.entra_auth_enabled and not config.mcp_entra_allowed_oids:
+            # An empty OID allowlist must never mean "every tenant identity" by
+            # omission (FERPA data): require a declaration, as above.
+            if config.mcp_entra_allow_any_tenant_identity:
+                log_warning(
+                    "MCP_ENTRA_ALLOWED_OIDS is empty and "
+                    "MCP_ENTRA_ALLOW_ANY_TENANT_IDENTITY=true: every "
+                    "platform-authenticated tenant identity may use this server."
+                    + (" ACCESS_REQUEST_ENABLED has no effect in this mode."
+                       if config.access_request_enabled else "")
+                )
+            elif config.access_request_enabled:
+                log_warning(
+                    "MCP_ENTRA_ALLOWED_OIDS is empty: only identities granted "
+                    "through the access-request overlay may use this server."
+                )
+            else:
+                log_error(
+                    "ENTRA_AUTH_ENABLED=true with an empty MCP_ENTRA_ALLOWED_OIDS. "
+                    "Refusing to start. Set MCP_ENTRA_ALLOWED_OIDS, enable "
+                    "ACCESS_REQUEST_ENABLED for overlay-only access, or set "
+                    "MCP_ENTRA_ALLOW_ANY_TENANT_IDENTITY=true to admit every "
+                    "tenant identity deliberately."
+                )
+                sys.exit(1)
         if not config.entra_auth_enabled and not config.mcp_access_keys:
             # Secure-by-default: refuse to start an ungated endpoint unless the
             # operator has explicitly accepted that external auth fronts it.
