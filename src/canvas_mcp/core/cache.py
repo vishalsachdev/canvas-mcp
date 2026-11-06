@@ -133,14 +133,18 @@ async def get_course_id(course_identifier: str | int) -> str:
                           - A SIS ID format (e.g., 'sis_course_id:xxx')
 
     A course code (spaces allowed), name or bare SIS ID of one of the caller's
-    courses resolves as in ``resolve_numeric_course_id``. An identifier that
-    matches none of them is refused before any target request. Explicit
-    ``sis_course_id:`` forms retain their pass-through behavior; code needing
-    a numeric result should use ``resolve_numeric_course_id`` instead.
-    Ambiguous aliases raise ValueError before a tool can dispatch a request against an arbitrary course.
+    courses resolves as in ``resolve_numeric_course_id``. Explicit
+    ``sis_course_id:`` forms pass through; code needing a numeric result
+    should use ``resolve_numeric_course_id`` instead.
 
     Returns:
         The course ID as a string
+
+    Raises:
+        ValueError: before any target request, when the identifier matches
+            more than one of the caller's courses, matches none of them (with
+            "Did you mean" suggestions for a partial name or code), or the
+            course list could not be loaded at all.
     """
     global course_code_to_id_cache, id_to_course_code_cache
 
@@ -176,7 +180,7 @@ async def get_course_id(course_identifier: str | int) -> str:
     # retried; it is refused before any target request.
     found, ambiguous = _match_cached(course_str)
     if found is None and ambiguous is None:
-        if not await _refresh_after_miss():
+        if not await _refresh_after_miss() and not course_records_cache:
             raise ValueError(
                 f"Could not find course {course_str}: your course list could not be loaded from Canvas."
             )
@@ -192,6 +196,7 @@ async def get_course_id(course_identifier: str | int) -> str:
 
 def _course_suggestions(identifier: str, records: Iterable[CourseRecord]) -> str | None:
     """Suggest partial name/code matches for a refusal, never resolve them."""
+    identifier = identifier.strip()
     key = _alias_key(identifier)
     if len(key.replace(" ", "")) < 3:
         return None
@@ -203,7 +208,7 @@ def _course_suggestions(identifier: str, records: Iterable[CourseRecord]) -> str
     if not candidates:
         return None
     choices = []
-    for course_id in sorted(candidates, key=int)[:5]:
+    for course_id in sorted(candidates, key=int)[:5]:  # IDs are digits (course_records)
         code, name = candidates[course_id]
         choices.append(
             f'{fence_untrusted_inline(code, "course code")} '
@@ -221,6 +226,7 @@ def _unresolved_course(
     identifier: str, records: Iterable[CourseRecord] | None = None,
 ) -> str:
     """Refuse an unknown alias before a caller can construct a target path."""
+    identifier = identifier.strip()
     suggestion = _course_suggestions(
         identifier, course_records_cache if records is None else records,
     )
@@ -417,9 +423,10 @@ async def resolve_numeric_course_id(
       segment (no ``/``, backslash, ``?``, ``#``, ``%``, ``..``, whitespace or
       control characters). Any other SIS form is refused without a request.
     - Anything else (a course code such as ``COMPSCI 161``, a course name, or
-      a bare SIS ID) is matched case-insensitively, ignoring surrounding
-      whitespace, against the caller's courses; a value that names more than
-      one course, under any alias, is refused. On a miss the course list is
+      a bare SIS ID) is matched case-insensitively, ignoring whitespace
+      differences, against the caller's courses; a value that names more than
+      one course, under any alias, is refused. A miss lists partial matches as
+      "Did you mean" suggestions but never resolves one. On a miss the course list is
       re-read and searched again, whether the cache was cold or warm, unless
       it was read within ``REFRESH_ON_MISS_INTERVAL_SECONDS``. The identifier
       is never sent to Canvas.

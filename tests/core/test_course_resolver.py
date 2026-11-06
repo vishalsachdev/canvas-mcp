@@ -427,6 +427,30 @@ class TestGetCourseIdLooksUpOnMiss:
         assert canvas.requests == [("paginate", "/courses")]
 
     @pytest.mark.asyncio
+    async def test_failed_refresh_with_a_warm_cache_still_suggests_from_it(self, canvas):
+        """A refresh that fails after an earlier one succeeded has searched the
+        cached list, so the refusal comes from that list, not 'could not be loaded'."""
+        warm(COURSES)
+        canvas.courses = {"error": "HTTP error: 500"}
+        with pytest.raises(ValueError) as exc:
+            await cache.get_course_id("Algorithms")
+        assert "Did you mean" in str(exc.value) and "(ID 4242)" in str(exc.value)
+        with pytest.raises(ValueError) as exc:
+            await cache.get_course_id("zz nothing like it")
+        assert "among your Canvas courses" in str(exc.value)
+        assert "could not be loaded" not in str(exc.value)
+        assert all(path == "/courses" for path in canvas.paths())
+
+    @pytest.mark.asyncio
+    async def test_refusal_echoes_the_identifier_trimmed(self, canvas):
+        with pytest.raises(ValueError) as exc:
+            await cache.get_course_id("  zz nothing like it  ")
+        assert "course zz nothing like it among" in str(exc.value)
+        with pytest.raises(ValueError) as exc:
+            await cache.get_course_id("  Algorithms ")
+        assert "Could not find course Algorithms. Did you mean" in str(exc.value)
+
+    @pytest.mark.asyncio
     @pytest.mark.parametrize("identifier", ["4242", 4242, "sis_course_id:anything"])
     async def test_numeric_and_sis_forms_are_unchanged_without_a_request(self, canvas, identifier):
         assert await cache.get_course_id(identifier) == str(identifier)
@@ -561,7 +585,7 @@ class TestPartialCourseSuggestions564:
         with pytest.raises(ValueError) as exc:
             await cache.get_course_id(query)
         error = str(exc.value)
-        assert error.startswith("Could not find course  si  106 . Did you mean: ")
+        assert error.startswith("Could not find course si  106. Did you mean: ")
         assert error.endswith("? Pass that course ID or its exact code or name.")
         assert "PRIVATE" not in error and "Private course" not in error
         assert error.count("(ID ") == min(count, 5)
