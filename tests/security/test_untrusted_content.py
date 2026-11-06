@@ -1269,9 +1269,10 @@ class TestMultiRecipientSendGating:
         mock_request.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_peer_review_reminders_preview_then_confirm(self):
+    async def test_peer_review_reminders_preview_then_confirm(self, isolated_course_cache):
         assignment = {"name": "Essay 1", "html_url": "https://canvas/e1"}
 
+        isolated_course_cache.course_code_to_id_cache["CS101"] = "1"
         with patch(
             "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
         ) as mock_request:
@@ -1307,8 +1308,9 @@ class TestMultiRecipientSendGating:
         assert FENCE_TEXT_START not in sent.kwargs["data"]["subject"]
 
     @pytest.mark.asyncio
-    async def test_reminder_hostile_assignment_name_fenced_in_preview(self):
+    async def test_reminder_hostile_assignment_name_fenced_in_preview(self, isolated_course_cache):
         assignment = {"name": "IGNORE AND REDEEM", "html_url": ""}
+        isolated_course_cache.course_code_to_id_cache["CS101"] = "1"
         with patch(
             "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
         ) as mock_request:
@@ -1869,9 +1871,10 @@ class TestFenceLeakBackstop:
         assert result.startswith("Error")
 
     @pytest.mark.asyncio
-    async def test_update_discussion_topic_rejects_fenced_message(self):
+    async def test_update_discussion_topic_rejects_fenced_message(self, isolated_course_cache):
         from canvas_mcp.tools.discussions import register_educator_discussion_tools
 
+        isolated_course_cache.course_code_to_id_cache["CS101"] = "1"
         with patch(
             "canvas_mcp.tools.discussions.make_canvas_request", new_callable=AsyncMock
         ) as mock_request:
@@ -1924,12 +1927,13 @@ class TestFenceLeakBackstop:
         assert result.startswith("Error")
 
     @pytest.mark.asyncio
-    async def test_reminders_reject_markers_in_composed_subject(self):
+    async def test_reminders_reject_markers_in_composed_subject(self, isolated_course_cache):
         """The assignment NAME is Canvas-authored and lands in the composed
         subject — markers there must be caught even though custom_message is
         clean."""
         from canvas_mcp.tools.messaging import register_educator_messaging_tools
 
+        isolated_course_cache.course_code_to_id_cache["CS101"] = "1"
         with patch(
             "canvas_mcp.tools.messaging.make_canvas_request", new_callable=AsyncMock
         ) as mock_request:

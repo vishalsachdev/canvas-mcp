@@ -332,11 +332,11 @@ class TestRefreshRateLimit:
         lookups = asyncio.gather(
             resolve_numeric_course_id("COMPSCI 161"),
             resolve_numeric_course_id("I&C SCI 33"),
-            cache.get_course_id("NOPE 1"),
+            cache.get_course_id("COMPSCI 161"),
         )
         await asyncio.sleep(0)
         gate.set()
-        assert await lookups == [("4242", None), ("5151", None), "NOPE 1"]
+        assert await lookups == [("4242", None), ("5151", None), "4242"]
         assert canvas.list_reads == 1
 
     @pytest.mark.asyncio
@@ -396,7 +396,7 @@ class TestSisFormOfAListedCourse:
 
 class TestGetCourseIdLooksUpOnMiss:
     """Upstream tools resolve through get_course_id; a code with spaces must
-    work there too, and its fallback for unknown identifiers is unchanged."""
+    work there too, and unknown identifiers must never become target paths."""
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("identifier", ["COMPSCI 161", " compsci 161 ",
@@ -413,18 +413,18 @@ class TestGetCourseIdLooksUpOnMiss:
         assert canvas.list_reads == 1
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize(("identifier", "fallback"), [
-        ("MATH 2B", "MATH 2B"),
-        ("no_such_course", "sis_course_id:no_such_course"),
-    ])
-    async def test_unknown_identifier_keeps_the_upstream_fallback(self, canvas, identifier, fallback):
-        assert await cache.get_course_id(identifier) == fallback
+    @pytest.mark.parametrize("identifier", ["MATH 2B", "no_such_course"])
+    async def test_unknown_identifier_is_refused_before_target_request(self, canvas, identifier):
+        with pytest.raises(ValueError, match="Could not find course"):
+            await cache.get_course_id(identifier)
         assert canvas.requests == [("paginate", "/courses")]
 
     @pytest.mark.asyncio
-    async def test_unknown_identifier_on_a_failed_course_list_keeps_the_fallback(self, canvas):
+    async def test_unknown_identifier_on_a_failed_course_list_is_refused(self, canvas):
         canvas.courses = {"error": "HTTP error: 500"}
-        assert await cache.get_course_id("no_such_course") == "sis_course_id:no_such_course"
+        with pytest.raises(ValueError, match="could not be loaded"):
+            await cache.get_course_id("no_such_course")
+        assert canvas.requests == [("paginate", "/courses")]
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("identifier", ["4242", 4242, "sis_course_id:anything"])
@@ -439,3 +439,100 @@ class TestGetCourseIdLooksUpOnMiss:
         with pytest.raises(ValueError, match="IDs 11, 22"):
             await cache.get_course_id("Compsci 161")
         assert canvas.list_reads == 1
+
+
+class TestCourseNameRegression564:
+    """Catch whitespace-sensitive aliases, unresolved paths and hidden candidates."""
+
+    @pytest.fixture
+    def named_course(self, canvas: FakeCanvas) -> FakeCanvas:
+        canvas.courses = [{
+            "id": 70435, "name": "BADM 554 / Enterprise Database Management",
+            "course_code": "badm_554_fall2026_online", "workflow_state": "available",
+            "enrollments": [{"type": "teacher", "enrollment_state": "active"}],
+        }]
+        return canvas
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("identifier", [
+        "BADM 554 / Enterprise Database Management",
+        "  badm 554 / enterprise database management  ",
+        "BADM  554 / Enterprise\tDatabase Management",
+        "badm_554_fall2026_online", 70435, "70435",
+    ])
+    async def test_course_alias_resolves_in_one_call(
+        self, named_course: FakeCanvas, identifier: str | int,
+    ) -> None:
+        assert await cache.get_course_id(identifier) == "70435"
+        assert not any(path.startswith("/courses/") for path in named_course.paths())
+
+    @pytest.mark.asyncio
+    async def test_unknown_name_never_becomes_a_target_path(self, named_course: FakeCanvas) -> None:
+        with pytest.raises(ValueError, match="Could not find course"):
+            await cache.get_course_id("Unknown Database Management")
+        assert named_course.requests == [("paginate", "/courses")]
+
+    @pytest.mark.asyncio
+    async def test_ambiguous_name_lists_both_course_codes(self, named_course: FakeCanvas) -> None:
+        named_course.courses.append({
+            **named_course.courses[0], "id": 70436,
+            "course_code": "badm_554_fall2026_inperson",
+        })
+        with pytest.raises(ValueError) as exc:
+            await cache.get_course_id("BADM 554 / Enterprise Database Management")
+        assert "badm_554_fall2026_online" in str(exc.value)
+        assert "badm_554_fall2026_inperson" in str(exc.value)
+        assert named_course.requests == [("paginate", "/courses")]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("http", [False, True])
+    @pytest.mark.parametrize("tool_name", ["list_users", "get_course_details"])
+    @pytest.mark.parametrize("identifier", [
+        "BADM  554 / Enterprise Database Management", "Unknown Database Management",
+    ])
+    async def test_reported_tools_use_numeric_path_or_refuse(
+        self, named_course: FakeCanvas, monkeypatch: pytest.MonkeyPatch,
+        http: bool, tool_name: str, identifier: str,
+    ) -> None:
+        from fastmcp import FastMCP
+
+        from canvas_mcp.core.credentials import (
+            clear_http_request_context,
+            set_http_request_active,
+        )
+        from canvas_mcp.tools import admin_tools, courses
+
+        monkeypatch.setattr(cache, "is_http_request_active", lambda: http)
+        requests: list[tuple[str, str]] = []
+
+        async def paginate(endpoint: str, params: Any = None) -> list[Any]:
+            requests.append(("get", endpoint))
+            assert endpoint == "/courses/70435/users"
+            return []
+
+        async def request(method: str, endpoint: str) -> dict[str, Any]:
+            requests.append((method, endpoint))
+            assert (method, endpoint) == ("get", "/courses/70435")
+            return named_course.courses[0]
+
+        monkeypatch.setattr(admin_tools, "fetch_all_paginated_results", paginate)
+        monkeypatch.setattr(courses, "make_canvas_request", request)
+        mcp = FastMCP("course-name-regression")
+        admin_tools.register_admin_tools(mcp)
+        courses.register_course_tools(mcp)
+        tools = {tool.name: tool for tool in await mcp.list_tools(run_middleware=False)}
+        try:
+            if http:
+                set_http_request_active()
+            if identifier.startswith("Unknown"):
+                with pytest.raises(ValueError, match="Could not find course"):
+                    await tools[tool_name].fn(course_identifier=identifier)
+                assert requests == []
+            else:
+                result = await tools[tool_name].fn(course_identifier=identifier)
+                assert "No users found" in result if tool_name == "list_users" else "Course Details" in result
+                expected = "/courses/70435/users" if tool_name == "list_users" else "/courses/70435"
+                assert requests == [("get", expected)]
+            assert named_course.requests == [("paginate", "/courses")]
+        finally:
+            clear_http_request_context()
