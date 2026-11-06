@@ -5,7 +5,6 @@ and module items. Modules are the primary content organization system in Canvas.
 """
 
 
-import json
 from typing import Any
 
 from fastmcp import FastMCP
@@ -333,7 +332,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             published: Whether the module is published
         """
         if id_error := numeric_id_error(module_id=module_id):
-            return json.dumps({"error": id_error})
+            return id_error
         # Backstop for issue 239: never publish our provenance markers.
         if name is not None and contains_fence_markers(name):
             return FENCE_LEAK_ERROR
@@ -426,7 +425,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             confirmation_token: Token from the preview call; omit to preview
         """
         if id_error := numeric_id_error(module_id=module_id):
-            return json.dumps({"error": id_error})
+            return id_error
         course_id = await get_course_id(course_identifier)
 
         module_response = await make_canvas_request(
@@ -503,7 +502,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             completion_requirement_min_score: Minimum score (only for min_score type)
         """
         if id_error := numeric_id_error(module_id=module_id):
-            return json.dumps({"error": id_error})
+            return id_error
         # Backstop for issue 239: never publish our provenance markers.
         if title is not None and contains_fence_markers(title):
             return FENCE_LEAK_ERROR
@@ -652,7 +651,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             move_to_module_id: Move item to a different module
         """
         if id_error := numeric_id_error(item_id=item_id, module_id=module_id):
-            return json.dumps({"error": id_error})
+            return id_error
         # Backstop for issue 239: never publish our provenance markers.
         if title is not None and contains_fence_markers(title):
             return FENCE_LEAK_ERROR
@@ -757,7 +756,7 @@ def register_educator_module_tools(mcp: FastMCP) -> None:
             confirmation_token: Token from the preview call; omit to preview
         """
         if id_error := numeric_id_error(item_id=item_id, module_id=module_id):
-            return json.dumps({"error": id_error})
+            return id_error
         course_id = await get_course_id(course_identifier)
 
         item_response = await make_canvas_request(

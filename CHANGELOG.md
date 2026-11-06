@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Identifier refusals use each tool's own wording: the module write tools return plain `Error: ...` text like the rest of their responses, and `bulk_update_pages` names its `page_urls` parameter.
 - **Request paths keep each identifier as one segment.** Educator and shared tools now refuse an ID argument that is not a numeric Canvas ID and a page slug that contains a path delimiter (`/`, `\`, `?` or `#`, raw or percent-encoded) or is `.` or `..`, before any request. An unmatched course identifier that would pass through to Canvas is refused the same way. A course that matches by code or name, including one with `/` in its code, still resolves as before. A new test sweeps every registered tool with such values.
 
 ### Changed (breaking for hosted operators)

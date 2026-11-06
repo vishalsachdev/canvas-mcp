@@ -207,3 +207,65 @@ async def test_load_reply_target_refuses_before_any_request():
         result = await student_messaging._load_reply_target("7/zz")
     assert isinstance(result, str) and "numeric" in result
     req.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Refusal wording follows each tool's own convention
+# ---------------------------------------------------------------------------
+
+
+def _captured_tools(register):
+    from fastmcp import FastMCP
+
+    mcp = FastMCP("t")
+    captured = {}
+    orig = mcp.tool
+
+    def capturing(*a, **k):
+        dec = orig(*a, **k)
+
+        def wrap(fn):
+            captured[fn.__name__] = fn
+            return dec(fn)
+        return wrap
+
+    mcp.tool = capturing
+    register(mcp)
+    return captured
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tool,kwargs,field", [
+    ("update_module", {"module_id": "1/zz", "name": "x"}, "module_id"),
+    ("delete_module", {"module_id": "1/zz"}, "module_id"),
+    ("add_module_item", {"module_id": "1/zz", "item_type": "Page", "page_url": "p"}, "module_id"),
+    ("update_module_item", {"module_id": "1", "item_id": "2/zz", "title": "x"}, "item_id"),
+    ("delete_module_item", {"module_id": "1", "item_id": "2/zz"}, "item_id"),
+])
+async def test_module_write_tools_refuse_ids_as_plain_error_text(tool, kwargs, field):
+    """These tools return plain 'Error ...' text on every other path; the ID
+    refusal must match, not arrive as a JSON object."""
+    from canvas_mcp.tools import modules
+
+    fn = _captured_tools(modules.register_educator_module_tools)[tool]
+    with patch.object(modules, "get_course_id", new=AsyncMock(return_value="1")), \
+         patch.object(modules, "make_canvas_request", new=AsyncMock()) as req:
+        result = await fn(course_identifier="1", **kwargs)
+    assert result == f"Error: {field} must be a numeric Canvas ID."
+    req.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_bulk_update_pages_refusal_names_its_own_parameter():
+    from canvas_mcp.tools import pages
+
+    fn = _captured_tools(pages.register_page_tools)["bulk_update_pages"]
+    with patch.object(pages, "get_course_id", new=AsyncMock(return_value="1")), \
+         patch.object(pages, "make_canvas_request", new=AsyncMock()) as req:
+        result = await fn(course_identifier="1", page_urls="good-page,bad/page", published=True)
+    assert result.startswith("Error: Parameter 'page_urls'"), result
+    req.assert_not_called()
+
+
+def test_page_slug_error_default_parameter_name_unchanged():
+    assert page_slug_error("a/b").startswith("Error: Parameter 'page_url_or_id'")
