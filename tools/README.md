@@ -1124,7 +1124,10 @@ details are provenance-fenced as untrusted data in the tool output.
 ### Grading & Rubrics
 
 #### `create_rubric`
-Create a new rubric in a course, optionally associating it with an assignment.
+Create a new rubric in a course, optionally attaching it to an assignment that has no rubric.
+The tool checks the assignment before writing and refuses creation if it finds
+rubric metadata or cannot verify the assignment. Use `update_rubric` to edit
+the attached rubric.
 
 Uses bracket-notation form-data encoding required by the Canvas rubric API.
 
@@ -1132,7 +1135,7 @@ Uses bracket-notation form-data encoding required by the Canvas rubric API.
 - `course_identifier`: Course code or ID
 - `title`: Rubric title
 - `criteria`: JSON string defining criteria (see example below)
-- `assignment_id` (optional): Assignment ID to immediately associate the rubric with
+- `assignment_id` (optional): Numeric ID of an assignment that has no rubric
 - `use_for_grading` (optional): Use rubric for grade calculation when associating (default: false)
 - `reusable` (optional): Make rubric reusable across courses (default: false)
 - `free_form_criterion_comments` (optional): Allow free-form comments per criterion (default: false)
