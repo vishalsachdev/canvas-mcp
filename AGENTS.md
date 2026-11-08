@@ -143,10 +143,10 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `list_rubrics` | List rubrics in a course |
 | `get_rubric` | View rubric details (by rubric_id or assignment_id) |
 | `get_rubric_assessment` | View rubric assessment for a student submission |
-| `create_rubric` | Create rubric with criteria, ratings, and optional assignment association |
-| `update_rubric` | Safely replace rubric text/points while preserving every criterion/rating ID; two-step preview and confirmation |
+| `create_rubric` | Create a rubric with criteria and ratings, optionally attaching it to an assignment that has no rubric |
+| `update_rubric` | Edit existing rubric text or points while preserving every criterion/rating ID. Requires preview and confirmation |
 | `create_rubric_from_csv` | Create rubric(s) from a CSV string. Requires a `Rubric Name` column; imported rubrics are `Draft` and do **not** appear in `list_rubrics` |
-| `associate_rubric` | Associate existing rubric with an assignment |
+| `associate_rubric` | Associate an existing rubric with an assignment, replacing the current association. Use only for an explicit association change |
 | `grade_with_rubric` | Grade single submission with rubric |
 | `bulk_grade_submissions` | Grade multiple submissions efficiently |
 | `send_conversation` | Message students. **Always two calls, even for one recipient:** preview + confirmation token first, then confirm with identical arguments |
