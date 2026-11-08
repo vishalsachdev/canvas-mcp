@@ -16,6 +16,7 @@ from typing import (
     get_origin,
     get_type_hints,
 )
+from urllib.parse import unquote
 
 from .logging import log_debug, log_error
 
@@ -396,8 +397,48 @@ def coerce_canvas_id(value: str | int) -> str | None:
     ``/submissions/self`` into the query string, retargeting the call at another
     user's record. Canvas object IDs are plain ASCII digits, so anything else is
     rejected at the boundary rather than sanitized. (Course identifiers are the
-    exception: they legitimately accept course codes and ``sis_course_id:`` forms
-    and are resolved to a numeric ID by ``get_course_id`` before interpolation.)
+    exception: they accept course codes and ``sis_course_id:`` forms. A code that
+    matches one of the caller's courses resolves to its numeric ID; an unmatched
+    one passes through ``get_course_id`` only if ``path_segment_error`` accepts it.)
     """
     text = str(value).strip()
     return text if _NUMERIC_CANVAS_ID.match(text) else None
+
+
+_PATH_DELIMITERS = ("/", "\\", "?", "#")
+
+
+def path_segment_error(param_name: str, value: str) -> str | None:
+    """Return an error if ``value`` would not stay one request-path segment.
+
+    Refuses a path delimiter (``/``, ``\\``, ``?``, ``#``), raw or percent-encoded
+    once, and the dot segments ``.`` and ``..``. Everything else is left alone,
+    so a real page slug or course code, including one already percent-encoded,
+    goes out unchanged.
+    """
+    for text in (value, unquote(value)):
+        if any(d in text for d in _PATH_DELIMITERS) or text.strip() in (".", ".."):
+            return (
+                f"Parameter '{param_name}' must be a single path segment: it cannot "
+                "contain '/', '\\', '?' or '#' (raw or percent-encoded), or be '.' or '..'."
+            )
+    return None
+
+
+def numeric_id_error(**ids: str | int | None) -> str | None:
+    """Return a tool error for the first argument that is not a numeric Canvas ID.
+
+    Tools interpolate these values into request paths, so a value such as
+    ``"5/submissions"`` would retarget the request. ``None`` (an omitted
+    optional ID) is allowed.
+    """
+    for name, value in ids.items():
+        if value is not None and coerce_canvas_id(value) is None:
+            return f"Error: {name} must be a numeric Canvas ID."
+    return None
+
+
+def page_slug_error(value: str, param_name: str = "page_url_or_id") -> str | None:
+    """Return a tool error if a page slug or ID would not stay one path segment."""
+    error = path_segment_error(param_name, value)
+    return f"Error: {error}" if error else None

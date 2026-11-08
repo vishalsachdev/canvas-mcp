@@ -14,7 +14,7 @@ from ..core.cache import get_course_code, get_course_id
 from ..core.client import fetch_all_paginated_results, make_canvas_request
 from ..core.dates import format_date, parse_date
 from ..core.untrusted_content import fence_untrusted_inline
-from ..core.validation import validate_params
+from ..core.validation import numeric_id_error, validate_params
 
 
 async def _fetch_planner_peer_reviews(
@@ -456,6 +456,8 @@ def register_student_tools(mcp: FastMCP) -> None:
         my_id = me["id"]
 
         if assignment_identifier is not None:
+            if id_error := numeric_id_error(assignment_identifier=assignment_identifier):
+                return id_error
             if not course_identifier:
                 return (
                     "Error: assignment_identifier requires course_identifier "
