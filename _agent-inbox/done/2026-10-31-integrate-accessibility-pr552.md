@@ -44,3 +44,14 @@ The no-partial-write claim applies to failures during source collection/validati
 
 - #552 verification and completion sequence: https://github.com/vishalsachdev/canvas-mcp/pull/552#issuecomment-6547935810
 - #533 attribution and pending integration status: https://github.com/vishalsachdev/canvas-mcp/pull/533#issuecomment-6547938291
+
+
+## 2026-11-09: Completed [Claude canvas-mcp]
+
+- PR 552 merged with a merge commit, `087e04d`, at head `48019ea`. KKazuhaK's commit `e1b1ae3` is in main's ancestry (`git merge-base --is-ancestor` returned true).
+- The `CHANGELOG.md` conflict was resolved by keeping the released 1.16.1 section unchanged and placing the accessibility entry under Unreleased, with credit for PR 533.
+- Checks on `48019ea`: 19 passed, 2 skipped, none failed. The Dependency Vulnerability Scan passed; the dependency repair had already landed through PR 548.
+- Local full suite on the merged tree: 4550 passed, 29 skipped; Ruff passed. The step 4 behaviours are covered by tests in `tests/security/test_overhaul_output_boundaries.py` (unreadable and malformed sources, explicit null and empty content, zero writes after a later invalid source).
+- Approval: the review requested from ashcastelinocs124 on 2026-10-31 had no answer. Vishal authorized the admin bypass of the review requirement for this PR on 2026-11-09. No security check was suppressed.
+- PR 533: GitHub marked it merged when PR 552 landed, so that record stands. It was not closed by hand and its patch was not applied again.
+- No release and no deployment.

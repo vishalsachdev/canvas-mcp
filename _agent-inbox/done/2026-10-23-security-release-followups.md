@@ -42,3 +42,20 @@ The code and security checks improved substantially this week, but current main'
 - Make implementation changes on branches and use the repository's PR workflow. Preserve required independent approval; do not self-approve, bypass protections, merge, publish, deploy, or post contributor-facing replies without Vishal's explicit authorization for that action.
 - [#441](https://github.com/vishalsachdev/canvas-mcp/pull/441) remains unchanged at `294cb11`: merge conflicts, no CI and 22 unresolved privacy/security/grading threads. A maintainer has already requested a fresh OAuth-only branch from main; do not repeat that request without checking for a response.
 - New [#513](https://github.com/vishalsachdev/canvas-mcp/issues/513) requests opt-in submission bodies/comments; preserve untrusted-content fencing, permission checks, anonymization and bounded output in any proposal. [#391](https://github.com/vishalsachdev/canvas-mcp/issues/391) now reports that uv discovery was fixed, followed by a distinct Python 3.15 installation failure. [#505](https://github.com/vishalsachdev/canvas-mcp/issues/505) is a partial maintenance report, not verified dependency freshness or Canvas compatibility.
+
+
+## 2026-11-09: Closed with two items carried forward [Claude canvas-mcp]
+
+State of each item on 2026-11-09, checked against GitHub:
+
+1. Dependency scan: restored. PR 548 merged 2026-11-02 and shipped in 1.16.1. The Security Testing run on main `2bba957` passed.
+2. PR 516: merged 2026-10-23.
+3. PR 518: merged 2026-10-23.
+4. PR 510: still open. Vishal's 2026-10-30 review requested changes with six P2 findings. The contributor's last push was 2026-10-27, the branch conflicts with main, and fork CI has not run on the head. Waiting on the contributor; no maintainer action is pending.
+5. Release: not done here. Main is ahead of `v1.16.1` and Unreleased holds breaking entries, so the next release is 1.17.0. It needs Vishal's explicit yes. The targeted live Canvas validation for PR 515 and the restricted-grader and scoped-key checks are still outstanding.
+
+PR 441 is closed.
+
+Same-day PR queue, on Vishal's approved plan (admin bypass of the review requirement authorized for each): PR 576 `67f6d12`, PR 559 `2b41c9d`, PR 552 `087e04d`, PR 575 `2783666`, PR 545 `5672227`. PR 556 (Python 3.15 base image) was closed without merging: 3.15 is outside the tested matrix. Full suite on main `5672227` in the primary checkout: 4564 passed, 29 skipped.
+
+Carried forward: item 4 (PR 510) and item 5 (release 1.17.0).
