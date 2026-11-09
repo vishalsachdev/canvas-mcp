@@ -121,8 +121,9 @@ Claude Desktop/Code, Codex, VS Code and Cursor via the `mcp-remote` proxy.
 4. **App middleware** (`CanvasCredentialMiddleware`):
    - `ENTRA_AUTH_ENABLED=true` → require a non-empty OID, else `401 "Missing verified Entra identity"`
      (defense in depth: fail closed if the platform header is somehow absent).
-   - If `MCP_ENTRA_ALLOWED_OIDS` is non-empty and the OID is not in it (and not in the optional
-     access-overlay table) → `403 "Identity not authorized for this MCP server"`.
+   - If the OID is not in `MCP_ENTRA_ALLOWED_OIDS` and not in the optional access-overlay table
+     → `403 "Identity not authorized for this MCP server"`. An empty list admits no one by itself;
+     only `MCP_ENTRA_ALLOW_ANY_TENANT_IDENTITY=true` admits every tenant identity.
    - Audit-log **only opaque identifiers**: the OID, the `scp` scope claim, and the `azp`/`appid`
      client-app id. The UPN/email claim is deliberately **not** logged — logging it would write PII
      to the app log on every request and bypass `LOG_REDACT_PII`.
@@ -151,9 +152,14 @@ trustworthy *only* because Easy Auth sits in front and strips/replaces it. There
 | `MCP_ENTRA_ALLOWED_OIDS` | *is one of the specific people we approved for this tool* | App |
 | Canvas API token | *may see this specific course/student* | Canvas |
 
-Leaving `MCP_ENTRA_ALLOWED_OIDS` empty means "any platform-authenticated tenant identity". For
-FERPA-relevant data that is usually too broad for an initial rollout; start with an explicit
-allowlist and relax deliberately.
+With Entra auth on, the server refuses to start when `MCP_ENTRA_ALLOWED_OIDS` is empty, unless one
+of these is set:
+
+- `ACCESS_REQUEST_ENABLED=true`: overlay-only mode. Only identities granted through the
+  access-request flow get in.
+- `MCP_ENTRA_ALLOW_ANY_TENANT_IDENTITY=true`: every platform-authenticated tenant identity gets in.
+  For FERPA-relevant data that is usually too broad for an initial rollout; start with an explicit
+  allowlist and relax deliberately.
 
 ### 3.5 Legacy access-key mode (v1)
 
@@ -412,7 +418,8 @@ and is worth planning for up front.
 | `CANVAS_API_TOKEN` | — | **must be unset** | Startup guard fails closed if set in HTTP mode |
 | `ENTRA_AUTH_ENABLED` | `false` | `true` | Trust the platform `X-MS-CLIENT-PRINCIPAL-ID`. Never set outside App Service-style ingress |
 | `MCP_ALLOW_UNAUTHENTICATED` | `false` | `true` | Required companion to Entra mode; means "external auth is the gate", not "no auth" |
-| `MCP_ENTRA_ALLOWED_OIDS` | empty | explicit list | Empty = any platform-authenticated identity |
+| `MCP_ENTRA_ALLOWED_OIDS` | empty | explicit list | Empty = refuse to start, unless the overlay or the next setting is on |
+| `MCP_ENTRA_ALLOW_ANY_TENANT_IDENTITY` | `false` | `false` | `true` + empty list = any platform-authenticated identity |
 | `MCP_ACCESS_KEYS` | empty | empty (v1 only) | Legacy per-person static keys |
 | `EXECUTE_TYPESCRIPT_ENABLED` | `false` | `false` | Opt-in since v1.6.0; still set explicitly on **every slot** |
 | `ALLOWED_WRITE_TOOLS` | unset (HTTP: read-only) | `none`, then only the writes you need | Which tools that change anything exist at all. Unset on HTTP means no Canvas writes, messages, local writes or code execution. `all` allows every Canvas-write and local-write tool but not `execute_typescript`; a comma list allows exactly those. Unknown names stop startup. Set it explicitly on **every slot** |

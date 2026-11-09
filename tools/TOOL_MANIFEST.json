@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "name": "canvas-mcp",
-  "version": "1.16.0",
+  "version": "1.16.1",
   "description": "MCP server for Canvas Learning Management System API",
   "categories": [
     {
@@ -1624,7 +1624,7 @@
     {
       "name": "associate_rubric",
       "category": "educator",
-      "description": "Associate an existing rubric with an assignment.",
+      "description": "Associate an existing rubric with an assignment, replacing any current association. Use update_rubric for edits.",
       "parameters": [
         {
           "name": "course_identifier",
@@ -1914,7 +1914,7 @@
     {
       "name": "create_rubric",
       "category": "educator",
-      "description": "Create a new rubric in a course, optionally associating it with an assignment.",
+      "description": "Create a new rubric in a course, optionally attaching it to an assignment with no rubric. Use update_rubric to edit an existing rubric.",
       "parameters": [
         {
           "name": "course_identifier",
@@ -1938,7 +1938,7 @@
           "name": "assignment_id",
           "type": "string | integer",
           "required": false,
-          "description": "Optional assignment ID to immediately associate the rubric with"
+          "description": "Optional numeric ID of an assignment that has no rubric"
         },
         {
           "name": "use_for_grading",
@@ -1971,7 +1971,7 @@
     {
       "name": "update_rubric",
       "category": "educator",
-      "description": "Safely replace an existing rubric after preview and confirmation.",
+      "description": "Edit an existing rubric's title, descriptions, or points after preview and confirmation.",
       "parameters": [
         {
           "name": "course_identifier",

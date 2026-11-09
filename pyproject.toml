@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "canvas-mcp"
-version = "1.16.0"
+version = "1.16.1"
 description = "A Model Context Protocol server for Canvas LMS integration"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -27,7 +27,7 @@ classifiers = [
 ]
 keywords = ["canvas", "lms", "mcp", "claude", "education", "api"]
 dependencies = [
-    "fastmcp>=4,<5",
+    "fastmcp>=4.1.2,<5",
     "mcp>=2.2,<3",
     "httpx>=0.28.1,<1",
     "python-dotenv>=1.2.2,<2",

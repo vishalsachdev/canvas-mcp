@@ -1124,7 +1124,10 @@ details are provenance-fenced as untrusted data in the tool output.
 ### Grading & Rubrics
 
 #### `create_rubric`
-Create a new rubric in a course, optionally associating it with an assignment.
+Create a new rubric in a course, optionally attaching it to an assignment that has no rubric.
+The tool checks the assignment before writing and refuses creation if it finds
+rubric metadata or cannot verify the assignment. Use `update_rubric` to edit
+the attached rubric.
 
 Uses bracket-notation form-data encoding required by the Canvas rubric API.
 
@@ -1132,7 +1135,7 @@ Uses bracket-notation form-data encoding required by the Canvas rubric API.
 - `course_identifier`: Course code or ID
 - `title`: Rubric title
 - `criteria`: JSON string defining criteria (see example below)
-- `assignment_id` (optional): Assignment ID to immediately associate the rubric with
+- `assignment_id` (optional): Numeric ID of an assignment that has no rubric
 - `use_for_grading` (optional): Use rubric for grade calculation when associating (default: false)
 - `reusable` (optional): Make rubric reusable across courses (default: false)
 - `free_form_criterion_comments` (optional): Allow free-form comments per criterion (default: false)
@@ -1406,7 +1409,7 @@ Check whether a specific campus login ID is enrolled in a course. Answers a rost
 > **A token without roster rights does not fail loudly.** Canvas returns HTTP 200 with the full roster and silently omits `login_id`/`sis_user_id` from every user, so the identifier can never match. This tool detects that and answers **INDETERMINATE**, never "no" — permission-blindness is not absence. To ask about *yourself*, use [`get_my_enrollments`](#get_my_enrollments) instead, which needs no roster permission.
 
 **Parameters:**
-- `course_identifier`: Course code, numeric ID, or SIS ID
+- `course_identifier`: Course code, name, numeric ID, or SIS ID (an SIS ID outside your course list needs the `sis_course_id:` prefix)
 - `net_id`: The person's campus login ID — a NetID (UIUC), uniqname (UMich), campus ID, or the full email-style Canvas login. Matched case-insensitively against `login_id`, then `sis_user_id`. **Not** a display name.
 - `role` (optional): Enrollment type that satisfies the check — `student` (default), `teacher`, `ta`, `observer`, `designer`, or `any`
 - `active_only` (optional): Only count active enrollments (default `true`)
