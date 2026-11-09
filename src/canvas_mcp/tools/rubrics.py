@@ -21,7 +21,7 @@ from ..core.untrusted_content import (
     fence_untrusted,
     fence_untrusted_inline,
 )
-from ..core.validation import validate_params
+from ..core.validation import coerce_canvas_id, numeric_id_error, validate_params
 from ..core.write_confirmation import (
     ConfirmationGuard,
     preview_with_token,
@@ -903,6 +903,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             rubric_id: Canvas rubric ID (direct lookup)
             assignment_id: Canvas assignment ID (get rubric attached to assignment)
         """
+        if id_error := numeric_id_error(assignment_id=assignment_id, rubric_id=rubric_id):
+            return id_error
         if rubric_id is None and assignment_id is None:
             return (
                 "Error: You must provide either rubric_id or assignment_id.\n\n"
@@ -1095,6 +1097,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             assignment_id: Canvas assignment ID
             user_id: Canvas user ID of the student
         """
+        if id_error := numeric_id_error(assignment_id=assignment_id, user_id=user_id):
+            return id_error
         course_id = await get_course_id(course_identifier)
         assignment_id_str = str(assignment_id)
         user_id_str = str(user_id)
@@ -1222,6 +1226,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                 cannot be un-sent. Never generate one that merely restates the
                 grade or narrates that grading happened.
         """
+        if id_error := numeric_id_error(assignment_id=assignment_id, user_id=user_id):
+            return id_error
         # Backstop for issue 239: a comment or criterion comment lifted from
         # fenced read output would publish our provenance markers into the
         # student-visible gradebook. Refuse before any write.
@@ -1539,8 +1545,6 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         return result
 
-    # With assignment_id, this creates a rubric_association on that
-    # assignment, REPLACING any rubric already attached to it (#204).
     @mcp.tool(annotations=ToolAnnotations(destructive_hint=True, idempotent_hint=False))
     @validate_params
     async def create_rubric(
@@ -1552,7 +1556,11 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         reusable: bool = False,
         free_form_criterion_comments: bool = False,
     ) -> str:
-        """Create a new rubric in a course, optionally associating it with an assignment.
+        """Create a new rubric in a course, optionally attaching it to an assignment with no rubric.
+
+        Use update_rubric to edit an existing rubric. If the assignment already
+        has a rubric, this tool refuses creation before sending a write.
+        Never use creation or reassociation as a fallback for an edit.
 
         Encodes indexed criteria and ratings using bracket-notation form data.
 
@@ -1593,7 +1601,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             course_identifier: Course code or Canvas ID
             title: Rubric title
             criteria: JSON string defining rubric criteria (schema and example in the tool description)
-            assignment_id: Optional assignment ID to immediately associate the rubric with
+            assignment_id: Optional numeric ID of an assignment that has no rubric
             use_for_grading: When associating with an assignment, use rubric for grade
                              calculation (default: False)
             reusable: Make rubric reusable across courses (default: False)
@@ -1606,7 +1614,11 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         if contains_fence_markers(title) or contains_fence_markers(criteria):
             return FENCE_LEAK_ERROR
 
-        course_id = await get_course_id(course_identifier)
+        if assignment_id is not None:
+            assignment_id = coerce_canvas_id(assignment_id)
+            if assignment_id is None:
+                return "Error: assignment_id must be a numeric Canvas ID."
+            assignment_id = assignment_id.lstrip("0") or "0"
 
         # Validate and parse criteria JSON
         try:
@@ -1616,6 +1628,29 @@ def register_rubric_tools(mcp: FastMCP) -> None:
 
         if not parsed_criteria:
             return "Error: criteria must contain at least one criterion."
+
+        course_id = await get_course_id(course_identifier)
+        if assignment_id is not None:
+            assignment = await make_canvas_request(
+                "get", f"/courses/{course_id}/assignments/{assignment_id}"
+            )
+            if (
+                not isinstance(assignment, dict)
+                or "error" in assignment
+                or str(assignment.get("id")) != assignment_id
+            ):
+                return (
+                    "Error: Could not verify the assignment's current rubric. "
+                    "No rubric was created."
+                )
+            # Canvas emits these keys when an active association exists, even
+            # when the criteria list is empty or the rubric is only advisory.
+            if {"rubric", "rubric_settings", "use_rubric_for_grading"}.intersection(assignment):
+                return (
+                    "Error: The assignment already has rubric metadata. No rubric "
+                    "was created. Use update_rubric to edit the existing rubric "
+                    "after preview and confirmation."
+                )
 
         # Build bracket-notation form data Canvas expects
         form_data = build_rubric_create_form_data(
@@ -1668,7 +1703,7 @@ def register_rubric_tools(mcp: FastMCP) -> None:
         free_form_criterion_comments: bool | None = None,
         confirmation_token: str | None = None,
     ) -> str:
-        """Safely replace an existing rubric after preview and confirmation.
+        """Edit an existing rubric's title, descriptions, or points after preview and confirmation.
 
         Canvas updates replace the full criteria set. ``criteria`` must
         therefore be an ID-keyed JSON object containing every current criterion
@@ -1699,6 +1734,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                 omit to keep the current one
             confirmation_token: Token from the preview call; omit to preview
         """
+        if id_error := numeric_id_error(rubric_id=rubric_id):
+            return id_error
         if contains_fence_markers(title) or contains_fence_markers(criteria):
             return FENCE_LEAK_ERROR
 
@@ -1854,7 +1891,10 @@ def register_rubric_tools(mcp: FastMCP) -> None:
                                              assignment_id: str | int,
                                              use_for_grading: bool = False,
                                              purpose: str = "grading") -> str:
-        """Associate an existing rubric with an assignment.
+        """Associate an existing rubric with an assignment, replacing any current association.
+
+        Use only when the user explicitly requests an association change.
+        Use update_rubric for edits to the currently attached rubric.
 
         Args:
             course_identifier: Course code or Canvas ID
@@ -1863,6 +1903,8 @@ def register_rubric_tools(mcp: FastMCP) -> None:
             use_for_grading: Use rubric for grade calculation (default: False)
             purpose: Association purpose: grading, bookmark (default: grading)
         """
+        if id_error := numeric_id_error(assignment_id=assignment_id):
+            return id_error
         course_id = await get_course_id(course_identifier)
         rubric_id_str = str(rubric_id)
         assignment_id_str = str(assignment_id)

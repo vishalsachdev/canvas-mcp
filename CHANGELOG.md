@@ -9,10 +9,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- The Claude Desktop extension explicitly selects Python 3.13 through `uv`, which downloads that interpreter when needed, instead of inheriting an untested system Python such as 3.15 and falling into a Windows `cffi` source build requiring a compiler ([#391](https://github.com/vishalsachdev/canvas-mcp/issues/391)).
+- **Course names resolve in one call, and a partial name gets suggestions.** Names and codes match ignoring case and any whitespace differences. A name that matches no course is refused before any request; if it is part of one or more course names or codes, the refusal lists up to five as "Did you mean" with their IDs, and never selects one. A name that matches several courses lists their course codes.
+
+- **Request paths keep each identifier as one segment.** Educator and shared tools now refuse an ID argument that is not a numeric Canvas ID and a page slug that contains a path delimiter (`/`, `\`, `?` or `#`, raw or percent-encoded) or is `.` or `..`, before any request. An unmatched course identifier that would pass through to Canvas is refused the same way. A course that matches by code or name, including one with `/` in its code, still resolves as before. A new test sweeps every registered tool with such values.
+
+- Identifier refusals use each tool's own wording: the module write tools return plain `Error: ...` text like the rest of their responses, and `bulk_update_pages` names its `page_urls` parameter.
+
+- Accessibility scans and fixes refuse missing or malformed assignment
+  descriptions and page bodies instead of reporting a clean scan or no fixes.
+  Explicitly empty (`null` or empty-string) content remains valid, and invalid
+  sources, including pages without a usable URL slug, are rejected before any
+  collected changes can be written ([#552](https://github.com/vishalsachdev/canvas-mcp/pull/552), from [#533](https://github.com/vishalsachdev/canvas-mcp/pull/533), thanks [@KKazuhaK](https://github.com/KKazuhaK)).
+
+### Changed (breaking)
+
+- **An unmatched course identifier is refused instead of sent to Canvas.** A bare value with underscores that matches none of your courses is no longer guessed as a SIS ID; pass `sis_course_id:<id>` for a SIS lookup (for example a concluded course missing from your course list). If the course list cannot be loaded and nothing is cached, a course code or name is refused rather than passed through; numeric IDs and `sis_course_id:` forms are unaffected.
+
+### Changed (breaking for hosted operators)
+
+- **An empty Entra allowlist now needs an explicit setting.** With `ENTRA_AUTH_ENABLED=true` and an empty `MCP_ENTRA_ALLOWED_OIDS`, the HTTP server refuses to start unless `ACCESS_REQUEST_ENABLED=true` (only identities granted through the access-request flow get in) or the new `MCP_ENTRA_ALLOW_ANY_TENANT_IDENTITY=true` (every platform-authenticated tenant identity gets in, the old default). The request middleware applies the same rule. Deployments with a non-empty allowlist are unaffected.
+
+## [1.16.1] — 2026-11-02
+
+A security and fix release. It moves the locked dependencies past the advisories found since 1.16.0 and requires a patched FastMCP for fresh installs. It also fixes two HTML-handling bugs, binds peer-review reminder campaigns to the resolved course, and makes the desktop extension choose its Python.
+
+### Security
+
+- The lockfile installs FastMCP 4.1.2, which fixes [GHSA-7xgj-8392-5q4r](https://github.com/PrefectHQ/fastmcp/security/advisories/GHSA-7xgj-8392-5q4r) and [GHSA-vqqp-x5qm-5qp4](https://github.com/PrefectHQ/fastmcp/security/advisories/GHSA-vqqp-x5qm-5qp4) ([#531](https://github.com/vishalsachdev/canvas-mcp/pull/531)). Fresh installs now also require `fastmcp>=4.1.2`, so a resolver can no longer pick an earlier 4.x release ([#548](https://github.com/vishalsachdev/canvas-mcp/pull/548)).
+- Transitive dependencies with published advisories are locked to fixed releases: Authlib 1.9.1, dnspython 2.9.0 and joserfc 1.7.7 ([#548](https://github.com/vishalsachdev/canvas-mcp/pull/548)). The dependency audit now exports with `--locked`, so it fails on a stale lockfile instead of scanning it.
+- Script and style text ends only at an ASCII end tag. Unicode case folding previously let look-alike tags such as `</ſcript>` close a script block, so text a browser keeps hidden reached the model ([#535](https://github.com/vishalsachdev/canvas-mcp/pull/535)).
+
+### Fixed
+
+- A decimal character reference longer than 4,300 digits in a Canvas page, syllabus, event or group description no longer crashes the tool reading it. It decodes to U+FFFD, as the HTML standard specifies ([#542](https://github.com/vishalsachdev/canvas-mcp/pull/542)).
+- Peer-review reminder campaigns resolve the course to its numeric ID before analytics, composition, confirmation and sending, and refuse an unresolved or ambiguous course before anything is sent ([#541](https://github.com/vishalsachdev/canvas-mcp/pull/541), thanks [@lindsay-cheng](https://github.com/lindsay-cheng)).
+- The Claude Desktop extension explicitly selects Python 3.13 through `uv`, which downloads that interpreter when needed, instead of inheriting an untested system Python such as 3.15 and falling into a Windows `cffi` source build requiring a compiler ([#391](https://github.com/vishalsachdev/canvas-mcp/issues/391)). First launch therefore needs network access and allowed Python downloads when 3.13 is not installed.
 - Importing package metadata, configuration or write-policy data no longer
   loads the server framework and its authentication dependencies. The public
-  `canvas_mcp.main` entry point still resolves to `canvas_mcp.server.main`.
+  `canvas_mcp.main` entry point still resolves to `canvas_mcp.server.main` ([#534](https://github.com/vishalsachdev/canvas-mcp/pull/534), thanks [@KKazuhaK](https://github.com/KKazuhaK)).
 
 ## [1.16.0] — 2026-10-24
 
@@ -880,7 +914,6 @@ rather than papered over. Two independent review rounds ran against the result.
   local stdio path is not a URL swap — the documented stdio config uses an
   absolute venv binary path and credentials live in the server's `.env`
   ([#249](https://github.com/vishalsachdev/canvas-mcp/issues/249)).
-
 
 ## [1.7.0] — 2026-08-08
 

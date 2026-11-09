@@ -123,8 +123,9 @@ jobs:
       - name: Export locked dependencies
         run: |
           # Audit the exact pinned dependency set that actually ships (uv.lock),
-          # including the optional "hosted" extra, rather than a fresh resolve.
-          uv export --frozen --format requirements-txt \
+          # including the optional "hosted" extra. --locked also rejects stale
+          # project metadata instead of silently auditing an out-of-date lock.
+          uv export --locked --format requirements-txt \
             --no-emit-project --no-hashes --all-extras > requirements-audit.txt
       
       - name: Run pip-audit (fails the build on vulnerabilities)
@@ -184,7 +185,7 @@ jobs:
         continue-on-error: true
       
       - name: TruffleHog scan
-        uses: trufflesecurity/trufflehog@048de9ff07098d943136cd5231a0e93fbb3ea443 # main@2026-08-10
+        uses: trufflesecurity/trufflehog@f8221ca52ac51bf66228d6ec3691f3ea0782ae15 # main@2026-08-10
         with:
           path: ./
           base: main
@@ -217,15 +218,15 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
         with:
           languages: python
           queries: security-and-quality
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+        uses: github/codeql-action/autobuild@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
         with:
           category: "/language:python"

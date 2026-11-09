@@ -12,6 +12,7 @@ from typing import Any
 from .anonymization import generate_anonymous_id
 from .client import fetch_all_paginated_results, make_canvas_request
 from .dates import format_date
+from .validation import numeric_id_error, path_segment_error
 
 
 class PeerReviewCommentAnalyzer:
@@ -60,6 +61,10 @@ class PeerReviewCommentAnalyzer:
         Returns:
             Dict containing assignment info, peer reviews with comments, and summary statistics
         """
+        if id_error := numeric_id_error(assignment_id=assignment_id):
+            return {"error": id_error.removeprefix("Error: ")}
+        if segment_error := path_segment_error("course_id", str(course_id)):
+            return {"error": segment_error}
         try:
             # Get assignment details
             assignment_response = await make_canvas_request(

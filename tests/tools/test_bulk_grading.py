@@ -63,7 +63,7 @@ class TestBulkGradeSubmissions:
         result = await _call_tool(mcp, "bulk_grade_submissions", {
             "course_identifier": "TEST101",
             "assignment_id": "999",
-            "grades": {"user1": {"grade": 85, "comment": "Good work"}},
+            "grades": {"101": {"grade": 85, "comment": "Good work"}},
             "dry_run": True
         })
 
@@ -137,37 +137,37 @@ class TestGradeCommentsAreOptIn:
     @pytest.mark.asyncio
     async def test_grade_only_sends_no_comment(self, mocks):
         """THE regression test for the report: grade alone -> no comment field."""
-        await self._grade(mocks, {"user1": {"grade": 8}})
+        await self._grade(mocks, {"101": {"grade": 8}})
         assert self._submitted_comments(mocks) == []
 
     @pytest.mark.asyncio
     async def test_explicit_comment_is_preserved(self, mocks):
-        await self._grade(mocks, {"user1": {"grade": 8, "comment": "Nice analysis"}})
+        await self._grade(mocks, {"101": {"grade": 8, "comment": "Nice analysis"}})
         assert self._submitted_comments(mocks) == ["Nice analysis"]
 
     @pytest.mark.asyncio
     async def test_none_comment_is_not_sent(self, mocks):
         """Membership testing used to post an explicit None as a comment."""
-        await self._grade(mocks, {"user1": {"grade": 8, "comment": None}})
+        await self._grade(mocks, {"101": {"grade": 8, "comment": None}})
         assert self._submitted_comments(mocks) == []
 
     @pytest.mark.asyncio
     async def test_empty_comment_is_not_sent(self, mocks):
-        await self._grade(mocks, {"user1": {"grade": 8, "comment": ""}})
+        await self._grade(mocks, {"101": {"grade": 8, "comment": ""}})
         assert self._submitted_comments(mocks) == []
 
     @pytest.mark.asyncio
     async def test_dry_run_names_the_comment(self, mocks):
         """The documented safety net must reveal the student-visible side effect."""
         text = await self._grade(
-            mocks, {"user1": {"grade": 8, "comment": "Nice analysis"}}, dry_run=True
+            mocks, {"101": {"grade": 8, "comment": "Nice analysis"}}, dry_run=True
         )
         assert "student-visible comment" in text
         assert "Nice analysis" in text
 
     @pytest.mark.asyncio
     async def test_dry_run_silent_when_no_comment(self, mocks):
-        text = await self._grade(mocks, {"user1": {"grade": 8}}, dry_run=True)
+        text = await self._grade(mocks, {"101": {"grade": 8}}, dry_run=True)
         assert "student-visible comment" not in text
 
 
