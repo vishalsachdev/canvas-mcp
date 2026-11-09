@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.17.0] — 2026-11-09
+
+A minor release with breaking changes. Course identifiers are now matched strictly: a name or code resolves in one call, and a value that matches no course is refused instead of sent to Canvas. `create_rubric` no longer replaces a rubric that an assignment already has, and a hosted server with Entra sign-in and an empty allowlist needs an explicit setting to start. It also fixes accessibility source validation and the student missing-submissions list.
+
 ### Fixed
 
 - **Course names resolve in one call, and a partial name gets suggestions.** Names and codes match ignoring case and any whitespace differences. A name that matches no course is refused before any request; if it is part of one or more course names or codes, the refusal lists up to five as "Did you mean" with their IDs, and never selects one. A name that matches several courses lists their course codes.
@@ -26,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed (breaking)
 
 - **An unmatched course identifier is refused instead of sent to Canvas.** A bare value with underscores that matches none of your courses is no longer guessed as a SIS ID; pass `sis_course_id:<id>` for a SIS lookup (for example a concluded course missing from your course list). If the course list cannot be loaded and nothing is cached, a course code or name is refused rather than passed through; numeric IDs and `sis_course_id:` forms are unaffected.
+
+- **`create_rubric` refuses an assignment that already has a rubric.** With `assignment_id`, the tool reads the assignment first and creates nothing if it finds rubric metadata or cannot verify the assignment. Before, the new rubric replaced the attached one. Use `update_rubric` to edit the attached rubric, or `associate_rubric_with_assignment` when you mean to change the association. `assignment_id` must be a numeric Canvas ID.
 
 ### Changed (breaking for hosted operators)
 

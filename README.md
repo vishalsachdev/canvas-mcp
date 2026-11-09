@@ -151,18 +151,21 @@ Canvas MCP provides **up to 128 tools** for interacting with Canvas LMS; the def
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing role-specific workflows for students, educators, learning designers, and developers. Built on the Model Context Protocol (MCP), it is designed for MCP-compatible clients; setup and supported capabilities vary by client.
 
-## Latest Release: v1.16.1
+## Latest Release: v1.17.0
 
 **Released:** November 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
 
-A security and fix release on top of 1.16.0.
+A minor release with breaking changes.
 
-- **Patched dependencies**: FastMCP 4.1.2 is locked and now required for fresh installs, and the transitive Authlib, dnspython and joserfc pins move past their published advisories ([#531](https://github.com/vishalsachdev/canvas-mcp/pull/531), [#548](https://github.com/vishalsachdev/canvas-mcp/pull/548)).
-- **HTML handling**: look-alike Unicode end tags no longer close a script block early ([#535](https://github.com/vishalsachdev/canvas-mcp/pull/535)), and an oversized numeric entity no longer crashes a read ([#542](https://github.com/vishalsachdev/canvas-mcp/pull/542)).
-- **Peer-review campaigns** bind confirmation and delivery to the resolved numeric course ([#541](https://github.com/vishalsachdev/canvas-mcp/pull/541)).
-- **Desktop extension** selects Python 3.13 through `uv` instead of the system default ([#536](https://github.com/vishalsachdev/canvas-mcp/pull/536)).
+- **Course names resolve in one call** ([#567](https://github.com/vishalsachdev/canvas-mcp/pull/567)). Names and codes match regardless of case and spacing, and a partial name gets up to five "Did you mean" suggestions.
+- **Breaking: an unmatched course identifier is refused**, not sent to Canvas. A SIS ID now needs the `sis_course_id:<id>` form.
+- **Breaking: `create_rubric` no longer replaces an attached rubric.** It refuses an assignment that already has one; use `update_rubric` to edit.
+- **Breaking for hosted operators: an empty Entra allowlist needs an explicit setting** ([#563](https://github.com/vishalsachdev/canvas-mcp/pull/563)).
+- **Request paths keep each identifier as one segment** ([#566](https://github.com/vishalsachdev/canvas-mcp/pull/566)).
+- **Accessibility scans and fixes refuse unreadable sources** before any write ([#552](https://github.com/vishalsachdev/canvas-mcp/pull/552)).
+- **Student missing-submissions list** shows only work Canvas flags as missing ([#545](https://github.com/vishalsachdev/canvas-mcp/pull/545)).
 
-Thanks to [@lindsay-cheng](https://github.com/lindsay-cheng) and [@KKazuhaK](https://github.com/KKazuhaK).
+Thanks to [@KKazuhaK](https://github.com/KKazuhaK) and [@lindsay-cheng](https://github.com/lindsay-cheng).
 
 <details>
 <summary>Previous releases</summary>
