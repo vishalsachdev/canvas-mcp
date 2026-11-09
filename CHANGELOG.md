@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sources, including pages without a usable URL slug, are rejected before any
   collected changes can be written ([#552](https://github.com/vishalsachdev/canvas-mcp/pull/552), from [#533](https://github.com/vishalsachdev/canvas-mcp/pull/533), thanks [@KKazuhaK](https://github.com/KKazuhaK)).
 
+- `get_my_submission_status` lists only work that Canvas flags as missing under Missing Submissions. Graded, excused and on-paper work with no online submission moves to a separate No Canvas Submission Recorded section with its own status, and an explicit Canvas missing flag is kept and shown as MISSING even when the record has a grade or a timestamp ([#545](https://github.com/vishalsachdev/canvas-mcp/pull/545), thanks [@lindsay-cheng](https://github.com/lindsay-cheng)).
+
 ### Changed (breaking)
 
 - **An unmatched course identifier is refused instead of sent to Canvas.** A bare value with underscores that matches none of your courses is no longer guessed as a SIS ID; pass `sis_course_id:<id>` for a SIS lookup (for example a concluded course missing from your course list). If the course list cannot be loaded and nothing is cached, a course code or name is refused rather than passed through; numeric IDs and `sis_course_id:` forms are unaffected.
