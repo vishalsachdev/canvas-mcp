@@ -143,10 +143,10 @@ Course management, grading, and analytics. Requires instructor/TA role.
 | `list_rubrics` | List rubrics in a course |
 | `get_rubric` | View rubric details (by rubric_id or assignment_id) |
 | `get_rubric_assessment` | View rubric assessment for a student submission |
-| `create_rubric` | Create rubric with criteria, ratings, and optional assignment association |
-| `update_rubric` | Safely replace rubric text/points while preserving every criterion/rating ID; two-step preview and confirmation |
+| `create_rubric` | Create a rubric with criteria and ratings, optionally attaching it to an assignment that has no rubric |
+| `update_rubric` | Edit existing rubric text or points while preserving every criterion/rating ID. Requires preview and confirmation |
 | `create_rubric_from_csv` | Create rubric(s) from a CSV string. Requires a `Rubric Name` column; imported rubrics are `Draft` and do **not** appear in `list_rubrics` |
-| `associate_rubric` | Associate existing rubric with an assignment |
+| `associate_rubric` | Associate an existing rubric with an assignment, replacing the current association. Use only for an explicit association change |
 | `grade_with_rubric` | Grade single submission with rubric |
 | `bulk_grade_submissions` | Grade multiple submissions efficiently |
 | `send_conversation` | Message students. **Always two calls, even for one recipient:** preview + confirmation token first, then confirm with identical arguments |
@@ -544,14 +544,15 @@ Canvas MCP accepts multiple identifier formats:
 | Canvas ID | `12345` | Numeric course ID |
 | Course code | `badm_350_120251_246794` or `COMPSCI 161` | Matched against your courses; spaces allowed |
 | Course name | `Design and Analysis of Algorithms` | Matched against your courses |
-| SIS ID | `sis_course_id:ABC123` or `ABC123` | If configured |
+| SIS ID | `sis_course_id:ABC123` or `ABC123` | The bare form works only for one of your courses; otherwise use the `sis_course_id:` prefix |
 
 The server automatically resolves identifiers to Canvas IDs. Course codes, names
-and SIS IDs are matched against your course list, ignoring case and surrounding
-whitespace; a value that matches more than one of your courses is refused with
-the candidate IDs, so pass the numeric ID then. Tools that put the course in a
-request path (for example `list_course_files`) refuse an identifier that matches
-no course instead of sending it to Canvas.
+and SIS IDs are matched against your course list, ignoring case and whitespace
+differences. A value that matches more than one of your courses is refused with
+the candidate IDs and course codes, so pass the numeric ID then. A value that
+matches no course is refused instead of being sent to Canvas; if it is part of a
+course name or code, the refusal lists up to five "Did you mean" candidates with
+their IDs. Retry with one of those IDs; the server never picks one for you.
 
 ## Privacy and Anonymization
 

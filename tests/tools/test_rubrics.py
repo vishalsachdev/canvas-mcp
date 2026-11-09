@@ -4,7 +4,7 @@ Tests for rubric-related MCP tools.
 
 import json
 import re
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, call, patch
 
 import pytest
 from fastmcp import Client, FastMCP
@@ -471,8 +471,8 @@ class TestRubricTools:
         assert "Essay Rubric 2026" in output
         assert "_c1" in output and "_r1" in output
         _confirmation_token(output)
-        assert not [
-            call for call in mock_canvas_request.call_args_list if call.args[0] == "put"
+        assert mock_canvas_request.await_args_list == [
+            call("get", "/courses/12345/rubrics/7371", params={"include[]": ["associations"]})
         ]
 
     @pytest.mark.asyncio
@@ -515,18 +515,21 @@ class TestRubricTools:
 
         output = confirmed.content[0].text
         assert "updated and verified" in output.lower()
-        put_calls = [
-            call for call in mock_canvas_request.call_args_list if call.args[0] == "put"
+        request_sequence = [request.args for request in mock_canvas_request.await_args_list]
+        assert request_sequence == [
+            ("get", "/courses/12345/rubrics/7371"),
+            ("get", "/courses/12345/rubrics/7371"),
+            ("put", "/courses/12345/rubrics/7371"),
+            ("get", "/courses/12345/rubrics/7371"),
         ]
-        assert len(put_calls) == 1
-        assert put_calls[0].args[1] == "/courses/12345/rubrics/7371"
-        sent = put_calls[0].kwargs["data"]
+        put_request = mock_canvas_request.await_args_list[2]
+        sent = put_request.kwargs["data"]
         assert sent["rubric_association_id"] == "8801"
         assert sent["rubric[criteria][0][points]"] == "20.0"
         assert sent["rubric[skip_updating_points_possible]"] == "1"
         assert sent["rubric[criteria][0][id]"] == "_c1"
         assert sent["rubric[criteria][0][ratings][0][id]"] == "_r1"
-        assert put_calls[0].kwargs["use_form_data"] is True
+        assert put_request.kwargs["use_form_data"] is True
 
     @pytest.mark.asyncio
     async def test_update_rubric_preserves_noneditable_criterion_flags(
@@ -914,16 +917,11 @@ class TestRubricTools:
         assert "Could not confirm" in output
         assert "Returned rubric ID: 9999" in output
         assert "will not retry automatically" in output
-        assert (
-            len(
-                [
-                    call
-                    for call in mock_canvas_request.call_args_list
-                    if call.args[0] == "put"
-                ]
-            )
-            == 1
-        )
+        assert [request.args for request in mock_canvas_request.await_args_list] == [
+            ("get", "/courses/12345/rubrics/7371"),
+            ("get", "/courses/12345/rubrics/7371"),
+            ("put", "/courses/12345/rubrics/7371"),
+        ]
 
     @pytest.mark.asyncio
     async def test_update_rubric_rejects_fenced_input_without_canvas_calls(
@@ -1125,7 +1123,7 @@ class TestRubricTools:
     @pytest.mark.asyncio
     async def test_create_rubric_with_assignment(self, mcp, mock_canvas_request, mock_course_id, mock_course_code):
         """create_rubric passes association fields when assignment_id is provided."""
-        mock_canvas_request.return_value = {
+        created = {
             "rubric": {
                 "id": 7372,
                 "title": "Graded Rubric",
@@ -1143,6 +1141,10 @@ class TestRubricTools:
                 "purpose": "grading",
             },
         }
+
+        mock_canvas_request.side_effect = lambda method, *args, **kwargs: (
+            {"id": 999} if method == "get" else created
+        )
 
         criteria = json.dumps({
             "c1": {
@@ -1164,12 +1166,85 @@ class TestRubricTools:
         output = result.content[0].text
         assert "7372" in output or "Graded Rubric" in output
 
-        # Verify association fields were sent
-        call_args = mock_canvas_request.call_args
-        sent_data = call_args.kwargs.get("data", {})
-        assert "rubric_association[association_id]" in sent_data
+        assert [request.args for request in mock_canvas_request.await_args_list] == [
+            ("get", "/courses/12345/assignments/999"),
+            ("post", "/courses/12345/rubrics"),
+        ]
+        post_request = mock_canvas_request.await_args
+        assert post_request.kwargs["use_form_data"] is True
+        sent_data = post_request.kwargs["data"]
+        assert sent_data["rubric_association[association_id]"] == "999"
         assert sent_data["rubric_association[association_type]"] == "Assignment"
         assert sent_data["rubric_association[use_for_grading]"] == "1"
+
+    @pytest.mark.parametrize(
+        "assignment_response",
+        [
+            {"id": 999, "rubric": [{"id": "_c1"}]},
+            {"id": 999, "rubric_settings": {"id": 7371}},
+            {"id": 999, "rubric": [], "use_rubric_for_grading": False},
+        ],
+    )
+    async def test_create_rubric_refuses_to_replace_existing_assignment_rubric(
+        self, mcp, mock_canvas_request, mock_course_id, mock_course_code, assignment_response
+    ):
+        mock_canvas_request.side_effect = lambda method, *args, **kwargs: (
+            assignment_response if method == "get" else {"id": 7372}
+        )
+        register_rubric_tools(mcp)
+
+        result = await _call_tool(mcp, "create_rubric", {
+            "course_identifier": "TEST101",
+            "assignment_id": 999,
+            "title": "Edited Rubric",
+            "criteria": '{"c1": {"description": "Content", "points": 10}}',
+        })
+
+        assert [request.args for request in mock_canvas_request.await_args_list] == [
+            ("get", "/courses/12345/assignments/999"),
+        ]
+        output = result.content[0].text
+        assert output.startswith("Error:")
+        assert "update_rubric" in output
+
+    @pytest.mark.parametrize(
+        "assignment_response", [{"error": "Forbidden"}, [], {}, {"id": 1000}]
+    )
+    async def test_create_rubric_refuses_when_assignment_lookup_is_unverified(
+        self, mcp, mock_canvas_request, mock_course_id, mock_course_code, assignment_response
+    ):
+        mock_canvas_request.side_effect = lambda method, *args, **kwargs: (
+            assignment_response if method == "get" else {"id": 7372}
+        )
+        register_rubric_tools(mcp)
+
+        result = await _call_tool(mcp, "create_rubric", {
+            "course_identifier": "TEST101",
+            "assignment_id": 999,
+            "title": "New Rubric",
+            "criteria": '{"c1": {"description": "Content", "points": 10}}',
+        })
+
+        assert [request.args for request in mock_canvas_request.await_args_list] == [
+            ("get", "/courses/12345/assignments/999"),
+        ]
+        assert result.content[0].text.startswith("Error:")
+
+    async def test_create_rubric_rejects_non_numeric_assignment_id(
+        self, mcp, mock_canvas_request, mock_course_id, mock_course_code
+    ):
+        mock_canvas_request.return_value = {"id": 7372}
+        register_rubric_tools(mcp)
+
+        result = await _call_tool(mcp, "create_rubric", {
+            "course_identifier": "TEST101",
+            "assignment_id": "999/submissions",
+            "title": "New Rubric",
+            "criteria": '{"c1": {"description": "Content", "points": 10}}',
+        })
+
+        mock_canvas_request.assert_not_awaited()
+        assert "assignment_id must be a numeric Canvas ID" in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_create_rubric_invalid_criteria(self, mcp, mock_canvas_request, mock_course_id, mock_course_code):

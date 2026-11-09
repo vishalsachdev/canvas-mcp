@@ -60,7 +60,7 @@ from ..core.untrusted_content import (
     fence_untrusted,
     fence_untrusted_inline,
 )
-from ..core.validation import coerce_canvas_id, validate_params
+from ..core.validation import coerce_canvas_id, numeric_id_error, validate_params
 from ..core.write_confirmation import ConfirmationGuard, unconfirmed_write_warning
 
 # Submission types this tool supports. Quiz and discussion types are absent by
@@ -975,6 +975,8 @@ def register_student_write_tools(mcp: FastMCP) -> None:
                 module_id: Canvas module ID
                 item_id: Canvas module item ID
             """
+            if id_error := numeric_id_error(module_id=module_id, item_id=item_id):
+                return id_error
             course_id = await get_course_id(course_identifier)
             if not course_id:
                 return f"Error: Could not find course {course_identifier}"

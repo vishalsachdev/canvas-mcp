@@ -21,9 +21,9 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 - Tools use `@mcp.tool()` with `@validate_params`, and every tool carries annotations (`tests/test_tool_metadata.py` fails a bare decorator).
 - All Canvas calls are async and go through `make_canvas_request()`; paginate every list endpoint.
 - Course identifiers are `str | int` resolved with `get_course_id()`; dates go out through `format_date()`.
-  Code that needs a numeric course ID (paths, context codes, comparisons) uses `resolve_numeric_course_id()`, which returns `(id, error)` and never yields an unvalidated string. `get_course_id()` matches the same way but keeps its pass-through fallback on a miss.
+  Code that needs a numeric course ID (paths, context codes, comparisons) uses `resolve_numeric_course_id()`, which returns `(id, error)` and never yields an unvalidated string. `get_course_id()` matches the same way and refuses unknown aliases; explicit `sis_course_id:` forms keep their validated pass-through behavior.
 - Canvas POST/PUT needs `use_form_data=True`, `/conversations` included.
-- Errors: dict tools return an `"error"` key; string tools return `"Error ..."`. `modules.py` and `accessibility.py` return JSON-stringified errors; keep the local convention.
+- Errors: dict tools return an `"error"` key; string tools return `"Error ..."`. `accessibility.py` and the read/structure tools in `modules.py` (`get_course_structure`) return JSON-stringified errors; the `modules.py` write tools return plain text; keep each function's local convention.
 - Privacy: student IDs preserved, names anonymized at the client layer (`_should_anonymize_endpoint()`); a new endpoint must be checked against the tier rules.
 - Show course codes, not IDs, in user-facing output; handle published and unpublished states.
 
@@ -59,11 +59,13 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 - [ ] **#236** OAuth2 developer-key flow: additive only, blocked on admin access to pilot a scoped key.
 - [ ] **#172** Canvas Quizzes tools: blocked on a New-Quizzes-enabled sandbox (PR #191 was closed as unverifiable).
 - [x] **#418 to #421** shipped (#438, #437, #436, #435; #421 part 2 via #442 and the anonymous-update refusal via #446; issue closed by 2026-10-07).
-- [x] **v1.16.0** released 2026-10-24 (PR #530, tag on `b3f06c7`; Release + `.mcpb` with attestation, PyPI wheel + sdist with provenance, Registry latest, prod `azure-gies-b3f06c7` per the Kudu docker log, site from the tag plus current stats): security release; GHSA-hmr8, GHSA-7pp5, GHSA-7mj9 and GHSA-qf6c published 2026-10-25 04:11 UTC, CVEs requested (IDs pending). Breaking: the local sandbox needs Node.js 22.18+.
-- [ ] **fastmcp** 4.1.2 is on `main` via #531 (merged 2026-10-25 18:08 CDT; #532 closed), which clears GHSA-7xgj-8392-5q4r and GHSA-vqqp-x5qm-5qp4; the dependency scan passes again. The released 1.16.0 (PyPI, `.mcpb`, prod) still locks 4.0.3 until a 1.16.1 release, which should also carry #535, #541 and #542.
-- [ ] **OSS Verify** theorem-labs/oss-verify#8: Theorem's P3 change done (`326cb40`, compares the kept text; `--twice` passed), reply posted 10-24. **Merged** by `sjawhar` 2026-10-25 00:12 CDT (`66e6f43`; bot approval 10-24 23:40 CDT); `projects/canvas-mcp/` is on Theorem's `main`. Not in the proofs index, so say "enrolled", never "verified". The bot's post-merge review (10-25 00:59 CDT) listed 8 fuzz_html follow-ups; all 8 are in theorem-labs/oss-verify#42 (opened 10-25, 11 records met locally, `--twice` identical on m2max). **Theorem paused proof work on canvas-mcp** 10-25 20:02 CDT (no Python proofs yet, no date): #42 stays open, unmerged, no changes asked; enrollment stays. Their statements found a crash on a decimal entity of 4,301+ digits (CPython int-digit limit), fixed in #542. The stronger P2 check found the `_RAW_END` Unicode-folding bug, fixed in #535. Theorem statements first; proofs wait on their verified Python runtime. Findings go privately to vishal@illinois.edu.
-- [ ] **OSS Scanner** anthropics/oss-scanner#1115: enrolled 2026-10-24 (terms and CLA signed at Vishal's direction, all checks green); waiting on Anthropic's human review.
-- [ ] Hosted ops: remove `llkarri2` from the allowlist; usage telemetry is not retained (see Session Log).
+- [x] **v1.16.0** released 2026-10-24 (PR #530, tag on `b3f06c7`; Release + `.mcpb` with attestation, PyPI wheel + sdist with provenance, Registry latest, prod `azure-gies-b3f06c7` per the Kudu docker log, site from the tag plus current stats): security release; GHSA-hmr8, GHSA-7pp5, GHSA-7mj9 and GHSA-qf6c published 2026-10-25 04:11 UTC. Breaking: the local sandbox needs Node.js 22.18+.
+- [ ] **v1.16.0 advisory CVEs** — follow up on the four requested IDs in the [repository advisories](https://github.com/vishalsachdev/canvas-mcp/security/advisories).
+- [x] **v1.16.1** [published](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.16.1) 2026-11-05 UTC on GitHub and [PyPI](https://pypi.org/project/canvas-mcp/1.16.1/). The release locks FastMCP 4.1.2 (#531), requires `fastmcp>=4.1.2,<5` for fresh installs (#548), and includes #535, #541 and #542.
+- [ ] **OSS Verify** — enrollment merged in [theorem-labs/oss-verify#8](https://github.com/theorem-labs/oss-verify/pull/8). The HTML harness follow-up [#42](https://github.com/theorem-labs/oss-verify/pull/42) merged with independent parser checks and mutation cases still outstanding. Python proof work remains paused. Describe the project as enrolled and route findings privately to vishal@illinois.edu.
+- [ ] **OSS Scanner** — [Anthropic's enrollment PR #1115](https://github.com/anthropics/oss-scanner/pull/1115) remains open pending human review.
+- [ ] Hosted ops — revoke the F6 token and remove `llkarri2` from the allowlist ([#572](https://github.com/vishalsachdev/canvas-mcp/issues/572)). Usage telemetry is not retained.
+- [ ] [#489](https://github.com/vishalsachdev/canvas-mcp/issues/489) — finish the caller-boundary audit for HTTP course-policy and discussion caches.
 - [ ] Watch, no owner: Agent Plugins packaging (blocked on credential delivery; triggers in project-history).
 
 ## Roadmap
@@ -77,9 +79,8 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 ## Session Log
 > Full history: `internal/session-history.md`, local-only and untracked since 2026-08-20. Do not re-add it to git.
 
-### 2026-10-25 → 10-27 — OSS Verify follow-ups; html fixes; site simplified with fact sync; #541 merged
-- **OSS Verify:** the 8 post-merge follow-ups went in theorem-labs/oss-verify#42 (11 records, `--twice` identical). Theorem **paused proof work on canvas-mcp** 10-25 20:02 CDT: #42 stays open, unmerged, no changes asked; enrollment stays.
-- **html.py:** #535 (`_RAW_END` needs `re.ASCII`: `</ſcript>` and `</scrİpt>` ended script hiding) and #542 (a decimal entity of 4,301+ digits raised `ValueError` from `html.unescape`; `unescape_html` now guards all three call sites; 200,000-case fuzz against unlimited `html.unescape`, 0 mismatches). Both came from the independent fuzz checks.
-- **Site:** #538 and #539: effects removed, impact panel static and moved before "Built for Your Role", Monthly Installs card removed, @vishalsachdev on X. `scripts/sync_site_facts.py` (CI `--check`) owns version, tool, skill and GitHub numbers; `scripts/deploy_site.sh` honours `.assetsignore` (Pages does not: `triage/`, `audits/`, `superpowers/` were live until 10-25). Cloudflare AI-training block kept zone-wide (Vishal, option B). The 10-26 scheduled impact run deployed itself (307 stars).
-- **#541** (lindsay-cheng; peer-review campaign used the raw course code for its assignment GET and message context) merged 10-26 09:19 CDT as `1de55e4` with the prepared numeric-course fix; red-first 6 failures; 3798 passed; approval on head came from the prepared-fix reviewer on Vishal's account. Earlier runner SOCKS failures were its `ALL_PROXY` env (httpx needs `socksio`).
-- **Next:** 1.16.1 release (fastmcp 4.1.2, #535, #541, #542; control owns it). Open PRs #545 (lindsay-cheng), #533 (KKazuhaK), #510 (mobile OAuth re-review). CVE IDs for the four advisories; Anthropic's review of oss-scanner#1115. Carry: F6 token revoke, remove `llkarri2`, #489.
+### 2026-11-05 → 11-06 — identifier hardening; course names (#564)
+- #566 (`28fc227`): request paths keep each identifier as one path segment.
+- #567 (`806cb20`): course names now resolve regardless of case and spacing. A partial or unknown identifier is refused with up to 5 "Did you mean" choices. This is breaking: bare underscore IDs now need `sis_course_id:`. #567 closed issue #564.
+- #568 (`d3a598f`): each refusal names the tool's own parameter.
+- **Next:** release 1.17.0, a minor bump for the breaking entries in Unreleased. Open PRs: #510, #533, #545, #552, #556, #559.

@@ -17,7 +17,7 @@ from ..core.untrusted_content import (
     fence_untrusted,
     fence_untrusted_fields,
 )
-from ..core.validation import validate_params
+from ..core.validation import numeric_id_error, path_segment_error, validate_params
 from ..core.write_confirmation import ConfirmationGuard, redeem_confirmation
 from ..core.write_outcome import NO_WRITE_STATUSES, RequestFailure, WriteOutcome
 
@@ -269,6 +269,10 @@ async def _compose_reminder(
     subject_prefix: str,
 ) -> tuple[str, str] | dict[str, Any]:
     """Build the (subject, body) of a peer-review reminder, or an error dict."""
+    if id_error := numeric_id_error(assignment_id=assignment_id):
+        return {"error": id_error.removeprefix("Error: ")}
+    if segment_error := path_segment_error("course_identifier", str(course_identifier)):
+        return {"error": segment_error}
     assignment_response = await make_canvas_request(
         "get",
         f"/courses/{course_identifier}/assignments/{assignment_id}"
@@ -419,6 +423,8 @@ def register_shared_messaging_tools(mcp: FastMCP) -> None:
             conversation_id: Conversation ID
             include_messages: Include all messages
         """
+        if id_error := numeric_id_error(conversation_id=conversation_id):
+            return {"error": id_error.removeprefix("Error: ")}
 
         try:
             # Canvas marks a conversation read on GET unless told not to. A
@@ -668,6 +674,8 @@ def register_educator_messaging_tools(mcp: FastMCP) -> None:
             subject_prefix: Prefix for message subject
             confirmation_token: Token from the preview call; omit to preview
         """
+        if id_error := numeric_id_error(assignment_id=assignment_id):
+            return {"error": id_error.removeprefix("Error: "), "nothing_sent": True}
 
         if not recipient_ids:
             return {"error": "recipient_ids cannot be empty"}

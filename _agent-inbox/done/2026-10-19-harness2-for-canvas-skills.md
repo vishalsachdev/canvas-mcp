@@ -65,3 +65,8 @@ Cost: about 4 to 6 agent runs of one read-only skill.
 
 - Creating and seeding the sandbox course (the only Canvas write).
 - Whether a probe harness, if it works, ships in the repo (for example as a `tests/skill-evals/` fixture) or stays maintainer-local.
+
+
+## 2026-11-05 — Shelved by Vishal — [Claude control]
+
+Vishal shelved the Harness² evaluation on 2026-11-04 and told control to close its follow-ups (2026-11-05). Record: `~/.claude/docs/handoff-status/2026-10-19-harness2-recursive-agent-evaluation.md`. Do not resume without asking Vishal.
