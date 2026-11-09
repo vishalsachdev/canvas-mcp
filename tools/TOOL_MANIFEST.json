@@ -157,7 +157,7 @@
           "description": "Course code or ID to filter (optional)"
         }
       ],
-      "returns": "Submitted and missing assignments, with overdue items flagged",
+      "returns": "Submitted assignments, Canvas-flagged missing work, external-tool assignments, and items with no Canvas submission recorded (graded, excused, no-online-submission-required, or not yet submitted)",
       "examples": [
         "Have I submitted everything?",
         "Show me my submission status for BADM 350"
