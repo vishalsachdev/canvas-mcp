@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Identifier refusals use each tool's own wording: the module write tools return plain `Error: ...` text like the rest of their responses, and `bulk_update_pages` names its `page_urls` parameter.
 
+- Accessibility scans and fixes refuse missing or malformed assignment
+  descriptions and page bodies instead of reporting a clean scan or no fixes.
+  Explicitly empty (`null` or empty-string) content remains valid, and invalid
+  sources, including pages without a usable URL slug, are rejected before any
+  collected changes can be written ([#552](https://github.com/vishalsachdev/canvas-mcp/pull/552), from [#533](https://github.com/vishalsachdev/canvas-mcp/pull/533), thanks [@KKazuhaK](https://github.com/KKazuhaK)).
+
 ### Changed (breaking)
 
 - **An unmatched course identifier is refused instead of sent to Canvas.** A bare value with underscores that matches none of your courses is no longer guessed as a SIS ID; pass `sis_course_id:<id>` for a SIS lookup (for example a concluded course missing from your course list). If the course list cannot be loaded and nothing is cached, a course code or name is refused rather than passed through; numeric IDs and `sis_course_id:` forms are unaffected.
