@@ -62,6 +62,7 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 - [x] **v1.16.0** released 2026-10-24 (PR #530, tag on `b3f06c7`; Release + `.mcpb` with attestation, PyPI wheel + sdist with provenance, Registry latest, prod `azure-gies-b3f06c7` per the Kudu docker log, site from the tag plus current stats): security release; GHSA-hmr8, GHSA-7pp5, GHSA-7mj9 and GHSA-qf6c published 2026-10-25 04:11 UTC. Breaking: the local sandbox needs Node.js 22.18+.
 - [ ] **v1.16.0 advisory CVEs** — follow up on the four requested IDs in the [repository advisories](https://github.com/vishalsachdev/canvas-mcp/security/advisories).
 - [x] **v1.16.1** [published](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.16.1) 2026-11-05 UTC on GitHub and [PyPI](https://pypi.org/project/canvas-mcp/1.16.1/). The release locks FastMCP 4.1.2 (#531), requires `fastmcp>=4.1.2,<5` for fresh installs (#548), and includes #535, #541 and #542.
+- [x] **v1.17.0** [published](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.17.0) 2026-11-09 on GitHub and [PyPI](https://pypi.org/project/canvas-mcp/1.17.0/), tag on `fc2fad2`. Breaking: strict course identifiers (#567), `create_rubric` refuses an assignment that already has a rubric, and an empty Entra allowlist needs an explicit setting (#563).
 - [ ] **OSS Verify** — enrollment merged in [theorem-labs/oss-verify#8](https://github.com/theorem-labs/oss-verify/pull/8). The HTML harness follow-up [#42](https://github.com/theorem-labs/oss-verify/pull/42) merged with independent parser checks and mutation cases still outstanding. Python proof work remains paused. Describe the project as enrolled and route findings privately to vishal@illinois.edu.
 - [ ] **OSS Scanner** — [Anthropic's enrollment PR #1115](https://github.com/anthropics/oss-scanner/pull/1115) remains open pending human review.
 - [ ] Hosted ops — revoke the F6 token and remove `llkarri2` from the allowlist ([#572](https://github.com/vishalsachdev/canvas-mcp/issues/572)). Usage telemetry is not retained.
@@ -79,8 +80,8 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 ## Session Log
 > Full history: `internal/session-history.md`, local-only and untracked since 2026-08-20. Do not re-add it to git.
 
-### 2026-11-05 → 11-06 — identifier hardening; course names (#564)
-- #566 (`28fc227`): request paths keep each identifier as one path segment.
-- #567 (`806cb20`): course names now resolve regardless of case and spacing. A partial or unknown identifier is refused with up to 5 "Did you mean" choices. This is breaking: bare underscore IDs now need `sis_course_id:`. #567 closed issue #564.
-- #568 (`d3a598f`): each refusal names the tool's own parameter.
-- **Next:** release 1.17.0, a minor bump for the breaking entries in Unreleased. Open PRs: #510, #533, #545, #552, #556, #559.
+### 2026-11-09: PR queue cleared; 1.17.0 released
+- Merged #576, #559, #552 (merge commit `087e04d`; #533 marked merged with it), #575, #545, #577 and #578. PR 556 was shut without a merge: Python 3.15 is outside the test matrix, and Dependabot now skips that minor version.
+- Released 1.17.0 on `fc2fad2`. Verified the Release and `.mcpb` attestation, PyPI with provenance, Registry latest, prod `azure-gies-fc2fad2` in the Kudu log, and the site.
+- Both high-priority inbox items are in `_agent-inbox/done/`.
+- **Next:** #510 waits on its contributor (six P2 findings, comment posted 11-09). Follow-up for three low-severity `get_my_submission_status` edge cases from the #545 review (`not_graded`, excused plus missing, null `submission_types`). Four normal and low inbox items are pending. The `canvas-mcp-unused-code` worktree is parked.
