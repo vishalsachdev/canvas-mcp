@@ -423,6 +423,19 @@ Canvas MCP is designed for MCP-compatible clients. Below are configuration examp
 </details>
 
 <details>
+<summary><strong>Cross-client setup</strong></summary>
+
+Use [Agent Add](https://github.com/pea3nut/agent-add) to register the local server and select your client:
+
+```bash
+npx -y agent-add --global --mcp '{"canvas-api":{"command":"/absolute/path/to/canvas-mcp/.venv/bin/canvas-mcp-server","cwd":"/absolute/path/to/canvas-mcp"}}'
+```
+
+Replace both paths with your installation paths; `cwd` points to the directory containing `.env`. On Windows, use `.venv/Scripts/canvas-mcp-server.exe` for the command.
+
+</details>
+
+<details>
 <summary><strong>Codex</strong></summary>
 
 Codex can launch the server as a local stdio MCP server. Add this entry to `~/.codex/config.toml`, replacing the example paths with absolute paths on your machine:
