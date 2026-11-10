@@ -80,8 +80,8 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 ## Session Log
 > Full history: `internal/session-history.md`, local-only and untracked since 2026-08-20. Do not re-add it to git.
 
-### 2026-11-09: PR queue cleared; 1.17.0 released
-- Merged #576, #559, #552 (merge commit `087e04d`; #533 marked merged with it), #575, #545, #577 and #578. PR 556 was shut without a merge: Python 3.15 is outside the test matrix, and Dependabot now skips that minor version.
-- Released 1.17.0 on `fc2fad2`. Verified the Release and `.mcpb` attestation, PyPI with provenance, Registry latest, prod `azure-gies-fc2fad2` in the Kudu log, and the site.
-- Both high-priority inbox items are in `_agent-inbox/done/`.
-- **Next:** #510 waits on its contributor (six P2 findings, comment posted 11-09). Follow-up for three low-severity `get_my_submission_status` edge cases from the #545 review (`not_graded`, excused plus missing, null `submission_types`). Four normal and low inbox items are pending. The `canvas-mcp-unused-code` worktree is parked.
+### 2026-11-09 to 11-10: PR queue cleared; 1.17.0 released; remote branches pruned
+- 11-09: merged #576, #559, #552 (merge commit `087e04d`; #533 marked merged with it), #575, #545, #577, #578 and #579. PR 556 was shut without a merge: Python 3.15 is outside the test matrix, and Dependabot now skips that minor version.
+- 11-09: released 1.17.0 on `fc2fad2`. Verified the Release and `.mcpb` attestation, PyPI with provenance, Registry latest, prod `azure-gies-fc2fad2` in the Kudu log, and the site. Both high-priority inbox items are in `_agent-inbox/done/`.
+- 11-10: declined PR 580 (a README block that pointed to a third-party installer; the README documents each client's own configuration format only). Deleted 25 merged remote branches. The remote keeps `main`, `staging` and `copilot/feature-add-tools-for-canvas-quizzes` (the only draft for #172).
+- **Next:** #510 waits on its contributor (six P2 findings, comment posted 11-09). Follow-up for three low-severity `get_my_submission_status` edge cases from the #545 review (`not_graded`, excused plus missing, null `submission_types`). Four normal and low inbox items are pending. The `canvas-mcp-unused-code` worktree is parked. A squash-merged branch never shows as merged in `git branch --merged`: compare the branch tip to the PR head before deleting it.
