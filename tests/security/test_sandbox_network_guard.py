@@ -231,3 +231,101 @@ def test_guard_keeps_the_tsx_runner_working_and_blocks_other_pipes():
             "ran": 1,
             "otherPipe": "SANDBOX_NETWORK_BLOCKED",
         }
+
+
+# Guest code runs in the same JavaScript realm as the guard. These cases try to
+# make the check see one target while Node dials another, or to change how the
+# check itself runs. Each one aims at a local server that is NOT on the
+# allowlist; CONNECTED would mean it got through.
+_TAMPER_PROBE = r"""
+const net = require('net'); const dns = require('dns'); const dgram = require('dgram');
+const http = require('http'); const { Worker } = require('worker_threads');
+const server = http.createServer((q, r) => r.end('ok'));
+server.listen(0, '127.0.0.1', async () => {
+  const port = server.address().port;
+  const out = {};
+  const attempt = (fn) => new Promise((resolve) => {
+    try {
+      const s = fn();
+      s.on('connect', () => { s.destroy(); resolve('CONNECTED'); });
+      s.on('error', (e) => resolve(e.code));
+    } catch (e) { resolve(e.code); }
+  });
+  const flipping = (reads) => {
+    let n = 0;
+    return { port, get host() { return n++ < reads ? 'allowed.example' : '127.0.0.1'; } };
+  };
+  out['plain array argument'] = await attempt(() => {
+    const a = [{ host: 'allowed.example', port }]; a.host = '127.0.0.1'; a.port = port;
+    return new net.Socket().connect(a);
+  });
+  for (const reads of [1, 2, 3]) {
+    out[`getter flips after ${reads} read(s)`] = await attempt(() => net.connect(flipping(reads)));
+  }
+  out['proxy options'] = await attempt(() => {
+    let n = 0;
+    return net.connect(new Proxy({ port }, { get: (t, k) => (k === 'host' ? (n++ ? '127.0.0.1' : 'allowed.example') : t[k]) }));
+  });
+  const realToLower = String.prototype.toLowerCase;
+  String.prototype.toLowerCase = function () { return 'allowed.example'; };
+  out['String.prototype patched'] = await attempt(() => net.connect({ host: '127.0.0.1', port }));
+  String.prototype.toLowerCase = realToLower;
+  const realHas = Set.prototype.has;
+  Set.prototype.has = function () { return true; };
+  out['Set.prototype.has patched'] = await attempt(() => net.connect({ host: '127.0.0.1', port }));
+  Set.prototype.has = realHas;
+  Object.defineProperty(Object.prototype, 'host', { configurable: true, get() { return '127.0.0.1'; }, set() {} });
+  out['Object.prototype host'] = await attempt(() => net.connect({ port }));
+  delete Object.prototype.host;
+  const realLookup = dns.lookup;
+  dns.lookup = (h, o, cb) => {
+    if (typeof o === 'function') cb = o;
+    if (o && o.all) cb(null, [{ address: '127.0.0.1', family: 4 }]); else cb(null, '127.0.0.1', 4);
+  };
+  out['dns.lookup replaced'] = await attempt(() => net.connect({ host: 'allowed.example', port }));
+  dns.lookup = realLookup;
+  out['UDP send'] = await new Promise((resolve) => {
+    const u = dgram.createSocket('udp4');
+    try { u.send('x', port, '127.0.0.1', () => { u.close(); resolve('SENT'); }); }
+    catch (e) { u.close(); resolve(e.code); }
+  });
+  out['worker thread'] = await new Promise((resolve) => {
+    const w = new Worker(`
+      const { parentPort, workerData } = require('worker_threads');
+      const s = (() => { try { return require('net').connect({ host: '127.0.0.1', port: workerData }); }
+                          catch (e) { parentPort.postMessage(e.code); return null; } })();
+      if (s) { s.on('connect', () => { s.destroy(); parentPort.postMessage('CONNECTED'); });
+               s.on('error', (e) => parentPort.postMessage(e.code)); }`,
+      { eval: true, workerData: port });
+    w.once('message', (m) => { w.terminate(); resolve(m); });
+  });
+  console.log(JSON.stringify(out));
+  server.close();
+});
+"""
+
+_TAMPER_CASES = [
+    "plain array argument",
+    "getter flips after 1 read(s)",
+    "getter flips after 2 read(s)",
+    "getter flips after 3 read(s)",
+    "proxy options",
+    "String.prototype patched",
+    "Set.prototype.has patched",
+    "Object.prototype host",
+    "dns.lookup replaced",
+    "UDP send",
+    "worker thread",
+]
+
+
+@pytest.fixture(scope="module")
+def tamper_results() -> dict:
+    return _run(_TAMPER_PROBE, ["allowed.example"])
+
+
+@pytest.mark.parametrize("case", _TAMPER_CASES)
+def test_guest_tampering_cannot_reach_an_unlisted_host(tamper_results, case):
+    # Refused by the guard, or (dns.lookup replaced, getters that settle on the
+    # allowlisted name) sent to the allowlisted name, which does not resolve.
+    assert tamper_results[case] in {"SANDBOX_NETWORK_BLOCKED", "ENOTFOUND"}

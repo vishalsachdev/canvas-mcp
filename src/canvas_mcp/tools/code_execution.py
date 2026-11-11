@@ -159,100 +159,143 @@ def _append_node_options(existing: str | None, extra_args: list[str]) -> str:
 
 _NETWORK_GUARD_JS = r"""
 'use strict';
-// Sandbox egress guard, preloaded with `node -r`. A connection is allowed only
-// when it names a host on ALLOWLIST. Fail closed: no host (Node then defaults
-// to localhost), an unparseable host, a local socket path, or a caller-supplied
-// DNS lookup is refused. This is a JavaScript-level control only: child
-// processes and native bindings are not covered (see issue 157).
+// Sandbox egress guard, preloaded with `node -r` (also into worker threads).
+// A connection is allowed only when it names a host on ALLOWLIST. Fail closed:
+// no host (Node then defaults to localhost), an unparseable host, a local
+// socket path, a caller-supplied DNS lookup, or UDP is refused.
+//
+// This is a JavaScript-level control only. Child processes and native
+// bindings are not covered, and DNS answers are trusted (see issue 157).
 const net = require('net');
+const dgram = require('dgram');
+const dns = require('dns');
 const http = require('http');
 const https = require('https');
 const os = require('os');
 const path = require('path');
 const { URL } = require('url');
 
-function normalizeHost(value) {
-  if (value instanceof URL) value = value.hostname;
-  if (typeof value !== 'string') return '';
-  let host = value.trim();
-  if (!host) return '';
-  if (host.includes('://')) {
-    try { host = new URL(host).hostname; } catch (_) { return ''; }
-  }
-  host = host.split('/')[0];
-  if (host.startsWith('[')) {
-    const close = host.indexOf(']');
-    host = close > 0 ? host.slice(1, close) : '';
-  } else if ((host.match(/:/g) || []).length === 1) {
-    host = host.split(':')[0];
-  }
-  return host.toLowerCase().replace(/\.$/, '');
+// Built-ins are captured before guest code runs, so a guest that patches a
+// prototype (String, Set, Object, Function) cannot change how a check runs.
+const uncurry = Function.prototype.bind.bind(Function.prototype.call);
+const ReflectApply = Reflect.apply;
+const ArrayIsArray = Array.isArray;
+const ArrayPrototypeMap = uncurry(Array.prototype.map);
+const ObjectAssign = Object.assign;
+const ObjectCreate = Object.create;
+const ObjectGetOwnPropertySymbols = Object.getOwnPropertySymbols;
+const ObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+const SafeError = Error;
+const SafeSet = Set;
+const SafeURL = URL;
+const SetHas = uncurry(Set.prototype.has);
+const SetAdd = uncurry(Set.prototype.add);
+const StringTrim = uncurry(String.prototype.trim);
+const StringIndexOf = uncurry(String.prototype.indexOf);
+const StringSlice = uncurry(String.prototype.slice);
+const StringCharCodeAt = uncurry(String.prototype.charCodeAt);
+const StringToLowerCase = uncurry(String.prototype.toLowerCase);
+const URLHostname = uncurry(ObjectGetOwnPropertyDescriptor(URL.prototype, 'hostname').get);
+const nodeNormalizeArgs = net._normalizeArgs;
+const NORMALIZED = ObjectGetOwnPropertySymbols(nodeNormalizeArgs([{}]))[0];
+const dnsLookup = dns.lookup;
+
+function hostnameOf(value) {
+  try { return URLHostname(value instanceof SafeURL ? value : new SafeURL(value)); }
+  catch (_) { return ''; }
 }
 
-const ALLOWLIST = new Set(__ALLOWLIST__.map(normalizeHost).filter(Boolean));
+function normalizeHost(value) {
+  if (value instanceof SafeURL) value = hostnameOf(value);
+  if (typeof value !== 'string') return '';
+  let host = StringTrim(value);
+  if (host === '') return '';
+  if (StringIndexOf(host, '://') !== -1) host = hostnameOf(host);
+  const slash = StringIndexOf(host, '/');
+  if (slash !== -1) host = StringSlice(host, 0, slash);
+  if (StringCharCodeAt(host, 0) === 91) {  // '[' starts an IPv6 literal
+    const close = StringIndexOf(host, ']');
+    host = close > 0 ? StringSlice(host, 1, close) : '';
+  } else {
+    const colon = StringIndexOf(host, ':');
+    if (colon !== -1 && StringIndexOf(host, ':', colon + 1) === -1) host = StringSlice(host, 0, colon);
+  }
+  host = StringToLowerCase(host);
+  if (host.length > 0 && StringCharCodeAt(host, host.length - 1) === 46) host = StringSlice(host, 0, host.length - 1);
+  return host;
+}
+
+const ALLOWLIST = new SafeSet();
+for (const entry of ArrayPrototypeMap(__ALLOWLIST__, normalizeHost)) {
+  if (entry) SetAdd(ALLOWLIST, entry);
+}
 
 // The one local socket allowed: the pipe tsx's child process opens back to
 // its parent (tsx 4, dist/client: <tmpdir>/tsx-<euid or username>/<ppid>.pipe).
 // It is the tsx runner's own relay, not a route out of the sandbox.
-const TSX_PIPES = (() => {
-  try {
-    const owner = process.geteuid ? process.geteuid() : os.userInfo().username;
-    const pipe = path.join(os.tmpdir(), `tsx-${owner}`, `${process.ppid}.pipe`);
-    return new Set([pipe, `\\\\?\\pipe\\${pipe}`]);
-  } catch (_) {
-    return new Set();
-  }
-})();
+const TSX_PIPES = new SafeSet();
+try {
+  const owner = process.geteuid ? process.geteuid() : os.userInfo().username;
+  const pipe = path.join(os.tmpdir(), `tsx-${owner}`, `${process.ppid}.pipe`);
+  SetAdd(TSX_PIPES, pipe);
+  SetAdd(TSX_PIPES, `\\\\?\\pipe\\${pipe}`);
+} catch (_) { /* no tsx pipe: every local socket stays refused */ }
 
 function block(detail) {
-  const err = new Error(`Outbound network blocked by sandbox policy (${detail})`);
+  const err = new SafeError(`Outbound network blocked by sandbox policy (${detail})`);
   err.code = 'SANDBOX_NETWORK_BLOCKED';
   throw err;
 }
 
+// Returns the normalized host, or throws.
 function enforce(host) {
   const normalized = normalizeHost(host);
   if (!normalized) block('no host given');
-  if (!ALLOWLIST.has(normalized)) block(`host: ${normalized}`);
+  if (!SetHas(ALLOWLIST, normalized)) block(`host: ${normalized}`);
+  return normalized;
 }
 
 // net.Socket.prototype.connect is the one path every TCP and IPC client
 // reaches: net.connect, net.createConnection, new net.Socket().connect,
-// tls.connect, the http and https agents, and fetch.
-function socketConnectOptions(args) {
-  let first = args[0];
-  if (Array.isArray(first)) first = first[0];  // already normalized by net.connect
-  if (first && typeof first === 'object') return first;
-  if (typeof first === 'number' || (typeof first === 'string' && /^\d+$/.test(first))) {
-    return { port: first, host: typeof args[1] === 'string' ? args[1] : undefined };
-  }
-  if (typeof first === 'string') return { path: first };
-  return {};
-}
-
+// tls.connect, http2, the http and https agents, and fetch.
+//
+// The arguments are read the way Node reads them (its own normalizer), copied
+// once into a fresh object, checked, and only that copy is passed on. So a
+// getter, a proxy or an odd argument shape cannot show the check one target
+// and Node another. The checked host goes to Node, and DNS resolution is
+// pinned to the dns.lookup captured at load.
 const originalSocketConnect = net.Socket.prototype.connect;
 net.Socket.prototype.connect = function (...args) {
-  const opts = socketConnectOptions(args);
-  if (opts.path !== undefined && opts.path !== null) {
-    if (typeof opts.path === 'string' && TSX_PIPES.has(opts.path)) {
-      return originalSocketConnect.apply(this, args);
+  const first = args[0];
+  const normalized = ArrayIsArray(first) && first[NORMALIZED] ? first : nodeNormalizeArgs(args);
+  const safe = ObjectAssign(ObjectCreate(null), normalized[0]);
+  const cb = normalized[1];
+  if (safe.path !== undefined && safe.path !== null) {
+    if (typeof safe.path === 'string' && SetHas(TSX_PIPES, safe.path)) {
+      return ReflectApply(originalSocketConnect, this, [safe, cb]);
     }
     block('local socket path');
   }
-  if (typeof opts.lookup === 'function') block('custom DNS lookup');
-  enforce(opts.host);
-  return originalSocketConnect.apply(this, args);
+  if (typeof safe.lookup === 'function') block('custom DNS lookup');
+  safe.host = enforce(safe.host);
+  safe.lookup = dnsLookup;
+  return ReflectApply(originalSocketConnect, this, [safe, cb]);
 };
 
+// UDP has no allowlisted use in the sandbox.
+for (const method of ['send', 'connect', 'bind']) {
+  dgram.Socket.prototype[method] = function () { block('UDP'); };
+}
+
 // http(s).request and get: refuse early, with a clear error, before an agent
-// opens a socket. Node gives `hostname` precedence over `host`, and options
-// override the URL.
+// opens a socket. The socket check above still runs for every request.
+// Node gives `hostname` precedence over `host`, and options override the URL.
 function requestTarget(args) {
   let urlHost = '';
   let opts = {};
   const first = args[0];
-  if (typeof first === 'string' || first instanceof URL) {
-    try { urlHost = new URL(first).hostname; } catch (_) { urlHost = ''; }
+  if (typeof first === 'string' || first instanceof SafeURL) {
+    urlHost = hostnameOf(first);
     if (args[1] && typeof args[1] === 'object') opts = args[1];
   } else if (first && typeof first === 'object') {
     opts = first;
@@ -266,7 +309,7 @@ function guardRequest(original) {
     if (opts.socketPath !== undefined && opts.socketPath !== null) block('local socket path');
     if (typeof opts.lookup === 'function') block('custom DNS lookup');
     enforce(host);
-    return original.apply(this, args);
+    return ReflectApply(original, this, args);
   };
 }
 
@@ -277,14 +320,13 @@ for (const mod of [http, https]) {
 
 if (typeof globalThis.fetch === 'function') {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = function (input, init) {
+  globalThis.fetch = function (...args) {
+    const input = args[0];
     let host = '';
-    try {
-      if (typeof input === 'string' || input instanceof URL) host = new URL(input).hostname;
-      else if (input && typeof input === 'object' && input.url) host = new URL(input.url).hostname;
-    } catch (_) { host = ''; }
+    if (typeof input === 'string' || input instanceof SafeURL) host = hostnameOf(input);
+    else if (input && typeof input === 'object' && typeof input.url === 'string') host = hostnameOf(input.url);
     enforce(host);
-    return originalFetch.apply(this, arguments);
+    return ReflectApply(originalFetch, this, args);
   };
 }
 """
