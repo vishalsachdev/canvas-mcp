@@ -111,6 +111,7 @@ def _run(
     allowlist: list[str],
     node_args: tuple[str, ...] = (),
     preload: str = "cli",
+    node_options: str = "",
 ) -> dict:
     """Run a probe with the guard preloaded.
 
@@ -123,10 +124,13 @@ def _run(
         script.write_text(probe, encoding="utf-8")
         if preload == "env":
             cmd = [NODE, *node_args, str(script)]
-            env = {**os.environ, "NODE_OPTIONS": f"--require {json.dumps(str(guard))}"}
+            options = f"{node_options} --require {json.dumps(str(guard))}".strip()
+            env = {**os.environ, "NODE_OPTIONS": options}
         else:
             cmd = [NODE, *node_args, "-r", str(guard), str(script)]
             env = {k: v for k, v in os.environ.items() if k != "NODE_OPTIONS"}
+            if node_options:
+                env["NODE_OPTIONS"] = node_options
         res = subprocess.run(
             cmd,
             capture_output=True,
@@ -560,6 +564,64 @@ def test_worker_wrapper_keeps_worker_behavior(preload):
         "subclassInstanceof": True,
         "explicitExecArgv": "up",
         "calledWithoutNew": "TypeError",
+    }
+
+
+@pytest.mark.parametrize("preload", ["cli", "env"])
+def test_worker_starts_when_node_options_holds_a_per_process_flag(preload):
+    # Node rejects a per-process flag in a worker's NODE_OPTIONS unless the
+    # string equals the parent's, so an untouched environment must stay as is.
+    out = _run(
+        _WORKER_COMPAT_PROBE,
+        ["allowed.example"],
+        preload=preload,
+        node_options="--title=sandbox --max-old-space-size=256",
+    )
+    assert out["plain"] == "up"
+    assert out["explicitExecArgv"] == "up"
+    assert out["subclass"] == "up"
+
+
+# The one allowed local socket path must hold a socket itself: a symlink
+# there would lead to some other local socket.
+_PIPE_SYMLINK_PROBE = r"""
+const net = require('net'); const fs = require('fs'); const os = require('os'); const path = require('path');
+const dir = path.join(os.tmpdir(), `tsx-${process.geteuid()}`);
+const pipe = path.join(dir, `${process.ppid}.pipe`);
+const target = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'g-')), 's.sock');
+fs.mkdirSync(dir, { recursive: true });
+const attempt = () => new Promise((resolve) => {
+  try {
+    const s = net.connect(pipe);
+    s.on('connect', () => { s.destroy(); resolve('CONNECTED'); });
+    s.on('error', (e) => resolve(e.code));
+  } catch (e) { resolve(e.code); }
+});
+const listen = (p) => new Promise((resolve) => { const srv = net.createServer((c) => c.end()); srv.listen(p, () => resolve(srv)); });
+(async () => {
+  const out = {};
+  try { fs.unlinkSync(pipe); } catch (_) {}
+  const other = await listen(target);
+  fs.symlinkSync(target, pipe);
+  out.symlink = await attempt();
+  fs.unlinkSync(pipe);
+  out.missing = await attempt();
+  const own = await listen(pipe);
+  out.socket = await attempt();
+  own.close(); other.close();
+  try { fs.unlinkSync(pipe); } catch (_) {}
+  console.log(JSON.stringify(out));
+  process.exit(0);
+})();
+"""
+
+
+@pytest.mark.skipif(os.name == "nt", reason="named pipes are not files on Windows")
+def test_tsx_pipe_path_must_be_a_socket_not_a_symlink():
+    assert _run(_PIPE_SYMLINK_PROBE, ["allowed.example"]) == {
+        "symlink": "SANDBOX_NETWORK_BLOCKED",
+        "missing": "SANDBOX_NETWORK_BLOCKED",
+        "socket": "CONNECTED",
     }
 
 

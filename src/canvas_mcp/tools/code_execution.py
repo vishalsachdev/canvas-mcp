@@ -179,6 +179,7 @@ const net = require('net');
 const dgram = require('dgram');
 const workerThreads = require('worker_threads');
 const dns = require('dns');
+const fs = require('fs');
 const http = require('http');
 const https = require('https');
 const os = require('os');
@@ -220,6 +221,7 @@ if (typeof NORMALIZED !== 'symbol') {
   throw new SafeError('Sandbox network guard: this Node.js version changed net._normalizeArgs; the guard cannot run');
 }
 const dnsLookup = dns.lookup;
+const fsLstatSync = fs.lstatSync;
 
 function hostnameOf(value) {
   try { return URLHostname(value instanceof SafeURL ? value : new SafeURL(value)); }
@@ -262,6 +264,14 @@ try {
   SetAdd(TSX_PIPES, `\\\\?\\pipe\\${pipe}`);
 } catch (_) { /* no tsx pipe: every local socket stays refused */ }
 
+// The allowed pipe path must hold a socket itself. A symlink placed there
+// would send the connection to some other local socket.
+function isOwnSocket(pipePath) {
+  if (process.platform === 'win32') return true;  // named pipe, not a file
+  try { return (fsLstatSync(pipePath).mode & 0o170000) === 0o140000; }
+  catch (_) { return false; }
+}
+
 function block(detail) {
   const err = new SafeError(`Outbound network blocked by sandbox policy (${detail})`);
   err.code = 'SANDBOX_NETWORK_BLOCKED';
@@ -292,7 +302,7 @@ net.Socket.prototype.connect = function (...args) {
   const safe = ObjectAssign(ObjectCreate(null), normalized[0]);
   const cb = normalized[1];
   if (safe.path !== undefined && safe.path !== null) {
-    if (typeof safe.path === 'string' && SetHas(TSX_PIPES, safe.path)) {
+    if (typeof safe.path === 'string' && SetHas(TSX_PIPES, safe.path) && isOwnSocket(safe.path)) {
       return ReflectApply(originalSocketConnect, this, [safe, cb]);
     }
     block('local socket path');
@@ -317,7 +327,10 @@ for (const method of ['send', 'connect', 'bind']) {
 // `env: {}` drops a guard that the parent loaded through NODE_OPTIONS, as
 // container mode does. So the guard is put first in both. A worker with no
 // execArgv keeps its inherited flags: Node refuses some of them (V8 options)
-// in an explicit list.
+// in an explicit list. A worker environment whose NODE_OPTIONS is still the
+// value this process started with is left alone as well: it holds no preload
+// ahead of the guard, and Node rejects per-process flags in a worker's
+// NODE_OPTIONS unless the string equals the parent's.
 // The original constructor stays out of reach: the wrapper does not inherit
 // from it, and the shared prototype's constructor points at the wrapper.
 // Instances, instanceof and subclasses behave as with Node's own Worker.
@@ -326,10 +339,19 @@ const SHARE_ENV = workerThreads.SHARE_ENV;
 const processEnv = process.env;
 const GUARD_FILE = __filename;
 const GUARD_OPTION = `--require ${JSONStringify(GUARD_FILE)}`;
+const STARTUP_NODE_OPTIONS = processEnv.NODE_OPTIONS;
 function guardFirst(nodeOptions) {
   if (typeof nodeOptions !== 'string' || nodeOptions === '') return GUARD_OPTION;
   if (StringIndexOf(nodeOptions, GUARD_OPTION) === 0) return nodeOptions;
   return `${GUARD_OPTION} ${nodeOptions}`;
+}
+function withGuardFirst(source) {
+  const env = ObjectAssign({}, source);
+  const descriptor = ObjectCreate(null);
+  descriptor.value = guardFirst(env.NODE_OPTIONS);
+  descriptor.enumerable = descriptor.writable = descriptor.configurable = true;
+  ObjectDefineProperty(env, 'NODE_OPTIONS', descriptor);
+  return env;
 }
 function Worker(filename, options) {
   if (new.target === undefined) {
@@ -341,16 +363,22 @@ function Worker(filename, options) {
     ArrayPrototypeUnshift(execArgv, `--require=${GUARD_FILE}`);
     opts.execArgv = execArgv;
   }
-  if (opts.env === SHARE_ENV) {
-    processEnv.NODE_OPTIONS = guardFirst(processEnv.NODE_OPTIONS);
-  } else if (opts.env === undefined || opts.env === null || typeof opts.env === 'object') {
-    // Node's default is a copy of process.env; an own copy is the same thing.
-    const env = ObjectAssign({}, typeof opts.env === 'object' && opts.env !== null ? opts.env : processEnv);
-    const descriptor = ObjectCreate(null);
-    descriptor.value = guardFirst(env.NODE_OPTIONS);
-    descriptor.enumerable = descriptor.writable = descriptor.configurable = true;
-    ObjectDefineProperty(env, 'NODE_OPTIONS', descriptor);
-    opts.env = env;
+  // With the startup NODE_OPTIONS the guard still loads first: it is named
+  // there (container mode), or in the inherited or rewritten execArgv.
+  if (opts.env === SHARE_ENV || opts.env === undefined || opts.env === null) {
+    const current = processEnv.NODE_OPTIONS;
+    if (current !== STARTUP_NODE_OPTIONS) {
+      if (opts.env === SHARE_ENV) {
+        processEnv.NODE_OPTIONS = guardFirst(current);
+      } else {
+        // Node's default is a copy of process.env; an own copy is the same.
+        opts.env = withGuardFirst(processEnv);
+      }
+    }
+  } else if (typeof opts.env === 'object') {
+    const env = ObjectAssign({}, opts.env);
+    opts.env = env.NODE_OPTIONS === STARTUP_NODE_OPTIONS && STARTUP_NODE_OPTIONS !== undefined
+      ? env : withGuardFirst(env);
   }
   return ReflectConstruct(OriginalWorker, [filename, opts], new.target);
 }
