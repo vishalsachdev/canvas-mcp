@@ -169,6 +169,12 @@ _NETWORK_GUARD_JS = r"""
 // This is a JavaScript-level control only. Child processes, native bindings,
 // sockets attached to an existing fd or handle, and DNS answers (an allowlisted
 // name that resolves to an internal address) are outside it (see issue 157).
+// Loading twice in one thread (a worker can name the preload in both its
+// environment and its execArgv) must not wrap the wrappers.
+const GUARD_MARK = Symbol.for('canvas-mcp.sandbox-network-guard');
+if (process[GUARD_MARK]) return;
+Object.defineProperty(process, GUARD_MARK, { value: true });
+
 const net = require('net');
 const dgram = require('dgram');
 const workerThreads = require('worker_threads');
@@ -190,6 +196,8 @@ const ArrayPrototypeUnshift = uncurry(Array.prototype.unshift);
 const ReflectConstruct = Reflect.construct;
 const ObjectAssign = Object.assign;
 const ObjectCreate = Object.create;
+const ObjectDefineProperty = Object.defineProperty;
+const JSONStringify = JSON.stringify;
 const ObjectGetOwnPropertySymbols = Object.getOwnPropertySymbols;
 const ObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 const SafeError = Error;
@@ -302,15 +310,27 @@ for (const method of ['send', 'connect', 'bind']) {
   dgram.Socket.prototype[method] = function () { block('UDP'); };
 }
 
-// A worker given its own execArgv (esbuild, which tsx uses, passes []) runs
-// without this preload, so the guard is put first in that list. A worker with
-// no execArgv inherits the preload, and its argv is left alone: Node refuses
-// some inherited flags (V8 options) in an explicit list.
+// Every worker thread must load this guard before any other code. A worker
+// takes preloads from two places, in this order: NODE_OPTIONS in the
+// environment it is given, then its execArgv. Neither can be left to the
+// caller: esbuild (which tsx uses) passes execArgv [], and a worker given
+// `env: {}` drops a guard that the parent loaded through NODE_OPTIONS, as
+// container mode does. So the guard is put first in both. A worker with no
+// execArgv keeps its inherited flags: Node refuses some of them (V8 options)
+// in an explicit list.
 // The original constructor stays out of reach: the wrapper does not inherit
 // from it, and the shared prototype's constructor points at the wrapper.
 // Instances, instanceof and subclasses behave as with Node's own Worker.
 const OriginalWorker = workerThreads.Worker;
+const SHARE_ENV = workerThreads.SHARE_ENV;
+const processEnv = process.env;
 const GUARD_FILE = __filename;
+const GUARD_OPTION = `--require ${JSONStringify(GUARD_FILE)}`;
+function guardFirst(nodeOptions) {
+  if (typeof nodeOptions !== 'string' || nodeOptions === '') return GUARD_OPTION;
+  if (StringIndexOf(nodeOptions, GUARD_OPTION) === 0) return nodeOptions;
+  return `${GUARD_OPTION} ${nodeOptions}`;
+}
 function Worker(filename, options) {
   if (new.target === undefined) {
     throw new TypeError("Class constructor Worker cannot be invoked without 'new'");
@@ -320,6 +340,17 @@ function Worker(filename, options) {
     const execArgv = ArrayPrototypeSlice(opts.execArgv);
     ArrayPrototypeUnshift(execArgv, `--require=${GUARD_FILE}`);
     opts.execArgv = execArgv;
+  }
+  if (opts.env === SHARE_ENV) {
+    processEnv.NODE_OPTIONS = guardFirst(processEnv.NODE_OPTIONS);
+  } else if (opts.env === undefined || opts.env === null || typeof opts.env === 'object') {
+    // Node's default is a copy of process.env; an own copy is the same thing.
+    const env = ObjectAssign({}, typeof opts.env === 'object' && opts.env !== null ? opts.env : processEnv);
+    const descriptor = ObjectCreate(null);
+    descriptor.value = guardFirst(env.NODE_OPTIONS);
+    descriptor.enumerable = descriptor.writable = descriptor.configurable = true;
+    ObjectDefineProperty(env, 'NODE_OPTIONS', descriptor);
+    opts.env = env;
   }
   return ReflectConstruct(OriginalWorker, [filename, opts], new.target);
 }

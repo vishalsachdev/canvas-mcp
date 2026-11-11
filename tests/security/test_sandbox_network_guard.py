@@ -106,16 +106,33 @@ server.listen(0, '127.0.0.1', async () => {
 """
 
 
-def _run(probe: str, allowlist: list[str], node_args: tuple[str, ...] = ()) -> dict:
+def _run(
+    probe: str,
+    allowlist: list[str],
+    node_args: tuple[str, ...] = (),
+    preload: str = "cli",
+) -> dict:
+    """Run a probe with the guard preloaded.
+
+    preload="cli" passes `-r` on the command line. preload="env" names the
+    guard in NODE_OPTIONS only, which is how container mode loads it.
+    """
     with tempfile.TemporaryDirectory() as d:
         guard = _write_network_guard(allowlist, Path(d))
         script = Path(d) / "probe.cjs"
         script.write_text(probe, encoding="utf-8")
+        if preload == "env":
+            cmd = [NODE, *node_args, str(script)]
+            env = {**os.environ, "NODE_OPTIONS": f"--require {json.dumps(str(guard))}"}
+        else:
+            cmd = [NODE, *node_args, "-r", str(guard), str(script)]
+            env = {k: v for k, v in os.environ.items() if k != "NODE_OPTIONS"}
         res = subprocess.run(
-            [NODE, *node_args, "-r", str(guard), str(script)],
+            cmd,
             capture_output=True,
             text=True,
             timeout=30,
+            env=env,
         )
         assert res.returncode == 0, res.stderr
         return json.loads(res.stdout.strip().splitlines()[-1])
@@ -440,6 +457,69 @@ def test_custom_lookup_is_replaced_and_an_allowlisted_host_still_connects():
     }
 
 
+# A worker takes preloads from the environment it is given and from its
+# execArgv. Each case tries to start one without the guard, or with guest code
+# loaded ahead of it (which could keep the unwrapped connect). Run with the
+# guard loaded both ways: on the command line, and through NODE_OPTIONS as in
+# container mode, where `env: {}` alone used to drop it.
+_WORKER_ENV_PROBE = r"""
+const { Worker, SHARE_ENV } = require('worker_threads'); const http = require('http'); const fs = require('fs'); const path = require('path');
+const server = http.createServer((q, r) => r.end('ok'));
+server.listen(0, '127.0.0.1', async () => {
+  const port = server.address().port; const out = {};
+  const code = `const { parentPort, workerData } = require('worker_threads');
+    try { const c = globalThis.__origConnect; const net = require('net');
+      const s = c ? c.call(new net.Socket(), { host: '127.0.0.1', port: workerData }) : net.connect({ host: '127.0.0.1', port: workerData });
+      s.on('connect', () => { s.destroy(); parentPort.postMessage('CONNECTED'); }); s.on('error', (e) => parentPort.postMessage(e.code)); }
+    catch (e) { parentPort.postMessage(e.code); }`;
+  const evil = path.join(__dirname, 'evil.cjs');
+  fs.writeFileSync(evil, "globalThis.__origConnect = require('net').Socket.prototype.connect; process[Symbol.for('canvas-mcp.sandbox-network-guard')] = true;");
+  const run = (opts) => new Promise((res) => { try { const w = new Worker(code, { eval: true, workerData: port, ...opts }); w.on('message', res); w.on('error', (e) => res('ERR ' + (e.code || e.message))); } catch (e) { res('THROW ' + e.code); } });
+  out['default'] = await run({});
+  out['env {}'] = await run({ env: {} });
+  out['env NODE_OPTIONS empty'] = await run({ env: { NODE_OPTIONS: '' } });
+  out['execArgv [] env {}'] = await run({ execArgv: [], env: {} });
+  out['env evil preload'] = await run({ env: { NODE_OPTIONS: `--require ${JSON.stringify(evil)}` } });
+  out['execArgv evil preload'] = await run({ execArgv: [`--require=${evil}`], env: {} });
+  Object.defineProperty(Object.prototype, 'NODE_OPTIONS', { configurable: true, set() {}, get() { return ''; } });
+  out['Object.prototype NODE_OPTIONS'] = await run({ env: {} });
+  delete Object.prototype.NODE_OPTIONS;
+  process.env.NODE_OPTIONS = `--require ${JSON.stringify(evil)}`;
+  out['process.env evil, default'] = await run({});
+  out['process.env evil, SHARE_ENV'] = await run({ env: SHARE_ENV });
+  delete process.env.NODE_OPTIONS;
+  out['process.env deleted, default'] = await run({});
+  out['process.env deleted, SHARE_ENV'] = await run({ env: SHARE_ENV });
+  out['env string (invalid)'] = await run({ env: 'x' });
+  console.log(JSON.stringify(out)); process.exit(0);
+});
+"""
+
+_WORKER_ENV_CASES = [
+    "default",
+    "env {}",
+    "env NODE_OPTIONS empty",
+    "execArgv [] env {}",
+    "env evil preload",
+    "execArgv evil preload",
+    "Object.prototype NODE_OPTIONS",
+    "process.env evil, default",
+    "process.env evil, SHARE_ENV",
+    "process.env deleted, default",
+    "process.env deleted, SHARE_ENV",
+]
+
+
+@pytest.mark.parametrize("preload", ["cli", "env"])
+def test_worker_cannot_start_without_the_guard_first(preload):
+    results = _run(_WORKER_ENV_PROBE, ["allowed.example"], preload=preload)
+    assert {case: results[case] for case in _WORKER_ENV_CASES} == dict.fromkeys(
+        _WORKER_ENV_CASES, "SANDBOX_NETWORK_BLOCKED"
+    )
+    # An env of the wrong type is still Node's own error.
+    assert results["env string (invalid)"] == "THROW ERR_INVALID_ARG_TYPE"
+
+
 # The worker wrapper must behave like Node's own Worker for ordinary code.
 _WORKER_COMPAT_PROBE = r"""
 const { Worker } = require('worker_threads');
@@ -469,8 +549,9 @@ const run = (W, options) => new Promise((resolve) => {
 """
 
 
-def test_worker_wrapper_keeps_worker_behavior():
-    assert _run(_WORKER_COMPAT_PROBE, ["allowed.example"]) == {
+@pytest.mark.parametrize("preload", ["cli", "env"])
+def test_worker_wrapper_keeps_worker_behavior(preload):
+    assert _run(_WORKER_COMPAT_PROBE, ["allowed.example"], preload=preload) == {
         "plain": "up",
         "instanceof": True,
         "constructor": True,
