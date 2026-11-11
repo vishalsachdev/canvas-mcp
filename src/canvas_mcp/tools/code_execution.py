@@ -157,102 +157,287 @@ def _append_node_options(existing: str | None, extra_args: list[str]) -> str:
     return " ".join(part for part in parts if part).strip()
 
 
-def _write_network_guard(allowlist_hosts: list[str], directory: Path) -> Path:
-    guard_contents = f"""\
+_NETWORK_GUARD_JS = r"""
+'use strict';
+// Sandbox egress guard, preloaded with `node -r`.
+// A connection is allowed only when it names a host on ALLOWLIST. Fail closed:
+// no host (Node then defaults to localhost), an unparseable host, a local
+// socket path, or UDP is refused. A caller-supplied DNS lookup is replaced by
+// the dns.lookup captured at load. Every worker thread loads this guard first,
+// whatever execArgv it is given.
+//
+// This is a JavaScript-level control only. Child processes, native bindings,
+// sockets attached to an existing fd or handle, and DNS answers (an allowlisted
+// name that resolves to an internal address) are outside it (see issue 157).
+// Loading twice in one thread (a worker can name the preload in both its
+// environment and its execArgv) must not wrap the wrappers.
+const GUARD_MARK = Symbol.for('canvas-mcp.sandbox-network-guard');
+if (process[GUARD_MARK]) return;
+Object.defineProperty(process, GUARD_MARK, { value: true });
+
 const net = require('net');
-const tls = require('tls');
+const dgram = require('dgram');
+const workerThreads = require('worker_threads');
+const dns = require('dns');
+const fs = require('fs');
 const http = require('http');
 const https = require('https');
-const {{ URL }} = require('url');
+const os = require('os');
+const path = require('path');
+const { URL } = require('url');
 
-const ALLOWLIST = new Set({json.dumps(sorted(set(allowlist_hosts)))});
+// Built-ins are captured before guest code runs, so a guest that patches a
+// prototype (String, Set, Object, Function) cannot change how a check runs.
+const uncurry = Function.prototype.bind.bind(Function.prototype.call);
+const ReflectApply = Reflect.apply;
+const ArrayIsArray = Array.isArray;
+const ArrayPrototypeMap = uncurry(Array.prototype.map);
+const ArrayPrototypeSlice = uncurry(Array.prototype.slice);
+const ArrayPrototypeUnshift = uncurry(Array.prototype.unshift);
+const ReflectConstruct = Reflect.construct;
+const ObjectAssign = Object.assign;
+const ObjectCreate = Object.create;
+const ObjectDefineProperty = Object.defineProperty;
+const JSONStringify = JSON.stringify;
+const ObjectGetOwnPropertySymbols = Object.getOwnPropertySymbols;
+const ObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+const SafeError = Error;
+const SafeSet = Set;
+const SafeURL = URL;
+const SetHas = uncurry(Set.prototype.has);
+const SetAdd = uncurry(Set.prototype.add);
+const StringTrim = uncurry(String.prototype.trim);
+const StringIndexOf = uncurry(String.prototype.indexOf);
+const StringSlice = uncurry(String.prototype.slice);
+const StringCharCodeAt = uncurry(String.prototype.charCodeAt);
+const StringToLowerCase = uncurry(String.prototype.toLowerCase);
+const URLHostname = uncurry(ObjectGetOwnPropertyDescriptor(URL.prototype, 'hostname').get);
+const nodeNormalizeArgs = net._normalizeArgs;
+if (typeof nodeNormalizeArgs !== 'function') {
+  throw new SafeError('Sandbox network guard: this Node.js version has no net._normalizeArgs; the guard cannot run');
+}
+const NORMALIZED = ObjectGetOwnPropertySymbols(nodeNormalizeArgs([{}]))[0];
+if (typeof NORMALIZED !== 'symbol') {
+  throw new SafeError('Sandbox network guard: this Node.js version changed net._normalizeArgs; the guard cannot run');
+}
+const dnsLookup = dns.lookup;
+const fsLstatSync = fs.lstatSync;
 
-function normalizeHost(value) {{
-  if (!value) return '';
+function hostnameOf(value) {
+  try { return URLHostname(value instanceof SafeURL ? value : new SafeURL(value)); }
+  catch (_) { return ''; }
+}
+
+function normalizeHost(value) {
+  if (value instanceof SafeURL) value = hostnameOf(value);
   if (typeof value !== 'string') return '';
-  let host = value;
-  if (value.includes('://')) {{
-    try {{
-      host = new URL(value).hostname || '';
-    }} catch (_) {{
-      host = value;
-    }}
-  }}
-  host = host.split('/')[0].split(':')[0].toLowerCase();
+  let host = StringTrim(value);
+  if (host === '') return '';
+  if (StringIndexOf(host, '://') !== -1) host = hostnameOf(host);
+  const slash = StringIndexOf(host, '/');
+  if (slash !== -1) host = StringSlice(host, 0, slash);
+  if (StringCharCodeAt(host, 0) === 91) {  // '[' starts an IPv6 literal
+    const close = StringIndexOf(host, ']');
+    host = close > 0 ? StringSlice(host, 1, close) : '';
+  } else {
+    const colon = StringIndexOf(host, ':');
+    if (colon !== -1 && StringIndexOf(host, ':', colon + 1) === -1) host = StringSlice(host, 0, colon);
+  }
+  host = StringToLowerCase(host);
+  if (host.length > 0 && StringCharCodeAt(host, host.length - 1) === 46) host = StringSlice(host, 0, host.length - 1);
   return host;
-}}
+}
 
-function isAllowed(host) {{
-  if (!host) return true;
+const ALLOWLIST = new SafeSet();
+for (const entry of ArrayPrototypeMap(__ALLOWLIST__, normalizeHost)) {
+  if (entry) SetAdd(ALLOWLIST, entry);
+}
+
+// The one local socket allowed: the pipe tsx's child process opens back to
+// its parent (tsx 4, dist/client: <tmpdir>/tsx-<euid or username>/<ppid>.pipe).
+// It is the tsx runner's own relay, not a route out of the sandbox.
+const TSX_PIPES = new SafeSet();
+try {
+  const owner = process.geteuid ? process.geteuid() : os.userInfo().username;
+  const pipe = path.join(os.tmpdir(), `tsx-${owner}`, `${process.ppid}.pipe`);
+  SetAdd(TSX_PIPES, pipe);
+  SetAdd(TSX_PIPES, `\\\\?\\pipe\\${pipe}`);
+} catch (_) { /* no tsx pipe: every local socket stays refused */ }
+
+// The allowed pipe path must hold a socket itself. A symlink placed there
+// would send the connection to some other local socket. The check and the
+// connect are two steps: code that can write files and race them from a
+// second thread is outside this guard, like the child processes it could
+// start instead (issue 157).
+const IS_WINDOWS = process.platform === 'win32';
+function isOwnSocket(pipePath) {
+  if (IS_WINDOWS) return true;  // named pipe, not a file
+  try { return (fsLstatSync(pipePath).mode & 0o170000) === 0o140000; }
+  catch (_) { return false; }
+}
+
+function block(detail) {
+  const err = new SafeError(`Outbound network blocked by sandbox policy (${detail})`);
+  err.code = 'SANDBOX_NETWORK_BLOCKED';
+  throw err;
+}
+
+// Returns the normalized host, or throws.
+function enforce(host) {
   const normalized = normalizeHost(host);
-  if (!normalized) return true;
-  return ALLOWLIST.has(normalized);
-}}
+  if (!normalized) block('no host given');
+  if (!SetHas(ALLOWLIST, normalized)) block(`host: ${normalized}`);
+  return normalized;
+}
 
-function enforce(host) {{
-  if (!isAllowed(host)) {{
-    const err = new Error(`Outbound network blocked by sandbox policy (host: ${{host}})`);
-    err.code = 'SANDBOX_NETWORK_BLOCKED';
-    throw err;
-  }}
-}}
-
-function getHostFromArgs(args) {{
-  if (!args || args.length === 0) return '';
+// net.Socket.prototype.connect is the one path every TCP and IPC client
+// reaches: net.connect, net.createConnection, new net.Socket().connect,
+// tls.connect, http2, the http and https agents, and fetch.
+//
+// The arguments are read the way Node reads them (its own normalizer), copied
+// once into a fresh object, checked, and only that copy is passed on. So a
+// getter, a proxy or an odd argument shape cannot show the check one target
+// and Node another. The checked host goes to Node, and DNS resolution is
+// pinned to the dns.lookup captured at load.
+const originalSocketConnect = net.Socket.prototype.connect;
+net.Socket.prototype.connect = function (...args) {
   const first = args[0];
-  if (typeof first === 'string') return first;
-  if (first && typeof first === 'object') {{
-    return first.host || first.hostname || '';
-  }}
-  if (typeof args[1] === 'string') return args[1];
-  return '';
-}}
+  const normalized = ArrayIsArray(first) && first[NORMALIZED] ? first : nodeNormalizeArgs(args);
+  const safe = ObjectAssign(ObjectCreate(null), normalized[0]);
+  const cb = normalized[1];
+  if (safe.path !== undefined && safe.path !== null) {
+    if (typeof safe.path === 'string' && SetHas(TSX_PIPES, safe.path) && isOwnSocket(safe.path)) {
+      return ReflectApply(originalSocketConnect, this, [safe, cb]);
+    }
+    block('local socket path');
+  }
+  safe.host = enforce(safe.host);
+  // A caller's own lookup is never used: it could send an allowlisted name to
+  // any address. It is replaced, not refused, because ordinary clients (npm's
+  // agent, when npx fetches the runner) pass one.
+  safe.lookup = dnsLookup;
+  return ReflectApply(originalSocketConnect, this, [safe, cb]);
+};
 
-const originalNetConnect = net.connect;
-net.connect = function (...args) {{
-  const host = getHostFromArgs(args);
-  enforce(host);
-  return originalNetConnect.apply(this, args);
-}};
+// UDP has no allowlisted use in the sandbox.
+for (const method of ['send', 'connect', 'bind']) {
+  dgram.Socket.prototype[method] = function () { block('UDP'); };
+}
 
-const originalTlsConnect = tls.connect;
-tls.connect = function (...args) {{
-  const host = getHostFromArgs(args);
-  enforce(host);
-  return originalTlsConnect.apply(this, args);
-}};
+// Every worker thread must load this guard before any other code. A worker
+// takes preloads from two places, in this order: NODE_OPTIONS in the
+// environment it is given, then its execArgv. Neither can be left to the
+// caller: esbuild (which tsx uses) passes execArgv [], and a worker given
+// `env: {}` drops a guard that the parent loaded through NODE_OPTIONS, as
+// container mode does. So the guard is put first in both. A worker with no
+// execArgv keeps its inherited flags: Node refuses some of them (V8 options)
+// in an explicit list. A worker environment whose NODE_OPTIONS is still the
+// value this process started with is left alone as well: it holds no preload
+// ahead of the guard, and Node rejects per-process flags in a worker's
+// NODE_OPTIONS unless the string equals the parent's.
+// The original constructor stays out of reach: the wrapper does not inherit
+// from it, and the shared prototype's constructor points at the wrapper.
+// Instances, instanceof and subclasses behave as with Node's own Worker.
+const OriginalWorker = workerThreads.Worker;
+const SHARE_ENV = workerThreads.SHARE_ENV;
+const processEnv = process.env;
+const GUARD_FILE = __filename;
+const GUARD_OPTION = `--require ${JSONStringify(GUARD_FILE)}`;
+const STARTUP_NODE_OPTIONS = processEnv.NODE_OPTIONS;
+function guardFirst(nodeOptions) {
+  if (typeof nodeOptions !== 'string' || nodeOptions === '') return GUARD_OPTION;
+  if (StringIndexOf(nodeOptions, GUARD_OPTION) === 0) return nodeOptions;
+  return `${GUARD_OPTION} ${nodeOptions}`;
+}
+function withGuardFirst(source) {
+  const env = ObjectAssign({}, source);
+  const descriptor = ObjectCreate(null);
+  descriptor.value = guardFirst(env.NODE_OPTIONS);
+  descriptor.enumerable = descriptor.writable = descriptor.configurable = true;
+  ObjectDefineProperty(env, 'NODE_OPTIONS', descriptor);
+  return env;
+}
+function Worker(filename, options) {
+  if (new.target === undefined) {
+    throw new TypeError("Class constructor Worker cannot be invoked without 'new'");
+  }
+  const opts = ObjectAssign(ObjectCreate(null), options);
+  if (ArrayIsArray(opts.execArgv)) {
+    const execArgv = ArrayPrototypeSlice(opts.execArgv);
+    ArrayPrototypeUnshift(execArgv, `--require=${GUARD_FILE}`);
+    opts.execArgv = execArgv;
+  }
+  // With the startup NODE_OPTIONS the guard still loads first: it is named
+  // there (container mode), or in the inherited or rewritten execArgv.
+  if (opts.env === SHARE_ENV || opts.env === undefined || opts.env === null) {
+    const current = processEnv.NODE_OPTIONS;
+    if (current !== STARTUP_NODE_OPTIONS) {
+      if (opts.env === SHARE_ENV) {
+        processEnv.NODE_OPTIONS = guardFirst(current);
+      } else {
+        // Node's default is a copy of process.env; an own copy is the same.
+        opts.env = withGuardFirst(processEnv);
+      }
+    }
+  } else if (typeof opts.env === 'object') {
+    const env = ObjectAssign({}, opts.env);
+    opts.env = env.NODE_OPTIONS === STARTUP_NODE_OPTIONS && STARTUP_NODE_OPTIONS !== undefined
+      ? env : withGuardFirst(env);
+  }
+  return ReflectConstruct(OriginalWorker, [filename, opts], new.target);
+}
+Worker.prototype = OriginalWorker.prototype;
+OriginalWorker.prototype.constructor = Worker;
+workerThreads.Worker = Worker;
 
-const originalHttpRequest = http.request;
-http.request = function (...args) {{
-  const host = getHostFromArgs(args);
-  enforce(host);
-  return originalHttpRequest.apply(this, args);
-}};
+// http(s).request and get: refuse early, with a clear error, before an agent
+// opens a socket. The socket check above still runs for every request.
+// Node gives `hostname` precedence over `host`, and options override the URL.
+function requestTarget(args) {
+  let urlHost = '';
+  let opts = {};
+  const first = args[0];
+  if (typeof first === 'string' || first instanceof SafeURL) {
+    urlHost = hostnameOf(first);
+    if (args[1] && typeof args[1] === 'object') opts = args[1];
+  } else if (first && typeof first === 'object') {
+    opts = first;
+  }
+  return { opts, host: opts.hostname || opts.host || urlHost || '' };
+}
 
-const originalHttpsRequest = https.request;
-https.request = function (...args) {{
-  const host = getHostFromArgs(args);
-  enforce(host);
-  return originalHttpsRequest.apply(this, args);
-}};
-
-// Intercept globalThis.fetch (modern Node.js >=18)
-if (typeof globalThis.fetch === 'function') {{
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = function (input, init) {{
-    let host = '';
-    if (typeof input === 'string') {{
-      try {{ host = new URL(input).hostname; }} catch (_) {{ host = input; }}
-    }} else if (input instanceof URL) {{
-      host = input.hostname;
-    }} else if (input && typeof input === 'object' && input.url) {{
-      try {{ host = new URL(input.url).hostname; }} catch (_) {{ host = ''; }}
-    }}
+function guardRequest(original) {
+  return function (...args) {
+    const { opts, host } = requestTarget(args);
+    if (opts.socketPath !== undefined && opts.socketPath !== null) block('local socket path');
     enforce(host);
-    return originalFetch.apply(this, arguments);
-  }};
-}}
+    return ReflectApply(original, this, args);
+  };
+}
+
+for (const mod of [http, https]) {
+  mod.request = guardRequest(mod.request);
+  mod.get = guardRequest(mod.get);
+}
+
+if (typeof globalThis.fetch === 'function') {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = function (...args) {
+    const input = args[0];
+    let host = '';
+    if (typeof input === 'string' || input instanceof SafeURL) host = hostnameOf(input);
+    else if (input && typeof input === 'object' && typeof input.url === 'string') host = hostnameOf(input.url);
+    enforce(host);
+    return ReflectApply(originalFetch, this, args);
+  };
+}
 """
+
+
+def _write_network_guard(allowlist_hosts: list[str], directory: Path) -> Path:
+    guard_contents = _NETWORK_GUARD_JS.replace(
+        "__ALLOWLIST__", json.dumps(sorted(set(allowlist_hosts)))
+    )
     guard_file = tempfile.NamedTemporaryFile(
         mode="w",
         encoding="utf-8",

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The TypeScript sandbox's network guard fails closed.** A connection from `execute_typescript` code must name a host on the sandbox allowlist. A connection that names no host or a local socket path is now refused, and so is UDP. A DNS lookup function supplied by the caller is replaced by Node's own. The check runs at the socket level, so `net`, `tls`, `http`, `https`, `http2` and `fetch` all go through it, and every worker thread loads the guard. Code that relied on any of these connections now fails with `SANDBOX_NETWORK_BLOCKED`. The guard remains a JavaScript-level control: child processes, native bindings and DNS answers are outside it (#157).
+
 ## [1.17.0] — 2026-11-09
 
 A minor release with breaking changes. Course identifiers are now matched strictly: a name or code resolves in one call, and a value that matches no course is refused instead of sent to Canvas. `create_rubric` no longer replaces a rubric that an assignment already has, and a hosted server with Entra sign-in and an empty allowlist needs an explicit setting to start. It also fixes accessibility source validation and the student missing-submissions list.
