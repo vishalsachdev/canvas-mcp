@@ -157,102 +157,123 @@ def _append_node_options(existing: str | None, extra_args: list[str]) -> str:
     return " ".join(part for part in parts if part).strip()
 
 
-def _write_network_guard(allowlist_hosts: list[str], directory: Path) -> Path:
-    guard_contents = f"""\
+_NETWORK_GUARD_JS = r"""
+'use strict';
+// Sandbox egress guard, preloaded with `node -r`. A connection is allowed only
+// when it names a host on ALLOWLIST. Fail closed: no host (Node then defaults
+// to localhost), an unparseable host, a local socket path, or a caller-supplied
+// DNS lookup is refused. This is a JavaScript-level control only: child
+// processes and native bindings are not covered (see issue 157).
 const net = require('net');
-const tls = require('tls');
 const http = require('http');
 const https = require('https');
-const {{ URL }} = require('url');
+const { URL } = require('url');
 
-const ALLOWLIST = new Set({json.dumps(sorted(set(allowlist_hosts)))});
+const ALLOWLIST = new Set(__ALLOWLIST__);
 
-function normalizeHost(value) {{
-  if (!value) return '';
+function normalizeHost(value) {
+  if (value instanceof URL) value = value.hostname;
   if (typeof value !== 'string') return '';
-  let host = value;
-  if (value.includes('://')) {{
-    try {{
-      host = new URL(value).hostname || '';
-    }} catch (_) {{
-      host = value;
-    }}
-  }}
-  host = host.split('/')[0].split(':')[0].toLowerCase();
-  return host;
-}}
+  let host = value.trim();
+  if (!host) return '';
+  if (host.includes('://')) {
+    try { host = new URL(host).hostname; } catch (_) { return ''; }
+  }
+  host = host.split('/')[0];
+  if (host.startsWith('[')) {
+    const close = host.indexOf(']');
+    host = close > 0 ? host.slice(1, close) : '';
+  } else if ((host.match(/:/g) || []).length === 1) {
+    host = host.split(':')[0];
+  }
+  return host.toLowerCase().replace(/\.$/, '');
+}
 
-function isAllowed(host) {{
-  if (!host) return true;
+function block(detail) {
+  const err = new Error(`Outbound network blocked by sandbox policy (${detail})`);
+  err.code = 'SANDBOX_NETWORK_BLOCKED';
+  throw err;
+}
+
+function enforce(host) {
   const normalized = normalizeHost(host);
-  if (!normalized) return true;
-  return ALLOWLIST.has(normalized);
-}}
+  if (!normalized) block('no host given');
+  if (!ALLOWLIST.has(normalized)) block(`host: ${normalized}`);
+}
 
-function enforce(host) {{
-  if (!isAllowed(host)) {{
-    const err = new Error(`Outbound network blocked by sandbox policy (host: ${{host}})`);
-    err.code = 'SANDBOX_NETWORK_BLOCKED';
-    throw err;
-  }}
-}}
+// net.Socket.prototype.connect is the one path every TCP and IPC client
+// reaches: net.connect, net.createConnection, new net.Socket().connect,
+// tls.connect, the http and https agents, and fetch.
+function socketConnectOptions(args) {
+  let first = args[0];
+  if (Array.isArray(first)) first = first[0];  // already normalized by net.connect
+  if (first && typeof first === 'object') return first;
+  if (typeof first === 'number' || (typeof first === 'string' && /^\d+$/.test(first))) {
+    return { port: first, host: typeof args[1] === 'string' ? args[1] : undefined };
+  }
+  if (typeof first === 'string') return { path: first };
+  return {};
+}
 
-function getHostFromArgs(args) {{
-  if (!args || args.length === 0) return '';
+const originalSocketConnect = net.Socket.prototype.connect;
+net.Socket.prototype.connect = function (...args) {
+  const opts = socketConnectOptions(args);
+  if (opts.path !== undefined && opts.path !== null) block('local socket path');
+  if (typeof opts.lookup === 'function') block('custom DNS lookup');
+  enforce(opts.host);
+  return originalSocketConnect.apply(this, args);
+};
+
+// http(s).request and get: refuse early, with a clear error, before an agent
+// opens a socket. Node gives `hostname` precedence over `host`, and options
+// override the URL.
+function requestTarget(args) {
+  let urlHost = '';
+  let opts = {};
   const first = args[0];
-  if (typeof first === 'string') return first;
-  if (first && typeof first === 'object') {{
-    return first.host || first.hostname || '';
-  }}
-  if (typeof args[1] === 'string') return args[1];
-  return '';
-}}
+  if (typeof first === 'string' || first instanceof URL) {
+    try { urlHost = new URL(first).hostname; } catch (_) { urlHost = ''; }
+    if (args[1] && typeof args[1] === 'object') opts = args[1];
+  } else if (first && typeof first === 'object') {
+    opts = first;
+  }
+  return { opts, host: opts.hostname || opts.host || urlHost || '' };
+}
 
-const originalNetConnect = net.connect;
-net.connect = function (...args) {{
-  const host = getHostFromArgs(args);
-  enforce(host);
-  return originalNetConnect.apply(this, args);
-}};
+function guardRequest(original) {
+  return function (...args) {
+    const { opts, host } = requestTarget(args);
+    if (opts.socketPath !== undefined && opts.socketPath !== null) block('local socket path');
+    if (typeof opts.lookup === 'function') block('custom DNS lookup');
+    enforce(host);
+    return original.apply(this, args);
+  };
+}
 
-const originalTlsConnect = tls.connect;
-tls.connect = function (...args) {{
-  const host = getHostFromArgs(args);
-  enforce(host);
-  return originalTlsConnect.apply(this, args);
-}};
+for (const mod of [http, https]) {
+  mod.request = guardRequest(mod.request);
+  mod.get = guardRequest(mod.get);
+}
 
-const originalHttpRequest = http.request;
-http.request = function (...args) {{
-  const host = getHostFromArgs(args);
-  enforce(host);
-  return originalHttpRequest.apply(this, args);
-}};
-
-const originalHttpsRequest = https.request;
-https.request = function (...args) {{
-  const host = getHostFromArgs(args);
-  enforce(host);
-  return originalHttpsRequest.apply(this, args);
-}};
-
-// Intercept globalThis.fetch (modern Node.js >=18)
-if (typeof globalThis.fetch === 'function') {{
+if (typeof globalThis.fetch === 'function') {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = function (input, init) {{
+  globalThis.fetch = function (input, init) {
     let host = '';
-    if (typeof input === 'string') {{
-      try {{ host = new URL(input).hostname; }} catch (_) {{ host = input; }}
-    }} else if (input instanceof URL) {{
-      host = input.hostname;
-    }} else if (input && typeof input === 'object' && input.url) {{
-      try {{ host = new URL(input.url).hostname; }} catch (_) {{ host = ''; }}
-    }}
+    try {
+      if (typeof input === 'string' || input instanceof URL) host = new URL(input).hostname;
+      else if (input && typeof input === 'object' && input.url) host = new URL(input.url).hostname;
+    } catch (_) { host = ''; }
     enforce(host);
     return originalFetch.apply(this, arguments);
-  }};
-}}
+  };
+}
 """
+
+
+def _write_network_guard(allowlist_hosts: list[str], directory: Path) -> Path:
+    guard_contents = _NETWORK_GUARD_JS.replace(
+        "__ALLOWLIST__", json.dumps(sorted(set(allowlist_hosts)))
+    )
     guard_file = tempfile.NamedTemporaryFile(
         mode="w",
         encoding="utf-8",
