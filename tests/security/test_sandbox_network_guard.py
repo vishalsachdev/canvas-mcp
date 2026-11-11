@@ -106,13 +106,13 @@ server.listen(0, '127.0.0.1', async () => {
 """
 
 
-def _run(probe: str, allowlist: list[str]) -> dict:
+def _run(probe: str, allowlist: list[str], node_args: tuple[str, ...] = ()) -> dict:
     with tempfile.TemporaryDirectory() as d:
         guard = _write_network_guard(allowlist, Path(d))
         script = Path(d) / "probe.cjs"
         script.write_text(probe, encoding="utf-8")
         res = subprocess.run(
-            [NODE, "-r", str(guard), str(script)],
+            [NODE, *node_args, "-r", str(guard), str(script)],
             capture_output=True,
             text=True,
             timeout=30,
@@ -308,6 +308,7 @@ server.listen(0, '127.0.0.1', async () => {
   });
   out['worker thread'] = await viaWorker({});
   out['worker thread without the preload'] = await viaWorker({ execArgv: [], env: {} });
+  out['worker thread with an empty env'] = await viaWorker({ env: {} });
   // Every route back to the unwrapped constructor, each run with execArgv: [].
   out['worker from the original constructor'] = await (async () => {
     const probe = new Worker('0', { eval: true });
@@ -343,8 +344,23 @@ _TAMPER_CASES = [
     "UDP send",
     "worker thread",
     "worker thread without the preload",
+    "worker thread with an empty env",
     "worker from the original constructor",
 ]
+
+# Cases that must be refused by the guard itself, not merely sent to the
+# allowlisted name (which happens not to resolve).
+_TAMPER_REFUSED = {
+    "plain array argument",
+    "String.prototype patched",
+    "Set.prototype.has patched",
+    "Object.prototype host",
+    "UDP send",
+    "worker thread",
+    "worker thread without the preload",
+    "worker thread with an empty env",
+    "worker from the original constructor",
+}
 
 
 @pytest.fixture(scope="module")
@@ -354,6 +370,72 @@ def tamper_results() -> dict:
 
 @pytest.mark.parametrize("case", _TAMPER_CASES)
 def test_guest_tampering_cannot_reach_an_unlisted_host(tamper_results, case):
-    # Refused by the guard, or (dns.lookup replaced, getters that settle on the
-    # allowlisted name) sent to the allowlisted name, which does not resolve.
-    assert tamper_results[case] in {"SANDBOX_NETWORK_BLOCKED", "ENOTFOUND"}
+    if case in _TAMPER_REFUSED:
+        assert tamper_results[case] == "SANDBOX_NETWORK_BLOCKED"
+    else:
+        # A replaced dns.lookup, or a getter or proxy that settles on the
+        # allowlisted name: Node is sent to that name, which does not resolve.
+        assert tamper_results[case] in {"SANDBOX_NETWORK_BLOCKED", "ENOTFOUND"}
+
+
+# The worker wrapper must behave like Node's own Worker for ordinary code.
+_WORKER_COMPAT_PROBE = r"""
+const { Worker } = require('worker_threads');
+const run = (W, options) => new Promise((resolve) => {
+  const w = new W(`require('worker_threads').parentPort.postMessage('up')`, { eval: true, ...options });
+  w.once('message', (m) => { w.terminate(); resolve({ w, m }); });
+  w.once('error', (e) => resolve({ w, m: 'ERROR:' + e.code }));
+});
+(async () => {
+  class Tagged extends Worker { tag() { return 'tagged'; } }
+  const plain = await run(Worker, {});
+  const sub = await run(Tagged, {});
+  const explicit = await run(Worker, { execArgv: [] });
+  let noNew;
+  try { Worker('0', { eval: true }); noNew = 'CONSTRUCTED'; } catch (e) { noNew = e.name; }
+  console.log(JSON.stringify({
+    plain: plain.m,
+    instanceof: plain.w instanceof Worker,
+    constructor: plain.w.constructor === Worker,
+    subclass: sub.m,
+    subclassMethod: typeof sub.w.tag === 'function' ? sub.w.tag() : 'missing',
+    subclassInstanceof: sub.w instanceof Tagged && sub.w instanceof Worker,
+    explicitExecArgv: explicit.m,
+    calledWithoutNew: noNew,
+  }));
+})();
+"""
+
+
+def test_worker_wrapper_keeps_worker_behavior():
+    assert _run(_WORKER_COMPAT_PROBE, ["allowed.example"]) == {
+        "plain": "up",
+        "instanceof": True,
+        "constructor": True,
+        "subclass": "up",
+        "subclassMethod": "tagged",
+        "subclassInstanceof": True,
+        "explicitExecArgv": "up",
+        "calledWithoutNew": "TypeError",
+    }
+
+
+def test_worker_inherits_v8_flags_from_the_parent():
+    # A memory limit in the parent argv is a V8 flag; Node refuses it in an
+    # explicit worker execArgv, so a worker without execArgv must inherit it.
+    out = _run(_WORKER_COMPAT_PROBE, ["allowed.example"], node_args=("--max-old-space-size=256",))
+    assert out["plain"] == "up"
+    assert out["subclass"] == "up"
+
+
+def test_allowlisted_ipv6_literal_and_entry_with_port_match():
+    probe = r"""
+const net = require('net');
+const out = {};
+for (const [name, opts] of [['ipv6', {host: '::1', port: 1}], ['ported entry', {host: 'ported.example', port: 1}]]) {
+  try { const s = net.connect(opts); s.on('error', () => {}); s.destroy(); out[name] = 'ALLOWED'; }
+  catch (e) { out[name] = e.code; }
+}
+console.log(JSON.stringify(out));
+"""
+    assert _run(probe, ["[::1]", "ported.example:443"]) == {"ipv6": "ALLOWED", "ported entry": "ALLOWED"}

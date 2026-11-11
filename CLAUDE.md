@@ -55,7 +55,7 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 - Do not imply a campus security review: the only Illinois artifact is Adam King's LRA, and the public hosted server is retired.
 
 ## Current Focus
-- [ ] **#157** sandbox egress is mitigated, not closed (self-hosted only; `execute_typescript` is disabled on hosted). Needs an egress proxy or network namespace.
+- [ ] **#157** sandbox egress is mitigated, not closed (self-hosted only; `execute_typescript` is disabled on hosted). The JS guard fails closed at the socket level since PR 582; child processes, native bindings and DNS answers are still outside it. Needs an egress proxy or network namespace.
 - [ ] **#236** OAuth2 developer-key flow: additive only, blocked on admin access to pilot a scoped key.
 - [ ] **#172** Canvas Quizzes tools: blocked on a New-Quizzes-enabled sandbox (PR #191 was closed as unverifiable).
 - [x] **#418 to #421** shipped (#438, #437, #436, #435; #421 part 2 via #442 and the anonymous-update refusal via #446; issue closed by 2026-10-07).

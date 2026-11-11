@@ -165,8 +165,9 @@ _NETWORK_GUARD_JS = r"""
 // socket path, a caller-supplied DNS lookup, or UDP is refused. Every worker
 // thread loads this guard first, whatever execArgv it is given.
 //
-// This is a JavaScript-level control only. Child processes and native
-// bindings are not covered, and DNS answers are trusted (see issue 157).
+// This is a JavaScript-level control only. Child processes, native bindings,
+// sockets attached to an existing fd or handle, and DNS answers (an allowlisted
+// name that resolves to an internal address) are outside it (see issue 157).
 const net = require('net');
 const dgram = require('dgram');
 const workerThreads = require('worker_threads');
@@ -202,7 +203,13 @@ const StringCharCodeAt = uncurry(String.prototype.charCodeAt);
 const StringToLowerCase = uncurry(String.prototype.toLowerCase);
 const URLHostname = uncurry(ObjectGetOwnPropertyDescriptor(URL.prototype, 'hostname').get);
 const nodeNormalizeArgs = net._normalizeArgs;
+if (typeof nodeNormalizeArgs !== 'function') {
+  throw new SafeError('Sandbox network guard: this Node.js version has no net._normalizeArgs; the guard cannot run');
+}
 const NORMALIZED = ObjectGetOwnPropertySymbols(nodeNormalizeArgs([{}]))[0];
+if (typeof NORMALIZED !== 'symbol') {
+  throw new SafeError('Sandbox network guard: this Node.js version changed net._normalizeArgs; the guard cannot run');
+}
 const dnsLookup = dns.lookup;
 
 function hostnameOf(value) {
@@ -292,19 +299,28 @@ for (const method of ['send', 'connect', 'bind']) {
   dgram.Socket.prototype[method] = function () { block('UDP'); };
 }
 
-// A worker started with execArgv: [] would run without this preload (esbuild,
-// which tsx uses, starts one that way). Every worker gets this file as its
-// first --require. The original constructor stays out of reach: the wrapper
-// does not inherit from it, and the prototype's constructor points back here.
+// A worker given its own execArgv (esbuild, which tsx uses, passes []) runs
+// without this preload, so the guard is put first in that list. A worker with
+// no execArgv inherits the preload, and its argv is left alone: Node refuses
+// some inherited flags (V8 options) in an explicit list.
+// The original constructor stays out of reach: the wrapper does not inherit
+// from it, and the shared prototype's constructor points at the wrapper.
+// Instances, instanceof and subclasses behave as with Node's own Worker.
 const OriginalWorker = workerThreads.Worker;
 const GUARD_FILE = __filename;
 function Worker(filename, options) {
+  if (new.target === undefined) {
+    throw new TypeError("Class constructor Worker cannot be invoked without 'new'");
+  }
   const opts = ObjectAssign(ObjectCreate(null), options);
-  const execArgv = ArrayPrototypeSlice(ArrayIsArray(opts.execArgv) ? opts.execArgv : process.execArgv);
-  ArrayPrototypeUnshift(execArgv, `--require=${GUARD_FILE}`);
-  opts.execArgv = execArgv;
-  return ReflectConstruct(OriginalWorker, [filename, opts], OriginalWorker);
+  if (ArrayIsArray(opts.execArgv)) {
+    const execArgv = ArrayPrototypeSlice(opts.execArgv);
+    ArrayPrototypeUnshift(execArgv, `--require=${GUARD_FILE}`);
+    opts.execArgv = execArgv;
+  }
+  return ReflectConstruct(OriginalWorker, [filename, opts], new.target);
 }
+Worker.prototype = OriginalWorker.prototype;
 OriginalWorker.prototype.constructor = Worker;
 workerThreads.Worker = Worker;
 
