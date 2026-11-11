@@ -200,7 +200,9 @@ console.log(JSON.stringify(out));
 # guard loads into tsx's parent and child. The child opens a pipe back to the
 # parent; that relay must keep working, and no other local socket may open.
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_TSX = _REPO_ROOT / "node_modules" / ".bin" / "tsx"
+# The CLI entry itself, run with node: node_modules/.bin/tsx is a shell
+# launcher that Windows cannot execute directly.
+_TSX_CLI = _REPO_ROOT / "node_modules" / "tsx" / "dist" / "cli.mjs"
 
 _TSX_SCRIPT = r"""
 import net from 'node:net';
@@ -216,15 +218,17 @@ setTimeout(() => console.log(JSON.stringify({ ran: x, otherPipe })), 50);
 """
 
 
-@pytest.mark.skipif(not _TSX.exists(), reason="tsx not installed (npm ci)")
+@pytest.mark.skipif(not _TSX_CLI.exists(), reason="tsx not installed (npm ci)")
 def test_guard_keeps_the_tsx_runner_working_and_blocks_other_pipes():
     with tempfile.TemporaryDirectory() as d:
         guard = _write_network_guard(["allowed.example"], Path(d))
         script = Path(d) / "code.ts"
         script.write_text(_TSX_SCRIPT, encoding="utf-8")
-        env = {**os.environ, "NODE_OPTIONS": f"--require {guard}"}
+        # json.dumps quotes the path the way NODE_OPTIONS parses it (spaces,
+        # Windows backslashes).
+        env = {**os.environ, "NODE_OPTIONS": f"--require {json.dumps(str(guard))}"}
         res = subprocess.run(
-            [str(_TSX), str(script)], capture_output=True, text=True, timeout=60, env=env
+            [NODE, str(_TSX_CLI), str(script)], capture_output=True, text=True, timeout=60, env=env
         )
         assert res.returncode == 0, res.stderr
         assert json.loads(res.stdout.strip().splitlines()[-1]) == {
