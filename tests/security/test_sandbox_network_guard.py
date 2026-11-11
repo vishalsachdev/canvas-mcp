@@ -604,6 +604,9 @@ const listen = (p) => new Promise((resolve) => { const srv = net.createServer((c
   const other = await listen(target);
   fs.symlinkSync(target, pipe);
   out.symlink = await attempt();
+  Object.defineProperty(process, 'platform', { value: 'win32' });
+  out.symlinkPlatformPatched = await attempt();
+  Object.defineProperty(process, 'platform', { value: os.platform() });
   fs.unlinkSync(pipe);
   out.missing = await attempt();
   const own = await listen(pipe);
@@ -620,6 +623,7 @@ const listen = (p) => new Promise((resolve) => { const srv = net.createServer((c
 def test_tsx_pipe_path_must_be_a_socket_not_a_symlink():
     assert _run(_PIPE_SYMLINK_PROBE, ["allowed.example"]) == {
         "symlink": "SANDBOX_NETWORK_BLOCKED",
+        "symlinkPlatformPatched": "SANDBOX_NETWORK_BLOCKED",
         "missing": "SANDBOX_NETWORK_BLOCKED",
         "socket": "CONNECTED",
     }

@@ -265,9 +265,13 @@ try {
 } catch (_) { /* no tsx pipe: every local socket stays refused */ }
 
 // The allowed pipe path must hold a socket itself. A symlink placed there
-// would send the connection to some other local socket.
+// would send the connection to some other local socket. The check and the
+// connect are two steps: code that can write files and race them from a
+// second thread is outside this guard, like the child processes it could
+// start instead (issue 157).
+const IS_WINDOWS = process.platform === 'win32';
 function isOwnSocket(pipePath) {
-  if (process.platform === 'win32') return true;  // named pipe, not a file
+  if (IS_WINDOWS) return true;  // named pipe, not a file
   try { return (fsLstatSync(pipePath).mode & 0o170000) === 0o140000; }
   catch (_) { return false; }
 }
