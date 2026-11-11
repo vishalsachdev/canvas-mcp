@@ -293,16 +293,38 @@ server.listen(0, '127.0.0.1', async () => {
     try { u.send('x', port, '127.0.0.1', () => { u.close(); resolve('SENT'); }); }
     catch (e) { u.close(); resolve(e.code); }
   });
-  out['worker thread'] = await new Promise((resolve) => {
-    const w = new Worker(`
+  const workerCode = `
       const { parentPort, workerData } = require('worker_threads');
       const s = (() => { try { return require('net').connect({ host: '127.0.0.1', port: workerData }); }
                           catch (e) { parentPort.postMessage(e.code); return null; } })();
       if (s) { s.on('connect', () => { s.destroy(); parentPort.postMessage('CONNECTED'); });
-               s.on('error', (e) => parentPort.postMessage(e.code)); }`,
-      { eval: true, workerData: port });
+               s.on('error', (e) => parentPort.postMessage(e.code)); }`;
+  const viaWorker = (options) => new Promise((resolve) => {
+    let w;
+    try { w = new Worker(workerCode, { eval: true, workerData: port, ...options }); }
+    catch (e) { resolve(e.code); return; }
     w.once('message', (m) => { w.terminate(); resolve(m); });
+    w.once('error', (e) => resolve('WORKER_ERROR:' + e.code));
   });
+  out['worker thread'] = await viaWorker({});
+  out['worker thread without the preload'] = await viaWorker({ execArgv: [], env: {} });
+  // Every route back to the unwrapped constructor, each run with execArgv: [].
+  out['worker from the original constructor'] = await (async () => {
+    const probe = new Worker('0', { eval: true });
+    await probe.terminate();
+    const routes = [probe.constructor, Object.getPrototypeOf(probe).constructor, Object.getPrototypeOf(Worker)];
+    for (const C of routes) {
+      const r = await new Promise((resolve) => {
+        let w;
+        try { w = new C(workerCode, { eval: true, workerData: port, execArgv: [] }); }
+        catch (e) { resolve(e.code || 'NOT_A_CONSTRUCTOR'); return; }
+        w.once('message', (m) => { w.terminate(); resolve(m); });
+        w.once('error', (e) => resolve('WORKER_ERROR:' + e.code));
+      });
+      if (r === 'CONNECTED') return r;
+    }
+    return 'SANDBOX_NETWORK_BLOCKED';
+  })();
   console.log(JSON.stringify(out));
   server.close();
 });
@@ -320,6 +342,8 @@ _TAMPER_CASES = [
     "dns.lookup replaced",
     "UDP send",
     "worker thread",
+    "worker thread without the preload",
+    "worker from the original constructor",
 ]
 
 

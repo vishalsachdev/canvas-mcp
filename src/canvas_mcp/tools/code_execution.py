@@ -159,15 +159,17 @@ def _append_node_options(existing: str | None, extra_args: list[str]) -> str:
 
 _NETWORK_GUARD_JS = r"""
 'use strict';
-// Sandbox egress guard, preloaded with `node -r` (also into worker threads).
+// Sandbox egress guard, preloaded with `node -r`.
 // A connection is allowed only when it names a host on ALLOWLIST. Fail closed:
 // no host (Node then defaults to localhost), an unparseable host, a local
-// socket path, a caller-supplied DNS lookup, or UDP is refused.
+// socket path, a caller-supplied DNS lookup, or UDP is refused. Every worker
+// thread loads this guard first, whatever execArgv it is given.
 //
 // This is a JavaScript-level control only. Child processes and native
 // bindings are not covered, and DNS answers are trusted (see issue 157).
 const net = require('net');
 const dgram = require('dgram');
+const workerThreads = require('worker_threads');
 const dns = require('dns');
 const http = require('http');
 const https = require('https');
@@ -181,6 +183,9 @@ const uncurry = Function.prototype.bind.bind(Function.prototype.call);
 const ReflectApply = Reflect.apply;
 const ArrayIsArray = Array.isArray;
 const ArrayPrototypeMap = uncurry(Array.prototype.map);
+const ArrayPrototypeSlice = uncurry(Array.prototype.slice);
+const ArrayPrototypeUnshift = uncurry(Array.prototype.unshift);
+const ReflectConstruct = Reflect.construct;
 const ObjectAssign = Object.assign;
 const ObjectCreate = Object.create;
 const ObjectGetOwnPropertySymbols = Object.getOwnPropertySymbols;
@@ -286,6 +291,22 @@ net.Socket.prototype.connect = function (...args) {
 for (const method of ['send', 'connect', 'bind']) {
   dgram.Socket.prototype[method] = function () { block('UDP'); };
 }
+
+// A worker started with execArgv: [] would run without this preload (esbuild,
+// which tsx uses, starts one that way). Every worker gets this file as its
+// first --require. The original constructor stays out of reach: the wrapper
+// does not inherit from it, and the prototype's constructor points back here.
+const OriginalWorker = workerThreads.Worker;
+const GUARD_FILE = __filename;
+function Worker(filename, options) {
+  const opts = ObjectAssign(ObjectCreate(null), options);
+  const execArgv = ArrayPrototypeSlice(ArrayIsArray(opts.execArgv) ? opts.execArgv : process.execArgv);
+  ArrayPrototypeUnshift(execArgv, `--require=${GUARD_FILE}`);
+  opts.execArgv = execArgv;
+  return ReflectConstruct(OriginalWorker, [filename, opts], OriginalWorker);
+}
+OriginalWorker.prototype.constructor = Worker;
+workerThreads.Worker = Worker;
 
 // http(s).request and get: refuse early, with a clear error, before an agent
 // opens a socket. The socket check above still runs for every request.
