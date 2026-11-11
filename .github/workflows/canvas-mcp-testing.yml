@@ -127,6 +127,9 @@ jobs:
         # branch protection actually requires — passing green while the check
         # they encode is never run.
         pip install pytest pytest-asyncio pyyaml
+        # tsx, the sandbox runner: test_sandbox_network_guard.py runs it with
+        # the network guard loaded and skips when it is absent.
+        npm ci
 
     - name: Run the test suite
       run: pytest tests/ -q

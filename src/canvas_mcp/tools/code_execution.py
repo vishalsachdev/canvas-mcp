@@ -167,9 +167,9 @@ _NETWORK_GUARD_JS = r"""
 const net = require('net');
 const http = require('http');
 const https = require('https');
+const os = require('os');
+const path = require('path');
 const { URL } = require('url');
-
-const ALLOWLIST = new Set(__ALLOWLIST__);
 
 function normalizeHost(value) {
   if (value instanceof URL) value = value.hostname;
@@ -188,6 +188,21 @@ function normalizeHost(value) {
   }
   return host.toLowerCase().replace(/\.$/, '');
 }
+
+const ALLOWLIST = new Set(__ALLOWLIST__.map(normalizeHost).filter(Boolean));
+
+// The one local socket allowed: the pipe tsx's child process opens back to
+// its parent (tsx 4, dist/client: <tmpdir>/tsx-<euid or username>/<ppid>.pipe).
+// It is the tsx runner's own relay, not a route out of the sandbox.
+const TSX_PIPES = (() => {
+  try {
+    const owner = process.geteuid ? process.geteuid() : os.userInfo().username;
+    const pipe = path.join(os.tmpdir(), `tsx-${owner}`, `${process.ppid}.pipe`);
+    return new Set([pipe, `\\\\?\\pipe\\${pipe}`]);
+  } catch (_) {
+    return new Set();
+  }
+})();
 
 function block(detail) {
   const err = new Error(`Outbound network blocked by sandbox policy (${detail})`);
@@ -218,7 +233,12 @@ function socketConnectOptions(args) {
 const originalSocketConnect = net.Socket.prototype.connect;
 net.Socket.prototype.connect = function (...args) {
   const opts = socketConnectOptions(args);
-  if (opts.path !== undefined && opts.path !== null) block('local socket path');
+  if (opts.path !== undefined && opts.path !== null) {
+    if (typeof opts.path === 'string' && TSX_PIPES.has(opts.path)) {
+      return originalSocketConnect.apply(this, args);
+    }
+    block('local socket path');
+  }
   if (typeof opts.lookup === 'function') block('custom DNS lookup');
   enforce(opts.host);
   return originalSocketConnect.apply(this, args);

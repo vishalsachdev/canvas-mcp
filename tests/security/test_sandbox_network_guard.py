@@ -10,6 +10,7 @@ localhost), names a local socket path, or brings its own DNS lookup is refused.
 """
 
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -182,3 +183,51 @@ def test_unlisted_local_server_is_unreachable_through_every_client():
         "fetch": "SANDBOX_NETWORK_BLOCKED",
         "net.connect": "SANDBOX_NETWORK_BLOCKED",
     }
+
+
+def test_allowlist_entries_are_normalized_like_requested_hosts():
+    probe = r"""
+const net = require('net');
+const out = {};
+try { const s = net.connect({host: 'allowed.example', port: 1}); s.on('error', () => {}); s.destroy(); out.r = 'ALLOWED'; }
+catch (e) { out.r = e.code; }
+console.log(JSON.stringify(out));
+"""
+    assert _run(probe, ["Allowed.Example."]) == {"r": "ALLOWED"}
+
+
+# The sandbox runs code with `npx tsx` and the guard in NODE_OPTIONS, so the
+# guard loads into tsx's parent and child. The child opens a pipe back to the
+# parent; that relay must keep working, and no other local socket may open.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_TSX = _REPO_ROOT / "node_modules" / ".bin" / "tsx"
+
+_TSX_SCRIPT = r"""
+import net from 'node:net';
+import os from 'node:os';
+import path from 'node:path';
+const x: number = 1;
+const owner = process.geteuid ? process.geteuid() : os.userInfo().username;
+const other = path.join(os.tmpdir(), `tsx-${owner}`, `${process.ppid + 1}.pipe`);
+let otherPipe = 'ALLOWED';
+try { const s = net.connect(other); s.on('error', () => {}); s.destroy(); }
+catch (e: any) { otherPipe = e.code; }
+setTimeout(() => console.log(JSON.stringify({ ran: x, otherPipe })), 50);
+"""
+
+
+@pytest.mark.skipif(not _TSX.exists(), reason="tsx not installed (npm ci)")
+def test_guard_keeps_the_tsx_runner_working_and_blocks_other_pipes():
+    with tempfile.TemporaryDirectory() as d:
+        guard = _write_network_guard(["allowed.example"], Path(d))
+        script = Path(d) / "code.ts"
+        script.write_text(_TSX_SCRIPT, encoding="utf-8")
+        env = {**os.environ, "NODE_OPTIONS": f"--require {guard}"}
+        res = subprocess.run(
+            [str(_TSX), str(script)], capture_output=True, text=True, timeout=60, env=env
+        )
+        assert res.returncode == 0, res.stderr
+        assert json.loads(res.stdout.strip().splitlines()[-1]) == {
+            "ran": 1,
+            "otherPipe": "SANDBOX_NETWORK_BLOCKED",
+        }
