@@ -6,7 +6,8 @@ tests run real Node against the generated guard file.
 
 Rule under test: an outbound connection is allowed only when it names a host
 on the allowlist. A connection that names no host (Node then defaults to
-localhost), names a local socket path, or brings its own DNS lookup is refused.
+localhost) or names a local socket path is refused. A connection that brings
+its own DNS lookup has that lookup replaced by Node's.
 """
 
 import json
@@ -37,7 +38,6 @@ const cases = {
   'net.createConnection({port})': () => net.createConnection({port: 80}),
   'net.createConnection(other host)': () => net.createConnection({host: 'evil.example', port: 80}),
   'new net.Socket().connect(other host)': () => new net.Socket().connect(80, 'evil.example'),
-  'net.connect(allowed host, custom lookup)': () => net.connect({host: 'allowed.example', port: 80, lookup: (h, o, cb) => cb(null, '10.0.0.1', 4)}),
   'tls.connect({port})': () => tls.connect({port: 443}),
   'tls.connect(other host)': () => tls.connect({host: 'evil.example', port: 443}),
   'http.request({socketPath})': () => http.request({socketPath: '/tmp/x.sock', path: '/'}),
@@ -135,7 +135,6 @@ _BLOCKED_CASES = [
     "net.createConnection({port})",
     "net.createConnection(other host)",
     "new net.Socket().connect(other host)",
-    "net.connect(allowed host, custom lookup)",
     "tls.connect({port})",
     "tls.connect(other host)",
     "http.request({socketPath})",
@@ -281,6 +280,28 @@ server.listen(0, '127.0.0.1', async () => {
   Object.defineProperty(Object.prototype, 'host', { configurable: true, get() { return '127.0.0.1'; }, set() {} });
   out['Object.prototype host'] = await attempt(() => net.connect({ port }));
   delete Object.prototype.host;
+  // A caller's own lookup must never run: it would send the allowlisted name
+  // to the unlisted local server.
+  for (const [label, connect] of [
+    ['custom lookup (net)', (lookup) => net.connect({ host: 'allowed.example', port, lookup })],
+    ['custom lookup (http)', (lookup) => http.get({ host: 'allowed.example', port, lookup, agent: false })],
+  ]) {
+    let called = false;
+    const lookup = (h, o, cb) => {
+      called = true;
+      if (typeof o === 'function') cb = o;
+      if (o && o.all) cb(null, [{ address: '127.0.0.1', family: 4 }]); else cb(null, '127.0.0.1', 4);
+    };
+    const code = await new Promise((resolve) => {
+      try {
+        const r = connect(lookup);
+        r.on('connect', () => resolve('CONNECTED'));
+        r.on('response', () => resolve('CONNECTED'));
+        r.on('error', (e) => resolve(e.code));
+      } catch (e) { resolve(e.code); }
+    });
+    out[label] = called ? 'LOOKUP_CALLED' : code;
+  }
   const realLookup = dns.lookup;
   dns.lookup = (h, o, cb) => {
     if (typeof o === 'function') cb = o;
@@ -341,6 +362,8 @@ _TAMPER_CASES = [
     "Set.prototype.has patched",
     "Object.prototype host",
     "dns.lookup replaced",
+    "custom lookup (net)",
+    "custom lookup (http)",
     "UDP send",
     "worker thread",
     "worker thread without the preload",
@@ -376,6 +399,45 @@ def test_guest_tampering_cannot_reach_an_unlisted_host(tamper_results, case):
         # A replaced dns.lookup, or a getter or proxy that settles on the
         # allowlisted name: Node is sent to that name, which does not resolve.
         assert tamper_results[case] in {"SANDBOX_NETWORK_BLOCKED", "ENOTFOUND"}
+
+
+# npm's agent passes its own lookup when npx fetches the tsx runner in
+# container mode. That must still reach an allowlisted host, through Node's
+# lookup and not the caller's.
+_CUSTOM_LOOKUP_ALLOWED_PROBE = r"""
+const net = require('net'); const http = require('http');
+const server = http.createServer((q, r) => r.end('ok'));
+server.listen(0, '127.0.0.1', async () => {
+  const port = server.address().port;
+  const out = {};
+  for (const [label, connect] of [
+    ['net', (lookup) => net.connect({ host: 'localhost', port, family: 4, lookup })],
+    ['http', (lookup) => http.get({ host: 'localhost', port, family: 4, lookup, agent: false })],
+  ]) {
+    let called = false;
+    const lookup = (h, o, cb) => { called = true; cb(new Error('caller lookup ran')); };
+    const code = await new Promise((resolve) => {
+      try {
+        const r = connect(lookup);
+        r.on('connect', () => resolve('CONNECTED'));
+        r.on('response', (res) => { res.resume(); resolve('CONNECTED'); });
+        r.on('error', (e) => resolve(e.code || e.message));
+      } catch (e) { resolve(e.code); }
+    });
+    out[label] = called ? 'LOOKUP_CALLED' : code;
+  }
+  server.close();
+  console.log(JSON.stringify(out));
+  process.exit(0);
+});
+"""
+
+
+def test_custom_lookup_is_replaced_and_an_allowlisted_host_still_connects():
+    assert _run(_CUSTOM_LOOKUP_ALLOWED_PROBE, ["localhost"]) == {
+        "net": "CONNECTED",
+        "http": "CONNECTED",
+    }
 
 
 # The worker wrapper must behave like Node's own Worker for ordinary code.

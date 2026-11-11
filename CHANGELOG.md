@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **The TypeScript sandbox's network guard fails closed.** A connection from `execute_typescript` code must name a host on the sandbox allowlist. A connection that names no host, a local socket path or its own DNS lookup function is now refused, and so is UDP. The check runs at the socket level, so `net`, `tls`, `http`, `https`, `http2` and `fetch` all go through it, and every worker thread loads the guard. Code that relied on any of these connections now fails with `SANDBOX_NETWORK_BLOCKED`. The guard remains a JavaScript-level control: child processes, native bindings and DNS answers are outside it (#157).
+- **The TypeScript sandbox's network guard fails closed.** A connection from `execute_typescript` code must name a host on the sandbox allowlist. A connection that names no host or a local socket path is now refused, and so is UDP. A DNS lookup function supplied by the caller is replaced by Node's own. The check runs at the socket level, so `net`, `tls`, `http`, `https`, `http2` and `fetch` all go through it, and every worker thread loads the guard. Code that relied on any of these connections now fails with `SANDBOX_NETWORK_BLOCKED`. The guard remains a JavaScript-level control: child processes, native bindings and DNS answers are outside it (#157).
 
 ## [1.17.0] — 2026-11-09
 

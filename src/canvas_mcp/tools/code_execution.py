@@ -162,8 +162,9 @@ _NETWORK_GUARD_JS = r"""
 // Sandbox egress guard, preloaded with `node -r`.
 // A connection is allowed only when it names a host on ALLOWLIST. Fail closed:
 // no host (Node then defaults to localhost), an unparseable host, a local
-// socket path, a caller-supplied DNS lookup, or UDP is refused. Every worker
-// thread loads this guard first, whatever execArgv it is given.
+// socket path, or UDP is refused. A caller-supplied DNS lookup is replaced by
+// the dns.lookup captured at load. Every worker thread loads this guard first,
+// whatever execArgv it is given.
 //
 // This is a JavaScript-level control only. Child processes, native bindings,
 // sockets attached to an existing fd or handle, and DNS answers (an allowlisted
@@ -288,8 +289,10 @@ net.Socket.prototype.connect = function (...args) {
     }
     block('local socket path');
   }
-  if (typeof safe.lookup === 'function') block('custom DNS lookup');
   safe.host = enforce(safe.host);
+  // A caller's own lookup is never used: it could send an allowlisted name to
+  // any address. It is replaced, not refused, because ordinary clients (npm's
+  // agent, when npx fetches the runner) pass one.
   safe.lookup = dnsLookup;
   return ReflectApply(originalSocketConnect, this, [safe, cb]);
 };
@@ -344,7 +347,6 @@ function guardRequest(original) {
   return function (...args) {
     const { opts, host } = requestTarget(args);
     if (opts.socketPath !== undefined && opts.socketPath !== null) block('local socket path');
-    if (typeof opts.lookup === 'function') block('custom DNS lookup');
     enforce(host);
     return ReflectApply(original, this, args);
   };
