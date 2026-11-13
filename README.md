@@ -151,24 +151,20 @@ Canvas MCP provides **up to 128 tools** for interacting with Canvas LMS; the def
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing role-specific workflows for students, educators, learning designers, and developers. Built on the Model Context Protocol (MCP), it is designed for MCP-compatible clients; setup and supported capabilities vary by client.
 
-## Latest Release: v1.17.0
+## Latest Release: v1.18.0
 
 **Released:** November 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
 
-A minor release with breaking changes.
+A minor release with one breaking change, in the TypeScript sandbox (local and container mode).
 
-- **Course names resolve in one call** ([#567](https://github.com/vishalsachdev/canvas-mcp/pull/567)). Names and codes match regardless of case and spacing, and a partial name gets up to five "Did you mean" suggestions.
-- **Breaking: an unmatched course identifier is refused**, not sent to Canvas. A SIS ID now needs the `sis_course_id:<id>` form.
-- **Breaking: `create_rubric` no longer replaces an attached rubric.** It refuses an assignment that already has one; use `update_rubric` to edit.
-- **Breaking for hosted operators: an empty Entra allowlist needs an explicit setting** ([#563](https://github.com/vishalsachdev/canvas-mcp/pull/563)).
-- **Request paths keep each identifier as one segment** ([#566](https://github.com/vishalsachdev/canvas-mcp/pull/566)).
-- **Accessibility scans and fixes refuse unreadable sources** before any write ([#552](https://github.com/vishalsachdev/canvas-mcp/pull/552)).
-- **Student missing-submissions list** shows only work Canvas flags as missing ([#545](https://github.com/vishalsachdev/canvas-mcp/pull/545)).
-
-Thanks to [@KKazuhaK](https://github.com/KKazuhaK) and [@lindsay-cheng](https://github.com/lindsay-cheng).
+- **Breaking: the sandbox network guard fails closed** ([#582](https://github.com/vishalsachdev/canvas-mcp/pull/582)). Code run by `execute_typescript` can connect only to a host on the sandbox allowlist. A connection with no host, a local socket path or UDP is refused with `SANDBOX_NETWORK_BLOCKED`.
+- The check runs at the socket level, so `net`, `tls`, `http`, `https`, `http2` and `fetch` all go through it, and every worker thread loads the guard.
+- The guard remains a JavaScript-level control. Kernel-level egress is tracked in [#157](https://github.com/vishalsachdev/canvas-mcp/issues/157).
 
 <details>
 <summary>Previous releases</summary>
+
+**v1.17.0** — Course names resolve in one call and an unmatched course identifier is refused ([#567](https://github.com/vishalsachdev/canvas-mcp/pull/567)); `create_rubric` no longer replaces an attached rubric; a hosted server with an empty Entra allowlist needs an explicit setting ([#563](https://github.com/vishalsachdev/canvas-mcp/pull/563)).
 
 **v1.16.0** — A security release fixing three privately reported issues and the last gap in the 1.13.0 prompt-injection advisory, plus course group creation and opt-in submission text. Breaking for local code execution: the sandbox needs Node.js 22.18+.
 
