@@ -155,7 +155,7 @@ The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning 
 
 **Released:** November 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
 
-A minor release with one breaking change, in the local TypeScript sandbox only.
+A minor release with one breaking change, in the TypeScript sandbox (local and container mode).
 
 - **Breaking: the sandbox network guard fails closed** ([#582](https://github.com/vishalsachdev/canvas-mcp/pull/582)). Code run by `execute_typescript` can connect only to a host on the sandbox allowlist. A connection with no host, a local socket path or UDP is refused with `SANDBOX_NETWORK_BLOCKED`.
 - The check runs at the socket level, so `net`, `tls`, `http`, `https`, `http2` and `fetch` all go through it, and every worker thread loads the guard.

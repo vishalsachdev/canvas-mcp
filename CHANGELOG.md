@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.18.0] — 2026-11-12
 
-A minor release with one breaking change, in the local TypeScript sandbox only. The sandbox's JavaScript network guard now refuses every connection that does not name a host on the allowlist.
+A minor release with one breaking change, in the TypeScript sandbox. It applies to local mode and to container mode. The sandbox's JavaScript network guard now refuses every connection that does not name a host on the allowlist.
 
 ### Changed
 
