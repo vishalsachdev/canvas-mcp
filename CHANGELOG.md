@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.18.0] — 2026-11-12
+
+A minor release with one breaking change, in the local TypeScript sandbox only. The sandbox's JavaScript network guard now refuses every connection that does not name a host on the allowlist.
+
 ### Changed
 
 - **The TypeScript sandbox's network guard fails closed.** A connection from `execute_typescript` code must name a host on the sandbox allowlist. A connection that names no host or a local socket path is now refused, and so is UDP. A DNS lookup function supplied by the caller is replaced by Node's own. The check runs at the socket level, so `net`, `tls`, `http`, `https`, `http2` and `fetch` all go through it, and every worker thread loads the guard. Code that relied on any of these connections now fails with `SANDBOX_NETWORK_BLOCKED`. The guard remains a JavaScript-level control: child processes, native bindings and DNS answers are outside it (#157).
