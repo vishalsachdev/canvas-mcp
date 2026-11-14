@@ -17,6 +17,28 @@ from ..core.untrusted_content import fence_untrusted_inline
 from ..core.validation import numeric_id_error, validate_params
 
 
+def _planner_submission_status(submissions: Any) -> str:
+    """Status line for one Planner item, from its ``submissions`` object.
+
+    The Planner payload carries more than the ``submitted`` flag: work the
+    student was excused from, and work already graded without a Canvas
+    submission (in-class / on-paper items), both arrive with
+    ``submitted: false``. Collapsing those into "Not Submitted" tells the
+    student they owe work they do not owe, so — as in
+    ``get_my_submission_status`` — they get their own labels. An excuse also
+    explains a graded flag, so it wins over it.
+    """
+    if not isinstance(submissions, dict):
+        return "❌ Not Submitted"
+    if submissions.get("submitted"):
+        return "✅ Submitted"
+    if submissions.get("excused"):
+        return "⏭️ Excused"
+    if submissions.get("graded"):
+        return "✅ Graded"
+    return "❌ Not Submitted"
+
+
 async def _fetch_planner_peer_reviews(
     my_id: int, course_id: int | str | None = None
 ) -> tuple[list[dict], str | None]:
@@ -179,15 +201,11 @@ def register_student_tools(mcp: FastMCP) -> None:
             if not due_date or due_date > end_date:
                 continue
 
-            submissions = item.get("submissions")
-            submitted = isinstance(submissions, dict) and bool(
-                submissions.get("submitted")
-            )
             assignments.append({
                 "name": plannable.get("title", "Unnamed Assignment"),
                 "due_at": due_at,
                 "course_id": item.get("course_id"),
-                "submitted": submitted,
+                "status": _planner_submission_status(item.get("submissions")),
             })
 
         if not assignments:
@@ -204,7 +222,7 @@ def register_student_tools(mcp: FastMCP) -> None:
         for assignment in assignments:
             course_id = assignment["course_id"]
             course_display = await get_course_code(course_id) if course_id else "Unknown Course"
-            status = "✅ Submitted" if assignment["submitted"] else "❌ Not Submitted"
+            status = assignment["status"]
 
             output_lines.append(
                 f"• {fence_untrusted_inline(assignment['name'], 'assignment title')}\n"
