@@ -591,11 +591,11 @@ class TestUpcomingAssignmentsSubmissionStates:
     @pytest.mark.asyncio
     async def test_excused_item_is_reported_as_excused(self):
         result = await self._run([
-            self._item("Excused Lab Quiz", {"submitted": False, "excused": True}),
+            self._item("Lab Quiz 5", {"submitted": False, "excused": True}),
         ])
 
-        assert "Excused Lab Quiz" in result
-        assert "Excused" in result
+        assert "Lab Quiz 5" in result
+        assert "Status: ⏭️ Excused" in result
         assert "Not Submitted" not in result
 
     @pytest.mark.asyncio
@@ -605,18 +605,24 @@ class TestUpcomingAssignmentsSubmissionStates:
         ])
 
         assert "In-Class Worksheet" in result
-        assert "Graded" in result
+        assert "Status: ✅ Graded" in result
         assert "Not Submitted" not in result
 
     @pytest.mark.asyncio
     async def test_excused_takes_precedence_over_graded(self):
         """An excused submission can also carry the graded flag; the
-        explanation the student needs is the excuse, not the grade state."""
+        explanation the student needs is the excuse, not the grade state.
+
+        Assertions target the status line, not the bare word: the item
+        title is printed in the same output, so a title containing
+        "Excused" would satisfy a bare-word assertion even if the status
+        itself were wrong."""
         result = await self._run([
-            self._item("Excused Quiz", {"submitted": False, "excused": True, "graded": True}),
+            self._item("Pop Quiz", {"submitted": False, "excused": True, "graded": True}),
         ])
 
-        assert "Excused" in result
+        assert "Status: ⏭️ Excused" in result
+        assert "Status: ✅ Graded" not in result
         assert "Not Submitted" not in result
 
     @pytest.mark.asyncio
@@ -626,7 +632,7 @@ class TestUpcomingAssignmentsSubmissionStates:
         ])
 
         assert "Undone Homework" in result
-        assert "❌ Not Submitted" in result
+        assert "Status: ❌ Not Submitted" in result
 
     @pytest.mark.asyncio
     async def test_submitted_item_is_still_submitted(self):
@@ -635,7 +641,7 @@ class TestUpcomingAssignmentsSubmissionStates:
         ])
 
         assert "Turned In Essay" in result
-        assert "✅ Submitted" in result
+        assert "Status: ✅ Submitted" in result
 
 
 class TestGetMyPeerReviewsTodo:
