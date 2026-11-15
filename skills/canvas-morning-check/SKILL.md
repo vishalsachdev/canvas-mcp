@@ -93,11 +93,11 @@ After presenting the report, offer actionable next steps:
 
 > Would you like me to:
 > 1. Draft and send a message to struggling students (uses `send_conversation`)
-> 2. Send reminders about upcoming deadlines (uses `send_conversation`; multiple recipients are a preview + confirmation call)
+> 2. Send reminders about upcoming deadlines (uses `send_conversation`)
 > 3. Get detailed analytics for a specific assignment (uses `get_assignment_analytics`)
 > 4. Check another course
 
-If the user selects option 1, use the `send_conversation` MCP tool to message the identified students directly through Canvas.
+For options 1 and 2, `send_conversation` always takes two calls, even for one recipient: the first returns a preview and a confirmation token and sends nothing. Show the preview, and call again with the token and identical arguments only after the educator approves.
 
 ## MCP Tools Used
 

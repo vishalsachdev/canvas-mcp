@@ -187,7 +187,7 @@ Manual review of color contrast and multimedia is recommended before publishing.
 - **Cannot check:** Color contrast, video captions, PDF accessibility, audio descriptions, keyboard navigation
 - **These are flagged** as "manual review required" in every report
 - **Remediation is per-page:** Each fix requires a full page content read and write cycle
-- **No undo:** Page edits via the API do not create Canvas revision history -- back up pages before bulk fixes
+- **Undo is per page:** Canvas keeps page revisions, so a page edit can be rolled back in the page history. Assignment and syllabus bodies have no revision history -- save a copy before editing those
 
 ## Notes
 

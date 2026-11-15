@@ -22,7 +22,16 @@
       "Bash(curl:*)",
       "Bash(bash -c:*)",
       "Bash(codex:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(git push:*)",
+      "Bash(gh release:*)",
+      "Bash(gh issue create:*)",
+      "Bash(gh pr close:*)",
+      "Bash(git tag:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(az webapp *)",
+      "Bash(npx wrangler *)"
     ]
   }
 }
