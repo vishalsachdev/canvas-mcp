@@ -66,7 +66,7 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 - [x] **v1.18.0** [published](https://github.com/vishalsachdev/canvas-mcp/releases/tag/v1.18.0) 2026-11-12 on GitHub and [PyPI](https://pypi.org/project/canvas-mcp/1.18.0/), tag on `635f2d3`. Breaking: the TypeScript sandbox network guard fails closed in local and container mode (#582). Verified: Release and `.mcpb` attestation, Registry latest, prod `azure-gies-635f2d3` in the Kudu docker log, and the site. Not verified: container mode with a real runtime. Follow-up: the production `NODE_OPTIONS --require=` path is unquoted.
 - [ ] **OSS Verify** — enrollment merged in [theorem-labs/oss-verify#8](https://github.com/theorem-labs/oss-verify/pull/8). The HTML harness follow-up [#42](https://github.com/theorem-labs/oss-verify/pull/42) merged with independent parser checks and mutation cases still outstanding. Python proof work remains paused. Describe the project as enrolled and route findings privately to vishal@illinois.edu.
 - [ ] **OSS Scanner** — [Anthropic's enrollment PR #1115](https://github.com/anthropics/oss-scanner/pull/1115) remains open pending human review.
-- [ ] Hosted ops — revoke the F6 token and remove `llkarri2` from the allowlist ([#572](https://github.com/vishalsachdev/canvas-mcp/issues/572)). Usage telemetry is not retained.
+- Hosted operational follow-ups are tracked privately; keep account identifiers and credential status out of public instructions.
 - [ ] [#489](https://github.com/vishalsachdev/canvas-mcp/issues/489) — finish the caller-boundary audit for HTTP course-policy and discussion caches.
 - [ ] Watch, no owner: Agent Plugins packaging (blocked on credential delivery; triggers in project-history).
 
