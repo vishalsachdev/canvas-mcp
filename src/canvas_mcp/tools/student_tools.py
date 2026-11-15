@@ -26,7 +26,10 @@ def _planner_submission_status(submissions: Any) -> str:
     ``submitted: false``. Collapsing those into "Not Submitted" tells the
     student they owe work they do not owe, so — as in
     ``get_my_submission_status`` — they get their own labels. An excuse also
-    explains a graded flag, so it wins over it.
+    explains a graded flag, so it wins over it. Canvas can also flag
+    unsubmitted work as both graded and missing (a zero entered with the
+    missing status); that work is still owed, so the explicit missing flag
+    wins over the graded one.
     """
     if not isinstance(submissions, dict):
         return "❌ Not Submitted"
@@ -34,6 +37,8 @@ def _planner_submission_status(submissions: Any) -> str:
         return "✅ Submitted"
     if submissions.get("excused"):
         return "⏭️ Excused"
+    if submissions.get("missing"):
+        return "⚠️ Missing"
     if submissions.get("graded"):
         return "✅ Graded"
     return "❌ Not Submitted"

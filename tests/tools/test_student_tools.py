@@ -626,6 +626,20 @@ class TestUpcomingAssignmentsSubmissionStates:
         assert "Not Submitted" not in result
 
     @pytest.mark.asyncio
+    async def test_missing_flag_wins_over_graded(self):
+        """Canvas can mark unsubmitted work both graded and missing (an
+        instructor enters a zero and sets the missing status). A grade does
+        not mean the work is no longer owed, so the explicit missing flag
+        must not be hidden behind a green "Graded" label. This matches
+        ``get_my_submission_status``, which trusts the same flag."""
+        result = await self._run([
+            self._item("Reading Response", {"submitted": False, "graded": True, "missing": True}),
+        ])
+
+        assert "Status: ⚠️ Missing" in result
+        assert "Status: ✅ Graded" not in result
+
+    @pytest.mark.asyncio
     async def test_plain_unsubmitted_item_is_still_not_submitted(self):
         result = await self._run([
             self._item("Undone Homework", {"submitted": False, "excused": False, "graded": False}),
