@@ -95,7 +95,7 @@ For each auto-fixable issue, walk the user through the fix:
 1. Call `get_page_content(course_identifier, page_url)` to retrieve the HTML
 2. Identify the `<img>` tags without alt attributes
 3. Ask the user for alt text descriptions (or suggest based on surrounding context)
-4. Call `edit_page_content(course_identifier, page_url, new_content)` with corrected HTML
+4. Call `edit_page_content(course_identifier, page_url, find="<the img tag>", replace="<the tag with alt>", expect_updated_at="<updated_at you read>")` once per fix, so a concurrent edit is refused instead of overwritten
 
 **For non-descriptive links:**
 1. Retrieve the page content
