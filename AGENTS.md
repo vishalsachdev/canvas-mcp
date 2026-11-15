@@ -23,6 +23,10 @@ CANVAS_API_URL=https://your-institution.instructure.com/api/v1
 
 Students and educators use the same server but have access to different tools based on Canvas API permissions.
 
+### Write access is opt-in
+
+Both local and hosted servers default to read-only. Set `ALLOWED_WRITE_TOOLS` to the exact tool names you intend to allow (for example, `create_page,update_page`). Confirmation tokens do not establish human approval. Keep `execute_typescript` disabled when reading untrusted student content.
+
 ### Tool Profile (Optional)
 Reduce tool overhead by setting a role-based profile. Only tools relevant to the selected role are registered:
 
