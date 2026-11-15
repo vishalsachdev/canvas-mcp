@@ -13,5 +13,16 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "ask": [
+      "Bash(gh api:*)",
+      "Bash(python -c:*)",
+      "mcp__canvas-api__execute_typescript",
+      "Bash(curl:*)",
+      "Bash(bash -c:*)",
+      "Bash(codex:*)",
+      "Bash(chmod:*)"
+    ]
   }
 }
