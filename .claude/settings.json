@@ -31,7 +31,25 @@
       "Bash(gh pr create:*)",
       "Bash(gh pr merge:*)",
       "Bash(az webapp *)",
-      "Bash(npx wrangler *)"
+      "Bash(npx wrangler *)",
+      "Bash(gh issue edit:*)",
+      "Bash(gh issue close:*)",
+      "Bash(gh issue comment:*)",
+      "Bash(gh issue delete:*)",
+      "Bash(gh issue reopen:*)",
+      "Bash(gh issue transfer:*)",
+      "Bash(gh pr comment:*)",
+      "Bash(gh pr edit:*)",
+      "Bash(gh pr review:*)",
+      "Bash(gh pr reopen:*)",
+      "Bash(gh label:*)",
+      "Bash(gh workflow:*)",
+      "Bash(gh run rerun:*)",
+      "Bash(gh run cancel:*)",
+      "Bash(gh repo:*)",
+      "Bash(gh secret:*)",
+      "Bash(gh variable:*)",
+      "Bash(gh gist:*)"
     ]
   }
 }

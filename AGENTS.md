@@ -358,6 +358,8 @@ not explicitly identify as announcements, including when confirming a preview.
 To change one fragment without reverting anyone else's edits:
    → edit_page_content(course_id, "week-1", find="Monday 2pm", replace="Tuesday 3pm",
                        expect_updated_at="<updated_at you read>")
+For a page, read updated_at with get_page_details (get_page_content does not
+return it).
 The tool fetches the object, refuses (writing nothing) if it changed since
 you read it, if find matches 0 or 2+ times, or if a `require` string is
 missing; then writes once and reads back. Success means the read-back proves
@@ -607,7 +609,11 @@ Codex and most other coding agents load this file and not `CLAUDE.md`, so read t
 - [`internal/architecture.md`](internal/architecture.md): design reference.
 - [`internal/release-checklist.md`](internal/release-checklist.md): version bump and publish steps.
 
-The rules live in those files only; they are not repeated here. The section below also applies to development work. Ask the maintainer before any action that publishes, sends, merges, deploys or deletes outside your working copy.
+The rules live in those files only; they are not repeated here. The section below also applies to development work.
+
+## External Actions Require Explicit Approval
+
+Never publish, post, send, merge, deploy, delete, tag, release or otherwise change anything outside your working copy (GitHub issues, PRs and comments, Canvas, email, deployments) without the maintainer's explicit approval. Drafting is allowed. Before the action, ask "Do you want me to [exact action] now?" and proceed only after a clear yes to that exact action. "Looks good", "ok" or "use this" is not approval.
 
 ## Inbox vs Issues
 
