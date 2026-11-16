@@ -29,7 +29,10 @@
       "Bash(npx wrangler *)",
       "mcp__canvas__execute_typescript",
       "mcp__canvas-mcp__execute_typescript",
-      "mcp__canvas_api__execute_typescript"
+      "mcp__canvas_api__execute_typescript",
+      "Bash(git -C * push*)",
+      "Bash(wrangler *)",
+      "Bash(npx wrangler@*)"
     ]
   }
 }
