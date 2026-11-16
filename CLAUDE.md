@@ -42,6 +42,7 @@ Codex reads `AGENTS.md`, not this file; its "Developing this server" section poi
 - `docs/` is the public Cloudflare Pages root and deploys manually with `scripts/deploy_site.sh` (a bare `wrangler pages deploy docs/` ignores `.assetsignore` and publishes `triage/`, `audits/`, `superpowers/`); nothing internal goes there.
 - The site's version, tool and skill counts and GitHub stats come from `scripts/sync_site_facts.py` (CI runs `--check`): change the source, then run it; never hand-edit those numbers.
 - `internal/` is deny-by-default in `.gitignore`; un-ignore only a file meant to be public. `internal/session-history.md` stays untracked.
+- `.claude/settings.json` asks before every `gh` command and before `execute_typescript` under the server names `canvas-api`, `canvas`, `canvas-mcp` and `canvas_api`. Under another server name only the server-side gates apply (`EXECUTE_TYPESCRIPT_ENABLED` plus `ALLOWED_WRITE_TOOLS`): add its ask rule.
 - Triage briefs are tracked: never record a collaborator's affiliation, evaluation status, timeline or competing products. Name the person and the technical issue only.
 
 ## Hosted Deployment
