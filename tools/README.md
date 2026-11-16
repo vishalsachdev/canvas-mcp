@@ -428,7 +428,7 @@ neither listed nor callable by name.
 
 | Value | Effect |
 |---|---|
-| unset | HTTP transport: no side-effect tools (read-only). stdio: every registered tool, as before |
+| unset | No side-effect tools on either transport (read-only). Local stdio servers were unrestricted before this change; set the tools you use |
 | set but empty (blank, spaces, only commas) | Same as `none` |
 | `none` | No side-effect tools on either transport |
 | `all` | Every Canvas-write and local-write tool, but not `execute_typescript` |

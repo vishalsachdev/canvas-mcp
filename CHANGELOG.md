@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking: local (stdio) servers are read-only unless `ALLOWED_WRITE_TOOLS` is set.** Before, an unset allowlist kept every registered tool on stdio. Now both transports start with no tool that changes anything. To keep writing locally, set `ALLOWED_WRITE_TOOLS` to the tools you use (for example `create_page,update_page`) or to `all`.
+- The issue auto-label workflow runs only for issues opened by the repository owner.
+
 ### Fixed
 
 - **`get_my_upcoming_assignments` reports excused, graded and missing work with its own status.** The tool read only the `submitted` flag of each Planner item, so an item the student was excused from, and an item graded with no Canvas submission (work done in class or on paper), showed as "Not Submitted". The status now reads `Submitted`, `Excused`, `Missing` or `Graded` from the same Planner payload, with no extra request. An item that Canvas flags as both graded and missing shows as `Missing`. Contributed by @dota-devy (#587).
