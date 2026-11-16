@@ -91,7 +91,7 @@ instructor can still block them in their own course.
 | `send_message` | Send a new Inbox message to 1-5 people in a course (two calls: preview, then confirm) |
 | `reply_to_conversation` | Reply to an Inbox conversation you are already in (two calls: preview, then confirm) |
 
-Four things to know before using them:
+Six things to know before using them:
 
 1. **They may not exist.** Operators enable them individually via
    `STUDENT_WRITE_TOOLS`, which defaults to empty. A disabled tool is absent
@@ -362,6 +362,8 @@ not explicitly identify as announcements, including when confirming a preview.
 To change one fragment without reverting anyone else's edits:
    → edit_page_content(course_id, "week-1", find="Monday 2pm", replace="Tuesday 3pm",
                        expect_updated_at="<updated_at you read>")
+For a page, read updated_at with get_page_details (get_page_content does not
+return it).
 The tool fetches the object, refuses (writing nothing) if it changed since
 you read it, if find matches 0 or 2+ times, or if a `require` string is
 missing; then writes once and reads back. Success means the read-back proves
@@ -576,8 +578,8 @@ ENABLE_DATA_ANONYMIZATION=true
 This converts student names to anonymous IDs (e.g., `Student_a8f7e23d`) before data reaches the AI. A local mapping file allows educators to correlate IDs with real students.
 
 ### For Students
-Most student tools read only your own data via Canvas "self" endpoints. The group
-tools are the exception: they show classmates in groups you belong to.
+Most student tools read only your own data via Canvas "self" endpoints. Two kinds
+are exceptions. The group tools show classmates in groups you belong to.
 `get_group_members` lists their names and Canvas user IDs; `list_group_files` shows
 the names of files they uploaded. A group's discussions are read with the shared
 discussion tools' `group_id`, which show classmates' posts and topic bodies and name
@@ -586,8 +588,7 @@ the authors. Emails, login IDs and SIS IDs are never shown. With
 real), and emails, phone numbers and SSNs are redacted from group discussion posts
 and topic bodies and from group descriptions. File names, group names and topic
 titles are shown as Canvas returns them.
-Most student tools read only your own data via Canvas "self" endpoints.
-`find_message_recipients` is the exception: it lists the people you can message in
+`find_message_recipients` lists the people you can message in
 a course. With `ENABLE_DATA_ANONYMIZATION` on, only course staff are named there
 (a name search returns staff only) and everyone else appears as a `Student_<hash>`
 pseudonym; user IDs stay real so `send_message` can address them. A pseudonym
@@ -612,30 +613,11 @@ Codex and most other coding agents load this file and not `CLAUDE.md`, so read t
 - [`internal/architecture.md`](internal/architecture.md): design reference.
 - [`internal/release-checklist.md`](internal/release-checklist.md): version bump and publish steps.
 
-The rules live in those files only; they are not repeated here. The two sections below also apply to development work.
-
-## Claude Memory Lookup
-
-When prior context may matter, search Claude memories at runtime instead of copying memory content into this repo. Use this as a nudge, not a mandatory step for every tiny edit.
-
-- Safe local roots: /Users/vishal/code, /Users/vishal/teaching, /Users/vishal/research, /Users/vishal/admin, /Users/vishal/vault.
-- Do not search Box, iCloud, or other cloud-sync folders for this purpose.
-- Start with global memory: /Users/vishal/.claude/memory/MEMORY.md and /Users/vishal/.claude/projects/-Users-vishal/memory/MEMORY.md.
-- For the current project, derive the likely Claude memory folder from the path. Example: /Users/vishal/code/AgentLab -> /Users/vishal/.claude/projects/-Users-vishal-code-AgentLab/memory/.
-- If the topic could cross projects, search relevant memory files with rg across /Users/vishal/.claude/projects/*/memory/*.md.
-- Prefer memory pointers and summaries over duplicating long memory content here.
+The rules live in those files only; they are not repeated here. The section below also applies to development work.
 
 ## External Actions Require Explicit Approval
 
-Never publish, post, send, delete, deploy, submit, schedule, purchase, or otherwise take an external action without explicit approval from Vishal.
-
-This includes LinkedIn, email, Slack/Teams, Canvas, GitHub PRs/issues/comments, deployments, forms, purchases, and browser-based actions that affect external systems.
-
-Drafting is allowed. Composing into a browser editor is allowed only when asked. Stop before the final action button.
-
-Before any external action, ask: "Do you want me to [exact action] now?" Only proceed after a clear yes to that exact action. Do not treat "looks good," "ok," or "use this" as permission to publish, send, delete, deploy, submit, schedule, purchase, or post.
-
-For LinkedIn posts: prepare the text, optionally paste it into the composer, then stop. Never click Post unless Vishal explicitly says "Post it."
+Never publish, post, send, merge, deploy, delete, tag, release or otherwise change anything outside your working copy (GitHub issues, PRs and comments, Canvas, email, deployments) without the maintainer's explicit approval. Drafting is allowed. Before the action, ask "Do you want me to [exact action] now?" and proceed only after a clear yes to that exact action. "Looks good", "ok" or "use this" is not approval.
 
 ## Inbox vs Issues
 
