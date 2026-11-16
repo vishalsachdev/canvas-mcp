@@ -442,8 +442,8 @@ When any tool is withheld, the server's MCP instructions say so, so the
 assistant can tell the user that the deployment withholds the tool on purpose
 rather than treating it as a missing feature. A read-only server says it is
 read-only (on HTTP it also says the user can run Canvas MCP locally to make
-changes); a server with a short allowlist names the tools it allows. A stdio
-server with the allowlist unset adds no instructions.
+changes); a server with a short allowlist names the tools it allows. With the
+allowlist unset, a stdio server is read-only too and says so.
 
 Why it exists: an assistant can be steered by instructions planted in
 student-written content. Previews and confirmation tokens bind a write to the
