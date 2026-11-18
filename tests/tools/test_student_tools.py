@@ -559,6 +559,105 @@ class TestUpcomingAssignmentsHonorRange:
         assert "planner unavailable" in result
 
 
+class TestUpcomingAssignmentsSubmissionStates:
+    """The Planner payload's ``submissions`` object carries more than the
+    ``submitted`` flag: an item the student was excused from, or one already
+    graded without a Canvas submission (in-class / on-paper work), arrives
+    with ``submitted: false`` plus ``excused`` / ``graded``. Reporting those
+    as "❌ Not Submitted" tells the student they owe work they do not owe.
+    ``get_my_submission_status`` already distinguishes these states; the
+    upcoming view must not collapse them.
+    """
+
+    def _item(self, title, submissions):
+        soon = (datetime.now(UTC) + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return {
+            "plannable_type": "assignment",
+            "course_id": 101,
+            "plannable": {"id": 9, "title": title, "due_at": soon},
+            "plannable_date": soon,
+            "submissions": submissions,
+        }
+
+    async def _run(self, items):
+        with patch('canvas_mcp.tools.student_tools.fetch_all_paginated_results', new_callable=AsyncMock) as mock_fetch, \
+             patch('canvas_mcp.tools.student_tools.get_course_code', new_callable=AsyncMock) as mock_course:
+            mock_fetch.return_value = items
+            mock_course.return_value = "TEST-101"
+
+            tool = get_student_tool_function('get_my_upcoming_assignments')
+            return await tool(days=7)
+
+    @pytest.mark.asyncio
+    async def test_excused_item_is_reported_as_excused(self):
+        result = await self._run([
+            self._item("Lab Quiz 5", {"submitted": False, "excused": True}),
+        ])
+
+        assert "Lab Quiz 5" in result
+        assert "Status: ⏭️ Excused" in result
+        assert "Not Submitted" not in result
+
+    @pytest.mark.asyncio
+    async def test_graded_item_is_reported_as_graded(self):
+        result = await self._run([
+            self._item("In-Class Worksheet", {"submitted": False, "graded": True}),
+        ])
+
+        assert "In-Class Worksheet" in result
+        assert "Status: ✅ Graded" in result
+        assert "Not Submitted" not in result
+
+    @pytest.mark.asyncio
+    async def test_excused_takes_precedence_over_graded(self):
+        """An excused submission can also carry the graded flag; the
+        explanation the student needs is the excuse, not the grade state.
+
+        Assertions target the status line, not the bare word: the item
+        title is printed in the same output, so a title containing
+        "Excused" would satisfy a bare-word assertion even if the status
+        itself were wrong."""
+        result = await self._run([
+            self._item("Pop Quiz", {"submitted": False, "excused": True, "graded": True}),
+        ])
+
+        assert "Status: ⏭️ Excused" in result
+        assert "Status: ✅ Graded" not in result
+        assert "Not Submitted" not in result
+
+    @pytest.mark.asyncio
+    async def test_missing_flag_wins_over_graded(self):
+        """Canvas can mark unsubmitted work both graded and missing (an
+        instructor enters a zero and sets the missing status). A grade does
+        not mean the work is no longer owed, so the explicit missing flag
+        must not be hidden behind a green "Graded" label. This matches
+        ``get_my_submission_status``, which trusts the same flag."""
+        result = await self._run([
+            self._item("Reading Response", {"submitted": False, "graded": True, "missing": True}),
+        ])
+
+        assert "Status: ⚠️ Missing" in result
+        assert "Status: ✅ Graded" not in result
+
+    @pytest.mark.asyncio
+    async def test_plain_unsubmitted_item_is_still_not_submitted(self):
+        result = await self._run([
+            self._item("Undone Homework", {"submitted": False, "excused": False, "graded": False}),
+        ])
+
+        assert "Undone Homework" in result
+        assert "Status: ❌ Not Submitted" in result
+
+    @pytest.mark.asyncio
+    async def test_submitted_item_is_still_submitted(self):
+        result = await self._run([
+            self._item("Turned In Essay", {"submitted": True, "graded": True}),
+        ])
+
+        assert "Turned In Essay" in result
+        assert "Status: ✅ Submitted" in result
+
+
 class TestGetMyPeerReviewsTodo:
     """#219: the tool answered "no pending peer reviews ✅" when the
     peer-reviews endpoint errored (students often cannot call the

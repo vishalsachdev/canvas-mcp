@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`get_my_upcoming_assignments` reports excused, graded and missing work with its own status.** The tool read only the `submitted` flag of each Planner item, so an item the student was excused from, and an item graded with no Canvas submission (work done in class or on paper), showed as "Not Submitted". The status now reads `Submitted`, `Excused`, `Missing` or `Graded` from the same Planner payload, with no extra request. An item that Canvas flags as both graded and missing shows as `Missing`. Contributed by @dota-devy (#587).
+
 ## [1.18.0] — 2026-11-12
 
 A minor release with one breaking change, in the TypeScript sandbox. It applies to local mode and to container mode. The sandbox's JavaScript network guard now refuses every connection that does not name a host on the allowlist.
