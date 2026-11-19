@@ -92,10 +92,10 @@ Present issues sorted by priority:
 For each auto-fixable issue, walk the user through the fix:
 
 **For missing alt text:**
-1. Call `get_page_content(course_identifier, page_url)` to retrieve the HTML
+1. Call `get_page_content(course_identifier, page_url)` to retrieve the HTML, and `get_page_details(course_identifier, page_url)` for its `updated_at` (ISO 8601; `get_page_content` does not return it)
 2. Identify the `<img>` tags without alt attributes
 3. Ask the user for alt text descriptions (or suggest based on surrounding context)
-4. Call `edit_page_content(course_identifier, page_url, new_content)` with corrected HTML
+4. Call `edit_page_content(course_identifier, page_url, find="<the img tag>", replace="<the tag with alt>", expect_updated_at="<updated_at you read>")` once per fix, so a concurrent edit is refused instead of overwritten. Each edit changes `updated_at`: call `get_page_details` again before the next fix (or make all the page's fixes in one call)
 
 **For non-descriptive links:**
 1. Retrieve the page content
@@ -187,7 +187,7 @@ Manual review of color contrast and multimedia is recommended before publishing.
 - **Cannot check:** Color contrast, video captions, PDF accessibility, audio descriptions, keyboard navigation
 - **These are flagged** as "manual review required" in every report
 - **Remediation is per-page:** Each fix requires a full page content read and write cycle
-- **No undo:** Page edits via the API do not create Canvas revision history -- back up pages before bulk fixes
+- **Undo is per page:** Canvas keeps page revisions, so a page edit can be rolled back in the page history. Assignment and syllabus bodies have no revision history -- save a copy before editing those
 
 ## Notes
 
