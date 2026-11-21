@@ -13,7 +13,7 @@ MCP server for Canvas LMS with **up to 128 tools** and **8 agent skills**. Desig
 ## Quick Start
 
 > [!IMPORTANT]
-> **Upcoming breaking change for local users.** Builds containing PR #599 start
+> **Breaking change for local users in v1.19.0.** Builds containing PR #599 start
 > in read-only mode unless you enable specific write tools. If you use Canvas MCP
 > to edit, publish, grade, or message, see [Enable specific write tools](#enable-specific-write-tools)
 > before upgrading. The v1.18.0 Claude Desktop bundle predates the new setting.
@@ -157,7 +157,14 @@ Canvas MCP provides **up to 128 tools** for interacting with Canvas LMS; the def
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing role-specific workflows for students, educators, learning designers, and developers. Built on the Model Context Protocol (MCP), it is designed for MCP-compatible clients; setup and supported capabilities vary by client.
 
-## Latest Release: v1.18.0
+## Latest Release: v1.19.0
+
+Local Canvas MCP servers default to read-only. To continue editing, publishing,
+grading, or messaging, [enable the specific tools you use](#enable-specific-write-tools).
+
+[Full Changelog](./CHANGELOG.md) | [All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)
+
+## Previous Release: v1.18.0
 
 **Released:** November 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
 
