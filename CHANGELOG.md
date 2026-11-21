@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Breaking: local (stdio) servers are read-only unless `ALLOWED_WRITE_TOOLS` is set.** Before, an unset allowlist kept every registered tool on stdio. Now both transports start with no tool that changes anything. To keep writing locally, set `ALLOWED_WRITE_TOOLS` to the tools you use (for example `create_page,edit_page_content`) or to `all`.
-- The Claude Desktop extension (`.mcpb`) has a new **Allowed write tools** setting, passed to the server as `ALLOWED_WRITE_TOOLS`. Its default, `none`, keeps the extension read-only. To turn writes on, list tool names there or enter `all`.
+- **Breaking: local (stdio) servers are read-only unless `ALLOWED_WRITE_TOOLS` is set.** Before, an unset allowlist kept every registered tool on stdio. Now both transports start with no tool that changes anything. To keep writing locally, set `ALLOWED_WRITE_TOOLS` to the tools you use (for example, `edit_page_content` for edits to existing pages). See the [client migration guide](README.md#enable-specific-write-tools) for setup and verification.
+- The Claude Desktop extension (`.mcpb`) has a new **Allowed write tools** setting, passed to the server as `ALLOWED_WRITE_TOOLS`. Its default, `none`, keeps the extension read-only. To enable a write tool, enter its exact name and restart the client.
 - The issue auto-label workflow runs only for issues opened by the repository owner.
 
 ### Fixed
