@@ -46,6 +46,14 @@ def test_staging_drops_every_ignored_path_and_keeps_the_site(project: Path):
     assert ".assetsignore" not in staged
 
 
+def test_staging_drops_the_impact_data_file(project: Path):
+    # impact.json carries PyPI download counts, which must never be published; only local scripts read it.
+    assert (project / "docs/data/impact.json").is_file()
+    result = dry_run(project)
+    assert result.returncode == 0, result.stderr
+    assert not [p for p in result.stdout.split("\n") if p.startswith("data/")]
+
+
 def test_refuses_to_deploy_when_an_ignored_path_is_staged(project: Path, tmp_path_factory):
     # An rsync that ignores --exclude-from stands in for any staging step that lets a path through.
     fake = tmp_path_factory.mktemp("bin") / "rsync"
