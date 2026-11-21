@@ -13,7 +13,7 @@ MCP server for Canvas LMS with **up to 128 tools** and **8 agent skills**. Desig
 ## Quick Start
 
 > [!IMPORTANT]
-> **Upcoming breaking change for local users.** Builds containing PR #599 start
+> **Breaking change for local users in v1.19.0.** Builds containing PR #599 start
 > in read-only mode unless you enable specific write tools. If you use Canvas MCP
 > to edit, publish, grade, or message, see [Enable specific write tools](#enable-specific-write-tools)
 > before upgrading. The v1.18.0 Claude Desktop bundle predates the new setting.
@@ -157,98 +157,12 @@ Canvas MCP provides **up to 128 tools** for interacting with Canvas LMS; the def
 
 The Canvas MCP Server bridges the gap between AI assistants and Canvas Learning Management System, providing role-specific workflows for students, educators, learning designers, and developers. Built on the Model Context Protocol (MCP), it is designed for MCP-compatible clients; setup and supported capabilities vary by client.
 
-## Latest Release: v1.18.0
+## Latest Release: v1.19.0
 
-**Released:** November 2026 | **[Full Changelog](./CHANGELOG.md)** | **[All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)**
+Local Canvas MCP servers default to read-only. To continue editing, publishing,
+grading, or messaging, [enable the specific tools you use](#enable-specific-write-tools).
 
-A minor release with one breaking change, in the TypeScript sandbox (local and container mode).
-
-- **Breaking: the sandbox network guard fails closed** ([#582](https://github.com/vishalsachdev/canvas-mcp/pull/582)). Code run by `execute_typescript` can connect only to a host on the sandbox allowlist. A connection with no host, a local socket path or UDP is refused with `SANDBOX_NETWORK_BLOCKED`.
-- The check runs at the socket level, so `net`, `tls`, `http`, `https`, `http2` and `fetch` all go through it, and every worker thread loads the guard.
-- The guard remains a JavaScript-level control. Kernel-level egress is tracked in [#157](https://github.com/vishalsachdev/canvas-mcp/issues/157).
-
-<details>
-<summary>Previous releases</summary>
-
-**v1.17.0** — Course names resolve in one call and an unmatched course identifier is refused ([#567](https://github.com/vishalsachdev/canvas-mcp/pull/567)); `create_rubric` no longer replaces an attached rubric; a hosted server with an empty Entra allowlist needs an explicit setting ([#563](https://github.com/vishalsachdev/canvas-mcp/pull/563)).
-
-**v1.16.0** — A security release fixing three privately reported issues and the last gap in the 1.13.0 prompt-injection advisory, plus course group creation and opt-in submission text. Breaking for local code execution: the sandbox needs Node.js 22.18+.
-
-**v1.15.0** — A hardening release: HTTP callers are kept apart from each other ([#480](https://github.com/vishalsachdev/canvas-mcp/pull/480), [#491](https://github.com/vishalsachdev/canvas-mcp/pull/491)), HTML is parsed in one bounded pass ([#515](https://github.com/vishalsachdev/canvas-mcp/pull/515)), the release pipeline verifies what it publishes, and `get_student_submission` is new ([#487](https://github.com/vishalsachdev/canvas-mcp/pull/487)).
-
-**v1.14.0** — A student-tools and correctness release, most of it contributed by [@KKazuhaK](https://github.com/KKazuhaK). Read-only student tools for groups, grades and what-if scenarios, quizzes, calendar and a cross-course feed, plus Inbox messaging that is off unless the operator enables it ([#465](https://github.com/vishalsachdev/canvas-mcp/pull/465) to [#476](https://github.com/vishalsachdev/canvas-mcp/pull/476)). Guarded body edits with read-back confirmation ([#437](https://github.com/vishalsachdev/canvas-mcp/pull/437)), group and anonymous discussion reads ([#433](https://github.com/vishalsachdev/canvas-mcp/pull/433), [#439](https://github.com/vishalsachdev/canvas-mcp/pull/439); thanks [@papatistos](https://github.com/papatistos)), complete full-content reads ([#458](https://github.com/vishalsachdev/canvas-mcp/pull/458)) and shared course resolution ([#457](https://github.com/vishalsachdev/canvas-mcp/pull/457)). Behavior change: `assign_peer_review` never posts a placeholder submission ([#436](https://github.com/vishalsachdev/canvas-mcp/pull/436)). The suite runs on Windows in CI ([#456](https://github.com/vishalsachdev/canvas-mcp/pull/456)).
-
-**v1.13.0** — A security release ([GHSA-hmr8-mvr2-mvw5](https://github.com/vishalsachdev/canvas-mcp/security/advisories/GHSA-hmr8-mvr2-mvw5)): tools that change anything exist only if the operator allows them. Breaking: HTTP servers are read-only unless `ALLOWED_WRITE_TOOLS` is set, `send_conversation` always previews first, `get_conversation_details` loses `auto_mark_read`, rubric grading stops when settings cannot be verified, and local file exports refuse HTTP callers. Also new: **`update_rubric`** for guarded edits of existing rubrics ([#386](https://github.com/vishalsachdev/canvas-mcp/pull/386)) and **`update_syllabus`**, which previews before replacing existing content. Fixed: external-tool assignments such as Gradescope are no longer reported missing ([#390](https://github.com/vishalsachdev/canvas-mcp/pull/390), thanks [@EastArctica](https://github.com/EastArctica)), TypeScript pagination follows `Link` headers within a page budget ([#403](https://github.com/vishalsachdev/canvas-mcp/pull/403)), and confirmation and grading workflows were hardened ([#394](https://github.com/vishalsachdev/canvas-mcp/pull/394) to [#408](https://github.com/vishalsachdev/canvas-mcp/pull/408)). The `execute_typescript` sandbox now runs as a non-root user with a read-only root filesystem ([#317](https://github.com/vishalsachdev/canvas-mcp/pull/317), [#339](https://github.com/vishalsachdev/canvas-mcp/pull/339)). Built on FastMCP 4 and MCP SDK 2 ([#354](https://github.com/vishalsachdev/canvas-mcp/pull/354)).
-
-**v1.12.0** — A safety release: every delete tool asks first. Breaking: `delete_announcement` removed, `dry_run` removed from the announcement delete tools, `confirmation_token` required on all seven delete tools ([#318](https://github.com/vishalsachdev/canvas-mcp/issues/318)), and Python 3.10 dropped ([#315](https://github.com/vishalsachdev/canvas-mcp/issues/315)). Also new: `delete_assignment_with_confirmation`, `ACCESSIBILITY_CHECKERS` ([#325](https://github.com/vishalsachdev/canvas-mcp/issues/325)), and the content migration tools ([#309](https://github.com/vishalsachdev/canvas-mcp/issues/309)).
-
-**v1.11.0** — A protocol-correctness release. Breaking: `send_peer_review_reminders` is now `send_peer_review_inbox_messages` ([#303](https://github.com/vishalsachdev/canvas-mcp/issues/303)); tool failures set MCP `isError: true` ([#270](https://github.com/vishalsachdev/canvas-mcp/issues/270)); string-returning tools no longer duplicate their payload into `structuredContent.result` ([#271](https://github.com/vishalsachdev/canvas-mcp/issues/271)); FastMCP floor 3.4.7 ([#293](https://github.com/vishalsachdev/canvas-mcp/issues/293)). Thanks [@jonespm](https://github.com/jonespm)
-
-**v1.10.0** — A community bug-fix release driven by live reporter testing — thanks [@khagyard](https://github.com/khagyard), [@zqian](https://github.com/zqian), [@jonespm](https://github.com/jonespm), [@bruchris](https://github.com/bruchris), and [@SHIL0018](https://github.com/SHIL0018) (our second outside code contribution). Included a breaking `search_canvas_tools` response-shape change.
-
-- **Breaking: `search_canvas_tools` response shape v2** ([#281](https://github.com/vishalsachdev/canvas-mcp/issues/281)). The tool now actually searches the ~99 registered MCP tools alongside the TypeScript code-API files (it previously searched only the latter, so "peer review" found nothing despite ~10 peer-review tools existing). Responses carry `schema_version: 2` with labeled `mcp_tools` / `code_execution_api` sections; the old flat `tools` key is gone. Full-detail code-API content is now also capped at 2,000 characters ([#287](https://github.com/vishalsachdev/canvas-mcp/issues/287))
-- **Students can find their peer reviews** ([#275](https://github.com/vishalsachdev/canvas-mcp/issues/275)): `get_my_peer_reviews_todo` gained a direct per-assignment lookup and a Planner-feed discovery path — the same data source Canvas's own student UI uses — validated against a real production payload from the reporter
-- **`create_announcement` fails safely on student tokens** ([#283](https://github.com/vishalsachdev/canvas-mcp/issues/283)): Canvas silently downgrades the create to a regular discussion topic; the tool now pre-checks course permissions and refuses before creating anything, auto-deletes the unintended topic if a downgrade still slips through, and steers AI clients away from posting the content via discussion tools as a fallback
-- **Security:** stricter URL validation (code-scanning fix), Docker base bumped to `python:3.14-slim`, CI actions updated
-
-**v1.9.0** — Prompt-injection hardening ([#239](https://github.com/vishalsachdev/canvas-mcp/issues/239)): Canvas-authored text arrives provenance-fenced as data-not-instructions; multi-recipient sends became two-step preview→confirm (breaking); write tools refuse fence markers; OSSF Scorecard published, CI actions SHA-pinned, `.mcpb` ships SLSA provenance; npm wizard retired ([#249](https://github.com/vishalsachdev/canvas-mcp/issues/249)). Eleven adversarial review rounds pre-merge
-
-**v1.8.0** — Security-scan remediation: 11 of 12 findings fixed, three breaking (HTTPS-only Canvas URLs, stdio-only file transfer tools, no-overwrite downloads), a measured submissions authorization bypass closed centrally, CSV formula-injection protection, code execution fails closed, dependency floors raised (PR #251, #255)
-
-**v1.7.0** — Correctness release from instructor bug reports: writes no longer report success when Canvas quietly did less than asked ([#219](https://github.com/vishalsachdev/canvas-mcp/issues/219)–[#221](https://github.com/vishalsachdev/canvas-mcp/issues/221)), Planner-API upcoming assignments ([#222](https://github.com/vishalsachdev/canvas-mcp/issues/222)), `check_enrollment` AMBIGUOUS answers ([#199](https://github.com/vishalsachdev/canvas-mcp/issues/199)), wire-format fixes for pages/inbox ([#207](https://github.com/vishalsachdev/canvas-mcp/issues/207), [#208](https://github.com/vishalsachdev/canvas-mcp/issues/208)), MCP-spec tool annotations ([#204](https://github.com/vishalsachdev/canvas-mcp/issues/204)), CSV rubric format fix ([#190](https://github.com/vishalsachdev/canvas-mcp/issues/190)), anonymization consolidated to the client layer ([#179](https://github.com/vishalsachdev/canvas-mcp/issues/179)). Thanks [@khagyard](https://github.com/khagyard) and [@zqian](https://github.com/zqian)
-
-**v1.6.0** — Tier 1 student write tools behind an explicit allowlist ([#170](https://github.com/vishalsachdev/canvas-mcp/issues/170)), `get_my_enrollments` / `get_my_profile` ([#171](https://github.com/vishalsachdev/canvas-mcp/issues/171)), three-tier anonymization ([#166](https://github.com/vishalsachdev/canvas-mcp/issues/166), [#179](https://github.com/vishalsachdev/canvas-mcp/issues/179)), rubric association fixes ([#180](https://github.com/vishalsachdev/canvas-mcp/issues/180), [#181](https://github.com/vishalsachdev/canvas-mcp/issues/181)), `execute_typescript` became opt-in ([#178](https://github.com/vishalsachdev/canvas-mcp/issues/178)), ruff gating CI ([@w3lld1](https://github.com/w3lld1), PR #186)
-
-**v1.5.0** — `get_syllabus` ([#134](https://github.com/vishalsachdev/canvas-mcp/issues/134)), `create_rubric_from_csv` ([#119](https://github.com/vishalsachdev/canvas-mcp/issues/119)), `update_discussion_topic` ([#154](https://github.com/vishalsachdev/canvas-mcp/issues/154)), fastmcp 2.x migration ([#145](https://github.com/vishalsachdev/canvas-mcp/issues/145)), dependency advisories cleared 33 → 0 with a gating CI scan (PR #156)
-
-**v1.4.0** — `check_enrollment` (PR #126), Claude Desktop Extension `.mcpb`, Entra ID authenticated institutional hosting ([#115](https://github.com/vishalsachdev/canvas-mcp/issues/115), PR #125), HTTP fails closed without auth gate (PR #123)
-
-**v1.3.0** — `create_rubric` (PR #100), `read_course_file` ([@DomBarker99](https://github.com/DomBarker99), PR #90), event-loop fix for user-scoped tools (PR #99), bulk-delete safety cap (PR #96), dependency pruning (PR #93)
-
-**v1.2.0** — Role-Based Tool Filtering ([@Promithius-DR](https://github.com/Promithius-DR), PR #84), Accessibility Remediation (`fix_accessibility_issues`, scanner expanded 4→20 checks), Security Hardening (path traversal/symlink protections), Windows Support for `execute_typescript` (PR #85), CI consolidation (11→8 checks)
-
-**v1.1.0** — Hosted Server (`mcp.illinihunt.org`), Learning Designer tools + 3 skills, Agent Skills on skills.sh, File Management ([@Metzpapa](https://github.com/Metzpapa), PR #75), Token Optimization, Generic Distribution
-
-**v1.0.8** — Security Hardening (PII sanitization, audit logging, sandbox-by-default), Ruff linting, 235+ tests
-
-**v1.0.7** — Assignment Update Tool (`update_assignment`), complete CRUD, 9 tests
-
-**v1.0.6** — Module Management (7 tools), Page Settings (2 tools), 235+ tests
-
-**v1.0.5** — Claude Code Skills, GitHub Pages site
-
-**v1.0.4** — Code Execution API for token-efficient bulk operations, MCP 2.14 compliance
-
-</details>
-
-### For Students 👨‍🎓
-Get AI-powered assistance with:
-- Tracking upcoming assignments and deadlines
-- Monitoring your grades across all courses
-- Managing peer review assignments
-- Accessing course content and discussions
-- Organizing your TODO list
-
-**[→ Get Started as a Student](https://canvas-mcp.illinihunt.org/student-guide.html)**
-
-### For Educators 👨‍🏫
-Enhance your teaching with:
-- Assignment and grading management
-- Student analytics and performance tracking
-- Discussion and peer review facilitation
-- Privacy controls designed to support FERPA-conscious workflows
-- Bulk messaging and communication tools
-
-**[→ Get Started as an Educator](https://canvas-mcp.illinihunt.org/educator-guide.html)**
-
-### For Learning Designers 🎨
-AI-powered course design and quality assurance:
-- **Course scaffolding** — Build entire course structures from specs, templates, or by cloning existing courses
-- **Quality audits** — Pre-semester QC checks for structure, content, publishing, and completeness
-- **Accessibility review** — 20-check WCAG-oriented scanner (headings, tables, scope, contrast, alt text, links, captions, DesignPLUS migration), prioritized reports, guided remediation, and verification
-- **Course structure analysis** — Full module→items tree in a single call for rapid course review
-
-3 dedicated skills (`canvas-course-qc`, `canvas-accessibility-auditor`, `canvas-course-builder`) plus the `get_course_structure` tool.
+[Full Changelog](./CHANGELOG.md) | [All Releases](https://github.com/vishalsachdev/canvas-mcp/releases)
 
 ## 🤖 Agent Skills
 

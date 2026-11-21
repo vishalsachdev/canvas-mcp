@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.19.0]
+
 ### Changed
 
 - **Breaking: local (stdio) servers are read-only unless `ALLOWED_WRITE_TOOLS` is set.** Before, an unset allowlist kept every registered tool on stdio. Now both transports start with no tool that changes anything. To keep writing locally, set `ALLOWED_WRITE_TOOLS` to the tools you use (for example, `edit_page_content` for edits to existing pages). See the [client migration guide](README.md#enable-specific-write-tools) for setup and verification.
