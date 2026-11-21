@@ -12,6 +12,12 @@ MCP server for Canvas LMS with **up to 128 tools** and **8 agent skills**. Desig
 
 ## Quick Start
 
+> [!IMPORTANT]
+> **Upcoming breaking change for local users.** Builds containing PR #599 start
+> in read-only mode unless you enable specific write tools. If you use Canvas MCP
+> to edit, publish, grade, or message, see [Enable specific write tools](#enable-specific-write-tools)
+> before upgrading. The v1.18.0 Claude Desktop bundle predates the new setting.
+
 **1. Install the MCP server** (everything else, including the skills, needs it running):
 
 - **Claude Desktop:** download `canvas-mcp.mcpb` from the [latest release](https://github.com/vishalsachdev/canvas-mcp/releases/latest) and double-click it. It prompts for your Canvas URL and token; no terminal needed. [Details](#install-as-a-claude-desktop-extension-easiest).
@@ -343,6 +349,36 @@ If you use **Claude Desktop**, you can install Canvas MCP with one click — no 
 The extension runs the server locally and calls Canvas with **your own** token, so requests use that token's Canvas permissions. Canvas and your AI client may retain their own activity records. The extension uses `uv` to select Python 3.13 and manage dependencies; `uv` downloads Python 3.13 on first launch if it is missing (internet access is required, and Python downloads must be allowed). You do not need to install Python separately or change your system's default Python. For other clients, or to run from source, use the manual setup below.
 
 **Windows troubleshooting:** `spawn uv ENOENT` means Claude Desktop cannot find `uv`. Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then fully quit and reopen Claude Desktop so it picks up the updated PATH. Older extension bundles can select Python 3.15 and fail while compiling `cffi` with a "Microsoft Visual C++ 14.0 or greater is required" error; explicitly select Python 3.13 with `uv run --python 3.13` in a manual client configuration instead of installing a compiler. See [issue #391](https://github.com/vishalsachdev/canvas-mcp/issues/391). Existing released bundles do not acquire launcher changes until you install a release containing them.
+
+## Enable specific write tools
+
+If you only look up Canvas information or draft changes for review, keep the
+read-only default. If you want to edit existing Canvas pages, enable
+`edit_page_content`. Publishing an existing page also needs
+`update_page_settings`. Adding an assignment, entering grades, and sending
+messages each require their own tool permission. See the [tool reference](tools/README.md)
+for exact names.
+
+- **Claude Desktop extension:** In a bundle containing PR #599, open the Canvas
+  MCP extension settings and enter `edit_page_content` in **Allowed write tools**.
+  The default is `none`. Use commas to separate names if you need multiple tools.
+- **Codex, Claude Code, Cursor, and other local clients:** Set
+  `ALLOWED_WRITE_TOOLS=edit_page_content` in the environment of the Canvas MCP
+  server entry or in the server's `.env`. Configure each server process that
+  needs write access. For Codex, add the following to the existing server
+  configuration, using your server entry's name.
+
+  ```toml
+  [mcp_servers.canvas-api.env]
+  ALLOWED_WRITE_TOOLS = "edit_page_content"
+  ```
+
+- **Shared HTTP or Azure:** The server operator sets the allowlist on the hosted
+  server. HTTP already defaults to read-only.
+
+Restart the server or client, then check the client's MCP tool list for the
+expected tool. An unknown name stops the server at startup. The allowlist grants
+access to whole tools, and Canvas applies the permissions of the caller's token.
 
 ## Local Installation
 
