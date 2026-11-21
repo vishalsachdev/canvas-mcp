@@ -119,7 +119,7 @@ a class twice, is exactly the harm this hint exists to prevent.
 `local_write` or `code_exec`, and `server.main()` removes every side-effect tool the
 operator has not allowed through `ALLOWED_WRITE_TOOLS` before the server starts
 serving. A removed tool is gone from the registry, so it is neither listed nor
-callable by name. Unset means read-only on HTTP and unchanged on stdio; `all`
+callable by name. Unset means read-only on both transports; `all`
 excludes code execution; unknown names stop startup. The policy runs after the
 registration gates (`CANVAS_ROLE`, `STUDENT_WRITE_TOOLS`,
 `EXECUTE_TYPESCRIPT_ENABLED`), so it can only narrow them.

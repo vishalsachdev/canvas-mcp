@@ -9,7 +9,7 @@ all. These tests pin that boundary.
 - Every registered tool has an explicit effect class, and ``read`` agrees with
   ``read_only_hint`` (so a mis-annotated writer cannot slip into the read set).
 - On the HTTP transport, no side-effect tool exists unless the operator names it.
-- On stdio, behaviour is unchanged unless the operator sets the allowlist.
+- On stdio, side effects also require an explicit operator allowlist.
 - A removed tool cannot be called by name.
 - Misconfiguration fails at startup rather than being guessed at.
 """
@@ -106,9 +106,10 @@ def test_http_default_allows_no_side_effect_tools():
     assert policy.allowed == frozenset()
 
 
-def test_stdio_default_is_unrestricted():
+def test_stdio_default_is_read_only():
     policy = resolve_tool_policy(None, "stdio")
-    assert policy.enforced is False
+    assert policy.enforced is True
+    assert policy.allowed == frozenset()
 
 
 @pytest.mark.parametrize("raw", ["", "   ", " , ", ",,,"])
@@ -174,12 +175,12 @@ async def test_http_default_leaves_only_read_tools(all_flags_on):
 
 
 @pytest.mark.asyncio
-async def test_stdio_default_removes_nothing(all_flags_on):
+async def test_stdio_default_removes_writers(all_flags_on):
     mcp = _registry()
     before = await _names(mcp)
     removed = await apply_tool_policy(mcp, resolve_tool_policy(None, "stdio"))
-    assert removed == []
-    assert await _names(mcp) == before
+    assert set(removed) == before & SIDE_EFFECT
+    assert await _names(mcp) == before & READ
 
 
 @pytest.mark.asyncio
@@ -334,14 +335,14 @@ def test_stdio_none_server_says_read_only_without_local_install_hint(monkeypatch
     assert "install" not in text.lower(), "a stdio server is already local"
 
 
-def test_stdio_default_server_adds_no_policy_instructions(monkeypatch):
+def test_stdio_default_server_explains_read_only(monkeypatch):
     mcp = _served_server(monkeypatch, [], {"CANVAS_API_TOKEN": "x" * 24})
-    assert not mcp.instructions
+    assert "read-only" in (mcp.instructions or "")
 
 
-def test_main_stdio_default_keeps_writes(monkeypatch):
+def test_main_stdio_default_removes_writes(monkeypatch):
     names = _served_registry(monkeypatch, [], {"CANVAS_API_TOKEN": "x" * 24})
-    assert "send_conversation" in names
+    assert "send_conversation" not in names
 
 
 def test_main_stdio_none_removes_writes(monkeypatch):

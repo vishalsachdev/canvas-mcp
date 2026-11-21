@@ -145,3 +145,13 @@ internal/hosted-spec-draft/
 # Operator briefs and local execution workspaces must not enter source packages.
 /BRIEF.md
 /.superpowers/
+
+# Local sensitive artifacts; do not publish.
+/_agent-inbox/2026-10-20-rat-stack-code-mode-boundary.md
+/_agent-inbox/2026-10-23-formal-verification-80-20-audit.md
+/_agent-inbox/2026-10-27-plato-tool-manifest-idea.md
+/_agent-inbox/2026-11-07-claude-mem-auto-memory-review-plan.md
+/_agent-inbox/2026-11-09-graphify-local-trial.md
+/_agent-inbox/done/2026-10-19-harness2-for-canvas-skills.md
+/_agent-inbox/done/2026-10-23-security-release-followups.md
+/_agent-inbox/done/2026-10-31-integrate-accessibility-pr552.md

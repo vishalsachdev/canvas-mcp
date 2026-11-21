@@ -1,6 +1,6 @@
 ---
 name: canvas-bulk-grading
-description: Bulk grading workflows for Canvas LMS assignments using rubrics. Covers single grading, batch grading, and code execution strategies with safety-first dry runs.
+description: Use when an educator asks to grade an assignment, apply a rubric to submissions, bulk grade, or dry-run grades before posting them.
 ---
 
 # Canvas Bulk Grading
@@ -61,6 +61,7 @@ How many submissions need grading?
 |
 +-- 30+ submissions OR custom grading logic needed
     Use execute_typescript with bulkGrade function
+    Only if the operator enabled it (off by default); it bypasses preview/confirm, so get approval first
     Grading logic runs locally; only selected output returns to the model
     Pass dryRun: true on the first run
 ```
