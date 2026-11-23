@@ -13,8 +13,7 @@ Every registered tool is classified here by what it can change. Read tools are
 always available. Tools with side effects are available only when the operator
 allows them through ``ALLOWED_WRITE_TOOLS``:
 
-- unset: on the HTTP transport, none (the hosted default is read-only); on
-  stdio, everything, which is the behaviour before this policy existed
+- unset: no side-effect tools on either HTTP or stdio (read-only by default)
 - set but empty (blank, spaces or only commas): the same as ``none``
 - ``none``: no side-effect tools on either transport
 - ``all``: every Canvas-write and local-write tool, but NOT code execution
@@ -226,9 +225,7 @@ def resolve_tool_policy(raw: str | None, transport: Transport) -> ToolPolicy:
             allowing, or ``none`` combined with anything else.
     """
     if raw is None:
-        if transport == "http":
-            return ToolPolicy(True, frozenset(), "default for the HTTP transport (read-only)")
-        return ToolPolicy(False, SIDE_EFFECT_TOOLS, "default for the stdio transport")
+        return ToolPolicy(True, frozenset(), f"default for the {transport} transport (read-only)")
 
     names = {part.strip() for part in raw.replace(",", " ").split() if part.strip()}
     if not names:
@@ -304,7 +301,7 @@ def policy_notice(
     if transport == "http":
         text += (
             " To make changes through an assistant, the user can run Canvas MCP "
-            "locally with their own Canvas token."
+            "locally with their own Canvas token and an explicit ALLOWED_WRITE_TOOLS allowlist."
         )
     return text
 
