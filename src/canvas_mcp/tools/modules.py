@@ -72,7 +72,8 @@ def register_shared_module_tools(mcp: FastMCP) -> None:
             name = module.get("name", "Unnamed")
             position = module.get("position", 0)
             state = module.get("state", "unknown")
-            published = module.get("published", False)
+            published = module.get("published")
+            publication = 'Yes' if published is True else 'No' if published is False else 'Unknown'
             items_count = module.get("items_count", 0)
             unlock_at = module.get("unlock_at")
             require_sequential = module.get("require_sequential_progress", False)
@@ -82,7 +83,7 @@ def register_shared_module_tools(mcp: FastMCP) -> None:
             result += f"**{fence_untrusted_inline(name, 'module name')}**\n"
             result += f"  ID: {module_id}\n"
             result += f"  Position: {position}\n"
-            result += f"  Status: {state} | Published: {'Yes' if published else 'No'}\n"
+            result += f"  Status: {state} | Published: {publication}\n"
             result += f"  Items: {items_count}\n"
 
             if unlock_at:
@@ -142,26 +143,27 @@ def register_shared_module_tools(mcp: FastMCP) -> None:
         item_types: dict[str, int] = {}
 
         for module in modules:
-            module_published = module.get("published", False)
+            # Student responses can omit this field. Unknown is not a draft.
+            module_published = module.get("published")
 
             # Skip unpublished modules if not requested
-            if not include_unpublished and not module_published:
+            if not include_unpublished and module_published is False:
                 continue
 
-            if not module_published:
+            if module_published is False:
                 unpublished_modules += 1
 
             raw_items = module.get("items", [])
             filtered_items = []
 
             for item in raw_items:
-                item_published = item.get("published", True)
+                item_published = item.get("published")
 
                 # Skip unpublished items if not requested
-                if not include_unpublished and not item_published:
+                if not include_unpublished and item_published is False:
                     continue
 
-                if not item_published:
+                if item_published is False:
                     unpublished_items += 1
 
                 item_type = item.get("type", "Unknown")
