@@ -155,6 +155,7 @@ READ_TOOL_CONTENT_POLICIES: dict[str, ReadToolContentPolicy] = {
     "list_peer_reviews": _fenced("fence_untrusted_inline"),
     "list_quizzes": _fenced("fence_untrusted_inline"),
     "list_planner_notes": _fenced("_format_note"),
+    "list_planner_items": _fenced("_format_planner_item"),
     "list_rubrics": _fenced("fence_untrusted_inline"),
     "list_submissions": _fenced("fence_untrusted"),
     "list_users": _fenced("fence_untrusted_inline"),

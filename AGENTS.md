@@ -32,9 +32,9 @@ Reduce tool overhead by setting a role-based profile. Only tools relevant to the
 
 ```
 # In .env:
-CANVAS_ROLE=student    # 51 tools by default (student + shared), 62 with every student write tool enabled
+CANVAS_ROLE=student    # 52 tools by default (student + shared), 63 with every student write tool enabled
 CANVAS_ROLE=educator   # 96 tools by default, 98 with every gated tool enabled
-CANVAS_ROLE=all        # Default profile; 115 tools by default, 128 with all feature-gated tools enabled
+CANVAS_ROLE=all        # Default profile; 116 tools by default, 129 with all feature-gated tools enabled
 ```
 
 Or via CLI flag: `canvas-mcp-server --role student` (CLI flag takes precedence over env var).
@@ -70,6 +70,7 @@ before every call and refuse other groups even when Canvas would allow the read.
 | `list_calendar_events` | Calendar across courses, personal and group calendars: events and due dates |
 | `get_calendar_event` | One calendar event in full |
 | `list_planner_notes` | Your own planner notes (personal to-dos) in a date window |
+| `list_planner_items` | Complete daily workload: assignment deadlines, instructor-created Pages and ungraded discussions scheduled through to-do dates, personal notes and other planner items. Defaults to the whole current day in your Canvas profile time zone. Prefer for "What do I have to do today?"; labels deadlines and scheduled to-dos separately. Fetches every page; optional course, timezone, and incomplete-only filters. |
 | `find_message_recipients` | Find instructors, TAs or classmates you can message in a course, with their user IDs (non-staff names pseudonymised while anonymization is on, and a name search then returns staff only) |
 
 ### Student Write Tools (off by default)

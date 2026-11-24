@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `list_planner_items` exposes the complete local-day workload, including instructor-created reading Pages and ungraded discussions with to-do dates, with deadlines, scheduling, and completion labelled separately.
+
+
 ## [1.19.0] — 2026-11-20
 
 ### Changed

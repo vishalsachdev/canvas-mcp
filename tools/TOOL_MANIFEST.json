@@ -4239,6 +4239,57 @@
       "notes": "Never cut; declares anthropic/maxResultSizeChars=500000 so Claude Code delivers the whole result."
     },
     {
+      "name": "list_planner_items",
+      "category": "student",
+      "description": "Complete daily workload: assignment deadlines, instructor-created Page and discussion to-do dates, personal notes, and other planner items",
+      "parameters": [
+        {
+          "name": "start_date",
+          "type": "string",
+          "required": false,
+          "description": "YYYY-MM-DD or ISO timestamp with offset; default local midnight today"
+        },
+        {
+          "name": "end_date",
+          "type": "string",
+          "required": false,
+          "description": "Inclusive date or exclusive ISO timestamp with offset"
+        },
+        {
+          "name": "days",
+          "type": "integer",
+          "required": false,
+          "description": "Whole local days when end_date is omitted, 1-366",
+          "default": 1
+        },
+        {
+          "name": "course_identifier",
+          "type": "string | integer",
+          "required": false,
+          "description": "Optional course code or Canvas ID"
+        },
+        {
+          "name": "timezone",
+          "type": "string",
+          "required": false,
+          "description": "IANA zone; defaults to Canvas profile time_zone"
+        },
+        {
+          "name": "incomplete_only",
+          "type": "boolean",
+          "required": false,
+          "description": "Exclude completed/submitted/excused items",
+          "default": false
+        }
+      ],
+      "returns": "All pages of planner items in local date order, labelled by kind, with course, dates, completion/submission status, IDs and URLs",
+      "examples": [
+        "What do I have to do today?",
+        "What readings are scheduled this week?"
+      ],
+      "notes": "Read-only and self-scoped. Defaults to the whole current local day, handles DST, and distinguishes course to-dos from assignment deadlines."
+    },
+    {
       "name": "list_planner_notes",
       "category": "student",
       "description": "List your own planner notes (personal to-do items) in a date window",

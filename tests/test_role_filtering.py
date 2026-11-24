@@ -22,6 +22,7 @@ STUDENT_ONLY_TOOLS = {
     "list_calendar_events",
     "get_calendar_event",
     "list_planner_notes",
+    "list_planner_items",
     # Read-only quiz awareness; registered only for the student profile.
     "list_quizzes",
     "get_quiz_details",
@@ -276,11 +277,11 @@ class TestRoleFiltering:
 
     @pytest.mark.asyncio
     async def test_student_tool_count(self):
-        """Student role should have 51 tools (no write tools enabled)."""
+        """Student role should have 52 tools (no write tools enabled)."""
         mcp = FastMCP(name="test-student")
         register_all_tools(mcp, role="student")
         tools = await _get_tool_names(mcp)
-        assert len(tools) == 51, f"Expected 51 student tools, got {len(tools)}: {sorted(tools)}"
+        assert len(tools) == 52, f"Expected 52 student tools, got {len(tools)}: {sorted(tools)}"
 
     @pytest.mark.asyncio
     async def test_educator_tool_count(self):
