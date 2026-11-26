@@ -46,6 +46,14 @@ def test_staging_drops_every_ignored_path_and_keeps_the_site(project: Path):
     assert ".assetsignore" not in staged
 
 
+def test_staging_drops_the_impact_data_file(project: Path):
+    # impact.json carries PyPI download counts, which must never be published; only local scripts read it.
+    assert (project / "docs/data/impact.json").is_file()
+    result = dry_run(project)
+    assert result.returncode == 0, result.stderr
+    assert not [p for p in result.stdout.split("\n") if p.startswith("data/")]
+
+
 def test_refuses_to_deploy_when_an_ignored_path_is_staged(project: Path, tmp_path_factory):
     # An rsync that ignores --exclude-from stands in for any staging step that lets a path through.
     fake = tmp_path_factory.mktemp("bin") / "rsync"
@@ -55,6 +63,29 @@ def test_refuses_to_deploy_when_an_ignored_path_is_staged(project: Path, tmp_pat
     assert result.returncode != 0
     assert "Refusing to deploy" in result.stderr
     assert "superpowers" in result.stderr and "ops.local.md" in result.stderr
+
+
+
+def test_refuses_to_deploy_if_data_exclusion_is_bypassed(project: Path, tmp_path_factory):
+    # Simulate a staging regression where only the data/ rule is accidentally ignored.
+    # All other ignore rules continue to work, so the failure must be for data/.
+    real_rsync = shutil.which("rsync")
+    assert real_rsync is not None
+    fake = tmp_path_factory.mktemp("bin-data") / "rsync"
+    fake.write_text(
+        "#!/bin/bash\n"
+        "set -euo pipefail\n"
+        'tmp="$(mktemp)"\n'
+        'trap \'rm -f "$tmp"\' EXIT\n'
+        'grep -v "^data/$" "${2#--exclude-from=}" > "$tmp"\n'
+        f'"{real_rsync}" -a --exclude-from="$tmp" --exclude=.assetsignore "${{@: -2:1}}" "${{@: -1}}"\n',
+        encoding="utf-8",
+    )
+    fake.chmod(0o755)
+    result = dry_run(project, {"PATH": f"{fake.parent}{os.pathsep}{os.environ['PATH']}"})
+    assert result.returncode != 0
+    assert "Refusing to deploy; excluded paths are staged: data" in result.stderr
+    assert "triage" not in result.stderr and "superpowers" not in result.stderr
 
 
 def test_unsupported_ignore_syntax_is_refused(project: Path):

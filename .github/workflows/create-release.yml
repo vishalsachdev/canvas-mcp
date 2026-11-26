@@ -135,6 +135,10 @@ jobs:
           # Create release body
           echo "## What's New in ${TAG_NAME}" > release_body.md
           echo "" >> release_body.md
+          if [ "$TAG_NAME" = "v1.19.0" ]; then
+            cat .github/release-notes/v1.19.0.md >> release_body.md
+            echo "" >> release_body.md
+          fi
           echo "### Changes" >> release_body.md
           cat release_notes.txt >> release_body.md
           echo "" >> release_body.md

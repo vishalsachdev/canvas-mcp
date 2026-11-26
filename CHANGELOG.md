@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.19.0] — 2026-11-20
+
+### Changed
+
+- **Breaking: local (stdio) servers are read-only unless `ALLOWED_WRITE_TOOLS` is set.** Before, an unset allowlist kept every registered tool on stdio. Now both transports start with no tool that changes anything. To keep writing locally, set `ALLOWED_WRITE_TOOLS` to the tools you use (for example, `edit_page_content` for edits to existing pages). See the [client migration guide](README.md#enable-specific-write-tools) for setup and verification.
+- The Claude Desktop extension (`.mcpb`) has a new **Allowed write tools** setting, passed to the server as `ALLOWED_WRITE_TOOLS`. Its default, `none`, keeps the extension read-only. To enable a write tool, enter its exact name and restart the client.
+- The issue auto-label workflow runs only for issues opened by the repository owner.
+
 ### Fixed
 
 - **`get_my_upcoming_assignments` reports excused, graded and missing work with its own status.** The tool read only the `submitted` flag of each Planner item, so an item the student was excused from, and an item graded with no Canvas submission (work done in class or on paper), showed as "Not Submitted". The status now reads `Submitted`, `Excused`, `Missing` or `Graded` from the same Planner payload, with no extra request. An item that Canvas flags as both graded and missing shows as `Missing`. Contributed by @dota-devy (#587).
