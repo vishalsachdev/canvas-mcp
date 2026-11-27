@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Student-visible modules with omitted publication metadata remain visible instead of being treated as unpublished. Course overviews retain syllabus link destinations and report unavailable Pages and Modules indexes.
+
+
 ## [1.19.0] — 2026-11-20
 
 ### Changed

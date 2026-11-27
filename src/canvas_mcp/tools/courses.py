@@ -3,6 +3,7 @@
 import re
 from html.parser import HTMLParser
 from typing import Any
+from urllib.parse import urlparse
 
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -27,13 +28,14 @@ from ..core.guarded_edit import (
     check_require,
     validate_guard,
 )
-from ..core.html import strip_html_tags
+from ..core.html import iter_html_tags, strip_html_tags, unescape_html
 from ..core.tool_results import FULL_CONTENT_TOOL_META
 from ..core.untrusted_content import (
     FENCE_LEAK_ERROR,
     contains_fence_markers,
     fence_untrusted,
     fence_untrusted_inline,
+    format_canvas_error,
 )
 from ..core.validation import numeric_id_error, page_slug_error, validate_params
 from ..core.write_confirmation import (
@@ -47,6 +49,24 @@ from .self_identity import _own_roles
 # get_course_content_overview counts module items for this many modules only,
 # to bound API calls; the output states the cap whenever it applies.
 MODULE_ITEM_ANALYSIS_LIMIT = 10
+
+
+def _syllabus_links(body: str) -> list[str]:
+    """Keep destinations using the same bounded tokenizer as text extraction."""
+    links: list[str] = []
+    seen: set[str] = set()
+    for tag in iter_html_tags(body):
+        if tag.name != 'a' or tag.closing or 'href' not in tag.attributes:
+            continue
+        href = unescape_html(tag.attributes['href'].value)
+        try:
+            scheme = urlparse(href).scheme.lower()
+        except ValueError:
+            continue
+        if href and scheme in ('', 'http', 'https', 'mailto') and href not in seen:
+            seen.add(href)
+            links.append(href)
+    return links
 
 # Replacing a syllabus that already has content destroys the only copy Canvas
 # keeps -- syllabus_body carries no revision history, unlike a wiki page. So
@@ -428,6 +448,9 @@ def register_course_tools(mcp: FastMCP) -> None:
                         )
 
                 overview_sections.append("\n".join(pages_summary))
+            else:
+                detail = pages.get('error', 'invalid response') if isinstance(pages, dict) else 'invalid response'
+                overview_sections.append(f"\nPages unavailable: {format_canvas_error(detail)}")
 
         # Get modules if requested
         if include_modules:
@@ -501,6 +524,9 @@ def register_course_tools(mcp: FastMCP) -> None:
                         )
 
                 overview_sections.append("\n".join(modules_summary))
+            else:
+                detail = modules.get('error', 'invalid response') if isinstance(modules, dict) else 'invalid response'
+                overview_sections.append(f"\nModules unavailable: {format_canvas_error(detail)}")
 
         # Get syllabus content if requested
         if include_syllabus:
@@ -537,6 +563,13 @@ def register_course_tools(mcp: FastMCP) -> None:
                             "  (Preview of the first 1000 characters; get_syllabus "
                             "returns the complete syllabus.)"
                         )
+
+                    links = _syllabus_links(syllabus_body)
+                    if links:
+                        syllabus_summary.append(fence_untrusted(
+                            'Links in syllabus:\n' + '\n'.join(links),
+                            'syllabus link destinations',
+                        ))
 
                     overview_sections.append("\n".join(syllabus_summary))
                 else:
@@ -845,7 +878,8 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
             content_id = item.get("content_id")
             url = item.get("url", "")
             external_url = item.get("external_url", "")
-            published = item.get("published", False)
+            published = item.get("published")
+            publication = 'Yes' if published is True else 'No' if published is False else 'Unknown'
 
             result += f"Item: {fence_untrusted_inline(title, 'module item title')}\n"
             result += f"Type: {item_type}\n"
@@ -856,7 +890,7 @@ def register_shared_content_tools(mcp: FastMCP) -> None:
                 result += f"URL: {url}\n"
             if external_url:
                 result += f"External URL: {external_url}\n"
-            result += f"Published: {'Yes' if published else 'No'}\n\n"
+            result += f"Published: {publication}\n\n"
 
         return result
 
