@@ -762,6 +762,23 @@ def test_malformed_submission_booleans_are_refused(field):
         gc.build_grade_model([_group(assignments=[assignment])])
 
 
+@pytest.mark.parametrize("field", ["excused", "missing", "late"])
+def test_null_submission_booleans_count_as_false(field):
+    # Canvas sends excused: null on "grade incomplete" submissions.
+    assignment = {"id": 101, "points_possible": 10,
+                  "submission": {"score": 7, "workflow_state": "graded", field: None}}
+    _, items = gc.build_grade_model([_group(assignments=[assignment])])
+    assert items[0].score == 7
+    assert not items[0].excused
+
+
+@pytest.mark.parametrize("field", ["published", "omit_from_final_grade"])
+def test_null_assignment_booleans_count_as_absent(field):
+    assignment = {"id": 101, "points_possible": 10, field: None}
+    _, items = gc.build_grade_model([_group(assignments=[assignment])])
+    assert [item.assignment_id for item in items] == ["101"]
+
+
 @pytest.mark.parametrize("field", ["published", "omit_from_final_grade"])
 def test_malformed_assignment_booleans_are_refused(field):
     assignment = {"id": 101, "points_possible": 10, field: "false"}
