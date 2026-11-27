@@ -783,9 +783,10 @@ def _drop_count(rules: Mapping[str, Any], key: str, group_id: str) -> int:
 
 
 def _check_boolean_fields(payload: Mapping[str, Any], fields: Sequence[str], label: str) -> None:
-    """Reject malformed flags instead of treating text such as 'false' as true."""
+    """Reject malformed flags instead of treating text such as 'false' as true.
+    A null flag counts as absent: Canvas sends ``excused: null`` on incomplete grades."""
     for field in fields:
-        if field in payload and not isinstance(payload[field], bool):
+        if payload.get(field) is not None and not isinstance(payload[field], bool):
             raise MalformedGradeData(f"{label} {field} is not a boolean: {payload[field]!r}")
 
 
