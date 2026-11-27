@@ -212,6 +212,28 @@ One calendar event in full, including description and address.
 
 ---
 
+#### `list_planner_items`
+Use for **"What do I have to do today?"** Complete planner coverage across your
+courses: assignment deadlines, instructor-created reading Pages and ungraded
+discussions with to-do dates, personal planner notes, and other planner types.
+Each item is labelled by kind, with course, schedule, completion/submission
+status, ID, and link. A Page to-do is not an assignment-submission deadline.
+
+**Parameters:**
+- `start_date` (optional): YYYY-MM-DD or timestamp with an offset; defaults to local midnight today
+- `end_date` (optional): Inclusive YYYY-MM-DD or exclusive timestamp with an offset
+- `days` (optional): Whole local days from start when end is omitted, default 1, max 366
+- `course_identifier` (optional): Course code or Canvas ID
+- `timezone` (optional): IANA zone such as America/Los_Angeles; defaults to your Canvas profile time zone
+- `incomplete_only` (optional): Exclude completed/submitted/excused work; default false shows all items with status
+
+Fetches every page, handles daylight-saving transitions, includes earlier items
+today, and reports errors rather than claiming an empty workload. The narrower
+`get_my_todo_items`, `get_my_upcoming_assignments`, and `list_planner_notes` tools
+do not replace this daily workload listing.
+
+---
+
 #### `list_planner_notes`
 Your own planner notes (the personal to-do items in the Canvas planner).
 

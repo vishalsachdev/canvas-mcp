@@ -49,6 +49,7 @@ EXTRA_ARGS: dict[str, dict[str, Any]] = {
     "send_bulk_messages_from_list": {"recipient_data": [{"user_id": "5", "name": "N"}]},
     "submit_assignment": {"submission_type": "online_text_entry", "body": "x"},
     "create_planner_note": {"todo_date": "2026-11-10"},
+    "list_planner_items": {"timezone": "America/Los_Angeles"},
     "update_planner_note": {"title": "x"},
     "mark_planner_item_complete": {"plannable_type": "assignment"},
     "send_message": {"recipient_ids": ["5"]},

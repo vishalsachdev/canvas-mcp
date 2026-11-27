@@ -159,6 +159,9 @@ def register_student_tools(mcp: FastMCP) -> None:
     async def get_my_upcoming_assignments(days: int = 7) -> str:
         """Get your upcoming assignments across all courses.
 
+        For complete daily workload, including reading Pages and ungraded
+        discussions scheduled through to-do dates, use list_planner_items.
+
         Args:
             days: Number of days to look ahead (default: 7)
         """
@@ -443,7 +446,11 @@ def register_student_tools(mcp: FastMCP) -> None:
 
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
     async def get_my_todo_items() -> str:
-        """Get your Canvas TODO list."""
+        """Get the narrower Canvas dashboard TODO feed.
+
+        For "What do I have to do today?", use list_planner_items: it also
+        includes instructor-created reading Pages with to-do dates.
+        """
         todos = await fetch_all_paginated_results(
             "/users/self/todo",
             params={"per_page": 100}

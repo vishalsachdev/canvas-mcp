@@ -17,7 +17,7 @@ Generate a comprehensive weekly plan for a student, showing all upcoming assignm
 
 ### 1. Get Upcoming Assignments
 
-Call the MCP tool `get_my_upcoming_assignments` with `days=7` to retrieve all assignments due in the next week.
+Call `list_planner_items(days=7)` for the complete week beginning at local midnight today. Include instructor-created reading Pages and ungraded discussions with to-do dates alongside assignment deadlines. Label scheduled to-dos separately from submission deadlines and retain completion status. Use `get_my_upcoming_assignments` for additional assignment-focused details; deduplicate items by course and object identity.
 
 **Data to collect per assignment:**
 - Assignment name
@@ -113,7 +113,8 @@ Need more details? I can:
 
 | Tool | Purpose |
 |------|---------|
-| `get_my_upcoming_assignments` | Fetch assignments due within a time window |
+| `list_planner_items` | Complete workload, including readings with to-do dates |
+| `get_my_upcoming_assignments` | Assignment-focused view within a time window |
 | `get_my_submission_status` | Check submitted vs. not submitted |
 | `get_my_course_grades` | Retrieve current grades per course |
 | `get_my_peer_reviews_todo` | Find pending peer review tasks |
