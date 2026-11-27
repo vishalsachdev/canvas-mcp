@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Grade tools no longer fail a whole course when Canvas sends a null flag.** Canvas returns `excused: null` on "grade incomplete" submissions, and the grade model refused any flag that was not `true` or `false`, so `get_my_assignment_scores` and the other tools built on it failed with `MalformedGradeData` for every assignment in the course. A null `excused`, `missing`, `late`, `published` or `omit_from_final_grade` now counts as absent; text such as `"false"` is still refused. Reported by @kommade (#609).
+
 ## [1.19.0] — 2026-11-20
 
 ### Changed
